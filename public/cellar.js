@@ -215,6 +215,8 @@ export function createCellar() {
         </div>`).join('')}</div>
       <p class="muted">Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'} · Free disk: ${hw?.freeGB ?? '?'} GB</p>
       <p><button data-welcome>Run the first-time setup again</button></p>
+      <div class="remove-bob"><strong>Remove Bob</strong><p class="muted">Takes Bob off this PC: his program, his Start menu shortcut and "Launch on start-up". Your notes and the models he downloaded stay unless you tick them below. Bob adds no services and nothing else to Windows.</p>
+        <button data-removebob>Remove Bob…</button><div class="remove-confirm" hidden></div></div>
       <p class="muted">Bob ${esc(settings.version?.label || '')}</p>
     </section>`;
   }
@@ -263,6 +265,23 @@ export function createCellar() {
     try {
       if (tab === 'style' && mode === 'shop' && await stylePage.onClick(b, settings)) return;
       if (b.dataset.sampleEngine) { sampler.play(b); return; }
+      if (b.dataset.removebob !== undefined) {
+        const box = dlg.querySelector('.remove-confirm');
+        const pl = await api('/api/uninstall');
+        box.hidden = false;
+        box.innerHTML = pl.canRun ? `<p>Remove Bob from <code>${esc(pl.app)}</code>? Bob closes, and a small window finishes the job.</p>
+          ${pl.inn ? `<label class="switch"><input type="checkbox" data-rmnotes><span>Also delete his notes, chats and settings (<code>${esc(pl.inn)}</code>)</span></label>` : ''}
+          ${pl.models ? `<label class="switch"><input type="checkbox" data-rmmodels><span>Also delete the models he downloaded (<code>${esc(pl.models)}</code>)</span></label>` : ''}
+          <div class="row"><button class="danger" data-rmyes>Yes, remove Bob</button><button data-rmno>Cancel</button></div>` : `<p class="muted">${esc(pl.why)}</p>`;
+        return;
+      }
+      if (b.dataset.rmno !== undefined) { const box = dlg.querySelector('.remove-confirm'); box.hidden = true; box.innerHTML = ''; return; }
+      if (b.dataset.rmyes !== undefined) {
+        b.disabled = true;
+        const r = await api('/api/uninstall', { confirm: 'remove', notes: Boolean(dlg.querySelector('[data-rmnotes]')?.checked), models: Boolean(dlg.querySelector('[data-rmmodels]')?.checked) });
+        dlg.querySelector('.remove-confirm').innerHTML = `<p>Removing Bob${r.removes?.inn ? ', his notes' : ''}${r.removes?.models ? ', his models' : ''}. Bob closes now.</p>`;
+        return;
+      }
       if (b.dataset.usevoice) { const r = await api('/api/settings', { tts: { voice: b.dataset.usevoice } }); settings.tts = { ...settings.tts, ...r.tts }; draw(); return; }
       if (b.dataset.tab) { sampler.stop(); tab = b.dataset.tab; draw(); }
       else if (b.dataset.get) confirmBox(b.closest('.model'), data.models.find((m) => m.id === b.dataset.get));

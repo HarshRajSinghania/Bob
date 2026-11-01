@@ -69,6 +69,18 @@ Fonts: IBM Plex Mono is bundled in `public/fonts` under the SIL Open Font Licens
 
 The server has no runtime dependencies; `node src/server.js` runs it on its own for development.
 
+## Removing Bob
+
+**From Bob:** Models & settings, Settings, **Remove Bob…**. After you confirm, Bob closes and a small window removes his program folder (`Bob app`), the Start menu shortcut, the "Launch on start-up" entry (if you turned it on) and his window data (`%APPDATA%\Bob`). Two boxes, unticked by default, also delete his notes, chats and settings (the `inn` folder) and the models he downloaded (`models\bob`).
+
+**By hand:** turn off "Launch on start-up" in Settings first (or remove Bob under Task Manager, Startup apps), close Bob, then delete:
+
+- the `Bob app` folder (or wherever `Bob.exe` is), and `Bob.lnk` in the Start menu (`%APPDATA%\Microsoft\Windows\Start Menu\Programs`)
+- `%APPDATA%\Bob` (window data)
+- if you don't want them any more: Bob's home folder (by default `%LOCALAPPDATA%\Bob`; it holds `inn`, his models and `config.json`)
+
+Bob installs no services, drivers or scheduled tasks and needs no admin rights. The only thing he puts in the registry is Windows' own "start-up app" entry, and only if you turn on "Launch on start-up". Engines and models live inside his folders. Ollama, ComfyUI or Pinokio, if you installed them yourself, are separate programs with their own uninstallers.
+
 ## Licence
 
 - Code: GNU GPL, version 3 or later ([LICENSE](LICENSE)).

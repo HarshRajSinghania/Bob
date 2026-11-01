@@ -14,6 +14,7 @@ import { say, KOKORO_VOICES, stopVoices } from './tts.js';
 process.on('exit', () => stopVoices()); // never leave a voice holding the graphics card
 import { workshopDir, listWorkflows, ensureWorkshop } from './workshop.js';
 import { SESSIONS, currentSession, sessionBrains } from './sessions.js';
+import { plan as uninstallPlan, startUninstall } from './uninstall.js';
 import { voiceList, publicView, sampleFor, clearSamples } from './voice-samples.js';
 import { checkUpdate, startUpdate, updateStatus, requestRestart } from './update.js';
 
@@ -263,6 +264,22 @@ const server = http.createServer(async (req, res) => {
       if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' });
       const { when } = await body(req);
       try { return send(res, 200, requestRestart(cfg, when)); } catch (e) { return send(res, 409, { error: e.message }); }
+    }
+    // "Remove Bob" (Settings): only on the PC itself, after the window's confirm.
+    if (req.method === 'GET' && p === '/api/uninstall') { const pl = uninstallPlan(cfg); return send(res, 200, { canRun: pl.canRun, why: pl.why, app: pl.app, inn: pl.inn, models: pl.models }); }
+    if (req.method === 'POST' && p === '/api/uninstall') {
+      if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' });
+      const { confirm, notes, models } = await body(req);
+      if (confirm !== 'remove') return send(res, 400, { error: 'Confirm first.' });
+      try {
+        if (autostartOn()) await setAutostart(cfg, false); // take the login item away before the program goes
+        const r = startUninstall(cfg, { notes: notes === true, models: models === true });
+        brain.log('settings', `removing Bob (notes ${notes === true}, models ${models === true})`);
+        brain.broadcast({ type: 'announce', text: 'Packing up. A small window finishes removing me once I have closed. It was a pleasure.' });
+        send(res, 200, r);
+        setTimeout(() => (globalThis.bobQuit ? globalThis.bobQuit() : process.exit(0)), 1500);
+        return;
+      } catch (e) { return send(res, 409, { error: e.message }); }
     }
     if (req.method === 'POST' && (p === '/api/update/start' || p === '/api/quit')) {
       if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' });
