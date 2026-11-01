@@ -215,7 +215,7 @@ export function createCellar() {
         </div>`).join('')}</div>
       <p class="muted">Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'} · Free disk: ${hw?.freeGB ?? '?'} GB</p>
       <p><button data-welcome>Run the first-time setup again</button></p>
-      <div class="remove-bob"><strong>Remove Bob</strong><p class="muted">Takes Bob off this PC: his program, his Start menu shortcut and "Launch on start-up". Your notes and the models he downloaded stay unless you tick them below. Bob adds no services and nothing else to Windows.</p>
+      <div class="remove-bob"><strong>Remove Bob</strong><p class="muted">Takes Bob off this PC: his program, his Start menu shortcut and "Launch on start-up". His chats, settings and the models he downloaded stay unless you tick them below. The rest of the inn folder is never removed. Bob adds no services and nothing else to Windows.</p>
         <button data-removebob>Remove Bob…</button><div class="remove-confirm" hidden></div></div>
       <p class="muted">Bob ${esc(settings.version?.label || '')}</p>
     </section>`;
@@ -270,8 +270,8 @@ export function createCellar() {
         const pl = await api('/api/uninstall');
         box.hidden = false;
         box.innerHTML = pl.canRun ? `<p>Remove Bob from <code>${esc(pl.app)}</code>? Bob closes, and a small window finishes the job.</p>
-          ${pl.inn ? `<label class="switch"><input type="checkbox" data-rmnotes><span>Also delete his notes, chats and settings (<code>${esc(pl.inn)}</code>)</span></label>` : ''}
-          ${pl.models ? `<label class="switch"><input type="checkbox" data-rmmodels><span>Also delete the models he downloaded (<code>${esc(pl.models)}</code>)</span></label>` : ''}
+          ${pl.inn ? `<label class="switch"><input type="checkbox" data-rmnotes><span>Also delete everything in <code>${esc(pl.inn)}</code>: his chats, settings, task list and saved voice samples. They go to the Recycle Bin. The rest of the inn folder (notice board, logbook, pictures, other agents' files) stays.</span></label>` : ''}
+          ${pl.models ? `<label class="switch"><input type="checkbox" data-rmmodels><span>Also delete everything in <code>${esc(pl.models)}</code>: the models and engines he downloaded (to the Recycle Bin).</span></label>` : ''}
           <div class="row"><button class="danger" data-rmyes>Yes, remove Bob</button><button data-rmno>Cancel</button></div>` : `<p class="muted">${esc(pl.why)}</p>`;
         return;
       }
@@ -279,7 +279,7 @@ export function createCellar() {
       if (b.dataset.rmyes !== undefined) {
         b.disabled = true;
         const r = await api('/api/uninstall', { confirm: 'remove', notes: Boolean(dlg.querySelector('[data-rmnotes]')?.checked), models: Boolean(dlg.querySelector('[data-rmmodels]')?.checked) });
-        dlg.querySelector('.remove-confirm').innerHTML = `<p>Removing Bob${r.removes?.inn ? ', his notes' : ''}${r.removes?.models ? ', his models' : ''}. Bob closes now.</p>`;
+        dlg.querySelector('.remove-confirm').innerHTML = `<p>Removing Bob${r.removes?.inn ? ', his chats and settings' : ''}${r.removes?.models ? ', his models' : ''}. Bob closes now.</p>`;
         return;
       }
       if (b.dataset.usevoice) { const r = await api('/api/settings', { tts: { voice: b.dataset.usevoice } }); settings.tts = { ...settings.tts, ...r.tts }; draw(); return; }

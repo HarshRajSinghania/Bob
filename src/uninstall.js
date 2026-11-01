@@ -2,7 +2,9 @@
 //   - the Start menu shortcut (Bob.lnk) and the "Launch on start-up" login item, if it was on
 //   - the program folder (Bob app: Bob.exe, Electron's files and resources\app)
 //   - Electron's window data for Bob (%APPDATA%\Bob)
-//   - only if ticked: Bob's notes, chats and settings (the inn folder) and the models Bob downloaded (models\bob)
+//   - only if ticked: Bob's own data folder (inn\bob: chats, settings, task list, saved samples) and the
+//     models Bob downloaded (models\bob). The rest of the inn (notice board, logbook, pictures, other agents'
+//     files) is never removed.
 // Never touched: the source folder, the rest of the home folder (other apps' files in it), Ollama, ComfyUI.
 // Bob can't delete his own running program, so a small window (installer\bob-uninstall.ps1, copied to
 // %TEMP% first) waits for him to close and then does it.
@@ -14,6 +16,7 @@ import { spawn } from 'node:child_process';
 import { appDir } from './config.js';
 import { launchCommand, cleanEnv } from './update.js';
 
+const strictlyInside = (a, b) => Boolean(a && b) && path.resolve(a).toLowerCase().startsWith(path.resolve(b).toLowerCase() + path.sep);
 const isDir = (p) => { try { return fs.statSync(p).isDirectory(); } catch { return false; } };
 
 // The program folder: Bob.exe next to resources\app (this very copy of Bob).
@@ -27,8 +30,10 @@ export function plan(cfg, env = process.env) {
   const appData = env.APPDATA || '';
   const shortcut = appData ? path.join(appData, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Bob.lnk') : '';
   const electronData = appData ? path.join(appData, 'Bob') : '';
-  const inn = isDir(cfg.innDir) && path.basename(cfg.innDir).toLowerCase() === 'inn' ? cfg.innDir : '';
-  const models = isDir(cfg.bobModelsDir) ? cfg.bobModelsDir : '';
+  // Only Bob's own subfolders, each strictly inside a folder they belong to, and never a protected one.
+  const data = cfg.dataDir || (cfg.innDir ? path.join(cfg.innDir, 'bob') : '');
+  const inn = isDir(data) && path.basename(data).toLowerCase() === 'bob' && strictlyInside(data, cfg.innDir) && safeToRemove(data, cfg, { source: env.BOB_SOURCE || '' }) ? data : '';
+  const models = isDir(cfg.bobModelsDir) && path.basename(cfg.bobModelsDir).toLowerCase() === 'bob' && path.basename(path.dirname(cfg.bobModelsDir)).toLowerCase() === 'models' && safeToRemove(cfg.bobModelsDir, cfg, { source: env.BOB_SOURCE || '' }) ? cfg.bobModelsDir : '';
   const canRun = process.platform === 'win32' && Boolean(app);
   return {
     app, shortcut: shortcut && fs.existsSync(shortcut) ? shortcut : '', electronData: isDir(electronData) ? electronData : '', inn, models, canRun,
