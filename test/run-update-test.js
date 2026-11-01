@@ -135,5 +135,18 @@ check('Bob.exe hands its own folder to the swap', /args\.push\('-AppDir', exeDir
   const files = ['../src/update.js', '../electron/main.cjs'].map((f) => fs.readFileSync(new URL(f, import.meta.url), 'utf8')).join('\n');
   check('Windows fallback paths are escaped in JS (C:\\\\Windows, never C:\\Windows)', !/'C:\\[A-Za-z]/.test(files) && /'C:\\\\Windows'/.test(files));
 }
+{
+  // An install or update must never replace the user's own config.json (the repo ships only the example).
+  const main = fs.readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8');
+  const conf = fs.readFileSync(new URL('../src/config.js', import.meta.url), 'utf8');
+  const scripts = ['bob-build-window.ps1', 'bob-runtime.ps1', 'make-release.ps1', 'bob-shortcut.ps1'].map((f) => fs.readFileSync(new URL(`../installer/${f}`, import.meta.url), 'utf8')).join('\n');
+  const appFiles = ps.match(/\$AppFiles = @\(([^)]*)\)/)[1];
+  check('config.json is never among the files an install or update copies', !/'config\.json'/.test(appFiles) && /'config\.example\.json'/.test(appFiles));
+  check('no installer script writes, copies over or deletes a config.json', !scripts.split('\n').some((l) => /config\.json/i.test(l) && !/config\.example\.json/i.test(l) && /(Copy-Item|Move-Item|Remove-Item|Set-Content|Out-File|WriteAllText|Rename-Item)/i.test(l)));
+  check('Bob.exe makes config.json from the example only when there is none', /if \(!fs\.existsSync\(config\)\) fs\.copyFileSync\(path\.join\(root, 'config\.example\.json'\), config\)/.test(main));
+  check('running from source makes config.json from the example only when there is none', /!fs\.existsSync\(file\)\) fs\.copyFileSync\(path\.join\(appDir, 'config\.example\.json'\), file\)/.test(conf));
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  check('the official Electron zip checksum is pinned', /^[0-9a-f]{64}$/.test(pkg.bob.electronSha256));
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
