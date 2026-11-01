@@ -14,7 +14,7 @@ Windows 10 or 11, 64-bit. An NVIDIA graphics card helps a lot but isn't required
 
 **From source:** on Windows, double-click **Install Bob.cmd** in Bob's folder. Bob opens in his own window and gets a Start menu entry. There is no browser step and no "install as an app".
 
-How Bob runs (from 0.9.32): `Bob app\Bob.exe` is Electron's official `electron.exe`, unchanged and only renamed, and Bob's own files sit next to it in `Bob app\resources\app`. Windows Smart App Control already knows Electron's program, so it doesn't block Bob, which can happen to a freshly built exe. Updates only change Bob's files, never the exe.
+How Bob runs: `Bob app\Bob.exe` is Electron's official `electron.exe`, unchanged and only renamed, and Bob's own files sit next to it in `Bob app\resources\app`. Windows Smart App Control already knows Electron's program, so it doesn't block Bob, which can happen to a freshly built exe. Updates only change Bob's files, never the exe.
 
 The first time he opens, Bob suggests models for your graphics card. You pick, he downloads, and a progress bar shows every step.
 
@@ -102,4 +102,12 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 
 ### Versions
 
-Bob's version is `0.9.<build>`, for example `0.9.29`, with a letter for work that isn't merged yet (`0.9.29a`). The build number goes up with every drop and never resets. It is set in `package.json` (`version`, and `bob.release` / `bob.build`) and made in one place, `formatVersion` in `src/config.js`. The same label is used in the footer, the update check and git tags (`v0.9.29`). 1.0.0 is the first public release.
+Bob 1.0.0 is the first public release. From here the version is `<major>.<minor>.<patch>`:
+
+- **1.0.1, 1.0.2, ...** for fixes and small changes
+- **1.1.0, 1.2.0, ...** when new features arrive
+- **2.0.0** if something changes in a way that needs you to do something (for example, a new install)
+
+A letter marks work that isn't merged yet (`1.0.1a`). Before 1.0 the versions were `0.9.<build>` (0.9.1 to 0.9.36).
+
+It's set in `package.json`: `version`, and `bob.release` (`1.0`), `bob.patch` and `bob.build`. The build number goes up by one with every drop and never resets (1.0.0 is build 37), and "Check for a newer Bob" compares it, so any newer drop is offered whatever its label. `formatVersion` in `src/config.js` is the one place the label is made. The same label is used in the footer, the update check and git tags (`v1.0.0`).

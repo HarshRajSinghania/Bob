@@ -74,16 +74,19 @@ export function findExe(configured, dir, names) {
   return configured || path.join(dir, names[0]);
 }
 
-// Bob's version: 0.9.<build>, plus a letter for unmerged branch work (0.9.28a).
-// The build goes up with every drop and never resets; 1.0.0 is the first public release.
+// Bob's version. Before 1.0: 0.9.<build> (0.9.28, branch work 0.9.28a). From 1.0.0 (the first public
+// release): <release>.<patch>, so 1.0.0, 1.0.1 for fixes, 1.1.0 for new features (release "1.1", patch 0).
+// The build number goes up with every drop and never resets; it's what the update check compares, so
+// 1.0.0 (build 37) is newer than 0.9.36 (build 36). A letter marks unmerged branch work (1.0.1a).
 // This is the ONE place the label is made; package.json "version" must match it (a test checks).
-export function formatVersion({ release = '0.9', branch = '', build = 0 } = {}) {
-  return `${release}.${Number(build) || 0}${/^[a-z]$/.test(branch || '') ? branch : ''}`;
+export function formatVersion({ release = '0.9', branch = '', build = 0, patch } = {}) {
+  const last = patch !== undefined && patch !== null && patch !== '' ? Number(patch) || 0 : Number(build) || 0;
+  return `${release}.${last}${/^[a-z]$/.test(branch || '') ? branch : ''}`;
 }
 export const VERSION = (() => {
   try {
     const b = JSON.parse(fs.readFileSync(path.join(appDir, 'package.json'), 'utf8')).bob || {};
-    const v = { release: String(b.release || '0.9'), branch: /^[a-z]$/.test(b.branch || '') ? b.branch : '', build: Number(b.build) || 0 };
+    const v = { release: String(b.release || '0.9'), branch: /^[a-z]$/.test(b.branch || '') ? b.branch : '', build: Number(b.build) || 0, ...(b.patch !== undefined ? { patch: Number(b.patch) || 0 } : {}) };
     return { ...v, label: formatVersion(v) };
   } catch { return { release: '0.9', branch: '', build: 0, label: '0.9.0' }; }
 })();

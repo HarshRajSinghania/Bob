@@ -127,7 +127,20 @@ check('Bob.exe hands its own folder to the swap', /args\.push\('-AppDir', exeDir
 {
   const { formatVersion, VERSION } = await import('../src/config.js');
   const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-  check('version label is 0.9.<build> (and 0.9.<build><letter> on a branch)', formatVersion({ release: '0.9', build: 29 }) === '0.9.29' && formatVersion({ release: '0.9', build: 28, branch: 'a' }) === '0.9.28a');
+  check('version label is 0.9.<build> before 1.0 (and 0.9.<build><letter> on a branch)', formatVersion({ release: '0.9', build: 29 }) === '0.9.29' && formatVersion({ release: '0.9', build: 28, branch: 'a' }) === '0.9.28a');
+  check('from 1.0 the label is <release>.<patch> (1.0.0, 1.0.1, 1.1.0, 1.0.1a)', formatVersion({ release: '1.0', patch: 0, build: 37 }) === '1.0.0' && formatVersion({ release: '1.0', patch: 1, build: 38 }) === '1.0.1' && formatVersion({ release: '1.1', patch: 0, build: 40 }) === '1.1.0' && formatVersion({ release: '1.0', patch: 1, build: 38, branch: 'a' }) === '1.0.1a');
+  check('this is 1.0.0, build 37', VERSION.label === '1.0.0' && VERSION.build === 37 && pkg.version === '1.0.0');
+  {
+    // A 0.9.36 Bob sees 1.0.0 in the source folder as newer (the build number decides).
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-ver-'));
+    fs.mkdirSync(path.join(dir, 'installer')); fs.writeFileSync(path.join(dir, 'installer', 'bob-build-window.ps1'), '#');
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ bob: { release: '1.0', patch: 0, build: 37 } }));
+    const was = process.env.BOB_SOURCE; process.env.BOB_SOURCE = dir;
+    const c = checkUpdate();
+    check('the update check reads 1.0.0 from the source folder and compares by build', c.available.label === '1.0.0' && c.available.build === 37 && 37 > 36);
+    if (was === undefined) delete process.env.BOB_SOURCE; else process.env.BOB_SOURCE = was;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
   check('package.json "version" matches the label (git tag and the optional portable exe use it)', VERSION.label === pkg.version && /^Bob-\$\{version\}\.exe$/.test(pkg.build.portable.artifactName));
   check('the update check carries the same label', checkUpdate().current.label === VERSION.label && checkUpdate().available.label === '0.9.999');
 }

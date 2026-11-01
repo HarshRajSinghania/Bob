@@ -20,7 +20,7 @@ export const statusFile = (cfg) => path.join(cfg.dataDir, 'update-status.json');
 function versionOf(dir) {
   try {
     const p = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
-    const v = { release: String(p.bob?.release || ''), branch: String(p.bob?.branch || ''), build: Number(p.bob?.build) || 0 };
+    const v = { release: String(p.bob?.release || ''), branch: String(p.bob?.branch || ''), build: Number(p.bob?.build) || 0, ...(p.bob?.patch !== undefined ? { patch: Number(p.bob.patch) || 0 } : {}) };
     return { ...v, label: formatVersion(v) };
   } catch { return null; }
 }
