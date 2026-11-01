@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bob</title>
+  <meta name="theme-color" content="#2b1d14">
+  <link rel="icon" href="/icons/bob-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/icons/bob-192.png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="app">
+  <nav id="side" class="side" aria-label="Bob's menu">
+    <div class="side-top">
+      <canvas id="bob" width="56" height="56" aria-label="Bob"></canvas>
+      <div class="who"><div class="name">Bob</div><div id="status" class="status" role="status">Getting the fire going...</div></div>
+      <button id="foldLeft" type="button" class="fold" title="Fold the menu (Ctrl+B)" aria-label="Fold the menu" aria-expanded="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6"/></svg></button>
+    </div>
+    <button id="newchat" type="button" class="nav-new" title="Start a new conversation" aria-label="New chat"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">New chat</span><span class="short" aria-hidden="true">New</span></button>
+    <button id="chatBtn" type="button" class="nav-item on" title="Back to the chat" aria-label="Chat"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5h16v11H9l-5 4z"/></svg><span class="lbl">Chat</span><span class="short" aria-hidden="true">Chat</span></button>
+    <button id="tasksBtn" type="button" class="nav-item" title="Tasks: what Bob is doing, what is waiting, what is done" aria-label="Tasks"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5"/><circle cx="5" cy="18" r="1.3"/></svg><span class="lbl">Tasks</span><span class="short" aria-hidden="true">Tasks</span><span class="badge" hidden></span></button>
+    <button id="dlBtn" type="button" class="nav-item" title="Downloads: pause, resume, reorder" aria-label="Downloads"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v3h16v-3"/></svg><span class="lbl">Downloads</span><span class="short" aria-hidden="true">Downloads</span><span class="badge" hidden></span></button>
+    <button id="shelfBtn" type="button" class="nav-item" title="References: characters, scenes, styles" aria-label="References"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg><span class="lbl">References</span><span class="short" aria-hidden="true">Refs</span></button>
+    <div class="nav-head">Setup</div>
+    <button id="cellarBtn" type="button" class="nav-item" title="Models and settings" aria-label="Models &amp; settings"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg><span class="lbl">Models &amp; settings</span><span class="short" aria-hidden="true">Settings</span></button>
+    <button id="styleBtn" type="button" class="nav-item" title="Themes, avatars, animations, layout" aria-label="Style"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-4-4-7.4-9-7.4z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/></svg><span class="lbl">Style</span><span class="short" aria-hidden="true">Style</span></button>
+    <button id="ear" type="button" class="nav-item" title="Listen for &quot;Hey Bob&quot; while this window is open" aria-label="Listen" aria-pressed="false"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span class="lbl">Listen</span><span class="short" aria-hidden="true">Listen</span><span class="st">Off</span></button>
+    <button id="speak" type="button" class="nav-item" title="Bob reads his replies aloud" aria-label="Read aloud" aria-pressed="false"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg><span class="lbl">Read aloud</span><span class="short" aria-hidden="true">Read</span><span class="st">Off</span></button>
+    <button id="notify" type="button" class="nav-item" title="Pop up a Windows notification when Bob needs you" aria-label="Alerts" aria-pressed="false"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4l2-2z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="lbl">Alerts</span><span class="short" aria-hidden="true">Alerts</span><span class="st">Off</span></button>
+    <div class="side-fill"></div>
+    <label class="session-wrap" title="Which brains Bob keeps loaded"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="6" y="6" width="12" height="12" rx="1"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg><span class="lbl">Session:</span> <select id="sessionSel" class="session" aria-label="Session"></select></label>
+  </nav>
+
+  <div class="mid">
+    <div class="ctx">
+      <strong class="ctx-title">Chat</strong>
+      <button id="dlbar" class="dlbar" type="button" hidden title="Open Downloads"><span class="meter moving"><i></i></span><span class="dlbar-text"></span></button>
+      <span class="ctx-fill"></span>
+      <button id="foldRight" type="button" class="nav-item now-toggle" title="Show or hide Now running (Ctrl+J)" aria-label="Now running" aria-expanded="true" aria-controls="now"><span class="lbl">Now running</span><span class="badge" hidden></span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+  <main id="log" class="log" aria-live="polite"></main>
+
+  <div id="chips" class="chips">
+    <button type="button" data-say="Help me plan my day. Ask me what's going on today, then build my to-do list.">Plan my day</button>
+    <button type="button" data-say="What's on my to-do list?">To-do list</button>
+    <button type="button" data-fill="Remind me at ">Remind me...</button>
+    <button type="button" data-fill="Make a spreadsheet of ">Spreadsheet...</button>
+    <button type="button" data-fill="Look up ">Look up...</button>
+  </div>
+
+  <div id="queue" class="queue" hidden aria-live="polite"></div>
+  <div id="tray" class="tray" hidden></div>
+  <form id="composer" class="composer">
+    <button id="mic" type="button" class="mic" title="Talk to Bob: click, speak, then pause">🎙</button>
+    <button id="attach" type="button" class="mic" title="Attach a picture (or paste or drop one)">📎</button>
+    <input id="attachFile" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+    <textarea id="input" rows="2" placeholder="Tell Bob what you need..." autocomplete="off"></textarea>
+    <div class="buttons">
+      <button id="stop" type="button" class="stop" hidden>Stop</button>
+      <button id="send" type="submit" class="send">Send</button>
+    </div>
+  </form>
+  </div>
+
+  <div id="grab" class="grab" role="separator" aria-orientation="vertical" aria-label="Drag to resize Now running" tabindex="0"></div>
+  <aside id="now" class="now" aria-label="Now running">
+    <div class="now-head"><strong>Now running</strong><span class="ctx-fill"></span><button id="hideRight" type="button" class="link" title="Hide (Ctrl+J)">Hide »</button></div>
+    <section><div class="now-sec">Tasks <span class="muted">drag to reorder</span><span class="ctx-fill"></span><button type="button" class="link" data-alltasks>See all</button></div><ol id="nowTasks" class="tlist"></ol></section>
+    <section><div class="now-sec">Downloads<span class="ctx-fill"></span><button type="button" class="link" data-alldl>Manage</button></div><ol id="nowDl" class="tlist"></ol></section>
+    <section><div class="now-sec">Graphics card</div><div id="nowGpu" class="muted now-gpu">Checking...</div></section>
+  </aside>
+  </div>
+
+  <dialog id="cellar" class="cellar" aria-labelledby="cellar-title">
+    <div class="cellar-head"><h2 id="cellar-title">Models and settings</h2><button id="cellar-close" class="icon" title="Close">✕</button></div>
+    <div id="cellar-body"></div>
+  </dialog>
+
+  <dialog id="shelf" class="cellar" aria-labelledby="shelf-title">
+    <div class="cellar-head"><h2 id="shelf-title">References</h2><button id="shelf-close" class="icon" title="Close">✕</button></div>
+    <div id="shelf-body"></div>
+  </dialog>
+
+  <dialog id="tasks" class="cellar" aria-labelledby="tasks-title">
+    <div class="cellar-head"><h2 id="tasks-title">Tasks</h2><button id="tasks-close" class="icon" title="Close" aria-label="Close">✕</button></div>
+    <div id="tasks-body"></div>
+  </dialog>
+
+  <dialog id="downloads" class="cellar" aria-labelledby="downloads-title">
+    <div class="cellar-head"><h2 id="downloads-title">Downloads</h2><button id="downloads-close" class="icon" title="Close" aria-label="Close">✕</button></div>
+    <div id="downloads-body"></div>
+  </dialog>
+
+  <footer id="ver" class="ver" aria-label="Bob's version"></footer>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

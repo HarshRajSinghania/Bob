@@ -1,0 +1,622 @@
+// Bob's model shop: what models exist, which are already on this PC (Ollama, ComfyUI, Maestro...),
+// downloading new ones one at a time with progress and a checksum, and switching Bob over to them.
+// Every download starts from a click in Bob's window. Bob never downloads a model on his own.
+import fs from 'node:fs';
+import fsp from 'node:fs/promises';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { appDir, saveSettings } from './config.js';
+import { ENGINES, engineStatus, installEngine, latestEngine } from './engines.js';
+import { audioReady, voicesReady } from './audio.js';
+import { maestroModels } from './maestro.js';
+
+const MODEL_EXT = new Set(['.gguf', '.safetensors', '.ckpt', '.pt', '.pth', '.bin', '.sft']);
+const SKIP = new Set(['node_modules', '.git', '__pycache__', 'site-packages', 'venv', '.venv', 'env', 'cache', '.cache', 'Lib', 'include', 'temp', 'tmp', 'logs', 'blobs']);
+const MIN_BYTES = 20e6;
+const ALLOWED_HOSTS = [/^huggingface\.co$/, /\.huggingface\.co$/, /\.hf\.co$/, /^github\.com$/, /\.githubusercontent\.com$/];
+
+export function hostAllowed(u) {
+  try {
+    const url = new URL(u);
+    return url.protocol === 'https:' && ALLOWED_HOSTS.some((r) => r.test(url.hostname));
+  } catch { return false; }
+}
+
+// Guess what a loose model file is for, from its folder and name.
+export function guessKind(p) {
+  const s = p.toLowerCase().replace(/\\/g, '/');
+  if (/wan|ltx|hunyuan|cogvideo|mochi|animatediff|svd|video|skyreels|vace|framepack/.test(s)) return 'video';
+  if (/whisper|tts|kokoro|piper|xtts|f5|ace-?step|audio|music|voice/.test(s)) return 'voice';
+  if (/lora/.test(s)) return 'images';
+  if (/\/(checkpoints|diffusion_models|unet|vae|text_encoders|clip|controlnet|upscale_models|embeddings)\//.test(s) || /flux|sdxl|sd3|z[-_]?image|qwen[-_]image|hidream|stable/.test(s)) return 'images';
+  if (/coder|code/.test(s)) return 'coding';
+  if (/vl|vision|llava|mmproj/.test(s)) return 'vision';
+  if (s.endsWith('.gguf')) return 'chat';
+  return 'other';
+}
+
+export function ownerOf(p) {
+  const s = p.toLowerCase().replace(/\\/g, '/');
+  if (/\/models\/bob\//.test(s)) return 'Bob';
+  if (/comfy/.test(s)) return 'ComfyUI';
+  if (/maestro|wan2gp|wangp/.test(s)) return 'Maestro';
+  if (/pinokio/.test(s)) return 'Pinokio';
+  if (/ollama|\/models\//.test(s)) return 'Ollama';
+  return 'other';
+}
+
+export function fileNameOf(url) {
+  return decodeURIComponent(new URL(url).pathname.split('/').pop());
+}
+
+// Fill in "$model" and "$file:role" in an entry's "use" block.
+export function resolveUse(use, values) {
+  if (typeof use === 'string') {
+    if (use === '$model') return values.model;
+    if (use.startsWith('$file:')) return values.files[use.slice(6)];
+    return use;
+  }
+  if (Array.isArray(use)) return use.map((u) => resolveUse(u, values));
+  if (use && typeof use === 'object') return Object.fromEntries(Object.entries(use).map(([k, v]) => [k, resolveUse(v, values)]));
+  return use;
+}
+
+// Live progress for a download: speed and time left (smoothed), plus a heartbeat every second so the
+// window keeps moving during steps that send no bytes (looking up links, checking, unpacking).
+export function ticker(pub, emit) {
+  pub.startedAt = Date.now();
+  let lastAt = Date.now(), lastDone = 0, lastPhase = '';
+  const tick = () => {
+    const now = Date.now();
+    if (pub.phase !== lastPhase) { lastPhase = pub.phase; pub.phaseAt = now; lastAt = now; lastDone = pub.done; pub.rate = 0; }
+    const dt = (now - lastAt) / 1000;
+    if (dt >= 0.9) {
+      const r = Math.max(0, (pub.done - lastDone) / dt);
+      pub.rate = pub.rate ? pub.rate * 0.7 + r * 0.3 : r;
+      lastAt = now; lastDone = pub.done;
+    }
+    pub.eta = pub.phase === 'downloading' && pub.rate > 1e4 && pub.total > pub.done ? Math.round((pub.total - pub.done) / pub.rate) : null;
+    pub.elapsed = Math.round((now - pub.startedAt) / 1000);
+    emit({ type: 'download', ...pub });
+  };
+  const beat = setInterval(tick, 1000);
+  beat.unref?.();
+  return { tick, stop: () => clearInterval(beat) };
+}
+
+export class ModelShop {
+  constructor(cfg, emit, engine) {
+    this.cfg = cfg;
+    this.emit = emit;
+    this.engine = engine;
+    this.dir = cfg.bobModelsDir;
+    this.scanFile = path.join(cfg.dataDir, 'model-scan.json');
+    this.catalog = JSON.parse(fs.readFileSync(cfg.catalogFile || path.join(appDir, 'catalog.json'), 'utf8'));
+    try { this.found = JSON.parse(fs.readFileSync(this.scanFile, 'utf8')); } catch { this.found = { at: null, files: [] }; }
+    this.active = new Map(); // downloads running now: id -> { ac, pub, kind }
+    this.dl = this.loadDownloads();
+    this.scanning = null;
+  }
+
+  roots() {
+    return [...new Set([this.dir, ...(this.cfg.modelSearchRoots || [])])].filter((r) => fs.existsSync(r));
+  }
+
+  // Walk the model folders (Ollama, ComfyUI, Maestro, Pinokio) and remember every big model file.
+  scan() {
+    if (this.scanning) return this.scanning;
+    this.scanning = (async () => {
+      const files = [];
+      const walk = async (dir, depth) => {
+        if (depth > 9 || files.length > 5000) return;
+        let entries;
+        try { entries = await fsp.readdir(dir, { withFileTypes: true }); } catch { return; }
+        for (const e of entries) {
+          const p = path.join(dir, e.name);
+          if (e.isDirectory()) { if (!SKIP.has(e.name) && !e.name.startsWith('.')) await walk(p, depth + 1); continue; }
+          if (!e.isFile() || !MODEL_EXT.has(path.extname(e.name).toLowerCase())) continue;
+          if (e.name.endsWith('.part')) continue;
+          try {
+            const st = await fsp.stat(p);
+            if (st.size >= MIN_BYTES) files.push({ path: p, name: e.name, size: st.size, kind: guessKind(p), owner: ownerOf(p) });
+          } catch {}
+        }
+      };
+      for (const r of this.roots()) await walk(r, 0);
+      this.found = { at: new Date().toISOString(), files };
+      try { fs.writeFileSync(this.scanFile, JSON.stringify(this.found, null, 1)); } catch {}
+      return this.found;
+    })().finally(() => { this.scanning = null; });
+    return this.scanning;
+  }
+
+  async ollamaNames() {
+    if (this.cfg.engine === 'llamacpp' && !this.cfg.ollamaUrl) return null;
+    try {
+      const r = await fetch(this.cfg.ollamaUrl.replace(/\/$/, '') + '/api/tags', { signal: AbortSignal.timeout(3000) });
+      return new Set((await r.json()).models.map((m) => m.name));
+    } catch { return null; }
+  }
+
+  // Ollama keeps its models as blobs; read the manifests so Bob knows them even when Ollama is off.
+  ollamaManifests() {
+    const base = path.join(this.cfg.llamacpp?.ollamaModelsDir || path.join(this.cfg.agentDir, 'models'), 'manifests', 'registry.ollama.ai', 'library');
+    const names = new Set();
+    try {
+      for (const m of fs.readdirSync(base)) for (const t of fs.readdirSync(path.join(base, m))) names.add(`${m}:${t}`);
+    } catch {}
+    return names;
+  }
+
+  // Where each of an entry's files is on this PC, if anywhere. Bob's own folder first, then anything the scan found.
+  locate(entry) {
+    const out = {};
+    for (const f of entry.files || []) {
+      const name = fileNameOf(f.url);
+      const mine = path.join(this.dir, entry.category, name);
+      if (fs.existsSync(mine)) { out[f.role] = mine; continue; }
+      const alt = [name, ...(f.aka || [])].map((n) => n.toLowerCase());
+      const hit = this.found.files.find((x) => alt.includes(x.name.toLowerCase()));
+      if (hit && fs.existsSync(hit.path)) out[f.role] = hit.path; // the scan can be out of date
+    }
+    return out;
+  }
+
+  async statusOf(entry, ollama) {
+    const pulled = entry.ollama && ((ollama && ollama.has(entry.ollama)) || this.ollamaManifests().has(entry.ollama));
+    const located = this.locate(entry);
+    const need = (entry.files || []).length;
+    const have = Object.keys(located).length;
+    let state = 'missing';
+    if (pulled || (need && have === need)) state = 'installed';
+    else if (have) state = 'partial';
+    const where = pulled ? ['Ollama'] : [...new Set(Object.values(located).map(ownerOf))];
+    const canDownload = Boolean((entry.ollama && ollama) || need);
+    return { state, where, located, canDownload };
+  }
+
+  async list() {
+    const ollama = await this.ollamaNames();
+    const models = [];
+    for (const m of this.catalog.models) models.push({ ...m, files: (m.files || []).map((f) => ({ name: fileNameOf(f.url), role: f.role })), status: await this.statusOf(m, ollama) });
+    const known = new Set(models.flatMap((m) => Object.values(m.status.located).map((p) => p.toLowerCase())));
+    const extras = this.found.files.filter((f) => !known.has(f.path.toLowerCase()) && f.owner !== 'Ollama');
+    return {
+      categories: this.catalog.categories, packs: this.catalog.packs, models, extras, engines: engineStatus(this.cfg),
+      scannedAt: this.found.at, ollamaRunning: Boolean(ollama), job: this.job, downloads: this.downloadsView(),
+      active: { engine: this.cfg.engine, models: this.cfg.models, painter: this.cfg.painter?.engine, stt: this.cfg.stt?.provider }
+    };
+  }
+
+  async hardware() {
+    const gpu = await new Promise((resolve) => {
+      execFile('nvidia-smi', ['--query-gpu=name,memory.total', '--format=csv,noheader,nounits'], { timeout: 5000, windowsHide: true }, (err, out) => {
+        if (err) return resolve(null);
+        const [name, mb] = String(out).split('\n')[0].split(',').map((s) => s.trim());
+        resolve(name ? { name, vramGB: Math.round(Number(mb) / 1024) } : null);
+      });
+    });
+    let freeGB = null;
+    try { const s = fs.statfsSync(this.cfg.agentDir); freeGB = Math.round((s.bavail * s.bsize) / 1e9); } catch {}
+    const vram = gpu?.vramGB ?? this.cfg.gpuVramGB ?? 0;
+    const pack = this.catalog.packs.find((p) => vram >= p.minVramGB) || this.catalog.packs.at(-1);
+    return { gpu, freeGB, vramGB: vram || null, suggestedPack: pack.id };
+  }
+
+  // ---- The download manager ----
+  // Every download the user confirms goes on a list (inn\bob\downloads.json), so nothing is lost if Bob closes.
+  // One or two run at a time (Settings, Downloads); each can be paused, resumed, cancelled or moved up and down.
+  // Model files resume where they stopped (a .part file plus an HTTP Range request); Ollama models resume
+  // through Ollama itself; engines start over (they're small).
+  get dlFile() { return path.join(this.cfg.dataDir, 'downloads.json'); }
+  get job() { return [...this.active.values()][0]?.pub || null; } // the first one running, for older callers
+  get concurrent() { return this.cfg.downloads?.concurrent === 2 ? 2 : 1; }
+
+  loadDownloads() {
+    let list = [];
+    try { list = JSON.parse(fs.readFileSync(this.dlFile, 'utf8')); } catch {}
+    if (!Array.isArray(list)) list = [];
+    const keep = Date.now() - 7 * 864e5;
+    const resume = this.cfg.downloads?.resumeOnStart === true; // opt-in: off unless the user turns it on
+    return list.filter((d) => d && typeof d.id === 'string' && d.name && !(['done', 'cancelled'].includes(d.state) && (d.doneAt || 0) < keep)).map((d) => {
+      if (d.state === 'downloading' || d.state === 'queued') {
+        if (resume) return { ...d, state: 'queued', retryAt: 0 };
+        return { ...d, state: 'paused', note: d.state === 'downloading' ? 'Bob was closed while this was downloading. Press Resume to carry on.' : 'Waiting from last time. Press Resume to start it.' };
+      }
+      return d;
+    });
+  }
+
+  saveDownloads() {
+    try { fs.mkdirSync(path.dirname(this.dlFile), { recursive: true }); fs.writeFileSync(this.dlFile, JSON.stringify(this.dl, null, 1)); } catch {}
+    this.emit({ type: 'downloads', items: this.downloadsView() });
+  }
+
+  downloadsView() {
+    return this.dl.map((d) => {
+      const live = this.active.get(d.id)?.pub;
+      const { id, name, kind, state, addedAt, doneAt, error, note, tries, retryAt, viaOllama } = d;
+      return { id, name, kind, state, addedAt, doneAt, error, note, tries, retryAt, viaOllama,
+        phase: live?.phase || state, done: live?.done ?? d.done ?? 0, total: live?.total ?? d.total ?? 0, rate: live?.rate || 0, eta: live?.eta ?? null };
+    });
+  }
+
+  describe(id) {
+    if (id.startsWith('engine:')) {
+      const e = ENGINES.find((x) => x.id === id.slice(7));
+      if (!e) throw new Error('No such engine.');
+      return { id, name: e.name, kind: 'engine' };
+    }
+    const entry = this.catalog.models.find((m) => m.id === id);
+    if (!entry) throw new Error('No such model in the catalog.');
+    return { id, name: entry.name, kind: 'model', total: Math.round(entry.sizeGB * 1e9), viaOllama: Boolean(entry.ollama) };
+  }
+
+  // Put downloads on the list (the user already confirmed each one). Returns the first one's progress.
+  async download(id, { queue = [] } = {}) {
+    const ids = [id, ...queue].map(String);
+    const items = ids.map((x) => this.describe(x)); // throws before anything is added if one is unknown
+    for (const it of items) {
+      const have = this.dl.find((d) => d.id === it.id && ['queued', 'downloading', 'paused', 'failed'].includes(d.state));
+      if (have) { if (have.state !== 'downloading') Object.assign(have, { state: 'queued', error: undefined, note: undefined, tries: 0, retryAt: 0 }); continue; }
+      this.dl = this.dl.filter((d) => d.id !== it.id);
+      this.dl.push({ ...it, state: 'queued', addedAt: Date.now(), tries: 0 });
+    }
+    this.saveDownloads();
+    this.pumpDownloads();
+    const first = this.active.get(items[0].id)?.pub;
+    return first || { ...this.downloadsView().find((d) => d.id === items[0].id), phase: 'queued', queue: ids.slice(1) };
+  }
+
+  pumpDownloads() {
+    clearTimeout(this.retryTimer);
+    let soonest = Infinity;
+    for (const d of this.dl) {
+      if (this.active.size >= this.concurrent) break;
+      if (d.state !== 'queued') continue;
+      if (d.retryAt && d.retryAt > Date.now()) { soonest = Math.min(soonest, d.retryAt); continue; }
+      // One engine at a time: they unpack into shared folders and may stop llama-server.
+      if (d.kind === 'engine' && [...this.active.values()].some((a) => a.kind === 'engine')) continue;
+      this.startDownload(d);
+    }
+    if (soonest < Infinity) { this.retryTimer = setTimeout(() => this.pumpDownloads(), Math.max(500, soonest - Date.now())); this.retryTimer.unref?.(); }
+  }
+
+  startDownload(d) {
+    const ac = new AbortController();
+    const engine = d.kind === 'engine';
+    const entry = engine ? null : this.catalog.models.find((m) => m.id === d.id);
+    const after = () => this.dl.filter((x) => x.state === 'queued' && x.id !== d.id).map((x) => x.id);
+    const pub = { id: d.id, name: d.name, done: 0, total: d.total || 0, file: '', phase: engine ? 'finding' : 'starting', kind: d.kind, queue: after(),
+      steps: engine ? ['finding', 'downloading', 'checking', 'unpacking', 'done'] : entry?.ollama ? ['starting', 'downloading', 'checking', 'done'] : ['starting', 'links', 'downloading', 'checking', 'done'] };
+    d.state = 'downloading'; d.error = undefined; d.note = undefined; d.startedAt = Date.now();
+    this.active.set(d.id, { ac, pub, kind: d.kind });
+    const { tick, stop } = ticker(pub, (e) => { pub.queue = after(); this.emit(e); });
+    this.saveDownloads();
+    tick();
+    (async () => {
+      try {
+        if (engine) await this.runEngine(d.id.slice(7), pub, ac.signal, tick);
+        else await this.runModel(entry, pub, ac.signal, tick);
+        pub.phase = 'done'; d.state = 'done'; d.doneAt = Date.now(); d.done = d.total = pub.total || pub.done;
+        if (pub.note) d.note = pub.note;
+        tick();
+      } catch (e) {
+        const why = ac.signal.aborted ? ac.signal.reason : null;
+        d.done = pub.done; d.total = pub.total;
+        if (why === 'pause') { d.state = 'paused'; pub.phase = 'paused'; d.note = engine ? 'Paused. An engine starts over when resumed.' : 'Paused. Resume picks up where it stopped.'; }
+        else if (why === 'cancel' || ac.signal.aborted) { d.state = 'cancelled'; d.doneAt = Date.now(); pub.phase = 'cancelled'; pub.error = 'Cancelled.'; if (entry) this.dropParts(entry); d.done = 0; }
+        else {
+          d.tries = (d.tries || 0) + 1;
+          d.error = String(e.message || e).slice(0, 300);
+          // Network hiccups get two more tries, after 15 s and 1 min. A damaged file or a missing link doesn't.
+          const hopeless = /checksum|isn't one of those|no checksum|Not enough disk|No such|redirected|won't install|Python|Smart App Control/i.test(d.error);
+          if (!hopeless && d.tries < 3) { d.state = 'queued'; d.retryAt = Date.now() + (d.tries === 1 ? 15e3 : 60e3); pub.phase = 'retrying'; pub.error = `${d.error} Trying again in ${d.tries === 1 ? '15 seconds' : 'a minute'}.`; }
+          else { d.state = 'failed'; d.doneAt = Date.now(); pub.phase = 'failed'; pub.error = d.error; }
+        }
+        tick();
+      } finally {
+        stop();
+        this.active.delete(d.id);
+        this.saveDownloads();
+        this.pumpDownloads();
+      }
+    })();
+    return pub;
+  }
+
+  async runModel(entry, pub, signal, tick) {
+    const ollama = await this.ollamaNames();
+    if (entry.ollama && ollama) return this.pullOllama(entry, pub, signal, tick);
+    if (entry.files?.length) return this.fetchFiles(entry, pub, signal, tick);
+    throw new Error(`${entry.name} comes through Ollama, and Ollama isn't running.`);
+  }
+
+  async runEngine(eid, pub, signal, tick) {
+    const hw = await this.hardware();
+    // A newer llama.cpp can't overwrite files the running llama-server holds open: let go of it first.
+    if (eid === 'llamacpp' && this.engine?.stopServer) await this.engine.stopServer();
+    const r = await installEngine(this.cfg, eid, { nvidia: /nvidia|geforce|rtx/i.test(hw.gpu?.name || ''), pub, signal, tick });
+    pub.note = `${r.asset} (${r.version})`;
+  }
+
+  dropParts(entry) {
+    for (const f of entry.files || []) fs.rmSync(path.join(this.dir, entry.category, fileNameOf(f.url)) + '.part', { force: true });
+  }
+
+  pause(id) {
+    const a = this.active.get(id);
+    if (a) { a.ac.abort('pause'); return true; }
+    const d = this.dl.find((x) => x.id === id && x.state === 'queued');
+    if (!d) return false;
+    d.state = 'paused'; d.note = 'Paused before it started.';
+    this.saveDownloads();
+    return true;
+  }
+
+  resume(id) {
+    const d = this.dl.find((x) => x.id === id && ['paused', 'failed'].includes(x.state));
+    if (!d) return false;
+    Object.assign(d, { state: 'queued', error: undefined, note: undefined, retryAt: 0, tries: 0 });
+    this.saveDownloads();
+    this.pumpDownloads();
+    return true;
+  }
+
+  // Cancel one (deletes its half-downloaded files), or everything when no id is given.
+  cancel(id) {
+    const ids = id ? [id] : this.dl.filter((d) => ['queued', 'downloading', 'paused'].includes(d.state)).map((d) => d.id);
+    let any = false;
+    for (const x of ids) {
+      const a = this.active.get(x);
+      if (a) { a.ac.abort('cancel'); any = true; continue; }
+      const d = this.dl.find((y) => y.id === x && ['queued', 'paused', 'failed'].includes(y.state));
+      if (!d) continue;
+      d.state = 'cancelled'; d.doneAt = Date.now(); d.done = 0;
+      const entry = this.catalog.models.find((m) => m.id === x);
+      if (entry) this.dropParts(entry);
+      any = true;
+    }
+    if (any) this.saveDownloads();
+    return any;
+  }
+
+  // Move a download that hasn't finished in front of another (or to the end with no "before").
+  moveDownload(id, before) {
+    const open = (d) => ['queued', 'paused', 'downloading', 'failed'].includes(d.state);
+    const from = this.dl.findIndex((d) => d.id === id && open(d));
+    if (from < 0 || id === before) return false;
+    const [d] = this.dl.splice(from, 1);
+    const at = before ? this.dl.findIndex((x) => x.id === before && open(x)) : -1;
+    if (at < 0) this.dl.push(d); else this.dl.splice(at, 0, d);
+    this.saveDownloads();
+    this.pumpDownloads();
+    return true;
+  }
+
+  removeDownload(id) {
+    const n = this.dl.length;
+    this.dl = this.dl.filter((d) => !(d.id === id && ['done', 'cancelled', 'failed'].includes(d.state)));
+    if (this.dl.length !== n) this.saveDownloads();
+    return this.dl.length !== n;
+  }
+
+  clearDownloads() {
+    this.dl = this.dl.filter((d) => !['done', 'cancelled'].includes(d.state));
+    this.saveDownloads();
+    return true;
+  }
+
+  async pullOllama(entry, pub, signal, tick) {
+    pub.file = entry.ollama;
+    pub.phase = 'downloading';
+    const res = await fetch(this.cfg.ollamaUrl.replace(/\/$/, '') + '/api/pull', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: entry.ollama, stream: true }), signal
+    });
+    if (!res.ok) throw new Error(`Ollama said ${res.status}.`);
+    let buf = '', last = 0;
+    const layers = {};
+    const dec = new TextDecoder();
+    for await (const chunk of res.body) {
+      buf += dec.decode(chunk, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+        if (!line) continue;
+        const j = JSON.parse(line);
+        if (j.error) throw new Error('Ollama: ' + j.error);
+        // Ollama reports each layer on its own; add them up so the bar covers the whole model.
+        if (j.total && j.digest) { layers[j.digest] = [j.completed || 0, j.total]; const v = Object.values(layers); pub.total = v.reduce((t, x) => t + x[1], 0); pub.done = v.reduce((t, x) => t + x[0], 0); }
+        if (/verifying/.test(j.status || '')) pub.phase = 'checking';
+        if (Date.now() - last > 500) { last = Date.now(); tick(); }
+      }
+    }
+  }
+
+  async fetchFiles(entry, pub, signal, tick) {
+    const located = this.locate(entry);
+    const todo = entry.files.filter((f) => !located[f.role]);
+    pub.phase = 'links'; pub.fileCount = todo.length; tick();
+    // Ask each link for its size and checksum first, so a broken link or a full disk is caught before anything downloads.
+    const heads = [];
+    for (const f of todo) {
+      if (!hostAllowed(f.url)) throw new Error(`I only download from Hugging Face and GitHub. ${f.url} isn't one of those.`);
+      const r = await fetch(f.url, { method: 'HEAD', redirect: 'manual', signal });
+      const size = Number(r.headers.get('x-linked-size') || r.headers.get('content-length') || 0);
+      if (r.status >= 400) throw new Error(`The link for ${fileNameOf(f.url)} is broken (${r.status}).`);
+      const sha = f.sha256 || String(r.headers.get('x-linked-etag') || '').replace(/^W\//, '').replace(/"/g, '');
+      heads.push({ f, size, sha: /^[0-9a-f]{64}$/.test(sha) ? sha : null });
+    }
+    const total = heads.reduce((t, h) => t + h.size, 0);
+    try {
+      const s = fs.statfsSync(this.cfg.agentDir);
+      if (total && s.bavail * s.bsize < total * 1.05) throw new Error(`Not enough disk space: need ${(total / 1e9).toFixed(1)} GB.`);
+    } catch (e) { if (/disk space/.test(e.message)) throw e; }
+    pub.total = total || pub.total;
+    pub.done = 0;
+    const folder = path.join(this.dir, entry.category);
+    fs.mkdirSync(folder, { recursive: true });
+    for (const [i, h] of heads.entries()) {
+      const name = fileNameOf(h.f.url);
+      pub.file = name; pub.fileIndex = i + 1;
+      pub.phase = 'downloading';
+      const final = path.join(folder, name);
+      const part = final + '.part';
+      const hash = crypto.createHash('sha256');
+      let have = 0;
+      if (fs.existsSync(part)) {
+        // Resume: re-hash what's already there.
+        pub.phase = 'resuming'; tick();
+        for await (const c of fs.createReadStream(part)) { hash.update(c); have += c.length; }
+      }
+      const base = pub.done;
+      let res = await fetch(h.f.url, { headers: have ? { range: `bytes=${have}-` } : {}, redirect: 'follow', signal });
+      if (!hostAllowed(res.url)) throw new Error('The download was redirected somewhere I don\'t trust. Stopped.');
+      // The server ignored the Range request: start this file again from nothing.
+      if (have && res.status === 200) { have = 0; hash.destroy?.(); fs.rmSync(part, { force: true }); return this.fetchFiles(entry, pub, signal, tick); }
+      if (!res.ok && res.status !== 206) throw new Error(`Download of ${name} failed (${res.status}).`);
+      const out = fs.createWriteStream(part, { flags: have ? 'a' : 'w' });
+      let last = 0, got = have;
+      try {
+        for await (const c of res.body) {
+          hash.update(c);
+          got += c.length;
+          if (!out.write(c)) await new Promise((r) => out.once('drain', r));
+          pub.done = base + got;
+          if (Date.now() - last > 500) { last = Date.now(); tick(); }
+        }
+      } finally { await new Promise((r) => out.end(r)); }
+      pub.phase = 'checking';
+      tick();
+      const digest = hash.digest('hex');
+      if (h.sha && digest !== h.sha) { fs.rmSync(part, { force: true }); throw new Error(`${name} came through damaged (checksum didn't match). I deleted it; try again.`); }
+      fs.renameSync(part, final);
+      pub.done = base + got;
+      this.found.files.push({ path: final, name, size: got, kind: entry.category, owner: 'Bob' });
+    }
+    try { fs.writeFileSync(this.scanFile, JSON.stringify(this.found, null, 1)); } catch {}
+  }
+
+  // ---- "Who does what": which brain thinks for each job, and which model makes pictures, video and hears ----
+  static JOBS = [
+    { id: 'bob', label: 'Chat', what: 'Chat, planning, to-do list, reminders', kind: 'llm' },
+    { id: 'tinker', label: 'Coding', what: 'Writing and fixing code', kind: 'llm' },
+    { id: 'ledger', label: 'Spreadsheets', what: 'Data entry and spreadsheets', kind: 'llm' },
+    { id: 'scout', label: 'Research', what: 'Web research with sources', kind: 'llm' },
+    { id: 'reviewer', label: 'Review', what: 'Careful review of code and plans', kind: 'llm' },
+    { id: 'painter', label: 'Image & video prompts', what: 'Writes the picture and video prompts', kind: 'llm' },
+    { id: 'eyes', label: 'Seeing pictures', what: 'Looks at pictures you attach (needs a vision model)', kind: 'llm' },
+    { id: 'image', label: 'Pictures', what: 'Paints the picture', kind: 'images' },
+    { id: 'edit', label: 'Picture edits', what: 'Keeps a character or scene looking the same from a reference', kind: 'edit' },
+    { id: 'video', label: 'Video', what: 'Films the clip', kind: 'video' },
+    { id: 'voice', label: 'Hearing you', what: 'Turns your voice into text', kind: 'voice' },
+    { id: 'speech', label: "Bob's voice", what: 'Reads his replies aloud (🔈 button)', kind: 'speech' },
+    { id: 'music', label: 'Music', what: 'Composes songs and background music', kind: 'music' },
+    { id: 'sfx', label: 'Sound effects', what: 'Makes short sounds for games and videos', kind: 'sfx' }
+  ];
+
+  // "Get newer build": what's installed against the newest release with a Windows build.
+  async engineLatest(id) {
+    const hw = await this.hardware();
+    return latestEngine(this.cfg, id, /nvidia|geforce|rtx/i.test(hw.gpu?.name || ''));
+  }
+
+  async roles() {
+    const ollama = await this.ollamaNames();
+    const names = new Set([...(ollama || []), ...this.ollamaManifests()]);
+    const llms = [...names].filter((n) => !/embed|-base\b|:.*-base/.test(n)).sort().map((n) => {
+      const m = this.catalog.models.find((x) => x.ollama === n);
+      return { value: n, label: m ? `${m.name} (${n})` : n };
+    });
+    const opts = { images: [], edit: [], video: [], voice: [], speech: [{ value: 'windows', label: 'Windows voices (built in)' }], music: [], sfx: [] };
+    const aw = audioReady(this.cfg);
+    if (aw.music) opts.music.push({ value: 'ace-step', label: 'ACE-Step (audio tools)' });
+    if (aw.sfx) opts.sfx.push({ value: 'audioldm2', label: 'AudioLDM 2 (audio tools, personal use)' });
+    if (voicesReady(this.cfg).chatterbox) opts.speech.push({ value: 'chatterbox', label: 'Chatterbox (graphics card, most natural)' });
+    for (const m of this.catalog.models) {
+      const st = await this.statusOf(m, ollama);
+      if (st.state !== 'installed') continue;
+      if (st.located.gguf && !llms.some((l) => l.value === m.id)) llms.push({ value: m.id, label: `${m.name} (Bob's own engine)` });
+      if (m.use?.painter?.sdcpp?.edit) opts.edit.push({ value: m.id, label: m.name });
+      else if (opts[m.category]) opts[m.category].push({ value: m.id, label: m.name });
+    }
+    if (this.cfg.comfy?.workflowFile && fs.existsSync(this.cfg.comfy.workflowFile)) opts.images.push({ value: 'comfy', label: 'ComfyUI (my own workflow)' });
+    let maestro = [];
+    // Maestro is opt-in (maestro.enabled): Bob paints and films himself by default.
+    if (this.cfg.maestro?.enabled) { try { maestro = await maestroModels(this.cfg); } catch {} }
+    for (const m of maestro) {
+      const note = m.downloaded === false ? ', downloads on first use' : '';
+      opts[m.kind].push({ value: `maestro:${m.modelType}`, label: `Maestro: ${m.label}${note}`, group: 'maestro' });
+    }
+    if (names.has(this.cfg.stt?.model || 'gemma4:e4b') || names.has('gemma4:e4b')) opts.voice.push({ value: 'ollama:gemma4:e4b', label: 'Gemma 4 E4B through Ollama' });
+    const p = this.cfg.painter || {};
+    const imgNow = p.engine === 'comfy' ? (this.cfg.comfy?.workflowFile && fs.existsSync(this.cfg.comfy.workflowFile) ? 'comfy' : '') : this.catalog.models.find((m) => m.category === 'images' && m.use?.painter && p.sdcpp?.image?.diffusionModel && this.locate(m).diffusionModel === p.sdcpp.image.diffusionModel)?.id || '';
+    const vidNow = this.catalog.models.find((m) => m.category === 'video' && p.sdcpp?.video?.diffusionModel && this.locate(m).diffusionModel === p.sdcpp.video.diffusionModel)?.id || '';
+    const sttNow = this.cfg.stt?.provider === 'whispercpp' ? this.catalog.models.find((m) => m.category === 'voice' && this.locate(m).model === this.cfg.stt.model)?.id || '' : this.cfg.stt?.provider === 'ollama' ? `ollama:${this.cfg.stt.model || 'gemma4:e4b'}` : '';
+    const mz = this.cfg.maestro || {};
+    const imgCur = p.engine === 'maestro' && mz.image ? `maestro:${mz.image}` : imgNow;
+    const vidCur = mz.video ? `maestro:${mz.video}` : vidNow;
+    const tp = this.cfg.tts?.provider;
+    const speechNow = tp === 'piper' || tp === 'kokoro' ? this.catalog.models.find((m) => m.category === 'speech' && this.locate(m).model === this.cfg.tts.model)?.id || '' : tp === 'chatterbox' ? 'chatterbox' : 'windows';
+    const editNow = this.catalog.models.find((m) => m.use?.painter?.sdcpp?.edit && p.sdcpp?.edit?.diffusionModel && this.locate(m).diffusionModel === p.sdcpp.edit.diffusionModel)?.id || '';
+    const current = { ...Object.fromEntries(ModelShop.JOBS.filter((j) => j.kind === 'llm').map((j) => [j.id, this.cfg.models?.[j.id] || ''])), image: imgCur, edit: editNow, video: vidCur, voice: sttNow, speech: speechNow, music: aw.music ? 'ace-step' : '', sfx: aw.sfx ? 'audioldm2' : '' };
+    return { jobs: ModelShop.JOBS, options: { llm: llms, ...opts }, current, maestroRunning: maestro.length > 0 };
+  }
+
+  async setRole(job, value) {
+    const j = ModelShop.JOBS.find((x) => x.id === job);
+    if (!j) throw new Error('No such job.');
+    if (j.kind === 'llm') {
+      const { options } = await this.roles();
+      if (!options.llm.some((o) => o.value === value)) throw new Error(`${value} isn't on this PC.`);
+      const entry = this.catalog.models.find((m) => m.id === value);
+      const patch = { models: { [job]: value } };
+      // A GGUF file is noted for Bob's own engine, but Bob never switches engines by himself (opt-in rule;
+      // it once flipped a PC to llama.cpp). If the model needs the other engine, the app asks.
+      const inOllama = new Set([...((await this.ollamaNames()) || []), ...this.ollamaManifests()]).has(value);
+      let needsEngine = null;
+      if (entry) { const loc = this.locate(entry); if (loc.gguf) { patch.llamacpp = { models: { [value]: loc.gguf } }; if (this.cfg.engine !== 'llamacpp' && !inOllama) needsEngine = 'llamacpp'; } }
+      saveSettings(this.cfg, patch);
+      return needsEngine ? { ...patch, needsEngine } : patch;
+    }
+    if ((job === 'image' || job === 'video') && value.startsWith('maestro:')) {
+      const type = value.slice(8);
+      const { options } = await this.roles();
+      if (!options[j.kind].some((o) => o.value === value)) throw new Error('Maestro isn\'t running, or doesn\'t have that model.');
+      const patch = job === 'image' ? { painter: { engine: 'maestro' }, maestro: { image: type } } : { maestro: { video: type } };
+      saveSettings(this.cfg, patch);
+      return patch;
+    }
+    if (job === 'video') saveSettings(this.cfg, { maestro: { video: '' } });
+    if (job === 'image' && value === 'comfy') { saveSettings(this.cfg, { painter: { engine: 'comfy' } }); return { painter: { engine: 'comfy' } }; }
+    if (job === 'music' || job === 'sfx') return {}; // one choice each for now; the workshop decides
+    if (job === 'speech' && value === 'chatterbox') { if (!voicesReady(this.cfg).chatterbox) throw new Error('Chatterbox isn\'t set up yet (Settings, Engines).'); const patch = { tts: { provider: 'chatterbox' } }; saveSettings(this.cfg, patch); return patch; }
+    if (job === 'speech' && value === 'windows') { const patch = { tts: { provider: '' } }; saveSettings(this.cfg, patch); return patch; }
+    if (job === 'voice' && value.startsWith('ollama:')) { const patch = { stt: { provider: 'ollama', model: value.slice(7) } }; saveSettings(this.cfg, patch); return patch; }
+    const entry = this.catalog.models.find((m) => m.id === value && (j.kind === 'edit' ? m.use?.painter?.sdcpp?.edit : m.category === j.kind && !m.use?.painter?.sdcpp?.edit));
+    if (!entry) throw new Error('That model doesn\'t do this job.');
+    return this.use(value);
+  }
+
+  // Make Bob use an installed model: updates the live settings and saves them (inn\bob\settings.json).
+  async use(id) {
+    const entry = this.catalog.models.find((m) => m.id === id);
+    if (!entry?.use) throw new Error('That model has nothing to switch to.');
+    const st = await this.statusOf(entry, await this.ollamaNames());
+    if (st.state !== 'installed') throw new Error(`${entry.name} isn't fully on this PC yet.`);
+    const pulled = st.where.includes('Ollama');
+    let model = entry.ollama;
+    const extra = {};
+    if (!pulled || (this.cfg.engine === 'llamacpp' && st.located.gguf)) {
+      model = entry.id;
+      if (st.located.gguf) extra.llamacpp = { models: { [entry.id]: st.located.gguf } };
+    }
+    const patch = { ...resolveUse(entry.use, { model, files: st.located }), ...extra };
+    saveSettings(this.cfg, patch);
+    // Ollama can't run a loose GGUF: the app asks before switching to Bob's own engine. Never automatic.
+    if (st.located.gguf && !pulled && this.cfg.engine !== 'llamacpp') return { ...patch, needsEngine: 'llamacpp' };
+    return patch;
+  }
+}

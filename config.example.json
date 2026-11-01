@@ -1,0 +1,65 @@
+{
+  "host": "127.0.0.1",
+  "port": 7777,
+  "engine": "llamacpp",
+  "ollamaUrl": "http://127.0.0.1:11434",
+  "llamacpp": {
+    "port": 8091,
+    "ctx": 32768,
+    "args": [
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0"
+    ],
+    "modelArgs": {},
+    "models": {}
+  },
+  "models": {
+    "bob": "",
+    "tinker": "",
+    "ledger": "",
+    "scout": "",
+    "painter": "",
+    "reviewer": ""
+  },
+  "readRoots": [],
+  "readOnlyRoots": [],
+  "projects": {},
+  "painter": {
+    "engine": "sdcpp",
+    "sdcpp": {
+      "timeoutSeconds": 300,
+      "videoFormat": "webm",
+      "image": null,
+      "video": null
+    }
+  },
+  "comfy": {
+    "url": "http://127.0.0.1:8188",
+    "workflowFile": "",
+    "promptNodeId": "",
+    "timeoutSeconds": 300
+  },
+  "stt": {
+    "provider": "whispercpp"
+  },
+  "remote": {
+    "enabled": false,
+    "passcode": "",
+    "hosts": [],
+    "bindAddress": "0.0.0.0"
+  },
+  "cloud": [
+    {
+      "name": "example-provider",
+      "enabled": false,
+      "baseUrl": "https://api.example.com/v1",
+      "model": "model-name",
+      "apiKeyEnv": "EXAMPLE_API_KEY",
+      "roughCostPerJob": "a few cents"
+    }
+  ]
+}

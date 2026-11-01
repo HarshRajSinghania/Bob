@@ -1,0 +1,87 @@
+# Builds Bob on every version tag (v0.9.N) and on demand.
+#  1. Runs all of Bob's tests.
+#  2. Makes the release zip in the installed layout: Electron's official electron.exe, unchanged and
+#     renamed Bob.exe, with Bob's files in resources\app (installer\make-release.ps1).
+#  3. Builds Bob.exe from source with electron-builder (Bob's own name and icon) and, once SignPath is set
+#     up, sends it to SignPath Foundation to be signed. Signing is skipped until the repository variable
+#     SIGNPATH_ENABLED is "true" and the secrets/variables below exist.
+#
+# Every action is pinned to a full commit SHA (the tag is in the comment). `npm run check:release` fails
+# if one isn't.
+name: Build
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Tests
+        run: npm test
+      - name: Release check (licences, pinned actions)
+        run: npm run check:release
+      - name: Release zip (official Electron + Bob's files)
+        shell: pwsh
+        run: ./installer/make-release.ps1 -Out dist
+      - name: Upload release zip
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Bob-${{ github.ref_name }}-win-x64
+          path: |
+            dist/Bob-*-win-x64.zip
+            dist/Bob-*-win-x64.zip.sha256
+          if-no-files-found: error
+
+  signed-build:
+    # Off until SignPath Foundation has approved the project and the settings below are in place:
+    #   repository variable SIGNPATH_ENABLED = true
+    #   secret SIGNPATH_API_TOKEN, variables SIGNPATH_ORGANIZATION_ID, SIGNPATH_PROJECT_SLUG,
+    #   SIGNPATH_SIGNING_POLICY_SLUG (release-signing or test-signing)
+    if: ${{ vars.SIGNPATH_ENABLED == 'true' }}
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Build tools
+        shell: pwsh
+        run: if (Test-Path package-lock.json) { npm ci --no-audit --no-fund } else { npm install --no-audit --no-fund }
+      - name: Build Bob.exe from source (unpacked folder)
+        run: npx electron-builder --win dir --publish never
+      - name: Upload unsigned build
+        id: upload-unsigned
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Bob-signed-build-unsigned
+          path: dist/win-unpacked
+          if-no-files-found: error
+      - name: Sign with SignPath
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: bob-exe
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: dist/signed
+      - name: Upload signed build
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Bob-${{ github.ref_name }}-win-x64-signed
+          path: dist/signed
+          if-no-files-found: error

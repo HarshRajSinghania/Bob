@@ -1,0 +1,11 @@
+# Never published: personal settings and Bob's home folder (chats, notes, models).
+config.json
+inn/
+models/
+# Kept on the PC only until every install has moved to the new layout.
+legacy/
+# Build output and tools
+dist/
+node_modules/
+*.log
+*.part

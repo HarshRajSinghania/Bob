@@ -1,0 +1,352 @@
+// Bob's local server: serves the panel and a small API. Only listens on this PC.
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { loadConfig, appDir, saveSettings, VERSION } from './config.js';
+import { Brain } from './brain.js';
+import { transcribe } from './stt.js';
+import { ModelShop } from './models.js';
+import { autostartOn, setAutostart } from './autostart.js';
+import { capabilities } from './capabilities.js';
+import { cloudStatus } from './cloud.js';
+import { say, KOKORO_VOICES, stopVoices } from './tts.js';
+process.on('exit', () => stopVoices()); // never leave a voice holding the graphics card
+import { workshopDir, listWorkflows, ensureWorkshop } from './workshop.js';
+import { SESSIONS, currentSession, sessionBrains } from './sessions.js';
+import { voiceList, publicView, sampleFor, clearSamples } from './voice-samples.js';
+import { checkUpdate, startUpdate, updateStatus, requestRestart } from './update.js';
+
+const cfg = loadConfig();
+const publicDir = path.join(appDir, 'public');
+
+// llama.cpp speed settings, as the app shows them.
+function speedView() {
+  const lc = cfg.llamacpp || {};
+  return { fit: typeof lc.fit === 'boolean' ? lc.fit : null, threads: lc.threads || null, batch: lc.batch || null, ubatch: lc.ubatch || null, ctx: lc.ctx || null, draft: lc.draft || { enabled: false, model: '', max: 16, min: 1, ngld: 99 }, modelArgs: lc.modelArgs || {}, args: lc.args || null };
+}
+const clients = new Set();
+
+function broadcast(ev) {
+  const data = `data: ${JSON.stringify(ev)}\n\n`;
+  for (const res of clients) res.write(data);
+}
+
+const brain = new Brain(cfg, broadcast);
+const shop = new ModelShop(cfg, broadcast, brain.engine);
+if (!shop.found.at) shop.scan().catch(() => {});
+
+function workshopView() {
+  return { enabled: cfg.workshop?.enabled === true, port: Number(cfg.workshop?.port) || 8188, folder: workshopDir(cfg), count: listWorkflows(cfg).filter((w) => w.ok).length };
+}
+
+const TYPES = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.webm': 'video/webm', '.mp4': 'video/mp4', '.avi': 'video/x-msvideo', '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.flac': 'audio/flac', '.ogg': 'audio/ogg'
+};
+
+function send(res, code, body, type = 'application/json') {
+  res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+  res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
+}
+
+function serveFile(res, dir, rel) {
+  const file = path.resolve(dir, '.' + path.sep + rel);
+  if (!file.startsWith(path.resolve(dir) + path.sep)) return send(res, 404, { error: 'not found' });
+  fs.readFile(file, (err, buf) => {
+    if (err) return send(res, 404, { error: 'not found' });
+    send(res, 200, buf, TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream');
+  });
+}
+
+async function body(req) {
+  let s = '';
+  for await (const c of req) { s += c; if (s.length > 1e6) throw new Error('too big'); }
+  return s ? JSON.parse(s) : {};
+}
+
+// Block other websites from talking to Bob: check Host (DNS rebinding) and require
+// a custom header on every POST (browsers won't send it cross-site without CORS, which we never grant).
+const localHosts = new Set([`127.0.0.1:${cfg.port}`, `localhost:${cfg.port}`, `[::1]:${cfg.port}`]);
+const remote = cfg.remote || {};
+const remoteOn = Boolean(remote.enabled && remote.passcode && String(remote.passcode).length >= 6);
+const remoteHosts = new Set((remote.hosts || []).map((h) => String(h).toLowerCase()));
+const authToken = crypto.createHash('sha256').update('bob:' + (remote.passcode || '') + ':' + cfg.agentDir).digest('hex');
+const loginTries = [];
+
+// Phone access over Tailscale only: loopback or the Tailscale range (100.64.0.0/10).
+function fromTailscaleOrLocal(addr) {
+  const a = String(addr || '').replace(/^::ffff:/, '');
+  if (a === '127.0.0.1' || a === '::1') return true;
+  const m = a.match(/^100\.(\d+)\./);
+  return Boolean(m && Number(m[1]) >= 64 && Number(m[1]) <= 127);
+}
+function hasCookie(req) {
+  const c = String(req.headers.cookie || '').split(/;\s*/).find((x) => x.startsWith('bob_auth='));
+  if (!c) return false;
+  const v = Buffer.from(c.slice(9)), t = Buffer.from(authToken);
+  return v.length === t.length && crypto.timingSafeEqual(v, t);
+}
+const LOGIN_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Bob</title><link rel="icon" href="/icons/bob-32.png"><style>body{background:#1d1510;color:#f3e7d3;font:16px "Segoe UI",system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0}form{background:#2b1d14;padding:24px;border-radius:12px;display:grid;gap:12px;width:min(320px,90vw)}input,button{font:inherit;padding:10px;border-radius:8px;border:1px solid #5a4030}input{background:#1d1510;color:#f3e7d3}button{background:#e7a64a;color:#2b1d14;font-weight:700;border:none}</style></head><body><form method="post" action="/login"><img src="/icons/bob-192.png" width="64" height="64" alt=""><label for="c">Bob's passcode</label><input id="c" name="code" type="password" autocomplete="current-password" required><button>Come in</button></form></body></html>`;
+
+const server = http.createServer(async (req, res) => {
+  try {
+    const host = String(req.headers.host).toLowerCase();
+    const isLocal = localHosts.has(host) && fromTailscaleOrLocal(req.socket.remoteAddress) && /^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(req.socket.remoteAddress);
+    const isRemote = !isLocal && remoteOn && remoteHosts.has(host) && fromTailscaleOrLocal(req.socket.remoteAddress);
+    if (!isLocal && !isRemote) return send(res, 403, { error: 'bad host' });
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const p = url.pathname;
+
+    if (isRemote && !hasCookie(req)) {
+      if (p.startsWith('/icons/')) return serveFile(res, publicDir, p.slice(1));
+      if (req.method === 'POST' && p === '/login') {
+        const now = Date.now();
+        while (loginTries.length && now - loginTries[0] > 60000) loginTries.shift();
+        if (loginTries.length >= 5) return send(res, 429, 'Too many tries. Wait a minute.', 'text/plain');
+        loginTries.push(now);
+        let raw = '';
+        for await (const c of req) { raw += c; if (raw.length > 2000) break; }
+        const code = new URLSearchParams(raw).get('code') || '';
+        const a = crypto.createHash('sha256').update(code).digest(), b = crypto.createHash('sha256').update(String(remote.passcode)).digest();
+        if (crypto.timingSafeEqual(a, b)) {
+          res.writeHead(303, { location: '/', 'set-cookie': `bob_auth=${authToken}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000` });
+          return res.end();
+        }
+        return send(res, 401, LOGIN_PAGE, 'text/html; charset=utf-8');
+      }
+      return send(res, 401, LOGIN_PAGE, 'text/html; charset=utf-8');
+    }
+
+    if (req.method === 'POST' && req.headers['x-bob'] !== '1') return send(res, 403, { error: 'missing header' });
+    // Anything the user does in the window (a setting, a click, typing) counts as activity, so an update
+    // never restarts Bob while he's using it. Automatic polling (GETs) doesn't count; quitting doesn't either.
+    if (req.method === 'POST' && p !== '/api/quit') brain.lastActivity = Date.now();
+    if (req.method === 'POST' && p === '/api/activity') return send(res, 200, { ok: true });
+
+    if (req.method === 'GET' && p === '/api/events') {
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
+      res.write(`data: ${JSON.stringify({ type: 'status', ...brain.state })}\n\n`);
+      clients.add(res);
+      const ping = setInterval(() => res.write(': ping\n\n'), 20000);
+      req.on('close', () => { clearInterval(ping); clients.delete(res); });
+      return;
+    }
+    if (req.method === 'GET' && p === '/api/status') return send(res, 200, { ...(await brain.status()), version: VERSION });
+    if (req.method === 'GET' && p === '/api/history') {
+      const id = url.searchParams.get('session') || 'main';
+      return send(res, 200, brain.history(id));
+    }
+    if (req.method === 'POST' && p === '/api/chat') {
+      const { sessionId = 'main', text, refs = [] } = await body(req);
+      if (!text || !String(text).trim()) return send(res, 400, { error: 'empty' });
+      const attach = [].concat(refs).map(String).filter((id) => /^[0-9a-f]{8}$/.test(id) && brain.refs.list().some((r) => r.id === id));
+      return send(res, 200, brain.enqueue(String(sessionId), String(text).slice(0, 20000), attach));
+    }
+    // Model shop and settings. Downloads and settings changes only from this PC, never from the phone.
+    if (req.method === 'GET' && p === '/api/models') return send(res, 200, await shop.list());
+    if (req.method === 'GET' && p === '/api/cloud') return send(res, 200, cloudStatus(cfg));
+    // The one true "is Bob idle?" answer, for anything that wants to run heavy work (benchmarks, tests)
+    // without getting in the user's way: nothing running, nothing waiting, no download, quiet for a while.
+    if (req.method === 'GET' && p === '/api/idle') {
+      const waiting = brain.queue.filter((j) => j.state === 'waiting').length;
+      const quietFor = Math.round((Date.now() - brain.lastActivity) / 1000);
+      const busy = brain.turns.size > 0, downloading = Boolean(shop.job);
+      return send(res, 200, { idle: !busy && !waiting && !downloading && quietFor >= 120, busy, waiting, downloading, quietForSeconds: quietFor });
+    }
+    if (req.method === 'GET' && p === '/api/engines/latest') {
+      try { return send(res, 200, await shop.engineLatest(String(url.searchParams.get('id') || ''))); }
+      catch (e) { return send(res, 502, { error: e.message }); }
+    }
+    if (req.method === 'GET' && p === '/api/capabilities') return send(res, 200, capabilities(cfg));
+    if (req.method === 'GET' && p === '/api/roles') return send(res, 200, await shop.roles());
+    if (req.method === 'GET' && p === '/api/hardware') return send(res, 200, await shop.hardware());
+    if (req.method === 'GET' && p === '/api/settings') {
+      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: cfg.ollamaKeepAlive || '10m', tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform });
+    }
+    if (req.method === 'POST' && p.startsWith('/api/models/') || req.method === 'POST' && p === '/api/settings') {
+      if (!isLocal) return send(res, 403, { error: 'Downloads and settings can only be changed on the PC itself.' });
+      const b = await body(req);
+      try {
+        if (p === '/api/models/scan') return send(res, 200, { found: (await shop.scan()).files.length });
+        if (p === '/api/models/download') {
+          const ids = [].concat(b.ids || b.id || []).map(String);
+          if (!ids.length) return send(res, 400, { error: 'Nothing to download.' });
+          return send(res, 200, await shop.download(ids[0], { queue: ids.slice(1) }));
+        }
+        if (p === '/api/models/role') {
+          const patch = await shop.setRole(String(b.job), String(b.value));
+          brain.log('settings', `${b.job} -> ${b.value}`);
+          return send(res, 200, { ok: true, patch, needsEngine: patch.needsEngine || null, restart: false });
+        }
+        if (p === '/api/models/cancel') return send(res, 200, { cancelled: shop.cancel(b.id ? String(b.id) : undefined) });
+        if (p === '/api/models/pause') return send(res, 200, { ok: shop.pause(String(b.id)) });
+        if (p === '/api/models/resume') return send(res, 200, { ok: shop.resume(String(b.id)) });
+        if (p === '/api/models/move') return send(res, 200, { ok: shop.moveDownload(String(b.id), b.before ? String(b.before) : null) });
+        if (p === '/api/models/remove') return send(res, 200, { ok: shop.removeDownload(String(b.id)) });
+        if (p === '/api/models/clear') return send(res, 200, { ok: shop.clearDownloads() });
+        if (p === '/api/models/use') {
+          const patch = await shop.use(String(b.id));
+          brain.log('settings', `now using ${b.id}`);
+          return send(res, 200, { ok: true, patch, needsEngine: patch.needsEngine || null, restart: false });
+        }
+        if (p === '/api/settings') {
+          const out = {};
+          // Every settings change goes in the logbook with its keys, so nothing changes without a trace.
+          brain.log('settings', `changed: ${Object.keys(b).join(', ')}${b.engine ? ` (engine -> ${b.engine})` : ''}`);
+          if ('autostart' in b) out.autostart = await setAutostart(cfg, b.autostart === true);
+          if ('setupDone' in b) { saveSettings(cfg, { setupDone: b.setupDone === true }); out.setupDone = cfg.setupDone; }
+          if (b.cloudHelpers && typeof b.cloudHelpers === 'object') { saveSettings(cfg, { cloudHelpers: b.cloudHelpers }); out.cloud = cloudStatus(cfg); }
+          if (typeof b.look === 'string' && /^[a-z]{1,20}(-\d{1,2})?$/.test(b.look)) { saveSettings(cfg, { look: b.look }); out.look = b.look; }
+          if (b.style && typeof b.style === 'object') { saveSettings(cfg, { style: { ...(cfg.style || {}), ...b.style } }); out.style = cfg.style; }
+          if (typeof b.session === 'string') { saveSettings(cfg, { session: b.session }); out.session = await brain.setSession(cfg.session || 'normal'); }
+          if (b.sessionBrains && typeof b.sessionBrains === 'object') { saveSettings(cfg, { sessionBrains: b.sessionBrains }); out.sessionBrains = sessionBrains(cfg); }
+          if (b.tts && typeof b.tts === 'object') { saveSettings(cfg, { tts: { ...(typeof b.tts.voice === 'string' ? { voice: b.tts.voice } : {}), ...(typeof b.tts.speed === 'number' ? { speed: b.tts.speed } : {}) } }); out.tts = { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice, speed: cfg.tts?.speed || 1 }; }
+          if (b.speed && typeof b.speed === 'object') { const sp = Object.fromEntries(Object.entries(b.speed).filter(([k]) => ['threads', 'batch', 'ubatch', 'ctx', 'draft', 'modelArgs', 'args', 'fit'].includes(k))); saveSettings(cfg, { llamacpp: sp }); out.speed = speedView(); }
+          if (b.sessionCtx && typeof b.sessionCtx === 'object') { saveSettings(cfg, { sessionCtx: b.sessionCtx }); out.sessionCtx = cfg.sessionCtx; }
+          if (typeof b.ollamaKeepAlive === 'string') { saveSettings(cfg, { ollamaKeepAlive: b.ollamaKeepAlive }); out.ollamaKeepAlive = cfg.ollamaKeepAlive || '10m'; }
+          if (typeof b.oneBrain === 'boolean') { saveSettings(cfg, { oneBrain: b.oneBrain }); out.oneBrain = cfg.oneBrain === true; }
+          if (b.updates && typeof b.updates === 'object') { saveSettings(cfg, { updates: { autoCheck: b.updates.autoCheck === true } }); out.updates = cfg.updates; }
+          if (b.downloads && typeof b.downloads === 'object') { saveSettings(cfg, { downloads: { ...(cfg.downloads || {}), ...b.downloads } }); out.downloads = cfg.downloads; shop.pumpDownloads(); }
+          if (typeof b.catName === 'string') { saveSettings(cfg, { catName: b.catName }); out.catName = cfg.catName || 'Patches'; }
+          if (b.workshop && typeof b.workshop === 'object') { saveSettings(cfg, { workshop: b.workshop }); if (cfg.workshop?.enabled) ensureWorkshop(cfg); out.workshop = workshopView(); }
+          if (b.engine === 'ollama' || b.engine === 'llamacpp') { saveSettings(cfg, { engine: b.engine }); out.restart = true; }
+          return send(res, 200, out);
+        }
+      } catch (e) { return send(res, 409, { error: e.message }); }
+      return send(res, 404, { error: 'not found' });
+    }
+    if (req.method === 'POST' && p === '/api/approve') {
+      const { id, allow } = await body(req);
+      return send(res, brain.answerApproval(id, allow) ? 200 : 404, { ok: true });
+    }
+    if (req.method === 'POST' && p === '/api/transcribe') {
+      const chunks = [];
+      let size = 0;
+      for await (const c of req) { size += c.length; if (size > 15e6) return send(res, 413, { error: 'Recording too long.' }); chunks.push(c); }
+      try { return send(res, 200, { text: await transcribe(cfg, Buffer.concat(chunks)) }); }
+      catch (e) { return send(res, 502, { error: e.message }); }
+    }
+    // The reference shelf. Uploads are raw image bytes; name, kind and notes ride in the query string.
+    if (req.method === 'GET' && p === '/api/refs') return send(res, 200, brain.refs.list().map((r) => ({ ...r, url: `/refs/${r.file}` })));
+    if (req.method === 'POST' && p === '/api/refs') {
+      const chunks = [];
+      let size = 0;
+      for await (const c of req) { size += c.length; if (size > 15e6) return send(res, 413, { error: 'That picture is too big (15 MB max).' }); chunks.push(c); }
+      try {
+        const q = url.searchParams;
+        const r = brain.refs.add(Buffer.concat(chunks), { name: q.get('name'), kind: q.get('kind'), notes: q.get('notes') });
+        brain.log('refs', `added ${r.name} (${r.kind})`);
+        return send(res, 200, { ...r, url: `/refs/${r.file}` });
+      } catch (e) { return send(res, 400, { error: e.message }); }
+    }
+    if (req.method === 'POST' && (p === '/api/refs/update' || p === '/api/refs/delete')) {
+      const b = await body(req);
+      try {
+        if (p === '/api/refs/delete') return send(res, 200, { removed: brain.refs.remove(String(b.id)) });
+        const r = brain.refs.update(String(b.id), { name: b.name, kind: b.kind, notes: b.notes });
+        return send(res, 200, { ...r, url: `/refs/${r.file}` });
+      } catch (e) { return send(res, 400, { error: e.message }); }
+    }
+    if (req.method === 'GET' && p.startsWith('/refs/')) {
+      const f = path.basename(decodeURIComponent(p.slice(6)));
+      if (!/^[0-9a-f]{8}\.(png|jpg|webp)$/.test(f)) return send(res, 404, { error: 'not found' });
+      return serveFile(res, brain.refs.dir, f);
+    }
+    if (req.method === 'GET' && p === '/api/queue') return send(res, 200, brain.queueView());
+    if (req.method === 'GET' && p === '/api/downloads') return send(res, 200, shop.downloadsView());
+    if (req.method === 'GET' && p === '/api/gpu') return send(res, 200, await gpuNow());
+    if (req.method === 'GET' && p === '/api/update/check') return send(res, 200, checkUpdate());
+    if (req.method === 'GET' && p === '/api/update/status') return send(res, 200, updateStatus(cfg) || {});
+    if (req.method === 'POST' && p === '/api/update/restart') {
+      if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' });
+      const { when } = await body(req);
+      try { return send(res, 200, requestRestart(cfg, when)); } catch (e) { return send(res, 409, { error: e.message }); }
+    }
+    if (req.method === 'POST' && (p === '/api/update/start' || p === '/api/quit')) {
+      if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' });
+      if (p === '/api/quit') { brain.log('settings', 'closing for an update'); brain.broadcast({ type: 'announce', text: 'Closing for a moment to switch to the new Bob. Back in a few seconds.' }); send(res, 200, { ok: true }); setTimeout(() => (globalThis.bobQuit ? globalThis.bobQuit() : process.exit(0)), 300); return; }
+      try { const r = startUpdate(cfg); brain.log('settings', `update started: ${r.from.label} -> ${r.to?.label}`); return send(res, 200, r); }
+      catch (e) { return send(res, 409, { error: e.message }); }
+    }
+    if (req.method === 'POST' && (p === '/api/queue/cancel' || p === '/api/queue/retry')) {
+      const { id } = await body(req);
+      const ok = p.endsWith('cancel') ? brain.cancelJob(String(id)) : brain.retryJob(String(id));
+      return send(res, ok ? 200 : 404, { ok });
+    }
+    if (req.method === 'POST' && p === '/api/queue/move') {
+      const { id, before } = await body(req);
+      const ok = brain.moveJob(String(id), before ? String(before) : null);
+      return send(res, ok ? 200 : 404, { ok });
+    }
+    if (req.method === 'POST' && p === '/api/queue/remove') {
+      const { id } = await body(req);
+      const ok = brain.removeJob(String(id));
+      return send(res, ok ? 200 : 404, { ok });
+    }
+    if (req.method === 'POST' && p === '/api/queue/clear') return send(res, 200, { ok: brain.clearCompleted() });
+    if (req.method === 'POST' && p === '/api/speak') {
+      const { text } = await body(req);
+      try { return send(res, 200, await say(cfg, String(text || '')), 'audio/wav'); }
+      catch (e) { return send(res, 409, { error: e.message }); }
+    }
+    // Voice samples: listing looks at files only; a sample is made (or found) only when asked for.
+    if (req.method === 'GET' && p === '/api/voice/samples') return send(res, 200, { voices: publicView(voiceList(cfg, shop)) });
+    if (req.method === 'POST' && p === '/api/voice/sample') {
+      const { engine, voice } = await body(req);
+      try {
+        const r = await sampleFor(cfg, shop, String(engine || ''), String(voice || ''));
+        if (r.file) return send(res, 200, fs.readFileSync(r.file), TYPES[path.extname(r.file).toLowerCase()] || 'audio/wav');
+        return send(res, 200, r);
+      } catch (e) { return send(res, 409, { error: e.message }); }
+    }
+    if (req.method === 'POST' && p === '/api/voice/samples/clear') { if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' }); clearSamples(cfg); return send(res, 200, { ok: true }); }
+    if (req.method === 'POST' && p === '/api/stop') return send(res, 200, { stopped: brain.stop() });
+
+    if (req.method === 'GET' && p.startsWith('/images/')) {
+      return serveFile(res, cfg.painterDir, path.basename(decodeURIComponent(p.slice(8))));
+    }
+    if (req.method === 'GET') return serveFile(res, publicDir, p === '/' ? 'index.html' : decodeURIComponent(p.slice(1)));
+    send(res, 404, { error: 'not found' });
+  } catch (e) {
+    send(res, 500, { error: e.message });
+  }
+});
+
+// Port taken (usually Bob is already running): say so and quit, rather than sit there not listening.
+server.on('error', (e) => {
+  console.error(e.code === 'EADDRINUSE' ? `Port ${cfg.port} is in use. Bob is probably already running: open http://localhost:${cfg.port}` : `Bob couldn't start: ${e.message}`);
+  if (process.versions.electron) throw e; // Bob.exe checks the port first and shows its own message
+  process.exit(1);
+});
+server.listen(cfg.port, remoteOn ? (remote.bindAddress || '0.0.0.0') : cfg.host, () => {
+  if (remoteOn) console.log(`Phone access is on for: ${[...remoteHosts].join(', ')}`);
+  console.log(`Bob ${VERSION.label} is open for business at http://${cfg.host === '127.0.0.1' ? 'localhost' : cfg.host}:${cfg.port}`);
+  console.log(`Inn folder: ${cfg.innDir}`);
+  brain.log('start', `Bob started on port ${cfg.port}`);
+});
+// Browsers may send "localhost" to the IPv6 loopback (::1) first, so listen there too when Bob is local-only.
+if (!remoteOn && cfg.host === '127.0.0.1') {
+  const v6 = http.createServer(server.listeners('request')[0]);
+  v6.on('error', () => {}); // no IPv6 on this PC: fine, 127.0.0.1 still works
+  v6.listen(cfg.port, '::1');
+}
+// One bad request or background job must never take Bob down: log it and keep serving.
+process.on('unhandledRejection', (e) => { console.error('Unhandled:', e); try { brain.log('error', String(e && e.stack || e).slice(0, 500)); } catch {} });
+process.on('uncaughtException', (e) => { console.error('Uncaught:', e); try { brain.log('error', String(e && e.stack || e).slice(0, 500)); } catch {} });
+
+
+// Graphics card memory for the Now running panel (NVIDIA only; nvidia-smi ships with the driver).
+let gpuCache = { at: 0, val: null };
+async function gpuNow() {
+  if (Date.now() - gpuCache.at < 3000) return gpuCache.val;
+  const { execFile } = await import('node:child_process');
+  const gpu = await new Promise((resolve) => execFile('nvidia-smi', ['--query-gpu=name,memory.used,memory.total', '--format=csv,noheader,nounits'], { timeout: 4000, windowsHide: true }, (err, out) => {
+    if (err) return resolve(null);
+    const [name, used, total] = String(out).split('\n')[0].split(',').map((x) => x.trim());
+    resolve(name ? { name, usedGB: Math.round(Number(used) / 102.4) / 10, totalGB: Math.round(Number(total) / 102.4) / 10 } : null);
+  }));
+  gpuCache = { at: Date.now(), val: { gpu } };
+  return gpuCache.val;
+}

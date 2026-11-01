@@ -1,0 +1,99 @@
+// Sessions (which brains stay loaded), parallel lanes, and Style settings cleaning.
+import { Brain } from '../src/brain.js';
+import { modelFor, laneOf, suggestSession, currentSession, sessionBrains } from '../src/sessions.js';
+import { cleanStyle } from '../src/config.js';
+import { ENGINES, findRelease, pickAsset } from '../src/engines.js';
+import { explainSetupError } from '../src/audio.js';
+import { LlamaCpp } from '../src/llamacpp.js';
+import { mergeSettings } from '../src/config.js';
+import os from 'node:os';
+import fs from 'node:fs';
+import path from 'node:path';
+
+let pass = 0, fail = 0;
+const check = (name, ok, extra = '') => { ok ? pass++ : fail++; console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${ok ? '' : ' ' + extra}`); };
+
+const models = { bob: 'gemma4:26b', tinker: 'qwen3-coder:30b', ledger: 'gemma4:26b', reviewer: 'gpt-oss:20b', painter: 'gemma4:26b' };
+const cfg = (x = {}) => ({ engine: 'ollama', models, ...x });
+
+check('Normal is the default', currentSession(cfg()).id === 'normal');
+check('unknown session falls back to Normal', currentSession(cfg({ session: 'party' })).id === 'normal');
+check('Normal: each hat its own brain', modelFor(cfg(), 'tinker').model === 'qwen3-coder:30b' && !modelFor(cfg(), 'tinker').cpu);
+check('Normal + One brain: every hat on the main brain', modelFor(cfg({ oneBrain: true }), 'tinker').model === 'gemma4:26b');
+check('Art: chat on the small brain, on the processor', (() => { const m = modelFor(cfg({ session: 'art' }), 'bob'); return m.model === 'gemma4:e4b' && m.cpu; })());
+check('Coding: the coder does every hat', modelFor(cfg({ session: 'coding' }), 'ledger').model === 'qwen3-coder:30b');
+check('Office: the ledger brain does every hat', modelFor(cfg({ session: 'office' }), 'tinker').model === 'gemma4:26b');
+check('Deep thought: reviewer brain, thinking high', (() => { const m = modelFor(cfg({ session: 'deep' }), 'bob'); return m.model === 'gpt-oss:20b' && m.think === 'high'; })());
+check('Light: small brain, on the card', (() => { const m = modelFor(cfg({ session: 'light' }), 'bob'); return m.model === 'gemma4:e4b' && !m.cpu; })());
+check('session brains can be changed', sessionBrains(cfg({ sessionBrains: { small: 'qwen2.5-coder:7b' } })).small === 'qwen2.5-coder:7b');
+check('Art: pictures get their own lane', laneOf(cfg({ session: 'art' }), { kind: 'picture' }) === 'art' && laneOf(cfg({ session: 'art' }), { kind: 'chat' }) === 'talk');
+check('Normal: one lane for everything', laneOf(cfg(), { kind: 'picture' }) === 'talk');
+check('Art with llama.cpp: one lane (it holds one brain)', laneOf(cfg({ session: 'art', engine: 'llamacpp' }), { kind: 'picture' }) === 'talk');
+const jobs = [{ kind: 'picture', state: 'waiting' }, { kind: 'video', state: 'waiting' }, { kind: 'chat', state: 'waiting' }];
+check('two pictures waiting: suggests Art', suggestSession(cfg(), jobs)?.id === 'art');
+check('already in Art: no suggestion', suggestSession(cfg({ session: 'art' }), jobs) === null);
+check('one chat: no suggestion', suggestSession(cfg(), [{ kind: 'chat', state: 'waiting' }]) === null);
+
+const st = cleanStyle({ theme: 'my-abc', custom: [
+  { id: 'my-abc', name: 'Night <script>', colors: { bg: '#112233', accent: 'red;}body{', text: '#FFFFFF' }, font: 'comic', radius: 99, blueprint: true },
+  { id: 'evil', name: 'x', colors: {} }
+] });
+check('style: theme id kept', st.theme === 'my-abc');
+check('style: only my- ids saved', st.custom.length === 1);
+check('style: bad colours dropped, good ones kept', st.custom[0].colors.bg === '#112233' && !('accent' in st.custom[0].colors) && st.custom[0].colors.text === '#ffffff');
+check('style: odd name replaced', st.custom[0].name === 'My theme');
+check('style: unknown font dropped, radius capped', !st.custom[0].font && st.custom[0].radius === 20 && st.custom[0].blueprint === true);
+check('style: bad theme id dropped', cleanStyle({ theme: '"><img>' }).theme === undefined);
+
+// Engines: a newest release with no Windows build is skipped, not fatal.
+const whisper = ENGINES.find((e) => e.id === 'whispercpp');
+const releases = [
+  { tag_name: 'v1.9.5', assets: [{ name: 'whisper-v1.9.5-xcframework.zip' }] },
+  { tag_name: 'b5454', prerelease: true, assets: [{ name: 'whisper-bin-win-cuda-12.4-x64.zip' }, { name: 'whisper-bin-x64.zip' }] },
+  { tag_name: 'v1.9.2', assets: [{ name: 'whisper-bin-x64.zip' }] }
+];
+const fakeFetch = async (u) => ({ ok: true, json: async () => (/releases\?per_page/.test(u) ? releases : {}) });
+const found = await findRelease(whisper, true, undefined, fakeFetch);
+check('whisper.cpp: skips a release with no Windows build', found.rel.tag_name === 'b5454', found.rel.tag_name);
+check('whisper.cpp: CPU build preferred (Bob listens on the processor)', found.asset.name === 'whisper-bin-x64.zip');
+check('whisper.cpp: newer CUDA zip name understood, highest version wins', pickAsset([{ name: 'whisper-bin-win-cuda-11.8-x64.zip' }, { name: 'whisper-bin-win-cuda-12.4-x64.zip' }], whisper, true)?.name === 'whisper-bin-win-cuda-12.4-x64.zip');
+let none = '';
+try { await findRelease(whisper, true, undefined, async () => ({ ok: true, json: async () => [releases[0]] })); } catch (e) { none = e.message; }
+check('no Windows build anywhere: a clear message', /last 15/.test(none) && /Clicking again won't help/.test(none), none);
+check('Smart App Control block explained in plain words', /Smart App Control/.test(explainSetupError('Querying Python failed with exit code 0xc0e90002')));
+
+// llama.cpp speed: draft model, threads/batch, per-model flags, per-session context.
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-speed-'));
+const big = path.join(tmp, 'big.gguf'), small = path.join(tmp, 'small.gguf');
+fs.writeFileSync(big, 'x'); fs.writeFileSync(small, 'x');
+const lcfg = { agentDir: tmp, dataDir: tmp, llamacpp: { models: { big, small }, threads: 8, batch: 4096, ubatch: 1024, draft: { model: 'small', max: 16, min: 2, ngld: 99 }, modelArgs: { big: ['--n-cpu-moe', '8'] } } };
+const lc = new LlamaCpp(lcfg);
+const a = lc.buildArgs('big', { ctx: 32768 });
+const at = (f) => a[a.indexOf(f) + 1];
+check('llama.cpp: session context size is used', at('-c') === '32768');
+check('llama.cpp: threads, batch and micro-batch', at('-t') === '8' && at('-b') === '4096' && at('-ub') === '1024');
+check('llama.cpp: speculative decoding with the draft brain', at('-md') === small && at('--draft-max') === '16' && at('--draft-min') === '2' && at('-ngld') === '99');
+check('llama.cpp: per-model flags', a.includes('--n-cpu-moe') && at('--n-cpu-moe') === '8');
+check('llama.cpp: the draft brain gets no draft of its own', !lc.buildArgs('small').includes('-md'));
+check('llama.cpp: settings changed later apply to the next load', (lcfg.llamacpp.threads = 4, at && lc.buildArgs('big')[lc.buildArgs('big').indexOf('-t') + 1] === '4'));
+const m = mergeSettings({ llamacpp: { exe: 'C:\\llama\\llama-server.exe' } }, { llamacpp: { exe: 'C:\\evil.exe', threads: -3, batch: 2048, modelArgs: { big: ['--n-cpu-moe', '8', '--log-file', 'C:\\Windows\\x.txt'] }, draft: { model: 'small', max: 999 } }, sessionCtx: { deep: 131072, art: 12345 } });
+check('speed settings: the program path can\'t be changed', m.llamacpp.exe === 'C:\\llama\\llama-server.exe');
+check('speed settings: bad numbers dropped', m.llamacpp.threads === null && m.llamacpp.batch === 2048 && m.llamacpp.draft.max === 16);
+check('speed settings: flags kept, file paths dropped', JSON.stringify(m.llamacpp.modelArgs.big) === JSON.stringify(['--n-cpu-moe', '8', '--log-file']), JSON.stringify(m.llamacpp.modelArgs.big));
+check('session context: only the offered sizes', m.sessionCtx.deep === 131072 && m.sessionCtx.art === null);
+check('session context reaches the brain', modelFor({ ...cfg({ session: 'deep' }), sessionCtx: { deep: 131072 } }, 'bob').ctx === 131072 && modelFor(cfg({ session: 'deep' }), 'bob').ctx === null);
+check('Normal chat defaults to 32K; coding copies keep the long default', modelFor(cfg(), 'bob').ctx === 32768 && modelFor(cfg(), 'tinker').ctx === null);
+check('--fit is off on an old llama.cpp (no version file)', !lc.buildArgs('small').includes('--fit'));
+fs.mkdirSync(path.join(tmp, 'llama.cpp'), { recursive: true });
+fs.writeFileSync(path.join(tmp, 'llama.cpp', 'bob-llamacpp.json'), JSON.stringify({ version: 'b12032' }));
+check('--fit on with b12032 when nothing is pinned', (() => { const x = lc.buildArgs('small'); return x[x.indexOf('--fit') + 1] === 'on'; })());
+check('--fit stays off when a brain has a pinned split', !lc.buildArgs('big').includes('--fit'));
+lcfg.llamacpp.fit = false;
+check('--fit can be switched off', !lc.buildArgs('small').includes('--fit'));
+fs.rmSync(tmp, { recursive: true, force: true });
+
+check('a question about an attached picture is a chat job', Brain.guessKind('what is in this picture?') === 'chat' && Brain.guessKind('Describe it', true) === 'chat');
+check('asking for a picture is still a picture job', Brain.guessKind('paint a dragon over the inn') === 'picture');
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

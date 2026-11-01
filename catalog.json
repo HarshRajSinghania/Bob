@@ -1,0 +1,648 @@
+{
+  "version": 1,
+  "note": "Bob's model shop. Each entry says what it is for, how big it is, how much graphics memory it wants, and its licence. 'ollama' entries are pulled through Ollama when it is running. 'files' entries are downloaded straight from the link into models\\bob. Links marked verify:true still need checking on the PC before the Download button is shown.",
+  "categories": [
+    {
+      "id": "chat",
+      "label": "Talking and planning",
+      "icon": "💬",
+      "what": "Bob's everyday brain: chat, notice board, reminders, research."
+    },
+    {
+      "id": "coding",
+      "label": "Coding",
+      "icon": "🔨",
+      "what": "The workbench: writing and fixing code."
+    },
+    {
+      "id": "vision",
+      "label": "Seeing pictures",
+      "icon": "👁",
+      "what": "Reading screenshots, photos and diagrams."
+    },
+    {
+      "id": "voice",
+      "label": "Hearing you",
+      "icon": "🎙",
+      "what": "Turning your voice into text."
+    },
+    {
+      "id": "speech",
+      "icon": "🔊",
+      "label": "Bob's voice",
+      "what": "Bob reads his replies aloud in a voice of his own, instead of the Windows voices."
+    },
+    {
+      "id": "images",
+      "label": "Pictures",
+      "icon": "🎨",
+      "what": "The painter's corner: making images."
+    },
+    {
+      "id": "video",
+      "label": "Video",
+      "icon": "🎞",
+      "what": "Short clips. Slow, and they need lots of memory."
+    }
+  ],
+  "models": [
+    {
+      "id": "gemma4-26b",
+      "category": "chat",
+      "name": "Gemma 4 26B",
+      "what": "Bob's main brain. Fast, sees pictures, good with tools.",
+      "sizeGB": 18,
+      "vramGB": 16,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "best",
+      "ollama": "gemma4:26b",
+      "use": {
+        "models": {
+          "bob": "$model",
+          "scout": "$model",
+          "painter": "$model"
+        }
+      }
+    },
+    {
+      "id": "gemma4-e4b",
+      "category": "chat",
+      "name": "Gemma 4 E4B",
+      "what": "Small and quick. Good for laptops and 8 GB cards. Can also hear audio.",
+      "sizeGB": 6.6,
+      "vramGB": 6,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "small",
+      "ollama": "gemma4:e4b",
+      "use": {
+        "models": {
+          "bob": "$model",
+          "scout": "$model",
+          "painter": "$model"
+        }
+      }
+    },
+    {
+      "id": "qwen3-4b",
+      "category": "chat",
+      "name": "Qwen3 4B Instruct",
+      "what": "Tiny. For older PCs with 4 to 6 GB of graphics memory.",
+      "sizeGB": 2.5,
+      "vramGB": 4,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "tiny",
+      "ollama": "qwen3:4b",
+      "files": [
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+          "role": "gguf",
+          "verify": true
+        }
+      ],
+      "use": {
+        "models": {
+          "bob": "$model",
+          "scout": "$model",
+          "painter": "$model"
+        }
+      }
+    },
+    {
+      "id": "qwen3-coder-30b",
+      "category": "coding",
+      "name": "Qwen3 Coder 30B",
+      "what": "The workbench brain. Strong coder with a long memory (128K).",
+      "sizeGB": 19,
+      "vramGB": 16,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "best",
+      "ollama": "qwen3-coder:30b",
+      "files": [
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF/resolve/main/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",
+          "role": "gguf",
+          "verify": true
+        }
+      ],
+      "use": {
+        "models": {
+          "tinker": "$model",
+          "ledger": "$model"
+        }
+      }
+    },
+    {
+      "id": "gpt-oss-20b",
+      "category": "coding",
+      "name": "gpt-oss 20B",
+      "what": "The second-look reviewer. Very fast, careful thinker.",
+      "sizeGB": 13,
+      "vramGB": 14,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "best",
+      "ollama": "gpt-oss:20b",
+      "files": [
+        {
+          "url": "https://huggingface.co/ggml-org/gpt-oss-20b-GGUF/resolve/main/gpt-oss-20b-mxfp4.gguf",
+          "role": "gguf",
+          "verify": true
+        }
+      ],
+      "use": {
+        "models": {
+          "reviewer": "$model"
+        }
+      }
+    },
+    {
+      "id": "qwen2.5-coder-7b",
+      "category": "coding",
+      "name": "Qwen2.5 Coder 7B",
+      "what": "Small coder for laptops and offline backup.",
+      "sizeGB": 4.7,
+      "vramGB": 6,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "small",
+      "ollama": "qwen2.5-coder:7b",
+      "use": {
+        "models": {
+          "tinker": "$model",
+          "ledger": "$model"
+        }
+      }
+    },
+    {
+      "id": "qwen2.5-vl-7b",
+      "category": "vision",
+      "name": "Qwen2.5 VL 7B",
+      "what": "Reads screenshots and documents. Gemma 4 already does this, so it's optional.",
+      "sizeGB": 6,
+      "vramGB": 8,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "optional",
+      "ollama": "qwen2.5vl:7b"
+    },
+    {
+      "id": "whisper-base-en",
+      "category": "voice",
+      "name": "Whisper base (English)",
+      "what": "Small, quick speech-to-text. Runs on the processor.",
+      "sizeGB": 0.15,
+      "vramGB": 0,
+      "license": "MIT",
+      "commercial": true,
+      "pick": "small",
+      "needs": "whisper.cpp",
+      "files": [
+        {
+          "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin",
+          "role": "model",
+          "verify": true
+        }
+      ],
+      "use": {
+        "stt": {
+          "provider": "whispercpp",
+          "model": "$file:model"
+        }
+      }
+    },
+    {
+      "id": "whisper-large-v3-turbo",
+      "category": "voice",
+      "name": "Whisper large v3 turbo",
+      "what": "Very accurate speech-to-text, still quick. Any language.",
+      "sizeGB": 0.6,
+      "vramGB": 0,
+      "license": "MIT",
+      "commercial": true,
+      "pick": "best",
+      "needs": "whisper.cpp",
+      "files": [
+        {
+          "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
+          "role": "model",
+          "verify": true
+        }
+      ],
+      "use": {
+        "stt": {
+          "provider": "whispercpp",
+          "model": "$file:model"
+        }
+      }
+    },
+    {
+      "id": "z-image-turbo",
+      "category": "images",
+      "name": "Z-Image Turbo",
+      "what": "Fast, sharp pictures in 8 steps. Good with text in images.",
+      "sizeGB": 20,
+      "vramGB": 12,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "best",
+      "needs": "stable-diffusion.cpp",
+      "files": [
+        {
+          "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_bf16.safetensors",
+          "role": "diffusionModel",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
+          "role": "vae",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors",
+          "role": "llm",
+          "verify": true
+        }
+      ],
+      "use": {
+        "painter": {
+          "engine": "sdcpp",
+          "sdcpp": {
+            "image": {
+              "diffusionModel": "$file:diffusionModel",
+              "vae": "$file:vae",
+              "llm": "$file:llm",
+              "steps": 8,
+              "cfg": 1.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "flux-schnell",
+      "category": "images",
+      "name": "FLUX.1 schnell",
+      "what": "Quick, good-looking pictures in 4 steps. Big download.",
+      "sizeGB": 34,
+      "vramGB": 16,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "optional",
+      "needs": "stable-diffusion.cpp",
+      "files": [
+        {
+          "url": "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/flux1-schnell.safetensors",
+          "role": "diffusionModel",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors",
+          "role": "vae",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors",
+          "role": "clipL",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp16.safetensors",
+          "role": "t5xxl",
+          "verify": true
+        }
+      ],
+      "use": {
+        "painter": {
+          "engine": "sdcpp",
+          "sdcpp": {
+            "image": {
+              "diffusionModel": "$file:diffusionModel",
+              "vae": "$file:vae",
+              "clipL": "$file:clipL",
+              "t5xxl": "$file:t5xxl",
+              "steps": 4,
+              "cfg": 1.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "qwen-image-edit-2509",
+      "category": "images",
+      "name": "Qwen Image Edit 2509",
+      "what": "Picture edits from references: keeps a character or scene's look in new poses and places. Takes up to 3 reference pictures.",
+      "sizeGB": 19,
+      "vramGB": 14,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "best",
+      "needs": "stable-diffusion.cpp",
+      "files": [
+        {
+          "url": "https://huggingface.co/QuantStack/Qwen-Image-Edit-2509-GGUF/resolve/main/Qwen-Image-Edit-2509-Q4_K_M.gguf",
+          "role": "diffusionModel",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors",
+          "role": "vae",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF/resolve/main/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
+          "role": "llm",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF/resolve/main/mmproj-F16.gguf",
+          "role": "llmVision",
+          "verify": true
+        }
+      ],
+      "use": {
+        "painter": {
+          "sdcpp": {
+            "edit": {
+              "diffusionModel": "$file:diffusionModel",
+              "vae": "$file:vae",
+              "llm": "$file:llm",
+              "llmVision": "$file:llmVision",
+              "steps": 20,
+              "cfg": 2.5,
+              "flowShift": 3,
+              "sampler": "euler"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ltx-2.3-22b",
+      "category": "video",
+      "name": "LTX-2.3 22B",
+      "what": "Higher quality clips with sound, from words or a picture. Big and slow on a 16 GB card.",
+      "sizeGB": 24,
+      "vramGB": 16,
+      "license": "LTX-2 Community License (free under $10M yearly revenue)",
+      "commercial": true,
+      "pick": "best",
+      "needs": "stable-diffusion.cpp",
+      "files": [
+        {
+          "url": "https://huggingface.co/unsloth/LTX-2.3-GGUF/resolve/main/ltx-2.3-22b-dev-UD-Q4_K_M.gguf",
+          "role": "diffusionModel",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/unsloth/LTX-2.3-GGUF/resolve/main/vae/ltx-2.3-22b-dev_video_vae.safetensors",
+          "role": "vae",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/unsloth/LTX-2.3-GGUF/resolve/main/vae/ltx-2.3-22b-dev_audio_vae.safetensors",
+          "role": "audioVae",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/unsloth/LTX-2.3-GGUF/resolve/main/text_encoders/ltx-2.3-22b-dev_embeddings_connectors.safetensors",
+          "role": "embeddingsConnectors",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/unsloth/gemma-3-12b-it-GGUF/resolve/main/gemma-3-12b-it-qat-UD-Q4_K_XL.gguf",
+          "role": "llm",
+          "verify": true
+        }
+      ],
+      "use": {
+        "painter": {
+          "sdcpp": {
+            "video": {
+              "diffusionModel": "$file:diffusionModel",
+              "vae": "$file:vae",
+              "audioVae": "$file:audioVae",
+              "embeddingsConnectors": "$file:embeddingsConnectors",
+              "llm": "$file:llm",
+              "steps": 20,
+              "cfg": 6.0,
+              "sampler": "euler",
+              "fps": 24,
+              "frameStep": 8,
+              "flowShift": 0,
+              "maxFrames": 121
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "wan2.2-ti2v-5b",
+      "category": "video",
+      "name": "Wan 2.2 TI2V 5B",
+      "what": "Short clips from words or a picture. Lighter and quicker than LTX.",
+      "sizeGB": 21,
+      "vramGB": 12,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "small",
+      "needs": "stable-diffusion.cpp",
+      "files": [
+        {
+          "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_ti2v_5B_fp16.safetensors",
+          "role": "diffusionModel",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan2.2_vae.safetensors",
+          "role": "vae",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp16.safetensors",
+          "role": "t5xxl",
+          "verify": true
+        }
+      ],
+      "use": {
+        "painter": {
+          "sdcpp": {
+            "video": {
+              "diffusionModel": "$file:diffusionModel",
+              "vae": "$file:vae",
+              "t5xxl": "$file:t5xxl",
+              "steps": 20,
+              "cfg": 5.0,
+              "flowShift": 5.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "piper-ryan-high",
+      "category": "speech",
+      "name": "Ryan (US English, high quality)",
+      "what": "A calm, clear American man's voice. Bob's default.",
+      "sizeGB": 0.12,
+      "vramGB": 0,
+      "license": "MIT (Piper); voice data licence on its model card",
+      "commercial": false,
+      "pick": "small",
+      "needs": "Piper",
+      "files": [
+        {
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/high/en_US-ryan-high.onnx",
+          "role": "model",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/high/en_US-ryan-high.onnx.json",
+          "role": "config",
+          "verify": true
+        }
+      ],
+      "use": {
+        "tts": {
+          "provider": "piper",
+          "model": "$file:model",
+          "config": "$file:config"
+        }
+      }
+    },
+    {
+      "id": "piper-alan-medium",
+      "category": "speech",
+      "name": "Alan (British English)",
+      "what": "A dry, low-key British man's voice. Very Bob.",
+      "sizeGB": 0.065,
+      "vramGB": 0,
+      "license": "MIT (Piper); voice data licence on its model card",
+      "commercial": false,
+      "pick": "small",
+      "needs": "Piper",
+      "files": [
+        {
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/alan/medium/en_GB-alan-medium.onnx",
+          "role": "model",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/alan/medium/en_GB-alan-medium.onnx.json",
+          "role": "config",
+          "verify": true
+        }
+      ],
+      "use": {
+        "tts": {
+          "provider": "piper",
+          "model": "$file:model",
+          "config": "$file:config"
+        }
+      }
+    },
+    {
+      "id": "piper-lessac-high",
+      "category": "speech",
+      "name": "Lessac (US English, high quality)",
+      "what": "A bright, expressive American voice.",
+      "sizeGB": 0.12,
+      "vramGB": 0,
+      "license": "MIT (Piper); voice data licence on its model card",
+      "commercial": false,
+      "pick": "optional",
+      "needs": "Piper",
+      "files": [
+        {
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx",
+          "role": "model",
+          "verify": true
+        },
+        {
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx.json",
+          "role": "config",
+          "verify": true
+        }
+      ],
+      "use": {
+        "tts": {
+          "provider": "piper",
+          "model": "$file:model",
+          "config": "$file:config"
+        }
+      }
+    },
+    {
+      "id": "kokoro-v1",
+      "category": "speech",
+      "name": "Kokoro voice pack (22 English voices)",
+      "what": "Natural-sounding voices that run on the processor: Michael, George, Lewis, Heart, Emma and more. Pick the voice in Settings after it's in. Bob's pick for his own voice.",
+      "sizeGB": 0.354,
+      "vramGB": 0,
+      "license": "Apache-2.0 (Kokoro-82M); MIT (ONNX export)",
+      "commercial": true,
+      "pick": "best",
+      "needs": "Kokoro voices",
+      "files": [
+        {
+          "url": "https://huggingface.co/fastrtc/kokoro-onnx/resolve/main/kokoro-v1.0.onnx",
+          "role": "model",
+          "verify": true,
+          "sha256": "7d5df8ecf7d4b1878015a32686053fd0eebe2bc377234608764cc0ef3636a6c5"
+        },
+        {
+          "url": "https://huggingface.co/fastrtc/kokoro-onnx/resolve/main/voices-v1.0.bin",
+          "role": "voices",
+          "verify": true,
+          "sha256": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d"
+        }
+      ],
+      "use": {
+        "tts": {
+          "provider": "kokoro",
+          "model": "$file:model",
+          "voices": "$file:voices",
+          "voice": "am_michael"
+        }
+      }
+    }
+  ],
+  "packs": [
+    {
+      "id": "big",
+      "label": "Full inn (16 GB card or more)",
+      "minVramGB": 16,
+      "models": [
+        "gemma4-26b",
+        "qwen3-coder-30b",
+        "gpt-oss-20b",
+        "whisper-large-v3-turbo",
+        "z-image-turbo"
+      ]
+    },
+    {
+      "id": "mid",
+      "label": "Cozy inn (8 to 12 GB card)",
+      "minVramGB": 8,
+      "models": [
+        "gemma4-e4b",
+        "qwen2.5-coder-7b",
+        "whisper-large-v3-turbo",
+        "z-image-turbo"
+      ]
+    },
+    {
+      "id": "small",
+      "label": "Roadside hut (laptop or small card)",
+      "minVramGB": 0,
+      "models": [
+        "qwen3-4b",
+        "whisper-base-en"
+      ]
+    }
+  ]
+}

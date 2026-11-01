@@ -1,0 +1,239 @@
+// Loads config.json and works out the folders Bob uses.
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
+
+export const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Files other programs run (Python scripts) can't be read from inside Bob.exe's app.asar, so the build
+// keeps them unpacked next to it.
+export const unpackedDir = appDir.replace(/app\.asar(?=$|[\\/])/, 'app.asar.unpacked');
+
+export function loadConfig() {
+  const file = process.env.BOB_CONFIG || path.join(appDir, 'config.json');
+  // A fresh copy of the source has no config.json (it's never published): start from the example.
+  if (!process.env.BOB_CONFIG && !fs.existsSync(file)) fs.copyFileSync(path.join(appDir, 'config.example.json'), file);
+  const cfg = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (process.env.BOB_AGENT_DIR) cfg.agentDir = process.env.BOB_AGENT_DIR;
+  if (process.env.BOB_OLLAMA_URL) cfg.ollamaUrl = process.env.BOB_OLLAMA_URL;
+  if (process.env.BOB_PORT) cfg.port = Number(process.env.BOB_PORT);
+  // Fresh installs: Bob's home is the folder above his code (for example Agent 00; %LOCALAPPDATA%\Bob otherwise).
+  cfg.agentDir = cfg.agentDir || path.dirname(appDir);
+  if (!cfg.readRoots || !cfg.readRoots.length) {
+    const home = os.homedir();
+    cfg.readRoots = ['Documents', 'Desktop', 'Downloads'].map((d) => path.join(home, d)).filter((d) => fs.existsSync(d));
+  }
+  cfg.models = cfg.models || {};
+  cfg.painter = cfg.painter || { engine: 'comfy' };
+  cfg.painter.sdcpp = cfg.painter.sdcpp || {};
+  // Engine programs: zips differ (some put them in bin\ or Release\), so look in each likely place.
+  cfg.painter.sdcpp.exe = findExe(cfg.painter.sdcpp.exe, path.join(cfg.agentDir, 'sd.cpp'), ['sd-cli.exe', 'sd.exe']);
+  cfg.llamacpp = cfg.llamacpp || {};
+  cfg.llamacpp.exe = findExe(cfg.llamacpp.exe, path.join(cfg.agentDir, 'llama.cpp'), ['llama-server.exe']);
+  if (cfg.stt?.provider === 'whispercpp') cfg.stt.exe = findExe(cfg.stt.exe, path.join(cfg.agentDir, 'whisper.cpp'), ['whisper-cli.exe']);
+  cfg.tts = cfg.tts || {};
+  cfg.tts.exe = findExe(cfg.tts.exe, path.join(cfg.agentDir, 'piper'), ['piper.exe']);
+
+  cfg.innDir = cfg.innDir || path.join(cfg.agentDir, 'inn');
+  cfg.dataDir = path.join(cfg.innDir, 'bob');
+  cfg.ledgerDir = path.join(cfg.innDir, 'ledger');
+  cfg.painterDir = path.join(cfg.innDir, 'painter');
+  cfg.archiveDir = path.join(cfg.innDir, 'archive');
+  cfg.noticeBoard = path.join(cfg.innDir, 'notice-board.md');
+  cfg.logbook = path.join(cfg.innDir, 'logbook.md');
+  cfg.memoryFile = path.join(cfg.innDir, 'bob-memory.md');
+  cfg.readRoots = [...new Set([cfg.innDir, ...(cfg.readRoots || [])])];
+  // Bob's own code, the backups, and his settings/data folder (inn\bob: settings.json, reminders, file backups)
+  // are never writable through his file tools, so he can't flip settings such as autostart himself.
+  cfg.readOnlyRoots = [...new Set([...(cfg.readOnlyRoots || []), appDir, path.join(cfg.agentDir, 'backup'), cfg.dataDir])];
+  cfg.userName = cfg.userName || (os.userInfo().username || 'friend').replace(/^./, (c) => c.toUpperCase());
+  cfg.timeZone = cfg.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  cfg.comfy = cfg.comfy || {};
+  if (cfg.comfy.workflowFile && !path.isAbsolute(cfg.comfy.workflowFile)) {
+    cfg.comfy.workflowFile = path.join(appDir, cfg.comfy.workflowFile);
+  }
+  cfg.bobModelsDir = cfg.bobModelsDir || path.join(cfg.agentDir, 'models', 'bob');
+  cfg.modelSearchRoots = cfg.modelSearchRoots || [path.join(cfg.agentDir, 'models'), 'C:\\pinokio\\api', 'C:\\pinokio\\drive'];
+  for (const d of [cfg.innDir, cfg.dataDir, cfg.ledgerDir, cfg.painterDir, cfg.archiveDir]) {
+    fs.mkdirSync(d, { recursive: true });
+  }
+  // Choices made in Bob's window (models, painter, voice, autostart) live in inn\bob\settings.json,
+  // so config.json stays as installed. Only these keys can be changed from the window.
+  cfg.settingsFile = path.join(cfg.dataDir, 'settings.json');
+  try { mergeSettings(cfg, JSON.parse(fs.readFileSync(cfg.settingsFile, 'utf8'))); } catch {}
+  cfg.autostart = cfg.autostart === true; // opt-in: off unless the user turned it on
+  return cfg;
+}
+
+// The configured program if it exists; otherwise the first match in the engine folder, its bin\ or Release\ subfolder.
+export function findExe(configured, dir, names) {
+  if (configured && fs.existsSync(configured)) return configured;
+  for (const sub of ['', 'bin', 'Release', path.join('build', 'bin')]) {
+    for (const n of names) { const p = path.join(dir, sub, n); if (fs.existsSync(p)) return p; }
+  }
+  return configured || path.join(dir, names[0]);
+}
+
+// Bob's version: 0.9.<build>, plus a letter for unmerged branch work (0.9.28a).
+// The build goes up with every drop and never resets; 1.0.0 is the first public release.
+// This is the ONE place the label is made; package.json "version" must match it (a test checks).
+export function formatVersion({ release = '0.9', branch = '', build = 0 } = {}) {
+  return `${release}.${Number(build) || 0}${/^[a-z]$/.test(branch || '') ? branch : ''}`;
+}
+export const VERSION = (() => {
+  try {
+    const b = JSON.parse(fs.readFileSync(path.join(appDir, 'package.json'), 'utf8')).bob || {};
+    const v = { release: String(b.release || '0.9'), branch: /^[a-z]$/.test(b.branch || '') ? b.branch : '', build: Number(b.build) || 0 };
+    return { ...v, label: formatVersion(v) };
+  } catch { return { release: '0.9', branch: '', build: 0, label: '0.9.0' }; }
+})();
+
+export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates'];
+const LOCKED_LLAMACPP = ['exe', 'preArgs'];
+
+function deepMerge(into, from) {
+  for (const [k, v] of Object.entries(from)) {
+    if (v && typeof v === 'object' && !Array.isArray(v) && into[k] && typeof into[k] === 'object' && !Array.isArray(into[k])) deepMerge(into[k], v);
+    else into[k] = v;
+  }
+  return into;
+}
+
+function clean(patch) {
+  const out = {};
+  for (const k of SETTING_KEYS) if (k in (patch || {})) out[k] = patch[k];
+  if (out.llamacpp) { out.llamacpp = cleanLlamacpp(out.llamacpp); for (const k of LOCKED_LLAMACPP) delete out.llamacpp[k]; }
+  if ('sessionCtx' in out) {
+    const sc = out.sessionCtx || {};
+    out.sessionCtx = {};
+    for (const k of ['normal', 'art', 'coding', 'office', 'deep', 'light']) if (k in sc) out.sessionCtx[k] = [8192, 16384, 32768, 65536, 131072, 262144].includes(sc[k]) ? sc[k] : null;
+  }
+  if (out.painter?.sdcpp) { out.painter = { ...out.painter, sdcpp: { ...out.painter.sdcpp } }; delete out.painter.sdcpp.exe; delete out.painter.sdcpp.preArgs; }
+  if ('ollamaKeepAlive' in out) out.ollamaKeepAlive = /^\d+[smh]$|^-1$/.test(String(out.ollamaKeepAlive)) ? String(out.ollamaKeepAlive) : undefined;
+  if ('oneBrain' in out) out.oneBrain = out.oneBrain === true;
+  if ('updates' in out) out.updates = { autoCheck: out.updates?.autoCheck === true };
+  if ('downloads' in out) { const d = out.downloads || {}; out.downloads = { concurrent: Number(d.concurrent) === 2 ? 2 : 1, resumeOnStart: d.resumeOnStart === true }; }
+  if ('session' in out) out.session = ['normal', 'art', 'coding', 'office', 'deep', 'light'].includes(out.session) ? out.session : 'normal';
+  if ('sessionBrains' in out) {
+    const sb = out.sessionBrains || {};
+    out.sessionBrains = {};
+    for (const k of ['small', 'coding', 'office', 'deep']) if (typeof sb[k] === 'string' && /^[\w.:/-]{1,100}$/.test(sb[k])) out.sessionBrains[k] = sb[k];
+  }
+  if ('style' in out) out.style = cleanStyle(out.style);
+  if ('catName' in out) out.catName = typeof out.catName === 'string' && /^[\p{L}\p{N}' .-]{1,24}$/u.test(out.catName.trim()) ? out.catName.trim() : undefined;
+  if (out.workshop) {
+    // The advanced workshop: on/off and the ComfyUI port only. The address is always this PC.
+    const w = out.workshop || {};
+    out.workshop = {};
+    if (typeof w.enabled === 'boolean') out.workshop.enabled = w.enabled;
+    if (Number.isInteger(w.port) && w.port >= 1024 && w.port <= 65535) out.workshop.port = w.port;
+  }
+  if (out.tts) {
+    // Voice: which provider and voice files, and how fast. The program path can't be changed from here.
+    const t = out.tts || {};
+    out.tts = {};
+    if (['piper', 'kokoro', 'chatterbox', ''].includes(t.provider)) out.tts.provider = t.provider;
+    for (const k of ['model', 'config', 'voices', 'ref']) if (typeof t[k] === 'string') out.tts[k] = t[k];
+    if (typeof t.voice === 'string' && /^[a-z]{2}_[a-z]{2,20}$/.test(t.voice)) out.tts.voice = t.voice;
+    if (typeof t.speed === 'number') out.tts.speed = Math.min(2, Math.max(0.5, t.speed));
+  }
+  if (out.cloudHelpers) {
+    // Only on/off and a model name per known provider. Addresses and keys can't be set from here.
+    const ch = {};
+    for (const [id, v] of Object.entries(out.cloudHelpers || {})) {
+      if (!/^[a-z]{2,20}$/.test(id) || !v || typeof v !== 'object') continue;
+      ch[id] = {};
+      if (typeof v.enabled === 'boolean') ch[id].enabled = v.enabled;
+      if (typeof v.model === 'string' && /^[\w.:/-]{1,100}$/.test(v.model)) ch[id].model = v.model;
+    }
+    out.cloudHelpers = ch;
+  }
+  if (out.maestro) { out.maestro = { ...out.maestro }; delete out.maestro.url; delete out.maestro.outputsDir; }
+  if (out.stt) { out.stt = { ...out.stt }; delete out.stt.url; delete out.stt.apiKey; delete out.stt.apiKeyEnv; }
+  return out;
+}
+
+// llama.cpp speed settings from the app. Extra arguments may only be flags and plain values (no paths),
+// so nothing typed in the app can point llama-server at a file.
+const ARG = /^(-{1,2}[a-z][a-z0-9-]*|[A-Za-z0-9_.:,+-]{1,40})$/;
+const cleanArgs = (a) => (Array.isArray(a) ? a.filter((x) => typeof x === 'string' && ARG.test(x)).slice(0, 40) : undefined);
+function cleanLlamacpp(lc) {
+  const out = { ...lc };
+  if ('args' in out) out.args = cleanArgs(out.args);
+  if (out.modelArgs && typeof out.modelArgs === 'object') {
+    const m = {};
+    for (const [k, v] of Object.entries(out.modelArgs)) if (/^[\w.:/-]{1,100}$/.test(k)) m[k] = v === null ? null : cleanArgs(v);
+    out.modelArgs = m;
+  }
+  for (const k of ['threads', 'batch', 'ubatch', 'ctx']) if (k in out) out[k] = Number.isInteger(out[k]) && out[k] > 0 && out[k] <= 1048576 ? out[k] : null;
+  if ('fit' in out) out.fit = typeof out.fit === 'boolean' ? out.fit : null;
+  if ('draft' in out) {
+    const d = out.draft || {};
+    out.draft = {
+      enabled: d.enabled !== false,
+      model: typeof d.model === 'string' && /^[\w.:/\\ -]{1,260}$/.test(d.model) ? d.model : '',
+      max: Number.isInteger(d.max) && d.max > 0 && d.max <= 64 ? d.max : 16,
+      min: Number.isInteger(d.min) && d.min >= 0 && d.min <= 16 ? d.min : 1,
+      ngld: Number.isInteger(d.ngld) && d.ngld >= 0 && d.ngld <= 999 ? d.ngld : 99
+    };
+  }
+  return out;
+}
+
+// The Style page: which theme, and up to 24 home-made themes. Only colours, a font from a fixed list
+// and corner roundness can be saved, so nothing here can inject code into the page.
+const HEX = /^#[0-9a-f]{6}$/i;
+const THEME_ID = /^[a-z0-9-]{2,40}$/;
+const COLOR_KEYS = ['bg', 'panel', 'card', 'you', 'line', 'text', 'muted', 'accent', 'onAccent', 'good', 'warn', 'bad', 'spriteBg'];
+const FONT_IDS = ['system', 'plex', 'mono', 'serif', 'rounded'];
+export function cleanStyle(st) {
+  const out = {};
+  if (!st || typeof st !== 'object') return out;
+  if (typeof st.theme === 'string' && THEME_ID.test(st.theme)) out.theme = st.theme;
+  if (['on', 'system', 'off'].includes(st.motion)) out.motion = st.motion;
+  if (typeof st.openNowOnNeed === 'boolean') out.openNowOnNeed = st.openNowOnNeed;
+  if (Array.isArray(st.custom)) {
+    out.custom = st.custom.slice(0, 24).filter((t) => t && typeof t === 'object' && THEME_ID.test(String(t.id)) && String(t.id).startsWith('my-')).map((t) => {
+      const colors = {};
+      for (const k of COLOR_KEYS) if (HEX.test(String(t.colors?.[k] || ''))) colors[k] = String(t.colors[k]).toLowerCase();
+      const name = typeof t.name === 'string' && /^[\p{L}\p{N}' .&()!-]{1,30}$/u.test(t.name.trim()) ? t.name.trim() : 'My theme';
+      const theme = { id: String(t.id), name, group: 'Yours', colors };
+      if (FONT_IDS.includes(t.font)) theme.font = t.font;
+      if (Number.isFinite(t.radius)) theme.radius = Math.max(0, Math.min(20, Math.round(t.radius)));
+      for (const f of ['blueprint', 'outlined', 'flat']) if (t[f] === true) theme[f] = true;
+      return theme;
+    });
+  }
+  return out;
+}
+
+export function mergeSettings(cfg, patch) {
+  return deepMerge(cfg, clean(patch));
+}
+
+// Apply a change now and remember it.
+export function saveSettings(cfg, patch) {
+  const safe = clean(patch);
+  let saved = {};
+  try { saved = JSON.parse(fs.readFileSync(cfg.settingsFile, 'utf8')); } catch {}
+  deepMerge(saved, safe);
+  fs.writeFileSync(cfg.settingsFile, JSON.stringify(saved, null, 2));
+  deepMerge(cfg, safe);
+  return saved;
+}
+
+// Windows paths are case-insensitive; compare normalised forms.
+const norm = (p) => {
+  const r = path.resolve(p);
+  return process.platform === 'win32' ? r.toLowerCase() : r;
+};
+
+export function isInside(root, target) {
+  const r = norm(root), t = norm(target);
+  if (t === r) return true;
+  return t.startsWith(r.endsWith(path.sep) ? r : r + path.sep);
+}
+
+export function insideAny(roots, target) {
+  return roots.some((r) => isInside(r, target));
+}

@@ -1,0 +1,637 @@
+// Bob's panel: chat, approvals, status, taskbar badge, read-aloud, and the brain-swap machine.
+import { drawBob, setLook } from './bob-sprite.js';
+import { applyStyle, applySavedStyle } from './themes.js';
+applySavedStyle();
+import { startSwap } from './brain-swap.js';
+import { createVoice } from './voice.js';
+import { createCellar } from './cellar.js';
+import { createShelf, uploadRef } from './shelf.js';
+import { summary, size } from './progress.js';
+import { createTasks, createDownloads, makeSortable, neighbour, taskRow } from './lists.js';
+import { createLayout } from './layout.js';
+
+const cellar = createCellar();
+const api = async (url, data) => {
+  const r = await fetch(url, data === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json', 'x-bob': '1' }, body: JSON.stringify(data) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
+  return j;
+};
+const tasks = createTasks({ post: (u, d) => post(u, d) });
+const downloads = createDownloads({ api, post: (u, d) => post(u, d) });
+const layout = createLayout({ post: (u, d) => post(u, d), openTasks: () => tasks.open(), openDownloads: () => downloads.open() });
+
+const $ = (id) => document.getElementById(id);
+const log = $('log'), input = $('input'), sendBtn = $('send'), stopBtn = $('stop'), statusEl = $('status');
+const bobCanvas = $('bob'), bobCtx = bobCanvas.getContext('2d');
+bobCtx.imageSmoothingEnabled = false;
+
+const store = {
+  get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+};
+let sessionId = store.get('bob-session', 'main');
+let speakOn = store.get('bob-speak', '0') === '1';
+let busy = false;
+const replies = new Map(); // turnId -> { el, text } of the reply being streamed (two can run at once in an Art session)
+const running = new Set();  // turnIds of jobs running now
+let talkingUntil = 0;
+let swapStop = null, swapEl = null;
+let lastModel = null;
+
+// ---------- Bob's face ----------
+// Idle life: he breathes (a one-pixel rise every couple of seconds) and blinks every 2.5 to 6 seconds,
+// sometimes twice. Animations off (Style page) keeps him still but still lets him talk.
+let blink = false;
+(function blinker() {
+  const twice = Math.random() < 0.25;
+  blink = true;
+  setTimeout(() => { blink = false; if (twice) setTimeout(() => { blink = true; setTimeout(() => { blink = false; }, 120); }, 160); }, 140);
+  setTimeout(blinker, 2500 + Math.random() * 3500);
+})();
+let lastFrame = '';
+(function animate() {
+  const now = Date.now();
+  const still = document.body.classList.contains('still');
+  const talk = now < talkingUntil && Math.floor(now / 140) % 2 === 0;
+  const rise = !still && !talk && Math.floor(now / 1100) % 2 === 1 ? 1 : 0;
+  const key = `${blink && !still}${talk}${rise}`;
+  if (key !== lastFrame) { // only repaint when something changed
+    lastFrame = key;
+    bobCtx.clearRect(0, 0, 56, 56);
+    bobCtx.save();
+    bobCtx.translate(0, -rise * 2);
+    drawBob(bobCtx, 56, { blink: blink && !still, talk });
+    bobCtx.restore();
+  }
+  requestAnimationFrame(animate);
+})();
+
+// ---------- Rendering ----------
+function esc(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function render(md) {
+  const parts = md.split(/```(?:[\w+-]*)\n?([\s\S]*?)(?:```|$)/g);
+  return parts.map((p, i) => {
+    if (i % 2 === 1) return `<pre><code>${esc(p)}</code></pre>`;
+    return esc(p)
+      .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+      .replace(/(^|\s)(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
+  }).join('');
+}
+function scrollDown() { log.scrollTop = log.scrollHeight; }
+function add(cls, html) {
+  const el = document.createElement('div');
+  el.className = cls;
+  el.innerHTML = html;
+  log.appendChild(el);
+  scrollDown();
+  return el;
+}
+function note(text, kind = '') { return add(`note ${kind}`, esc(text)); }
+
+function ensureReply(ev) {
+  const k = ev?.turnId || '-';
+  if (!replies.has(k)) replies.set(k, { el: add('msg bob', ''), text: '' });
+  return replies.get(k);
+}
+function endReply(ev) { replies.delete(ev?.turnId || '-'); }
+
+// ---------- Status, badge, notifications ----------
+const STATUS_TEXT = {
+  idle: 'Coffee in hand. Ready when you are.',
+  thinking: 'Thinking...',
+  loading: 'Swapping brains...',
+  busy: 'Working...',
+  painting: 'Pixel is painting...',
+  waiting: 'Needs your OK'
+};
+// ---------- Sessions: which brains Bob keeps loaded. Bob may suggest one; only the user switches. ----------
+const sessionSel = $('sessionSel');
+function drawSessions(list, cur) {
+  if (list) sessionSel.innerHTML = list.map((x) => `<option value="${esc(x.id)}" title="${esc(x.what)}">${x.icon} ${esc(x.label)}</option>`).join('');
+  if (cur) { sessionSel.value = cur.id; sessionSel.title = `${cur.label} session: ${cur.what}`; }
+}
+async function switchSession(id) {
+  const r = await post('/api/settings', { session: id });
+  if (!r.ok) { note(r.data.error || 'Couldn\'t switch session.', 'error'); return; }
+  drawSessions(null, r.data.session);
+}
+sessionSel.onchange = () => switchSession(sessionSel.value);
+
+function setStatus(s) {
+  if (s.session && sessionSel.value !== s.session.id) drawSessions(null, s.session);
+  statusEl.className = `status ${s.state}`;
+  statusEl.textContent = s.detail || STATUS_TEXT[s.state] || s.state;
+  document.title = s.state === 'idle' ? 'Bob' : `Bob · ${STATUS_TEXT[s.state] || s.state}`;
+  if (s.state === 'loading') showSwap(lastModel || 'old', s.model || 'new');
+  else hideSwap();
+  if (s.model) lastModel = s.model;
+  layout.status(s);
+}
+function badge(on) {
+  try { if (on) navigator.setAppBadge && navigator.setAppBadge(); else navigator.clearAppBadge && navigator.clearAppBadge(); } catch {}
+}
+function ping(title, body) {
+  if (!document.hidden) return;
+  badge(true);
+  try { if ('Notification' in window && Notification.permission === 'granted' && store.get('bob-alerts', '1') === '1') new Notification(title, { body, icon: '/icons/bob-192.png' }); } catch {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) badge(false); });
+
+function showSwap(from, to) {
+  if (swapEl) return;
+  swapEl = document.createElement('div');
+  swapEl.className = 'note announce';
+  const c = document.createElement('canvas');
+  c.style.cssText = 'width:100%;max-width:480px;image-rendering:pixelated;display:block;margin:0 auto';
+  c.setAttribute('role', 'img');
+  c.setAttribute('aria-label', 'A contraption swaps Bob\'s brain');
+  swapEl.appendChild(c);
+  log.appendChild(swapEl);
+  scrollDown();
+  swapStop = startSwap(c, { from, to });
+}
+function hideSwap() {
+  if (swapStop) swapStop();
+  if (swapEl) swapEl.remove();
+  swapStop = null; swapEl = null;
+}
+
+// ---------- Read aloud ----------
+// Bob's own voice (Piper, from the cellar) when he has one; otherwise the Windows voices.
+let ownVoice = false;
+const sayQueue = [];
+let saying = false;
+async function sayNext() {
+  if (saying || !sayQueue.length) return;
+  saying = true;
+  const text = sayQueue.shift();
+  try {
+    const r = await fetch('/api/speak', { method: 'POST', headers: { 'content-type': 'application/json', 'x-bob': '1' }, body: JSON.stringify({ text }) });
+    if (!r.ok) throw new Error('no voice');
+    const url = URL.createObjectURL(await r.blob());
+    const a = new Audio(url);
+    talkingUntil = Date.now() + 60000;
+    await new Promise((res) => { a.onended = res; a.onerror = res; a.play().catch(res); });
+    URL.revokeObjectURL(url);
+  } catch { ownVoice = false; browserSpeak(text); }
+  talkingUntil = 0;
+  saying = false;
+  sayNext();
+}
+function browserSpeak(text) {
+  if (!('speechSynthesis' in window)) return;
+  const plain = text.replace(/```[\s\S]*?```/g, ' (code) ').replace(/[*_`#>]/g, '').replace(/https?:\/\/\S+/g, 'a link').slice(0, 800);
+  const u = new SpeechSynthesisUtterance(plain);
+  const v = speechSynthesis.getVoices().find((x) => /en-(CA|US|GB)/.test(x.lang) && /male|david|guy|george|ryan/i.test(x.name));
+  if (v) u.voice = v;
+  u.rate = 1.02;
+  u.onstart = () => { talkingUntil = Date.now() + 60000; };
+  u.onend = () => { talkingUntil = 0; };
+  speechSynthesis.speak(u);
+}
+function speak(text) {
+  if (!speakOn) return;
+  if (ownVoice) { sayQueue.push(text); sayNext(); } else browserSpeak(text);
+}
+const speakBtn = $('speak');
+// Toggles show their state in words, not just a colour.
+function setToggle(btn, on, title) {
+  btn.setAttribute('aria-pressed', String(on));
+  const st = btn.querySelector('.st'); if (st) st.textContent = on ? 'On' : 'Off';
+  if (title) btn.title = title;
+}
+const syncSpeak = () => setToggle(speakBtn, speakOn, speakOn ? 'Bob reads his replies aloud (click to stop)' : 'Bob reads his replies aloud');
+speakBtn.onclick = () => { speakOn = !speakOn; store.set('bob-speak', speakOn ? '1' : '0'); if (!speakOn) { sayQueue.length = 0; try { speechSynthesis.cancel(); } catch {} } syncSpeak(); };
+syncSpeak();
+
+const notifyBtn = $('notify');
+const syncNotify = () => setToggle(notifyBtn, 'Notification' in window && Notification.permission === 'granted' && store.get('bob-alerts', '1') === '1');
+notifyBtn.onclick = async () => {
+  if (!('Notification' in window)) return note('This window can\'t show notifications.');
+  if (Notification.permission === 'granted') {
+    const on = store.get('bob-alerts', '1') !== '1';
+    store.set('bob-alerts', on ? '1' : '0'); syncNotify();
+    return note(on ? 'Alerts on: Bob will tap you on the shoulder when he needs you.' : 'Alerts off.');
+  }
+  const p = await Notification.requestPermission();
+  store.set('bob-alerts', '1'); syncNotify();
+  note(p === 'granted' ? 'Bob will tap you on the shoulder when he needs you.' : 'Notifications are blocked for this window.');
+};
+syncNotify();
+
+$('cellarBtn').onclick = () => cellar.open();
+$('styleBtn').onclick = () => cellar.open('shop', 'style');
+$('tasksBtn').onclick = () => tasks.open();
+$('dlBtn').onclick = () => downloads.open();
+function countBadge(btn, n) { const b = btn.querySelector('.badge'); if (!b) return; b.hidden = !n; b.textContent = n > 99 ? '99+' : String(n); }
+$('newchat').onclick = () => {
+  if (busy) return;
+  sessionId = 'chat-' + Date.now();
+  store.set('bob-session', sessionId);
+  log.innerHTML = '';
+  note('New conversation. Bob still remembers what\'s in his memory file and on your to-do list.');
+};
+
+// ---------- Downloads and installs: always visible, even with the cellar closed ----------
+const dlbar = $('dlbar');
+let dlSeen = null;
+const liveDl = new Map(); // id -> latest progress of each download running now (one or two)
+function showDownload(ev) {
+  const over = ['done', 'failed', 'cancelled', 'paused', 'retrying'].includes(ev.phase);
+  if (dlSeen !== ev.id && !over && !liveDl.has(ev.id)) {
+    dlSeen = ev.id;
+    note(`${ev.kind === 'engine' ? 'Installing' : 'Fetching'} ${ev.name}. The bar above the chat and the Now running panel show how it's going; Downloads has pause and resume. Keep chatting.`);
+  }
+  if (over) {
+    if (liveDl.delete(ev.id) || dlSeen === ev.id) {
+      if (dlSeen === ev.id) dlSeen = null;
+      if (ev.phase === 'done') note(`${ev.name} is ready${ev.total ? ` (${size(ev.total)})` : ''}.${ev.queue?.length ? ' Starting the next one.' : ''}`);
+      else if (ev.phase === 'paused') note(`${ev.name} is paused. Resume it in Downloads.`);
+      else note(`${ev.name}: ${ev.error || ev.phase}`, ev.phase === 'failed' ? 'error' : '');
+    }
+  } else liveDl.set(ev.id, ev);
+  const live = [...liveDl.values()];
+  dlbar.hidden = !live.length;
+  if (!live.length) return;
+  const total = live.reduce((t, x) => t + (x.total || 0), 0), done = live.reduce((t, x) => t + (x.done || 0), 0);
+  const counting = live.every((x) => x.phase === 'downloading' && x.total);
+  const pct = counting && total ? Math.min(100, Math.round((done / total) * 100)) : null;
+  const meter = dlbar.querySelector('.meter');
+  meter.classList.toggle('moving', pct == null);
+  meter.querySelector('i').style.width = pct == null ? '100%' : pct + '%';
+  const rate = live.reduce((t, x) => t + (x.phase === 'downloading' ? x.rate || 0 : 0), 0);
+  dlbar.querySelector('.dlbar-text').textContent = (live.length === 1 ? summary(live[0]) : `${live.length} downloads${pct != null ? ` ${pct}%` : ''}`) + (rate ? ` · ${size(rate)}/s` : '');
+}
+dlbar.onclick = () => downloads.open();
+dlbar.title = 'Open Downloads: pause, resume, reorder';
+function drawDownloadsBadge(items) { countBadge($('dlBtn'), items.filter((d) => ['queued', 'downloading'].includes(d.state)).length); }
+
+// ---------- Events from the brain ----------
+function onEvent(ev) {
+  if (ev.type === 'status') return setStatus(ev);
+  if (ev.sessionId && ev.sessionId !== sessionId && ev.type !== 'reminder') return;
+  switch (ev.type) {
+    case 'queue':
+      drawQueue(ev.jobs || []);
+      return;
+    case 'session':
+      drawSessions(null, ev.session);
+      note(`${ev.session.icon} ${ev.session.label} session. ${ev.session.what}`);
+      return;
+    case 'suggest': {
+      const el = add('suggest', `<span>${esc(ev.why)}</span><button type="button">${esc('Switch to ' + ev.label)}</button><button type="button" class="link">No thanks</button>`);
+      const [yes, no] = el.querySelectorAll('button');
+      yes.onclick = () => { el.remove(); switchSession(ev.id); };
+      no.onclick = () => el.remove();
+      return;
+    }
+    case 'start':
+      endReply(ev);
+      running.add(ev.turnId);
+      setBusy(true);
+      return;
+    case 'download':
+      cellar.onDownload(ev);
+      showDownload(ev);
+      downloads.tick(ev);
+      layout.tick(ev);
+      return;
+    case 'downloads':
+      downloads.update(ev.items || []);
+      layout.downloads(ev.items || []);
+      drawDownloadsBadge(ev.items || []);
+      return;
+    case 'token': {
+      if (!replies.has(ev.turnId || '-') && !ev.text.trim()) break;
+      const r = ensureReply(ev);
+      r.text += ev.text;
+      r.el.innerHTML = render(r.text.replace(/^\s+/, '').replace(/\s+$/, ''));
+      talkingUntil = Date.now() + 400;
+      scrollDown();
+      break;
+    }
+    case 'announce':
+      endReply(ev);
+      note(ev.text, 'announce');
+      speak(ev.text);
+      break;
+    case 'hat':
+      endReply(ev);
+      add('note hat', ev.copy ? `Bob spins up ${esc(ev.copy)}, his ${esc(ev.label)} copy` : `Bob switches to ${esc(ev.label)}`);
+      break;
+    case 'tool':
+      if (!/^hat:/.test(ev.summary)) note(`· ${ev.summary}`);
+      endReply(ev);
+      break;
+    case 'image': {
+      const r = ensureReply(ev);
+      const img = document.createElement('img');
+      img.src = ev.url; img.alt = 'Picture Bob painted';
+      r.el.appendChild(img);
+      scrollDown();
+      ping('Bob finished a picture', ev.file || '');
+      break;
+    }
+    case 'audio': {
+      const r = ensureReply(ev);
+      const a = document.createElement('audio');
+      a.src = ev.url; a.controls = true; a.preload = 'auto';
+      a.setAttribute('aria-label', 'Sound Bob made');
+      a.style.cssText = 'display:block;width:100%;margin-top:6px';
+      r.el.appendChild(a);
+      scrollDown();
+      ping('Bob finished a sound', ev.file || '');
+      break;
+    }
+    case 'video': {
+      const r = ensureReply(ev);
+      const v = document.createElement('video');
+      v.src = ev.url; v.controls = true; v.loop = true; v.muted = true; v.autoplay = true;
+      v.setAttribute('aria-label', 'Clip Bob made');
+      r.el.appendChild(v);
+      scrollDown();
+      ping('Bob finished a clip', ev.file || '');
+      break;
+    }
+    case 'approval': {
+      endReply(ev);
+      const diff = ev.diff ? `<pre class="diff"><code>${esc(ev.diff)}</code></pre>` : '';
+      const all = ev.allowAll ? '<button class="all">Allow the rest of this job</button>' : '';
+      const card = add('approval', `<p><strong>Bob wants to:</strong> ${esc(ev.text)}</p>${diff}<div class="row"><button class="yes">Allow</button>${all}<button class="no">Deny</button></div>`);
+      const answer = async (allow) => {
+        card.querySelector('.row').outerHTML = `<div class="done">${allow === 'all' ? 'Allowed for the rest of this job' : allow ? 'Allowed' : 'Denied'}</div>`;
+        await post('/api/approve', { id: ev.id, allow });
+      };
+      card.querySelector('.yes').onclick = () => answer(true);
+      card.querySelector('.no').onclick = () => answer(false);
+      if (ev.allowAll) card.querySelector('.all').onclick = () => answer('all');
+      ping('Bob needs your OK', ev.text);
+      layout.needsYou();
+      break;
+    }
+    case 'reminder':
+      add('approval', `<p><strong>Reminder:</strong> ${esc(ev.text)}</p><div class="done">${esc(ev.local || '')}</div>`);
+      speak('Reminder: ' + ev.text);
+      badge(true);
+      try { if ('Notification' in window && Notification.permission === 'granted' && store.get('bob-alerts', '1') === '1') new Notification('Bob: reminder', { body: ev.text, icon: '/icons/bob-192.png', requireInteraction: true }); } catch {}
+      break;
+    case 'error':
+      endReply(ev);
+      note(ev.text, 'error');
+      break;
+    case 'done': {
+      const finished = replies.get(ev.turnId || '-')?.text;
+      endReply(ev);
+      running.delete(ev.turnId);
+      setBusy(running.size > 0);
+      if (finished) { speak(finished); ping('Bob replied', finished.slice(0, 120)); }
+      break;
+    }
+  }
+}
+
+function connect() {
+  const es = new EventSource('/api/events');
+  es.onmessage = (m) => { try { onEvent(JSON.parse(m.data)); } catch (e) { console.error(e); } };
+  es.onerror = () => { statusEl.textContent = 'Bob\'s brain isn\'t answering. Retrying...'; statusEl.className = 'status waiting'; };
+}
+
+// ---------- Sending ----------
+async function post(url, data) {
+  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-bob': '1' }, body: JSON.stringify(data) });
+  return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
+}
+function setBusy(b) {
+  busy = b;
+  stopBtn.hidden = !b;
+}
+
+// ---------- The queue: what's waiting, what's running, what failed ----------
+// A short strip above the message box (open tasks only); the Tasks button shows the full list.
+const STATE_LABEL = { waiting: 'queued', working: 'in progress', done: 'completed', failed: 'failed', cancelled: 'cancelled', interrupted: 'interrupted' };
+let lastJobs = [];
+const qbox = $('queue');
+function drawQueue(jobs) {
+  lastJobs = jobs;
+  tasks.update(jobs);
+  layout.jobs(jobs);
+  const open = jobs.filter((j) => j.state === 'waiting' || j.state === 'working');
+  countBadge($('tasksBtn'), open.length);
+  for (const j of jobs) {
+    const tag = jobBubbles.get(j.id)?.querySelector('.qtag');
+    if (tag) { const st = j.status || STATE_LABEL[j.state] || j.state; tag.textContent = st === 'delegated' && j.delegatedTo ? `delegated to ${j.delegatedTo.copy}` : st; tag.className = `qtag ${j.state}`; }
+  }
+  const show = jobs.filter((j) => j.state === 'waiting' || j.state === 'working' || ((j.state === 'failed' || j.state === 'interrupted') && Date.now() - j.at < 3600e3));
+  qbox.hidden = !show.length;
+  if (!show.length) return;
+  const waiting = show.filter((j) => j.state === 'waiting').length;
+  qbox.innerHTML = `<div class="q-head">Tasks${waiting ? ` · ${waiting} waiting (drag to change the order)` : ''} · <button type="button" class="link" data-alltasks>See all</button></div><ol class="tlist">${show.map((j) => taskRow(j, { movable: j.state === 'waiting', full: false })).join('')}</ol>`;
+}
+qbox.addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if ('alltasks' in b.dataset) return tasks.open();
+  const id = b.closest('[data-id]')?.dataset.id, t = b.dataset.t;
+  if (!id || !t) return;
+  if (t === 'up' || t === 'down') {
+    const before = neighbour(lastJobs.filter((j) => j.state === 'waiting').map((j) => j.id), id, t === 'up' ? -1 : 1);
+    if (before !== undefined) post('/api/queue/move', { id, before });
+  } else post(`/api/queue/${t}`, { id });
+});
+makeSortable(qbox, (id, before) => post('/api/queue/move', { id, before }));
+// ---------- Pictures attached to the next message ----------
+let pending = []; // [{ id, name, url, kind }]
+const tray = $('tray');
+function drawTray() {
+  tray.hidden = !pending.length;
+  tray.innerHTML = pending.map((r, i) => `
+    <div class="pic" data-i="${i}">
+      <img src="${esc(r.url)}" alt="">
+      <span class="pic-name">${esc(r.name)}</span>
+      ${r.kind === 'chat' ? `<span class="keep"><input maxlength="60" placeholder="Name to keep it" aria-label="Name for References"><select aria-label="Kind"><option value="character">Character</option><option value="scene">Scene</option><option value="style">Style</option><option value="object">Object</option></select><button type="button" data-act="keep">Save to References</button></span>` : ''}
+      <button type="button" class="icon" data-act="drop" title="Remove">✕</button>
+    </div>`).join('');
+  for (const el of tray.querySelectorAll('.pic')) {
+    const r = pending[Number(el.dataset.i)];
+    el.querySelector('[data-act=drop]').onclick = () => { pending = pending.filter((x) => x !== r); drawTray(); };
+    const keep = el.querySelector('[data-act=keep]');
+    if (keep) keep.onclick = async () => {
+      const name = el.querySelector('.keep input').value.trim();
+      if (!name) { el.querySelector('.keep input').focus(); return; }
+      try { Object.assign(r, await shelf.keep(r, name, el.querySelector('.keep select').value)); drawTray(); }
+      catch (err) { note(err.message, 'error'); }
+    };
+  }
+}
+function attachRef(r) {
+  if (pending.some((x) => x.id === r.id)) return;
+  if (pending.length >= 4) { note('Four pictures per message is the limit.', 'error'); return; }
+  pending.push(r);
+  drawTray();
+  input.focus();
+}
+async function attachFiles(files) {
+  for (const f of [...files].filter((x) => /^image\/(png|jpeg|webp)$/.test(x.type))) {
+    try { attachRef(await uploadRef(f, { kind: 'chat' })); } catch (err) { note(err.message, 'error'); }
+  }
+}
+const shelf = createShelf({ onUse: attachRef });
+$('shelfBtn').onclick = () => shelf.open();
+$('attach').onclick = () => $('attachFile').click();
+$('attachFile').onchange = (e) => { attachFiles(e.target.files); e.target.value = ''; };
+input.addEventListener('paste', (e) => {
+  const files = [...(e.clipboardData?.files || [])];
+  if (files.length) { e.preventDefault(); attachFiles(files); }
+});
+document.addEventListener('dragover', (e) => { if (!$('shelf').open) e.preventDefault(); });
+document.addEventListener('drop', (e) => {
+  if ($('shelf').open) return;
+  e.preventDefault();
+  attachFiles(e.dataTransfer?.files || []);
+});
+function picsHtml(pics) {
+  return pics?.length ? `<div class="pics">${pics.map((p) => `<img src="${esc(p.url)}" alt="${esc(p.name)}" title="${esc(p.name)}">`).join('')}</div>` : '';
+}
+
+// Every message is its own job in Bob's queue: send as many as you like, none get dropped.
+const jobBubbles = new Map();
+$('composer').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = input.value.trim() || (pending.length ? 'Have a look at this.' : '');
+  if (!text) return;
+  const pics = pending;
+  const bubble = add('msg you', esc(text) + picsHtml(pics) + '<span class="qtag">sending...</span>');
+  input.value = '';
+  pending = [];
+  drawTray();
+  const r = await post('/api/chat', { sessionId, text, refs: pics.map((p) => p.id) }).catch(() => ({ ok: false, data: { error: 'Can\'t reach Bob\'s brain. Is it running?' } }));
+  const tag = bubble.querySelector('.qtag');
+  if (!r.ok) { tag.textContent = 'not sent'; tag.classList.add('bad'); note(r.data.error || 'Something went wrong.', 'error'); return; }
+  jobBubbles.set(r.data.jobId, bubble);
+  tag.textContent = r.data.ahead ? `queued, ${r.data.ahead} ahead` : 'queued';
+  if (lastJobs.some((j) => j.id === r.data.jobId && j.state !== 'waiting')) drawQueue(lastJobs); // it may already have run
+};
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('composer').requestSubmit(); }
+});
+stopBtn.onclick = () => post('/api/stop', {});
+
+// ---------- Quick chips ----------
+for (const b of document.querySelectorAll('#chips button')) {
+  b.onclick = () => {
+    if (b.dataset.say) { input.value = b.dataset.say; $('composer').requestSubmit(); }
+    else { input.value = b.dataset.fill; input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+  };
+}
+
+// ---------- Voice ----------
+const micBtn = $('mic'), earBtn = $('ear');
+let wakeOn = store.get('bob-wake', '0') === '1';
+const voice = createVoice({
+  transcribe: async (wav) => {
+    const r = await fetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'audio/wav', 'x-bob': '1' }, body: wav });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Speech service error');
+    return j.text || '';
+  },
+  onText: (text) => {
+    input.value = text;
+    $('composer').requestSubmit();
+  },
+  onState: (state, msg) => {
+    micBtn.classList.toggle('on', state === 'ptt' || state === 'armed');
+    micBtn.classList.toggle('busy', state === 'transcribing');
+    if (state === 'armed') { talkingUntil = Date.now() + 300; statusEl.textContent = 'Listening...'; }
+    if (msg) note(msg, 'error');
+  },
+  isQuiet: () => saying || ('speechSynthesis' in window && speechSynthesis.speaking)
+});
+micBtn.onclick = () => voice.push().catch((e) => note('I can\'t use the microphone: ' + e.message, 'error'));
+const syncEar = () => setToggle(earBtn, wakeOn, wakeOn ? 'Listening for "Hey Bob" (click to stop)' : 'Listen for "Hey Bob" while this window is open');
+earBtn.onclick = async () => {
+  wakeOn = !wakeOn;
+  store.set('bob-wake', wakeOn ? '1' : '0');
+  syncEar();
+  try { await voice.setWake(wakeOn); if (wakeOn) note('Listening for "Hey Bob" while this window is open.'); }
+  catch (e) { wakeOn = false; syncEar(); note('I can\'t use the microphone: ' + e.message, 'error'); }
+};
+syncEar();
+if (wakeOn) voice.setWake(true).catch(() => { wakeOn = false; syncEar(); });
+
+// ---------- What this PC can do: hide what Bob can't ----------
+async function applyCaps() {
+  try {
+    const c = await (await fetch('/api/capabilities')).json();
+    ownVoice = Boolean(c.voice);
+    $('mic').hidden = !c.hearing;
+    $('ear').hidden = !c.hearing;
+    if (!c.hearing && wakeOn) { voice.setWake(false); }
+  } catch {}
+}
+window.addEventListener('bob-caps', applyCaps);
+
+// ---------- Start ----------
+async function start() {
+  try {
+    const h = await (await fetch('/api/history?session=' + encodeURIComponent(sessionId))).json();
+    for (const m of h.slice(-20)) add(m.role === 'user' ? 'msg you' : 'msg bob', m.role === 'user' ? esc(m.content) + picsHtml(m.pics) : render(m.content));
+  } catch {}
+  let cat = 'Patches';
+  try { cat = (await (await fetch('/api/settings')).json()).catName || cat; } catch {}
+  if (!log.children.length) note(`Welcome to The Idle Process. Coffee's on, VRAM's mostly free, ${cat} is ignoring us. What are we building?`);
+  try {
+    const s = await (await fetch('/api/status')).json();
+    setStatus(s);
+    if (s.version) $('ver').textContent = `Bob ${s.version.label}`;
+    if (s.busy) setBusy(true);
+    if (!s.ollama) note('I can\'t reach my engine (' + (s.engine || 'Ollama') + ') right now. Is it running? (The AI Toggle shortcut turns Ollama on.)', 'error');
+  } catch {}
+  try {
+    const st = await (await fetch('/api/settings')).json(); setLook(st.look); applyStyle(st.style); drawSessions(st.sessions, st.session);
+    // Opt-in: tell the user a newer Bob is ready to build. Never updates by itself.
+    if (st.updates?.autoCheck) { const c = await (await fetch('/api/update/check')).json(); if (c.newer) note(`A newer Bob (${c.available.label}) is ready. Models & settings, Settings, Updates.`); }
+  } catch {}
+  try { drawQueue(await (await fetch('/api/queue')).json()); } catch {}
+  try { const d = await (await fetch('/api/downloads')).json(); downloads.update(d); layout.downloads(d); drawDownloadsBadge(d); for (const x of d) if (x.state === 'downloading') showDownload({ ...x, phase: 'downloading' }); } catch {}
+  window.addEventListener('bob-downloads', () => downloads.open());
+  connect();
+  input.focus();
+  applyCaps();
+  cellar.firstRun();
+}
+start();
+
+// ---------- Tell Bob someone is here (typing, clicking), at most every 20 s, so an update waits ----------
+let lastPoke = 0;
+function poke() { if (Date.now() - lastPoke < 20e3) return; lastPoke = Date.now(); post('/api/activity', {}).catch(() => {}); }
+document.addEventListener('pointerdown', poke, true);
+document.addEventListener('keydown', poke, true);
+
+// ---------- Update ready: ask right here in the chat (no waiting for a quiet moment) ----------
+let updWatch = null, updAsked = false;
+function watchUpdateReady() {
+  clearTimeout(updWatch);
+  fetch('/api/update/status').then((r) => r.json()).then((st) => {
+    if (st?.error) return note(`Update: ${st.error}`, 'error');
+    if (st?.ready && !updAsked) { updAsked = true; return askRestart(st); }
+    if (!st?.done) updWatch = setTimeout(watchUpdateReady, 3000);
+  }).catch(() => { updWatch = setTimeout(watchUpdateReady, 5000); });
+}
+function askRestart(st) {
+  const busyWith = [running.size ? 'a task' : '', liveDl.size ? 'a download' : ''].filter(Boolean).join(' and ');
+  const el = add('suggest', `<span>The new Bob (${esc(st.version || 'update')}) is built.${busyWith ? ` I'm working on ${esc(busyWith)}; if I restart now I pick up where I left off.` : ''}</span>
+    <button type="button" data-r="now">${busyWith ? 'Restart anyway' : 'Restart Bob now'}</button>${busyWith ? '<button type="button" data-r="done">Wait until I\'m done</button>' : ''}<button type="button" class="link" data-r="later">Later</button>`);
+  for (const b of el.querySelectorAll('button')) b.onclick = async () => {
+    if (b.dataset.r === 'later') { el.remove(); note('OK. The new Bob takes over the next time Bob starts, or press Restart in the update window.'); return; }
+    const r = await post('/api/update/restart', { when: b.dataset.r });
+    el.remove();
+    note(r.ok ? (b.dataset.r === 'done' ? 'I\'ll restart as soon as I\'ve finished.' : 'Restarting...') : (r.data.error || 'The update window didn\'t answer.'), r.ok ? '' : 'error');
+  };
+}
+window.addEventListener('bob-update-started', () => { updAsked = false; watchUpdateReady(); });
