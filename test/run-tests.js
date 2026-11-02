@@ -111,6 +111,14 @@ const textOf = (evs) => evs.filter((e) => e.type === 'token').map((e) => e.text)
 try {
   // Security checks
   check((await post('/api/chat', { text: 'hi' }, {})).status === 403, 'POST without x-bob header is refused');
+  // Same-origin only (1.0.4): another website, another port on this PC, or a plain form body is refused.
+  check((await post('/api/activity', {}, { 'x-bob': '1', origin: 'https://evil.example' })).status === 403, 'POST from another website (Origin) is refused');
+  check((await post('/api/activity', {}, { 'x-bob': '1', origin: 'http://localhost:3000' })).status === 403, 'POST from another port on this PC is refused');
+  check((await post('/api/activity', {}, { 'x-bob': '1', 'sec-fetch-site': 'cross-site' })).status === 403, 'POST marked cross-site is refused');
+  check((await post('/api/activity', {}, { 'x-bob': '1', 'sec-fetch-site': 'same-site' })).status === 403, 'POST marked same-site (another port) is refused');
+  check((await post('/api/open', {}, { 'x-bob': '1', 'content-type': 'text/plain' })).status === 415, 'a text/plain body is refused');
+  check((await fetch(base + '/api/uninstall', { method: 'POST', headers: { 'x-bob': '1' }, body: '{"confirm":"remove"}' })).status === 415, 'a body with no content type is refused');
+  check((await post('/api/activity', {}, { 'x-bob': '1', origin: base, 'sec-fetch-site': 'same-origin' })).status === 200, "Bob's own page still gets through");
   const hostStatus = await new Promise((resolve) => {
     http.get({ host: '127.0.0.1', port: BOB_PORT, path: '/api/status', headers: { host: 'evil.example:7790' } }, (r) => { r.resume(); resolve(r.statusCode); }).on('error', () => resolve(0));
   });

@@ -101,6 +101,14 @@ export class Ollama {
   // How long Ollama keeps a model in memory after use (setting ollamaKeepAlive, default 10 minutes).
   keepAlive() { const k = String(this.cfg?.ollamaKeepAlive ?? '10m'); return /^\d+[smh]$|^-1$/.test(k) ? (k === '-1' ? -1 : k) : '10m'; }
 
+  // Embeddings for topic matching (housekeeping). Never downloads: a model that isn't on this PC is an error,
+  // and the housekeeper then matches topics by name and words instead.
+  async embed(model, input) {
+    const r = await this.json('/api/embed', { model, input, keep_alive: '2m' });
+    if (!Array.isArray(r?.embeddings)) throw new Error('no embeddings');
+    return r.embeddings;
+  }
+
   // Streams a chat. Calls onToken(text) for visible text. Returns the final assistant message.
   async chat({ model, messages, tools, signal, onToken, cpu = false, think, ctx }) {
     const res = await fetch(this.url + '/api/chat', {

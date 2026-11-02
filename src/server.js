@@ -17,6 +17,8 @@ import { SESSIONS, currentSession, sessionBrains } from './sessions.js';
 import { plan as uninstallPlan, startUninstall } from './uninstall.js';
 import { voiceList, publicView, sampleFor, clearSamples } from './voice-samples.js';
 import { checkUpdate, startUpdate, updateStatus, requestRestart } from './update.js';
+import { describe as describeFile, openFile } from './files.js';
+import { refuseForeign } from './guard.js';
 
 const cfg = loadConfig();
 const publicDir = path.join(appDir, 'public');
@@ -45,7 +47,8 @@ function workshopView() {
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.webm': 'video/webm', '.mp4': 'video/mp4', '.avi': 'video/x-msvideo', '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.flac': 'audio/flac', '.ogg': 'audio/ogg'
+  '.ico': 'image/x-icon', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.flac': 'audio/flac', '.ogg': 'audio/ogg',
+  '.gif': 'image/gif', '.m4a': 'audio/mp4', '.mov': 'video/quicktime', '.pdf': 'application/pdf', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.csv': 'text/plain; charset=utf-8', '.log': 'text/plain; charset=utf-8'
 };
 
 function send(res, code, body, type = 'application/json') {
@@ -122,6 +125,13 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.headers['x-bob'] !== '1') return send(res, 403, { error: 'missing header' });
+    // More locks on the same door (the x-bob header alone already makes a browser ask first, and Bob never says yes):
+    // anything that changes something must come from Bob's own page, not be marked cross-site, and carry a
+    // content type a plain web form can't send.
+    if (req.method !== 'GET' && req.method !== 'HEAD' && p !== '/login') {
+      const bad = refuseForeign(req, host);
+      if (bad) { brain.log('blocked', `${req.method} ${p}: ${bad}`); return send(res, bad === 'content type' ? 415 : 403, { error: `refused (${bad})` }); }
+    }
     // Anything the user does in the window (a setting, a click, typing) counts as activity, so an update
     // never restarts Bob while he's using it. Automatic polling (GETs) doesn't count; quitting doesn't either.
     if (req.method === 'POST' && p !== '/api/quit') brain.lastActivity = Date.now();
@@ -326,6 +336,27 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && p === '/api/voice/samples/clear') { if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' }); clearSamples(cfg); return send(res, 200, { ok: true }); }
     if (req.method === 'POST' && p === '/api/stop') return send(res, 200, { stopped: brain.stop() });
 
+    // Files Bob mentions: a preview in the chat, plus Open / Show in folder / Copy (open and copy only on the PC itself).
+    if (req.method === 'POST' && p === '/api/file/info') {
+      const b = await body(req);
+      return send(res, 200, [].concat(b.paths || []).slice(0, 20).map((x) => { const d = describeFile(cfg, x); return { mention: String(x).slice(0, 1000), ...d, path: isLocal ? d.path : undefined }; }));
+    }
+    if (req.method === 'GET' && p === '/api/file') {
+      const d = describeFile(cfg, url.searchParams.get('path') || '');
+      if (!d.ok || d.kind === 'folder' || (!isLocal && !d.path.startsWith(path.resolve(cfg.innDir) + path.sep))) return send(res, 404, { error: 'not found' });
+      return serveFile(res, path.dirname(d.path), path.basename(d.path));
+    }
+    if (req.method === 'POST' && (p === '/api/open' || p === '/api/clipboard')) {
+      if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' });
+      const b = await body(req);
+      if (p === '/api/clipboard') {
+        if (!globalThis.bobShell?.copy) return send(res, 200, { ok: false });
+        globalThis.bobShell.copy(String(b.text ?? '').slice(0, 2e6));
+        return send(res, 200, { ok: true });
+      }
+      try { const r = openFile(cfg, String(b.path || ''), { reveal: b.reveal === true }); brain.log('open', `${b.reveal ? 'showed in folder' : 'opened'} ${path.basename(r.file)}`); return send(res, 200, { ok: true }); }
+      catch (e) { return send(res, 409, { error: e.message }); }
+    }
     if (req.method === 'GET' && p.startsWith('/images/')) {
       return serveFile(res, cfg.painterDir, path.basename(decodeURIComponent(p.slice(8))));
     }

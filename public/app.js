@@ -9,6 +9,7 @@ import { createShelf, uploadRef } from './shelf.js';
 import { summary, size } from './progress.js';
 import { createTasks, createDownloads, makeSortable, neighbour, taskRow } from './lists.js';
 import { createLayout } from './layout.js';
+import { esc, render, renderRich, fileCard } from './rich.js';
 
 const cellar = createCellar();
 const api = async (url, data) => {
@@ -68,21 +69,6 @@ let lastFrame = '';
 })();
 
 // ---------- Rendering ----------
-function esc(s) {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-function render(md) {
-  const parts = md.split(/```(?:[\w+-]*)\n?([\s\S]*?)(?:```|$)/g);
-  return parts.map((p, i) => {
-    if (i % 2 === 1) return `<pre><code>${esc(p)}</code></pre>`;
-    return esc(p)
-      .replace(/`([^`\n]+)`/g, '<code>$1</code>')
-      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
-      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
-      .replace(/(^|\s)(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
-  }).join('');
-}
 function scrollDown() { log.scrollTop = log.scrollHeight; }
 function add(cls, html) {
   const el = document.createElement('div');
@@ -386,7 +372,9 @@ function onEvent(ev) {
       note(ev.text, 'error');
       break;
     case 'done': {
-      const finished = replies.get(ev.turnId || '-')?.text;
+      const rep = replies.get(ev.turnId || '-');
+      const finished = rep?.text;
+      if (rep) decorate(rep.el, finished || '');
       endReply(ev);
       running.delete(ev.turnId);
       setBusy(running.size > 0);
@@ -516,6 +504,65 @@ function mediaHtml(media) {
     return `<img src="${url}" alt="Picture Bob painted" title="${name}">`;
   }).join('');
 }
+// ---------- Copy buttons and file cards (right-click and Ctrl+C often don't get through remote desktop) ----------
+const rawText = new WeakMap();
+function decorate(el, text, media = []) {
+  if (!el || el.querySelector(':scope > .msg-tools')) return el;
+  rawText.set(el, text || '');
+  const { files } = renderRich(text || '');
+  const made = (media || []).map((m) => m.url).filter((u) => typeof u === 'string' && u.startsWith('/images/'));
+  for (const v of el.querySelectorAll('img[src^="/images/"], audio[src^="/images/"], video[src^="/images/"]')) made.push(v.getAttribute('src'));
+  const links = [...el.querySelectorAll('a[href^="http"]')].length;
+  const tools = document.createElement('div');
+  tools.className = 'msg-tools';
+  tools.innerHTML = `<button type="button" class="mini" data-copy-msg title="Copy this message">Copy</button>${links ? `<button type="button" class="mini" data-copy-links title="Copy every link in this message">Copy link${links === 1 ? '' : 's'}</button>` : ''}`;
+  el.appendChild(tools);
+  const want = [...new Set([...files, ...made])];
+  if (want.length && el.classList.contains('bob')) {
+    api('/api/file/info', { paths: want }).then((list) => {
+      const shown = new Set([...el.querySelectorAll('img[src], audio[src], video[src]')].map((x) => x.getAttribute('src')));
+      // A painted picture already in the message is the same file as /api/file?path=...; match by name too.
+      const shownNames = new Set([...shown].filter((u) => u.startsWith('/images/')).map((u) => decodeURIComponent(u.slice(8))));
+      const html = list.filter((f) => f.ok).map((f) => fileCard(f, shownNames.has(f.name) ? new Set([f.url]) : shown)).join('');
+      if (html) { const box = document.createElement('div'); box.className = 'file-cards'; box.innerHTML = html; el.insertBefore(box, tools); }
+      for (const a of el.querySelectorAll('a.file-link')) { const f = list.find((x) => x.mention === a.dataset.file); if (!f?.ok) a.classList.add('gone'), a.title = f?.missing ? 'Not there any more' : 'Outside the folders Bob may open'; }
+    }).catch(() => {});
+  }
+  return el;
+}
+function plainText(el) {
+  const c = el.cloneNode(true);
+  for (const x of c.querySelectorAll('.msg-tools, .mini, .file-cards, .qtag')) x.remove();
+  return c.innerText.trim();
+}
+async function copyText(text, btn) {
+  let ok = false;
+  try { ok = (await post('/api/clipboard', { text })).data.ok === true; } catch {}
+  if (!ok) { try { await navigator.clipboard.writeText(text); ok = true; } catch {} }
+  if (!ok) {
+    const t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
+    document.body.appendChild(t); t.select(); try { ok = document.execCommand('copy'); } catch {} t.remove();
+  }
+  if (btn) { const was = btn.textContent; btn.textContent = ok ? 'Copied' : 'Couldn\'t copy'; btn.classList.add('done'); setTimeout(() => { btn.textContent = was; btn.classList.remove('done'); }, 1400); }
+  return ok;
+}
+log.addEventListener('click', async (e) => {
+  const b = e.target.closest('button, a.file-link');
+  if (!b || !log.contains(b)) return;
+  const msg = b.closest('.msg');
+  if ('copyMsg' in b.dataset) return copyText(plainText(msg) || rawText.get(msg) || '', b);
+  if ('copyLinks' in b.dataset) return copyText([...new Set([...msg.querySelectorAll('a[href^="http"]')].map((a) => a.href))].join('\n'), b);
+  if ('copyCode' in b.dataset) return copyText(b.parentElement.querySelector('code')?.textContent || '', b);
+  if (b.dataset.copyLink) return copyText(b.dataset.copyLink, b);
+  if (b.dataset.copyPath) return copyText(b.dataset.copyPath, b);
+  const which = b.dataset.open ?? b.dataset.reveal ?? b.dataset.file;
+  if (which != null) {
+    e.preventDefault();
+    const r = await post('/api/open', { path: which, reveal: b.dataset.reveal != null });
+    if (!r.ok) note(r.data.error || 'Couldn\'t open that.', 'error');
+  }
+});
+
 function picsHtml(pics) {
   return pics?.length ? `<div class="pics">${pics.map((p) => `<img src="${esc(p.url)}" alt="${esc(p.name)}" title="${esc(p.name)}">`).join('')}</div>` : '';
 }
@@ -528,6 +575,7 @@ $('composer').onsubmit = async (e) => {
   if (!text) return;
   const pics = pending;
   const bubble = add('msg you', esc(text) + picsHtml(pics) + '<span class="qtag">sending...</span>');
+  decorate(bubble, text);
   input.value = '';
   pending = [];
   drawTray();
@@ -601,7 +649,7 @@ window.addEventListener('bob-caps', applyCaps);
 async function start() {
   try {
     const h = await (await fetch('/api/history?session=' + encodeURIComponent(sessionId))).json();
-    for (const m of h.slice(-20)) add(m.role === 'user' ? 'msg you' : 'msg bob', m.role === 'user' ? esc(m.content) + picsHtml(m.pics) : render(m.content) + mediaHtml(m.media));
+    for (const m of h.slice(-20)) decorate(add(m.role === 'user' ? 'msg you' : 'msg bob', m.role === 'user' ? esc(m.content) + picsHtml(m.pics) : render(m.content) + mediaHtml(m.media)), m.content, m.media);
   } catch {}
   let cat = 'Patches';
   try { cat = (await (await fetch('/api/settings')).json()).catName || cat; } catch {}

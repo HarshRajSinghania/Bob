@@ -5,7 +5,7 @@
 //   2. otherwise a Bob folder Bob.exe sits inside (it has an "inn" folder), e.g. Agent 00\Bob app\Bob.exe
 // Bob.exe is Electron's official electron.exe, only renamed; Bob's files are in Bob app\resources\app.
 //   3. otherwise %LOCALAPPDATA%\Bob, with a fresh config.json made from config.example.json.
-const { app, BrowserWindow, shell, Menu, dialog } = require('electron');
+const { app, BrowserWindow, shell, Menu, dialog, clipboard } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
@@ -92,6 +92,44 @@ globalThis.bobLoginItem = {
   set: (on) => app.setLoginItemSettings({ openAtLogin: Boolean(on), args: ['--hidden'] })
 };
 
+// Bob's brain runs in this program, so it uses Electron for Open, Show in folder and Copy. The brain checks
+// every path first (src/files.js): only the inn folder and folders Bob may read, never secrets or programs.
+globalThis.bobShell = {
+  openPath: (f) => shell.openPath(f),
+  showItemInFolder: (f) => shell.showItemInFolder(f),
+  copy: (text) => clipboard.writeText(String(text))
+};
+
+// Right-click: the usual Cut, Copy, Paste and Select all, plus links and pictures.
+function contextMenu(win, base) {
+  win.webContents.on('context-menu', (e, p) => {
+    const items = [];
+    const sel = (p.selectionText || '').trim();
+    if (p.isEditable) items.push({ role: 'cut', enabled: p.editFlags.canCut }, { role: 'copy', enabled: p.editFlags.canCopy }, { role: 'paste', enabled: p.editFlags.canPaste }, { type: 'separator' }, { role: 'selectAll' });
+    else if (sel) items.push({ role: 'copy' });
+    if (p.linkURL) {
+      const web = /^https?:/.test(p.linkURL) && !p.linkURL.startsWith(base);
+      if (items.length) items.push({ type: 'separator' });
+      if (web) items.push({ label: 'Open link in browser', click: () => shell.openExternal(p.linkURL) });
+      items.push({ label: 'Copy link', click: () => clipboard.writeText(p.linkURL) });
+    }
+    if (p.mediaType === 'image' && p.srcURL) {
+      if (items.length) items.push({ type: 'separator' });
+      items.push({ label: 'Copy image', click: () => win.webContents.copyImageAt(p.x, p.y) }, { label: 'Save image as…', click: () => win.webContents.downloadURL(p.srcURL) });
+    } else if ((p.mediaType === 'video' || p.mediaType === 'audio') && p.srcURL) {
+      if (items.length) items.push({ type: 'separator' });
+      items.push({ label: `Save ${p.mediaType === 'video' ? 'clip' : 'sound'} as…`, click: () => win.webContents.downloadURL(p.srcURL) });
+    }
+    if (sel && !p.isEditable) {
+      items.push({ type: 'separator' }, { label: `Search the web for "${sel.length > 30 ? sel.slice(0, 30) + '…' : sel}"`, click: () => shell.openExternal('https://duckduckgo.com/?q=' + encodeURIComponent(sel.slice(0, 300))) });
+    }
+    if (!p.isEditable) { if (items.length) items.push({ type: 'separator' }); items.push({ role: 'selectAll' }); }
+    Menu.buildFromTemplate(items).popup({ window: win });
+  });
+  // "Save as…" always asks where.
+  win.webContents.session.on('will-download', (e, item) => { item.setSaveDialogOptions({ title: 'Save as' }); });
+}
+
 async function up(port) {
   try { const r = await fetch(`http://127.0.0.1:${port}/api/status`, { signal: AbortSignal.timeout(1500) }); return r.ok; } catch { return false; }
 }
@@ -120,6 +158,7 @@ async function start() {
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith(base)) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url); } });
   // The microphone (voice notes, "Hey Bob") and notifications are the only permissions Bob's page gets.
   win.webContents.session.setPermissionRequestHandler((wc, perm, cb) => cb(['media', 'notifications'].includes(perm) && wc.getURL().startsWith(base)));
+  contextMenu(win, base);
   win.loadURL(base + '/');
   win.on('closed', () => { win = null; });
 }

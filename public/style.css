@@ -57,6 +57,24 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .msg.bob pre code { background: none; padding: 0; }
 .msg.bob a { color: var(--accent); }
 .msg img { max-width: 100%; border-radius: calc(var(--r) * 1); display: block; margin-top: 6px; }
+.msg { user-select: text; -webkit-user-select: text; }
+.msg .mini { font-size: 12px; padding: 1px 7px; margin: 0 2px; line-height: 1.5; background: transparent; color: var(--muted); vertical-align: baseline; white-space: nowrap; }
+.msg .mini:hover, .msg .mini:focus-visible { color: var(--text); border-color: var(--accent); }
+.msg .mini.done { color: var(--accent); border-color: var(--accent); }
+.msg a + .mini[data-copy-link] { padding: 0 4px; font-size: 11px; margin-left: 3px; }
+.msg-tools { display: flex; gap: 4px; justify-content: flex-end; margin-top: 6px; white-space: normal; }
+.msg.you .msg-tools .mini { color: inherit; opacity: .75; }
+.msg.bob pre { position: relative; }
+.msg.bob pre .copy-code { position: absolute; top: 4px; right: 4px; font-family: inherit; }
+.msg a.file-link { color: var(--accent); text-decoration: underline dotted; }
+.msg a.file-link.gone { color: var(--muted); text-decoration: line-through; }
+.file-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; white-space: normal; }
+.file-card { border: 1px solid var(--line); border-radius: calc(var(--r) * 1); padding: 6px 8px; }
+.file-card img { max-height: 420px; object-fit: contain; margin: 0 0 6px; }
+.file-card audio, .file-card video { display: block; width: 100%; margin-bottom: 6px; }
+.file-card video { max-height: 420px; }
+.file-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; overflow-wrap: anywhere; }
+.file-tools { margin-left: auto; display: flex; flex-wrap: wrap; gap: 2px; }
 .note { align-self: center; color: var(--muted); font-size: 13px; text-align: center; }
 .note.announce { color: var(--accent); }
 .note.error { color: var(--bad); }
