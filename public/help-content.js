@@ -91,7 +91,7 @@ export const HELP = [
 <li><strong>✋ Hands</strong> at the top of the chat is a kill switch: anything running stops, waiting cards are answered No. It never switches a Hand on.</li>
 <li>File changes keep an undo list; anything removed goes to the Recycle Bin. Folders you mark read-only stay untouched.</li>
 <li>Some things are never allowed: anything needing administrator rights, and Bob's list of destructive commands.</li>
-<li><strong>Run the self-test</strong> (Settings, Hands) checks the safety nets in a throwaway folder. Nothing of yours is touched.</li></ul>` },
+<li><strong>Run the self-test</strong> (Settings, Show advanced settings, Hands) checks the safety nets in a throwaway folder. Nothing of yours is touched.</li></ul>` },
 
   { id: 'privacy', group: 'Hands and safety', title: 'What stays on your PC', words: 'privacy online cloud network internet data keys',
     html: `<p>Bob goes online only when you click: to download something you picked, to research something you asked about, or to use a cloud helper you switched on. Cloud helpers ask you every time, show the rough cost and exactly what text would leave your PC. Bob never stores your keys.</p>` },
@@ -141,7 +141,7 @@ export const HELP = [
 <tr><td>The first reply takes a while</td><td>Bob is loading his brain after being idle (a few seconds; big brains longer).</td></tr>
 <tr><td>Bob can't hear you</td><td>Fill the 👂 Hearing you slot (Gemma 4 E4B does it).</td></tr>
 <tr><td>Bob can't paint or edit</td><td>Fill the 🎨 Painter or ✂ Picture editor slot, and get the painter engine when Bob offers it.</td></tr>
-<tr><td>A Hand won't do anything</td><td>Check it's on in Settings, Hands, and that ✋ Hands at the top of the chat isn't <em>Stopped</em>.</td></tr>
+<tr><td>A Hand won't do anything</td><td>Check it's on in Settings, Show advanced settings, Hands, and that ✋ Hands at the top of the chat isn't <em>Stopped</em>.</td></tr>
 <tr><td>A model you want isn't listed in a slot</td><td>That slot only lists models that can do its job. Models that don't suit this PC are hidden: turn on <strong>Show models that don't suit this PC</strong>.</td></tr></table>` },
 
   { id: 'glossary', group: 'Troubleshooting', title: 'Glossary', words: 'words meaning model brain gpu vram ram graphics memory gguf engine commercial session hands context',

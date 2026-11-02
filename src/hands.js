@@ -41,7 +41,7 @@ export function stopRun(id) { const r = running.get(id); if (!r) return false; r
 // every Hand from being used, without changing Settings. held = false only works when Settings has Hands on.
 export function holdHands(brain, held) {
   const cur = handsSettings(brain.cfg);
-  if (!held && !cur.enabled) throw new Error('Hands are off in Settings. Turn them on there first (Settings, Hands).');
+  if (!held && !cur.enabled) throw new Error('Hands are off in Settings. Turn them on there first (Settings, Show advanced settings, Hands).');
   let n = 0;
   if (held) { for (const r of running.values()) { r.controller.abort(); n++; } n += brain.denyHands?.() || 0; }
   brain.saveHands(cleanHands({ ...cur, held }));
@@ -221,7 +221,7 @@ export function handsTools(brain, opts = {}) {
     async run(args, ctx) {
       off(cfg, 'run');
       const all = loadRecipes(cfg);
-      if (args.action === 'list') return all.length ? all.map((r) => `${r.name}: ${[r.cmd, ...(r.args || [])].join(' ')} (in ${r.cwd})`).join('\n') : 'No recipes saved yet. The user can save one from a command card or in Settings, Hands.';
+      if (args.action === 'list') return all.length ? all.map((r) => `${r.name}: ${[r.cmd, ...(r.args || [])].join(' ')} (in ${r.cwd})`).join('\n') : 'No recipes saved yet. The user can save one from a command card or in Settings, Show advanced settings, Hands.';
       const r = all.find((x) => x.name.toLowerCase() === String(args.name || '').toLowerCase());
       return runApproved(cfg, r, { emit: ctx?.emit, signal: ctx?.signal, log });
     },
@@ -235,9 +235,15 @@ export function handsTools(brain, opts = {}) {
 // A line for Bob's system prompt saying which Hands he has right now (only when one is on).
 export function handsPrompt(cfg) {
   const on = Object.entries(HANDS).filter(([id]) => handOn(cfg, id));
-  if (!on.length) return '';
+  // Hands that are off have no tools, so Bob is told why; otherwise he can only refuse vaguely or invent a reason.
+  const offIds = Object.keys(HANDS).filter((id) => !handOn(cfg, id));
+  const why = [...new Set(offIds.map((id) => handOffWhy(cfg, id)))];
+  const offLine = offIds.length ? `\n\nHands that are off right now (you have no tool for them): ${offIds.map((id) => HANDS[id].label).join('; ')}. ${why.join(' ')} If asked for one of these, say plainly that it is off and how to turn it on, in those words; don't refuse without a reason or make one up.` : '';
+  // Bob's backstory is a replicant in a virtual world; Hands are not. Without this he blamed a "simulated OS".
+  const realLine = `\n\nNever say you did something on the PC (opened, typed, clicked, moved, ran) unless a tool result in this turn says it was done. Hands act on ${cfg.userName || 'the user'}'s real Windows PC: the apps, windows and files are real, not a simulation. When a Hand tool fails, tell ${cfg.userName || 'the user'} the error it gave you, in plain words, and never blame a simulation or a virtual OS. If an earlier try in this chat failed, call the tool again instead of repeating that result: you may have been updated since.`;
+  if (!on.length) return realLine + offLine;
   const roots = handsRoots(cfg);
-  return `\n\nHands ${cfg.userName || 'the user'} switched on: ${on.map(([, h]) => h.label).join('; ')}.${handOn(cfg, 'files') ? ` Files: only in ${roots.join('; ') || '(no folders ticked yet)'}.` : ''}${handOn(cfg, 'apps') ? ' Apps: open with open_app, read the window with app_look, then do one step at a time with app_act using the names app_look gave you.' : ''} Every action shows a card and waits for a click, so describe the plan briefly and call the tool; don't ask in words first. If ${cfg.userName || 'the user'} says no, don't try another way round.`;
+  return `\n\nHands ${cfg.userName || 'the user'} switched on: ${on.map(([, h]) => h.label).join('; ')}.${handOn(cfg, 'files') ? ` Files: only in ${roots.join('; ') || '(no folders ticked yet)'}.` : ''}${handOn(cfg, 'apps') ? ' Apps: open with open_app, read the window with app_look, then do one step at a time with app_act using the names app_look gave you.' : ''} Every action shows a card and waits for a click, so describe the plan briefly and call the tool; don't ask in words first. If ${cfg.userName || 'the user'} says no, don't try another way round.${realLine}${offLine}`;
 }
 
 // For the Settings page.

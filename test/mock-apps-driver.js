@@ -21,7 +21,11 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
   const r = { id: m.id, ok: true };
   if (m.op === 'windows') r.windows = windows;
   else if (m.op === 'apps') r.apps = apps;
-  else if (m.op === 'open') { if (!apps.some((a) => a.appId === m.appId)) { r.ok = false; r.error = 'not in the Start menu'; } }
+  else if (m.op === 'open') {
+    if (!apps.some((a) => a.appId === m.appId)) { r.ok = false; r.error = 'not in the Start menu'; }
+    else if (/Paint/.test(m.appId)) { /* Paint "opens" but no window shows up */ }
+    else windows.push({ hwnd: 200 + windows.length, title: 'Untitled - Notepad', process: 'notepad', pid: 5000 + windows.length });
+  }
   else if (m.op === 'look') r.items = [{ type: 'Text', name: 'Untitled', id: 'ContentTextBlock', enabled: true }, { type: 'Document', name: 'Text editor', id: '15', enabled: true, password: false, typable: true, value: 'hello' }, { type: 'MenuItem', name: 'File', id: '', enabled: true }, { type: 'Button', name: 'Save', id: 'save', enabled: true }, { type: 'Edit', name: 'Password', id: 'pw', password: true }];
   else if (m.op === 'picture') { fs.writeFileSync(m.file, 'PNG'); r.file = m.file; }
   else if (m.op === 'resolve') {

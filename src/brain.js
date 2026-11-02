@@ -23,10 +23,26 @@ import { stampMessages, keepOlder, readSummary } from './chats.js';
 import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
 import { scheduleTools } from './hands-schedules.js';
-import { toolsOff } from './hands-settings.js';
+import { toolsOff, HANDS } from './hands-settings.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
 
 const MAX_STEPS = 8;
+
+// Honesty about Hands (1.5.4). A small brain saw an old Hands error in the chat and, instead of trying again,
+// made up "the simulated OS won't let me" and even "I've opened Notepad" with no tool call at all.
+const HAND_TOOLS = new Set(Object.values(HANDS).flatMap((h) => h.tools));
+// Old Hands errors from earlier turns are shown to the brain as possibly out of date, so it tries again.
+export function staleHandErrors(msgs, turnStart) {
+  return msgs.map((m, i) => (i < turnStart && m.role === 'tool' && HAND_TOOLS.has(m.tool_name) && /^Error:/.test(String(m.content))
+    ? { ...m, content: `(An earlier try failed: ${String(m.content).slice(7, 200)}. That may be out of date, because Bob's Hands can be fixed or switched on since. To do it now, call the tool again; don't repeat this.)` }
+    : m));
+}
+// "I've opened Notepad" with no Hands tool done this turn.
+export function claimsPcAction(text) {
+  return /\bI(?:'ve| have|)\s+(?:just\s+|now\s+|already\s+|successfully\s+)?(?:opened|launched|started|typed|clicked|pressed|moved|copied|renamed|zipped|unzipped|ran|deleted|saved|closed)\b[^.!?\n]{0,60}\b(?:notepad|paint|app|application|window|program|file|folder|script|command|document|tab|\w+\.\w{2,4}|it for you)/i.test(String(text || ''));
+}
+export const CLAIM_CORRECTION = 'Nothing was actually done on the PC in that reply. Bob said he did, but no action ran.';
+const CLAIM_NUDGE = 'You just said you did something on the PC, but no tool did it in this turn. Never claim that. If it should be done, call the right tool now; if you cannot, say plainly that you have not done it and why (the tool\'s own words if it gave an error).';
 const MAX_HISTORY = 40;
 const APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -225,7 +241,7 @@ export class Brain {
   history(id) {
     return this.session(id)
       .filter((m) => (m.role === 'user' || m.role === 'assistant') && (m.content || m.media?.length))
-      .map((m) => ({ role: m.role, id: m.id, at: m.at, ...(m.forgotten ? { forgotten: true } : {}), content: m.role === 'user' && m.text != null ? m.text : (m.content || ''), ...(m.media?.length ? { media: m.media } : {}), pics: (m.refs || []).map((id) => this.refs.find(id)).filter(Boolean).map((r) => ({ name: r.name, url: `/refs/${r.file}` })) }));
+      .map((m) => ({ role: m.role, id: m.id, at: m.at, ...(m.forgotten ? { forgotten: true } : {}), content: m.role === 'user' && m.text != null ? m.text : (m.content || ''), ...(m.media?.length ? { media: m.media } : {}), ...(m.correction ? { correction: m.correction } : {}), pics: (m.refs || []).map((id) => this.refs.find(id)).filter(Boolean).map((r) => ({ name: r.name, url: `/refs/${r.file}` })) }));
   }
 
   // Makes sure a model is in memory, telling the user first if it means a wait.
@@ -628,6 +644,7 @@ export class Brain {
       if (images.length) user.images = images;
     }
     msgs.push(user);
+    const turnStart = msgs.length - 1;
     this.log('chat', `${this.cfg.userName || 'User'}: ${text}`);
     // The turn's pictures travel with it, so a hat Bob hands the job to can see them too.
     const ctx = { emit, signal, brain: this, cfg: this.cfg, allowAll: new Set(), pics, picNote, msgs, turnText: text, job };
@@ -643,18 +660,29 @@ export class Brain {
       this.setState('thinking', '', model);
       const sys = { role: 'system', content: this.withLimits(systemPrompt({ now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName, look: lookPrompt(this.cfg), dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') })) + (earlier ? `\n\n${earlier}` : '') };
       const reply = await this.engine.chat({
-        model, messages: [sys, ...msgs], tools, signal, cpu, think, ctx: brainCtx,
+        model, messages: [sys, ...staleHandErrors(msgs, turnStart)], tools, signal, cpu, think, ctx: brainCtx,
         onToken: (t) => emit({ type: 'token', text: t })
       });
       // He's seen the new look once; that's enough.
       if (this.cfg.lookChange) { try { saveSettings(this.cfg, { lookChange: null }); } catch {} this.cfg.lookChange = null; }
       msgs.push(reply);
+      if (!reply.tool_calls && !ctx.handsDid && !ctx.claimChecked && claimsPcAction(reply.content)) {
+        // Said he did something on the PC that no tool did: say so to the user, and give him one go to really do it.
+        ctx.claimChecked = true;
+        // Shown by the app as its own note line under the reply (not as Bob's words), and kept with the reply for reloads.
+        emit({ type: 'correction', text: CLAIM_CORRECTION });
+        reply.correction = CLAIM_CORRECTION;
+        msgs.push({ role: 'system', content: CLAIM_NUDGE, hidden: true });
+        this.log('honesty', 'Bob claimed a PC action with no tool result; corrected and asked to retry');
+        continue;
+      }
       if (!reply.tool_calls) return;
       let ended = false;
       for (const call of reply.tool_calls) {
         const name = call.function?.name;
         const res = await this.runTool(name, call.function?.arguments, ctx);
         msgs.push({ role: 'tool', tool_name: name, content: res.text });
+        if (HAND_TOOLS.has(name) && !/^Error:|said no/.test(String(res.text))) ctx.handsDid = true;
         if (res.endsTurn) ended = true;
       }
       if (ended) {

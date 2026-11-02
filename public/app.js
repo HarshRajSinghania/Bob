@@ -261,6 +261,7 @@ async function loadHistory(n = 20) {
       if (m.forgotten) { if (m.role === 'user') note(m.content); continue; }
       const el = decorate(add(m.role === 'user' ? 'msg you' : 'msg bob', m.role === 'user' ? esc(m.content) + picsHtml(m.pics) : render(m.content) + mediaHtml(m.media)), m.content, m.media);
       if (m.id) el.dataset.mid = m.id;
+      if (m.correction) note(m.correction, 'error');
     }
   } catch {}
 }
@@ -436,6 +437,11 @@ function onEvent(ev) {
       try { if ('Notification' in window && Notification.permission === 'granted' && store.get('bob-alerts', '1') === '1') new Notification('Bob: reminder', { body: ev.text, icon: '/icons/bob-192.png', requireInteraction: true }); } catch {}
       break;
     case 'error':
+      endReply(ev);
+      note(ev.text, 'error');
+      break;
+    case 'correction':
+      // The app's own check, under Bob's reply: he said he did something on the PC and no action ran.
       endReply(ev);
       note(ev.text, 'error');
       break;

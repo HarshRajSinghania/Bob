@@ -47,8 +47,11 @@ export function handOn(cfg, id) {
 // Why a Hand can't be used, in words for Bob to pass on.
 export function handOffWhy(cfg, id) {
   const who = cfg.userName || 'The user', h = handsSettings(cfg);
+  const label = HANDS[id].label;
   if (h.enabled && h.held && h[id]?.on) return `Hands are stopped with the Hands switch on the chat page. ${who} can switch them back on there.`;
-  return `The ${HANDS[id].label} Hand is switched off. ${who} can turn it on in Settings, Hands.`;
+  if (!h.enabled && h[id]?.on) return `Hands are off in Settings (the "Let Bob use Hands" switch). ${who} can turn it on in Settings, Show advanced settings, Hands.`;
+  if (!h.enabled) return `Hands are off in Settings. ${who} can turn on "Let Bob use Hands" and "${label}" in Settings, Show advanced settings, Hands.`;
+  return `The "${label}" Hand is off. ${who} can turn it on in Settings, Show advanced settings, Hands.`;
 }
 
 // The tool names that belong to Hands that are off right now (brain.toolSchemas hides them; each tool checks again when run).

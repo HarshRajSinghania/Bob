@@ -24,7 +24,7 @@ export function createHandsSwitch({ note }) {
     st.textContent = state === 'ready' ? 'On' : state === 'stopped' ? 'Stopped' : 'Off in Settings';
     btn.title = state === 'ready' ? 'Hands are on (Bob still asks before every action). Click to stop them right away.'
       : state === 'stopped' ? 'Hands are stopped. Click to let Bob use them again.'
-      : 'Hands are off in Settings, so there is nothing to stop. Turn them on in Settings, Hands.';
+      : 'Hands are off in Settings, so there is nothing to stop. Turn them on in Settings, Show advanced settings, Hands.';
   }
 
   async function load() { try { s = (await call('/api/hands')).settings; draw(); } catch {} }
@@ -32,7 +32,7 @@ export function createHandsSwitch({ note }) {
   btn.onclick = async () => {
     if (!s) await load();
     if (!s) return;
-    if (!s.enabled) { note('Hands are off in Settings, so there is nothing to stop. Turn them on in Settings, Hands.'); return; }
+    if (!s.enabled) { note('Hands are off in Settings, so there is nothing to stop. Turn them on in Settings, Show advanced settings, Hands.'); return; }
     btn.disabled = true;
     try {
       const r = await call('/api/hands/hold', { held: !s.held });

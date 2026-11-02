@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { cleanHands, handOn, toolsOff, HANDS } from '../src/hands-settings.js';
 import { handsTools, stopEverything, handsPrompt, runningNow } from '../src/hands.js';
 import { AppsDriver, blockedWindow, blockedApp, keysFor, BLOCKED_PROCESSES } from '../src/hands-apps.js';
-import { Brain } from '../src/brain.js';
+import { Brain, staleHandErrors, claimsPcAction, CLAIM_CORRECTION } from '../src/brain.js';
 
 let pass = 0, fail = 0;
 const check = (name, ok, extra = '') => { ok ? pass++ : fail++; console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra && !ok ? ' -> ' + extra : ''}`); };
@@ -77,24 +77,41 @@ Object.assign(fake, { cfg, tools: {}, approvals: new Map(), handApprovals: new S
 const driver = new AppsDriver({ command: [process.execPath, path.join(here, 'mock-apps-driver.js')], env: { ...process.env } });
 process.env.MOCK_APPS_LOG = mockLog;
 process.env.MOCK_BOB_PID = String(process.pid);
-Object.assign(fake.tools, handsTools(fake, { apps: { driver } }));
+Object.assign(fake.tools, handsTools(fake, { apps: { driver, openWaitMs: 20, openWaitTries: 5 } }));
 let onCard = () => true;
 const ctx = () => ({ emit: (e) => { events.push(e); if (e.type === 'approval') setTimeout(() => fake.answerApproval(e.id, onCard(e)), 5); }, signal: new AbortController().signal, allowAll: new Set() });
 const cards = () => events.filter((e) => e.type === 'approval');
 
+{
+  const { handOffWhy } = await import('../src/hands-settings.js');
+  const allOff = { userName: 'Sam', hands: {} };
+  const masterOff = { userName: 'Sam', hands: { enabled: false, apps: { on: true } } };
+  const appsOff = { userName: 'Sam', hands: { enabled: true, apps: { on: false } } };
+  const held = { userName: 'Sam', hands: { enabled: true, held: true, apps: { on: true } } };
+  check('when everything is off, Bob says both switches to turn on, by their Settings names', handOffWhy(allOff, 'apps') === 'Hands are off in Settings. Sam can turn on "Let Bob use Hands" and "Open and use apps" in Settings, Show advanced settings, Hands.');
+  check('when only the master switch is off, Bob names it', /Hands are off in Settings \(the "Let Bob use Hands" switch\)/.test(handOffWhy(masterOff, 'apps')));
+  check('when only the Apps hand is off, Bob names it', handOffWhy(appsOff, 'apps') === 'The "Open and use apps" Hand is off. Sam can turn it on in Settings, Show advanced settings, Hands.');
+  check('when stopped on the chat page, Bob says so', /chat page/.test(handOffWhy(held, 'apps')));
+  const p0 = handsPrompt(allOff);
+  check("with Hands off, Bob's prompt still tells him which are off, why, and to say so plainly (\"open Notepad\" -> a clear reason)", /off right now/.test(p0) && /Open and use apps/.test(p0) && /Let Bob use Hands/.test(p0) && /don't refuse without a reason or make one up/.test(p0));
+  const pOn = handsPrompt({ userName: 'Sam', hands: { enabled: true, apps: { on: true } } });
+  check("with Hands on, Bob is told the PC is real, to quote a tool's error, to claim only what a tool did, and to retry rather than repeat an old failure", /real Windows PC/.test(pOn) && /never blame a simulation/.test(pOn) && /Never say you did something on the PC .* unless a tool result in this turn says it was done/.test(pOn) && /Never say you did something/.test(p0) && /call the tool again instead of repeating/.test(pOn));
+  const p1 = handsPrompt(appsOff);
+  check('with some Hands on, the off ones are still explained', /off right now/.test(p1) && /"Open and use apps" Hand is off/.test(p1));
+}
 check("Bob's prompt explains look-then-act when the Apps hand is on", /app_look/.test(handsPrompt(cfg)) && !/app_look/.test(handsPrompt({ ...cfg, hands: { ...cfg.hands, apps: { on: false } } })));
 {
   const offCfg = { ...cfg, hands: { ...cfg.hands, apps: { on: false } } };
   const offTools = handsTools({ cfg: offCfg, log() {} }, { apps: { driver: new AppsDriver({ command: [process.execPath, path.join(here, 'mock-apps-driver.js')] }) } });
   let msg = ''; try { await offTools.app_act.check({ window: 'notepad', action: 'click', name: 'Save' }, null); } catch (e) { msg = e.message; }
-  check('switched off, the tools refuse even if called', /switched off/.test(msg));
+  check('switched off, the tools refuse even if called', /(Hand is off|Hands are off)/.test(msg));
 }
 
 // open_app
 const o1 = await fake.runTool('open_app', { name: 'notepad' }, ctx());
 const oc = cards().at(-1);
 check('opening an app shows a card with the app and an "Open it" button', oc && /Open Notepad/.test(oc.command) && oc.button === 'Open it' && oc.hand === true && /not as administrator/.test(oc.text));
-check('…and opens it through the Start menu id after the click', /Opened Notepad/.test(o1.text) && sent().some((m) => m.op === 'open' && m.appId === 'Microsoft.WindowsNotepad_8wekyb3d8bbwe!App'));
+check('…and opens it through the Start menu id after the click, saying so only once its new window is there', /Opened Notepad: its window "Untitled - Notepad" is open/.test(o1.text) && sent().some((m) => m.op === 'open' && m.appId === 'Microsoft.WindowsNotepad_8wekyb3d8bbwe!App'));
 const nCards = cards().length;
 const o2 = await fake.runTool('open_app', { name: 'Command Prompt' }, ctx());
 const o3 = await fake.runTool('open_app', { name: 'Registry Editor' }, ctx());
@@ -102,6 +119,9 @@ check('terminals and admin tools are refused before any card', /off limits/.test
 onCard = () => false;
 const o4 = await fake.runTool('open_app', { name: 'Paint' }, ctx());
 check('Deny = nothing opened', /said no/.test(o4.text) && !sent().some((m) => m.op === 'open' && /Paint/.test(m.appId)));
+onCard = () => true;
+const o5 = await fake.runTool('open_app', { name: 'Paint' }, ctx());
+check("if no new window appears, Bob is told it did not open and not to say it did", /no new window appeared/.test(o5.text) && /Do not say it opened/.test(o5.text) && /It may still be starting: check the taskbar, or ask Bob to try again\./.test(o5.text) && logs.some((l) => /asked Windows to open Paint, but no new window appeared/.test(l)));
 onCard = () => true;
 
 // app_look
@@ -188,15 +208,37 @@ stopEverything(fake);
 await wait(100);
 check('Stop everything ends the apps helper (and its red bar)', !driver.child && !runningNow().some((r) => r.line === 'Apps hand') && !handOn(cfg, 'apps'));
 const after = await fake.runTool('app_act', { window: 'notepad', action: 'click', name: 'Save' }, ctx());
-check('after Stop everything the Apps hand is off', /switched off/.test(after.text));
+check('after Stop everything the Apps hand is off', /Hands are off in Settings/.test(after.text));
 
 // The helper itself: off Windows the real one is refused with a reason
 if (process.platform !== 'win32') check('off Windows the real helper says it needs Windows', throws(() => new AppsDriver().start(), /Windows/));
+
+// ---------- Honesty: old errors, claims with no tool ----------
+{
+  const hist = [
+    { role: 'user', content: 'open notepad and type hello' },
+    { role: 'tool', tool_name: 'app_act', content: 'Error: Target element cannot receive focus.' },
+    { role: 'tool', tool_name: 'web_search', content: 'Error: offline' },
+    { role: 'assistant', content: 'It failed.' },
+    { role: 'user', content: 'try again' }
+  ];
+  const v = staleHandErrors(hist, 4);
+  check('old Hands errors are shown to the brain as possibly out of date, with a nudge to call the tool again', /An earlier try failed: Target element cannot receive focus/.test(v[1].content) && /call the tool again/.test(v[1].content) && hist[1].content.startsWith('Error:'));
+  check('other tools and this turn are left alone', v[2].content === 'Error: offline' && staleHandErrors([{ role: 'tool', tool_name: 'app_act', content: 'Error: x' }], 0)[0].content === 'Error: x');
+  check('a claim of a PC action is spotted ("I\'ve opened Notepad")', claimsPcAction("I've opened Notepad for you.") && claimsPcAction('I typed hello into the document.') && claimsPcAction('I have successfully launched the app') && claimsPcAction('I moved the file to Downloads'));
+  check('ordinary talk and stories are not', !claimsPcAction('I opened my heart to the idea.') && !claimsPcAction('Shall I open Notepad?') && !claimsPcAction('Once upon a time a knight opened the gate.') && !claimsPcAction('I can open apps for you once Hands are on.'));
+  const b = fs.readFileSync(path.join(here, '..', 'src', 'brain.js'), 'utf8');
+  check('a claim with no Hands tool done this turn gets a visible correction and one chance to really do it', /if \(!reply\.tool_calls && !ctx\.handsDid && !ctx\.claimChecked && claimsPcAction\(reply\.content\)\)/.test(b) && /emit\(\{ type: 'correction', text: CLAIM_CORRECTION \}\)/.test(b) && /reply\.correction = CLAIM_CORRECTION/.test(b) && /continue;/.test(b) && CLAIM_CORRECTION === 'Nothing was actually done on the PC in that reply. Bob said he did, but no action ran.');
+  check('the nudge stays out of the chat the user sees', /role: 'system', content: CLAIM_NUDGE, hidden: true/.test(b) && /\.filter\(\(m\) => \(m\.role === 'user' \|\| m\.role === 'assistant'\)/.test(b));
+  check('the brain sees history through the stale-error filter', /messages: \[sys, \.\.\.staleHandErrors\(msgs, turnStart\)\]/.test(b));
+}
 
 // UI
 const ui = fs.readFileSync(path.join(here, '..', 'public', 'hands.js'), 'utf8');
 check('the card uses the button text the Hand asks for', /esc\(ev\.button \|\| 'Run it'\)/.test(ui));
 check('the chat says when Bob stopped because you took over', /apps-stopped/.test(ui));
+const appUi = fs.readFileSync(path.join(here, '..', 'public', 'app.js'), 'utf8');
+check('the honesty correction is the app\'s own note line under the reply, also after a reload', /case 'correction':\s*\/\/[^\n]*\n\s*endReply\(ev\);\s*note\(ev\.text, 'error'\);/.test(appUi) && /if \(m\.correction\) note\(m\.correction, 'error'\);/.test(appUi));
 
 // PC review (1.5.2): Alt+F4 says it closes the window; "spin" isn't taken for a PIN field.
 {

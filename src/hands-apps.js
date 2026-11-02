@@ -160,7 +160,7 @@ export class AppsDriver {
 }
 
 // ---- The tools ----
-export function appsTools(brain, { driver = null, track = () => () => {} } = {}) {
+export function appsTools(brain, { driver = null, track = () => () => {}, openWaitMs = 500, openWaitTries = 16 } = {}) {
   const cfg = brain.cfg;
   const log = (k, t) => brain.log?.(k, t);
   const ownPids = [process.pid, process.ppid].filter(Boolean);
@@ -239,9 +239,21 @@ export function appsTools(brain, { driver = null, track = () => () => {} } = {})
       off(); notStopped(ctx);
       const hit = ctx?.appsOpen; if (ctx) ctx.appsOpen = null;
       if (!hit) throw new Error('Nothing to open.');
-      await drv.request('open', { appId: hit.appId });
-      log('hands', `apps: opened ${hit.name}`);
-      return `Opened ${hit.name}. Give it a moment, then use app_look to see its window.`;
+      const before = new Set((await windows()).map((w) => String(w.hwnd)));
+      try { await drv.request('open', { appId: hit.appId }); }
+      catch (e) { log('hands', `apps: open ${hit.name} failed: ${e.message}`); throw new Error(`${hit.name} did not open: ${e.message} (That is the real reason, from Windows. Tell ${cfg.userName || 'the user'} it plainly; don't say it opened.)`); }
+      // Only say it opened once a new window is really there.
+      for (let i = 0; i < openWaitTries; i++) {
+        await new Promise((r) => setTimeout(r, openWaitMs));
+        const fresh = (await windows()).filter((w) => !before.has(String(w.hwnd)));
+        if (fresh.length) {
+          const w = fresh[0];
+          log('hands', `apps: opened ${hit.name} (${label(w)})`);
+          return `Opened ${hit.name}: its window "${w.title}" is open. Use app_look on it before clicking or typing.`;
+        }
+      }
+      log('hands', `apps: asked Windows to open ${hit.name}, but no new window appeared`);
+      return `Windows was asked to open ${hit.name}, but no new window appeared within ${Math.round(openWaitTries * openWaitMs / 1000)} seconds. It may still be starting: check the taskbar, or ask Bob to try again. Do not say it opened. Tell ${cfg.userName || 'the user'} that, and offer to try again or check with app_look (it may have opened behind, or reused a window that was already open).`;
     },
     summary: ({ name }) => `apps: open ${name}`
   };
