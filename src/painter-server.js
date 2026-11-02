@@ -264,7 +264,12 @@ export class PainterServer extends EventEmitter {
     if (!pid || pid === process.pid) return;
     const name = await new Promise((resolve) => {
       if (process.platform === 'win32') {
-        execFile('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], { windowsHide: true, timeout: 3000 }, (err, out) => resolve(err ? '' : String(out)));
+        // The full command line (not just the image name), so a renamed exe or node running the test mock still matches.
+        const ps = `(Get-CimInstance Win32_Process -Filter "ProcessId=${pid}").CommandLine`;
+        execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, timeout: 8000 }, (err, out) => {
+          if (!err && String(out).trim()) return resolve(String(out));
+          execFile('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], { windowsHide: true, timeout: 3000 }, (e2, o2) => resolve(e2 ? '' : String(o2)));
+        });
       } else {
         try { resolve(fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8')); } catch { resolve(''); }
       }
