@@ -709,15 +709,36 @@ export class Brain {
 
   // mode keep_look: an edit model holds the reference's look (same character, new scene).
   // mode start_from: the reference is the starting picture and strength says how much may change.
+  // A picture-edit model that's on this PC but not given the "Picture edits" job yet (its name, or '').
+  async editModelWaiting() {
+    if (capabilities(this.cfg).edits) return '';
+    try { const r = await this.shop?.roles(); return (!r?.current?.edit && r?.options?.edit?.[0]?.label) || ''; } catch { return ''; }
+  }
+
+  // Why an edit can't be done faithfully, in words Bob passes on (instead of quietly painting something new).
+  async noEditModel(what) {
+    const waiting = await this.editModelWaiting();
+    const fix = waiting
+      ? `${waiting} is on this PC but isn't assigned to "Picture edits": Models and settings, Model roles, Picture edits (one click, or the "Use" button shown there).`
+      : 'No picture-edit model is on this PC yet: Models and settings, Pictures, a picture-edit model (Qwen Image Edit), then Model roles, Picture edits.';
+    return `Didn't paint anything. Editing ${what} and keeping it looking the same needs a picture-edit model. ${fix} Tell the user that plainly. Offer the alternative too: rework the picture from itself (make_image with mode start_from), where the look can drift.`;
+  }
+
   async makeImage({ prompt, width, height, reference, mode, strength }, ctx) {
     const refs = this.pickRefs(reference);
+    // A picture is attached but none was named: never paint something new by mistake when an edit was meant.
+    if (!refs.length && ctx.pics?.length && mode !== 'new') {
+      const names = ctx.pics.map((r) => `"${r.name}"`).join(', ');
+      return `Didn't paint yet. A picture is attached to this message (${names}). To change or restyle it, call make_image again with reference [${ctx.pics.map((r) => `"${r.name}"`).join(', ')}]. To paint something new instead, call it with mode "new".`;
+    }
     if (refs.length) {
       const can = capabilities(this.cfg);
       const files = refs.map((r) => this.refs.pathOf(r));
       if (can.edits && mode !== 'start_from') return this.paintOwn('edit', { prompt: this.withLooks(prompt, refs), width, height, refs: files }, ctx);
+      if (!can.edits && mode !== 'start_from') return this.noEditModel(refs.map((r) => `"${r.name}"`).join(', '));
       if (!paintingAvailable(this.cfg, 'image')) throw new Error('Painting from a reference needs Bob\'s own painter (a picture model from Models and settings).');
       const out = await this.paintOwn('image', { prompt: this.withLooks(prompt, refs), width, height, image: files[0], strength: strength ?? (mode === 'start_from' ? 0.6 : 0.75) }, ctx);
-      return can.edits || mode === 'start_from' ? out : `${out} (Started from ${refs[0].name}; without a picture-edit model the look can drift.)`;
+      return can.edits ? out : `${out} (Reworked from ${refs[0].name} without a picture-edit model, so the look can drift.)`;
     }
     if (this.cfg.maestro?.enabled && this.cfg.painter?.engine === 'maestro' && this.cfg.maestro?.image) return this.viaMaestro('image', { prompt, width, height }, ctx);
     if (paintingAvailable(this.cfg, 'image')) return this.paintOwn('image', { prompt, width, height }, ctx);

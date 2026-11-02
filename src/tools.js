@@ -281,7 +281,7 @@ export function buildTools(cfg) {
       width: { type: 'integer', description: 'Width in pixels, default 1024.' },
       height: { type: 'integer', description: 'Height in pixels, default 1024.' },
       reference: { type: 'array', items: { type: 'string' }, description: 'Optional: names of reference pictures (from the shelf, or attached in chat) to paint from. Up to 4.' },
-      mode: str('With a reference: keep_look = same character or scene in a new picture (default); start_from = rework the reference picture itself.', { enum: ['keep_look', 'start_from'] }),
+      mode: str('With a reference: keep_look = edit it or keep its look (same character or scene; needs a picture-edit model) (default); start_from = rework the reference picture itself (the look can drift). new = paint something new even though a picture is attached.', { enum: ['keep_look', 'start_from', 'new'] }),
       strength: { type: 'number', description: 'start_from only: how much may change, 0.1 (barely) to 0.95 (almost all). Default 0.6.' }
     }, ['prompt']),
     async run(args, ctx) { return ctx.brain.makeImage(args, ctx); },

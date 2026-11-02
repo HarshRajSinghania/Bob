@@ -129,7 +129,7 @@ check('Bob.exe hands its own folder to the swap', /args\.push\('-AppDir', exeDir
   const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   check('version label is 0.9.<build> before 1.0 (and 0.9.<build><letter> on a branch)', formatVersion({ release: '0.9', build: 29 }) === '0.9.29' && formatVersion({ release: '0.9', build: 28, branch: 'a' }) === '0.9.28a');
   check('from 1.0 the label is <release>.<patch> (1.0.0, 1.0.1, 1.1.0, 1.0.1a)', formatVersion({ release: '1.0', patch: 0, build: 37 }) === '1.0.0' && formatVersion({ release: '1.0', patch: 1, build: 38 }) === '1.0.1' && formatVersion({ release: '1.1', patch: 0, build: 40 }) === '1.1.0' && formatVersion({ release: '1.0', patch: 1, build: 38, branch: 'a' }) === '1.0.1a');
-  check('the label, package.json version and build agree (1.0.1, build 38)', VERSION.label === '1.0.1' && VERSION.build === 38 && pkg.version === '1.0.1');
+  check('the label, package.json version and build agree', VERSION.label === pkg.version && VERSION.label === `${pkg.bob.release}.${pkg.bob.patch}` && VERSION.build === pkg.bob.build && pkg.bob.build >= 39);
   {
     // A 0.9.36 Bob sees 1.0.0 in the source folder as newer (the build number decides).
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-ver-'));

@@ -35,6 +35,7 @@ function broadcast(ev) {
 
 const brain = new Brain(cfg, broadcast);
 const shop = new ModelShop(cfg, broadcast, brain.engine);
+brain.shop = shop; // so Bob can tell when a model is on the PC but not assigned to a job
 if (!shop.found.at) shop.scan().catch(() => {});
 
 function workshopView() {

@@ -123,7 +123,7 @@ export function createCellar() {
           ${has || !cur ? '' : `<option value="${esc(cur)}" selected>${esc(cur)} (not found)</option>`}
           ${cur ? '' : '<option value="" selected>Pick one</option>'}
           ${list.map((o) => `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
-        </select></td></tr>`;
+        </select>${!cur && opts.length && j.kind !== 'llm' ? `<div class="ready-hint"><span class="tag good">On this PC, not assigned yet</span> <button data-userole="${esc(j.id)}" data-value="${esc(opts[0].value)}">Use ${esc(opts[0].label)}</button></div>` : ''}</td></tr>`;
     };
     const thinkers = roles.jobs.filter((j) => j.kind === 'llm');
     const makers = roles.jobs.filter((j) => j.kind !== 'llm');
@@ -265,6 +265,12 @@ export function createCellar() {
     try {
       if (tab === 'style' && mode === 'shop' && await stylePage.onClick(b, settings)) return;
       if (b.dataset.sampleEngine) { sampler.play(b); return; }
+      if (b.dataset.userole) {
+        const r = await api('/api/models/role', { job: b.dataset.userole, value: b.dataset.value });
+        roles.current[b.dataset.userole] = b.dataset.value;
+        if (r.needsEngine) askEngine(b.closest('td') || b.parentElement); else draw();
+        return;
+      }
       if (b.dataset.removebob !== undefined) {
         const box = dlg.querySelector('.remove-confirm');
         const pl = await api('/api/uninstall');

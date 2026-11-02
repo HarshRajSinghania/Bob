@@ -401,3 +401,4 @@ details.voices summary { cursor: pointer; font-weight: 600; }
 .remove-bob { margin-top: 1.2em; padding-top: .8em; border-top: 1px solid var(--line, rgba(127,127,127,.3)); }
 button.danger { background: #a8432f; color: #fff; border-color: #a8432f; }
 .remove-confirm code { word-break: break-all; }
+.ready-hint { margin-top: .35em; display: flex; flex-wrap: wrap; gap: .4em; align-items: center; }

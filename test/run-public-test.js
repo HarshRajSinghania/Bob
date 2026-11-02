@@ -48,7 +48,7 @@ for (const [what, re] of patterns) {
   check(`nothing personal: ${what}`, !hits.length, hits.slice(0, 8).join(' '));
 }
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-check('licence files are there: GPL-3.0 code, CC BY-SA 4.0 art, trademarks, third parties', pkg.license === 'GPL-3.0-or-later' && ['LICENSE', 'LICENSE-ART', 'ASSETS-LICENSE.md', 'TRADEMARKS.md', 'THIRD-PARTY.md', 'SECURITY.md', 'CONTRIBUTING.md'].every((f) => files.includes(f))
+check('licence files are there: GPL-3.0 code, CC BY-SA 4.0 art, trademarks, third parties', pkg.license === 'GPL-3.0-or-later' && ['LICENSE', 'LICENSE-ART', 'ASSETS-LICENSE.md', 'TRADEMARKS.md', 'THIRD-PARTY.md', 'SECURITY.md', 'CONTRIBUTING.md', 'PRIVACY.md'].every((f) => files.includes(f))
   && /GNU GENERAL PUBLIC LICENSE\s+Version 3, 29 June 2007/.test(fs.readFileSync(path.join(root, 'LICENSE'), 'utf8')) && /Attribution-ShareAlike 4\.0 International/.test(fs.readFileSync(path.join(root, 'LICENSE-ART'), 'utf8')));
 check('the README has the code signing policy SignPath Foundation asks for', /## Code signing policy/.test(fs.readFileSync(path.join(root, 'README.md'), 'utf8')));
 console.log(`\n${pass} passed, ${fail} failed`);
