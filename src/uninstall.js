@@ -5,6 +5,7 @@
 //   - only if ticked: Bob's own data folder (inn\bob: chats, settings, task list, saved samples) and the
 //     models Bob downloaded (models\bob). The rest of the inn (notice board, logbook, pictures, other agents'
 //     files) is never removed.
+//   - the optional "Bob schedules" Windows task, if it was switched on
 // Never touched: the source folder, the rest of the home folder (other apps' files in it), Ollama, ComfyUI.
 // Bob can't delete his own running program, so a small window (installer\bob-uninstall.ps1, copied to
 // %TEMP% first) waits for him to close and then does it.
@@ -15,6 +16,7 @@ import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { appDir } from './config.js';
 import { launchCommand, cleanEnv } from './update.js';
+import { removeTaskCommand } from './schedules.js';
 
 const strictlyInside = (a, b) => Boolean(a && b) && path.resolve(a).toLowerCase().startsWith(path.resolve(b).toLowerCase() + path.sep);
 const isDir = (p) => { try { return fs.statSync(p).isDirectory(); } catch { return false; } };
@@ -64,8 +66,16 @@ export function startUninstall(cfg, { notes = false, models = false } = {}, { sp
   if (p.electronData) args.push('-ElectronData', p.electronData);
   if (notes && p.inn) args.push('-Inn', p.inn);
   if (models && p.models) args.push('-Models', p.models);
+  // The opt-in "Bob schedules" task must not outlive Bob (it would only find no Bob.exe, but still).
+  // A missing task is fine; this never blocks the removal.
+  try {
+    const [sx, sargs] = removeTaskCommand(env);
+    const t = spawnImpl(sx, sargs, { shell: false, windowsHide: true, stdio: 'ignore' });
+    t?.on?.('error', () => {});
+    t?.unref?.();
+  } catch { /* no task to remove */ }
   const [exe, ...cargs] = launchCommand(args);
   const child = spawnImpl(exe, cargs, { cwd: os.tmpdir(), detached: false, shell: false, windowsHide: true, windowsVerbatimArguments: true, stdio: 'ignore', env: cleanEnv(env) });
   child?.unref?.();
-  return { ok: true, removes: { app: p.app, shortcut: Boolean(p.shortcut), electronData: p.electronData, inn: notes ? p.inn : '', models: models ? p.models : '' } };
+  return { ok: true, removes: { schedule: true, app: p.app, shortcut: Boolean(p.shortcut), electronData: p.electronData, inn: notes ? p.inn : '', models: models ? p.models : '' } };
 }

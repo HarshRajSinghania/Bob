@@ -17,13 +17,14 @@ export function tidyRoots(cfg) {
 // Files that are never thrown away, wherever they are.
 const NEVER = /^(settings\.json|config\.json|config\.example\.json|topics\.json|housekeeping\.json|about-me\.md|backstory\.md|refs\.json)$/i;
 
-export function mayRecycle(cfg, file) {
+// roots: the folders allowed for this call (housekeeping's by default; the Files Hand passes the folders the user ticked).
+export function mayRecycle(cfg, file, roots = tidyRoots(cfg)) {
   if (!file || !path.isAbsolute(file)) return false;
   const full = path.resolve(file);
   if (NEVER.test(path.basename(full))) return false;
-  if (tidyRoots(cfg).some((r) => path.resolve(r) === full)) return false; // never a whole root
+  if (roots.some((r) => path.resolve(r) === full)) return false; // never a whole root
   if (isInside(trashDir(cfg), full)) return false;
-  return tidyRoots(cfg).some((r) => isInside(r, full));
+  return roots.some((r) => isInside(r, full));
 }
 
 export const trashDir = (cfg) => path.join(cfg.dataDir, 'trash');
@@ -48,23 +49,24 @@ function toRecycleBin(files) {
 }
 
 // Throws away the given paths. Returns { gone: [...], refused: [...] } and never throws for one bad path.
-export function recycle(cfg, paths) {
-  const gone = [], refused = [];
+// Off Windows (and in tests) `trashed` maps each path to where it went in inn\bob\trash, so it can be put back.
+export function recycle(cfg, paths, { roots } = {}) {
+  const gone = [], refused = [], trashed = {};
   const ok = [];
   for (const p of [].concat(paths || [])) {
-    if (!mayRecycle(cfg, p)) { refused.push(p); continue; }
+    if (!mayRecycle(cfg, p, roots || tidyRoots(cfg))) { refused.push(p); continue; }
     if (!fs.existsSync(p)) continue;
     ok.push(path.resolve(p));
   }
-  if (!ok.length) return { gone, refused };
+  if (!ok.length) return { gone, refused, trashed };
   const useBin = cfg.recycleBin ?? (process.platform === 'win32');
   if (useBin) {
     const went = new Set(toRecycleBin(ok).map((p) => path.resolve(p)));
     for (const p of ok) (went.has(p) && !fs.existsSync(p) ? gone : refused).push(p);
   } else {
-    for (const p of ok) { try { toTrash(cfg, p); gone.push(p); } catch { refused.push(p); } }
+    for (const p of ok) { try { trashed[p] = toTrash(cfg, p); gone.push(p); } catch { refused.push(p); } }
   }
-  return { gone, refused };
+  return { gone, refused, trashed };
 }
 
 // A copy of a file, thrown away at once: the "before" version of something Bob is about to change

@@ -148,9 +148,14 @@
       "ollama": "gpt-oss:20b",
       "files": [
         {
-          "url": "https://huggingface.co/ggml-org/gpt-oss-20b-GGUF/resolve/main/gpt-oss-20b-mxfp4.gguf",
+          "url": "https://huggingface.co/ggml-org/gpt-oss-20b-GGUF/resolve/main/gpt-oss-20b-MXFP4.gguf",
           "role": "gguf",
-          "verify": true
+          "verify": true,
+          "sha256": "27cd6c432c7672cb812a92f611cf3ba7bbc35928262bb1e1253ff4ee6ae35901",
+          "bytes": 12109566624,
+          "aka": [
+            "gpt-oss-20b-mxfp4.gguf"
+          ]
         }
       ],
       "use": {
@@ -371,7 +376,7 @@
       "category": "images",
       "name": "FLUX.1 schnell",
       "what": "Quick, good-looking pictures in 4 steps. Big download.",
-      "sizeGB": 34,
+      "sizeGB": 28,
       "vramGB": 16,
       "license": "Apache 2.0",
       "commercial": true,
@@ -379,14 +384,21 @@
       "needs": "stable-diffusion.cpp",
       "files": [
         {
-          "url": "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/flux1-schnell.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/flux1-schnell/resolve/main/flux1-schnell-fp8.safetensors",
           "role": "diffusionModel",
-          "verify": true
+          "verify": true,
+          "sha256": "ead426278b49030e9da5df862994f25ce94ab2ee4df38b556ddddb3db093bf72",
+          "bytes": 17236328572,
+          "aka": [
+            "flux1-schnell.safetensors"
+          ]
         },
         {
-          "url": "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
           "role": "vae",
-          "verify": true
+          "verify": true,
+          "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38",
+          "bytes": 335304388
         },
         {
           "url": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors",
@@ -413,9 +425,7 @@
             }
           }
         }
-      },
-      "gated": true,
-      "gatedWhy": "Black Forest Labs asks for a free Hugging Face account and accepting their terms before this one downloads, and Bob doesn't sign in for you."
+      }
     },
     {
       "id": "qwen-image-edit-2509",

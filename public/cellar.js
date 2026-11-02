@@ -5,6 +5,7 @@ import { createStylePage } from './style-page.js';
 import { createSampler, sampleButton, sampleHint } from './voice-samples.js';
 import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks, starterPlan, slotValue } from './equip.js';
 import { drawBob } from './bob-sprite.js';
+import { handsSettingsHtml, mountHandsSettings } from './hands.js';
 import { attributesHtml, cleanPersonality, greeting, PRESETS, DEFAULTS, isDefault } from './personality.js';
 
 const $ = (id) => document.getElementById(id);
@@ -247,6 +248,7 @@ export function createCellar() {
         <div class="update-steps"></div>
         <label class="switch"><input type="checkbox" data-set="autoCheck" ${settings.updates?.autoCheck ? 'checked' : ''}><span><strong>Check when Bob starts</strong><br><span class="muted">Off unless you turn it on. Bob only tells you; updating always takes your click.</span></span></label></div>
       ${housekeepingHtml()}
+      ${handsSettingsHtml()}
       <div><strong>Downloads</strong><p class="muted">Downloads run ${settings.downloads?.concurrent === 2 ? 'two' : 'one'} at a time. You can pause, resume, cancel or reorder them.</p><button data-opendl>Open Downloads</button></div>
       <label class="switch"><input type="checkbox" data-set="oneBrain" ${settings.oneBrain ? 'checked' : ''}>
         <span><strong>One brain (snappier)</strong><br><span class="muted">In the Normal session, every copy of Bob uses the main brain, so there's no 20-second brain swap. Specialist brains are better for long coding or review jobs.</span></span></label>
@@ -305,6 +307,7 @@ export function createCellar() {
     const mini = dlg.querySelector('.attr-avatar');
     if (mini) { const c = mini.getContext('2d'); c.imageSmoothingEnabled = false; try { drawBob(c, 64, {}, settings?.look); } catch {} }
     dlg.classList.toggle('wide', mode === 'shop' && tab === 'roles' && eqView !== 'list');
+    mountHandsSettings(dlg.querySelector('.hands-box')); // loads its own data; does nothing off the Settings tab
     if (jumpTo) { const el = dlg.querySelector('#sub-' + CSS.escape(jumpTo)); jumpTo = ''; el?.scrollIntoView({ block: 'start' }); }
   }
 

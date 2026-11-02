@@ -21,6 +21,9 @@ import { runWorkflow } from './workshop.js';
 import { currentSession, modelFor, laneOf, suggestSession, SESSIONS } from './sessions.js';
 import { stampMessages, keepOlder, readSummary } from './chats.js';
 import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
+import { handsTools, handsPrompt } from './hands.js';
+import { scheduleTools } from './hands-schedules.js';
+import { toolsOff } from './hands-settings.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -52,6 +55,8 @@ export class Brain {
     this.reminderTimer.unref?.();
     this.housekeeper = new Housekeeper(cfg, this);
     this.tools.forget_topic = forgetTopicTool(this);
+    Object.assign(this.tools, handsTools(this), scheduleTools(this)); // Hands: off until the user turns them on (see hands-settings.js)
+    this.handApprovals = new Set(); // approvals waiting that came from a Hand, so Stop everything can deny them
   }
 
   checkReminders() {
@@ -136,29 +141,58 @@ export class Brain {
     this.setState('thinking', '', model);
   }
 
-  async approve(need, emit, signal, group) {
+  // Asks the user. need: a string, or { text, diff, plan, command, cwd } (plan = rows the user can tick one by one,
+  // command = the exact command line). Resolves false, true or 'all'; when the card had rows, out.picked holds
+  // the ids the user ticked (null = all of them).
+  async approve(need, emit, signal, group, { hand = false, out = {} } = {}) {
     const id = crypto.randomUUID();
     const prev = this.state;
     const text = typeof need === 'string' ? need : need.text;
     this.setState('waiting', text);
-    emit({ type: 'approval', id, text, diff: need.diff, allowAll: Boolean(group) });
+    const card = { type: 'approval', id, text, diff: need.diff, allowAll: Boolean(group) };
+    if (Array.isArray(need.plan)) card.plan = need.plan;
+    if (need.command) { card.command = need.command; card.cwd = need.cwd || ''; }
+    if (hand) card.hand = true;
+    emit(card);
+    if (hand) this.handApprovals.add(id);
+    let picked = null;
     const allowed = await new Promise((resolve) => {
       const timer = setTimeout(() => resolve(false), APPROVAL_TIMEOUT_MS);
-      const done = (v) => { clearTimeout(timer); this.approvals.delete(id); resolve(v); };
+      const done = (v, rows) => { clearTimeout(timer); this.approvals.delete(id); this.handApprovals.delete(id); picked = rows ?? null; resolve(v); };
       this.approvals.set(id, done);
       signal.addEventListener('abort', () => done(false), { once: true });
     });
+    if (Array.isArray(need.plan)) {
+      const ok = new Set(need.plan.filter((r) => !r.blocked).map((r) => r.id));
+      out.picked = Array.isArray(picked) ? picked.map(String).filter((x) => ok.has(x)) : null;
+      if (allowed && out.picked && !out.picked.length) { emit({ type: 'approval-result', id, allowed: false }); this.log('approval', `nothing ticked: ${text}`); this.setState(prev.state === 'waiting' ? 'thinking' : prev.state, '', prev.model); return false; }
+    }
     emit({ type: 'approval-result', id, allowed: Boolean(allowed) });
-    this.log('approval', `${allowed === 'all' ? 'allowed (rest of job)' : allowed ? 'allowed' : 'denied'}: ${text}`);
+    const rowsNote = Array.isArray(need.plan) && out.picked ? ` (${out.picked.length} of ${need.plan.length} rows ticked)` : '';
+    this.log('approval', `${allowed === 'all' ? 'allowed (rest of job)' : allowed ? 'allowed' : 'denied'}: ${text}${need.command ? ` [${need.command}]` : ''}${allowed ? rowsNote : ''}`);
     this.setState(prev.state === 'waiting' ? 'thinking' : prev.state, '', prev.model);
     return allowed;
   }
 
-  answerApproval(id, allow) {
+  // rows: for a card with a plan, the ids of the rows the user ticked.
+  answerApproval(id, allow, rows) {
     const done = this.approvals.get(id);
     if (!done) return false;
-    done(allow === 'all' ? 'all' : Boolean(allow));
+    done(allow === 'all' ? 'all' : Boolean(allow), Array.isArray(rows) ? rows.slice(0, 1000).map(String) : null);
     return true;
+  }
+
+  // Stop everything: every Hand card that's waiting is answered No.
+  denyHands() {
+    let n = 0;
+    for (const id of [...this.handApprovals]) { const done = this.approvals.get(id); if (done) { done(false); n++; } }
+    this.handApprovals.clear();
+    return n;
+  }
+
+  saveHands(next) {
+    saveSettings(this.cfg, { hands: next });
+    this.broadcast?.({ type: 'hands', settings: next });
   }
 
   // A session's context size, but never more than the model was made for.
@@ -202,13 +236,17 @@ export class Brain {
     args = args || {};
     ctx.emit({ type: 'tool', name, summary: tool.summary ? tool.summary(args) : name });
     try {
+      ctx.picked = null;
       if (tool.check) {
-        const need = tool.check(args);
-        const group = tool.approvalGroup;
+        const need = await tool.check(args, ctx);
+        const group = typeof tool.approvalGroup === 'function' ? tool.approvalGroup(args) : tool.approvalGroup;
         if (need && !(group && ctx.allowAll.has(group))) {
-          const answer = await this.approve(need, ctx.emit, ctx.signal, group);
+          const hand = Boolean(need && typeof need === 'object' && (need.plan || need.command));
+          const out = {};
+          const answer = await this.approve(need, ctx.emit, ctx.signal, group, { hand, out });
           if (!answer) return { text: 'The user said no. Do not try again; say it is fine and ask what to do instead.' };
           if (answer === 'all' && group) ctx.allowAll.add(group);
+          if (Array.isArray(need.plan)) ctx.picked = out.picked ?? null;
         }
       }
       const out = await tool.run(args, ctx);
@@ -239,6 +277,7 @@ export class Brain {
     const can = capabilities(this.cfg);
     const missing = [!can.pictures && 'make pictures', !can.video && 'make video clips', !can.music && 'make music', !can.sfx && 'make sound effects', !can.hearing && 'hear voice input'].filter(Boolean);
     const helpers = cloudHelpers(this.cfg);
+    prompt += handsPrompt(this.cfg);
     if (helpers.length) prompt += `\n\nCloud copies of you that ${this.cfg.userName || 'the user'} switched on (use ask_cloud only for jobs too big for you, or when asked; each use is approved and costs money): ${helpers.map((h) => `${h.id} = ${copyName(this.cfg, 'cloud:' + h.id, 'cloud helper')}, running on ${h.name} ${h.model}`).join('; ')}.`;
     const shelf = this.refs.describe();
     if (shelf) prompt += `\n\n${shelf}`;
@@ -249,7 +288,7 @@ export class Brain {
   toolSchemas(names) {
     const who = this.cfg.userName || 'the user';
     const can = capabilities(this.cfg);
-    const off = new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud'].filter(Boolean));
+    const off = new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud', ...toolsOff(this.cfg)].filter(Boolean));
     return names.filter((n) => this.tools[n] && !off.has(n)).map((n) => JSON.parse(JSON.stringify(this.tools[n].schema).replaceAll('{{USER}}', who)));
   }
 

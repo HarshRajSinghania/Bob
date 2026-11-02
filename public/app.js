@@ -12,6 +12,7 @@ import { createLayout } from './layout.js';
 import { esc, render, renderRich, fileCard } from './rich.js';
 import { createTopics } from './topics.js';
 import { createTidy } from './tidy.js';
+import { handsApproval, onHandsEvent, setupStopAll } from './hands.js';
 
 const cellar = createCellar();
 const api = async (url, data) => {
@@ -299,6 +300,7 @@ function drawDownloadsBadge(items) { countBadge($('dlBtn'), items.filter((d) => 
 function onEvent(ev) {
   if (ev.type === 'status') return setStatus(ev);
   if (ev.sessionId && ev.sessionId !== sessionId && ev.type !== 'reminder') return;
+  if (onHandsEvent(ev, { add, scrollDown, note })) return;
   switch (ev.type) {
     case 'queue':
       drawQueue(ev.jobs || []);
@@ -384,6 +386,8 @@ function onEvent(ev) {
     }
     case 'approval': {
       endReply(ev);
+      // Hands cards: rows to tick (files) or the exact command (run).
+      if (handsApproval(ev, { add, answer: (allow, rows) => post('/api/approve', { id: ev.id, allow, rows }) })) { ping('Bob needs your OK', ev.text); layout.needsYou(); break; }
       const diff = ev.diff ? `<pre class="diff"><code>${esc(ev.diff)}</code></pre>` : '';
       const all = ev.allowAll ? '<button class="all">Allow the rest of this job</button>' : '';
       const card = add('approval', `<p><strong>Bob wants to:</strong> ${esc(ev.text)}</p>${diff}<div class="row"><button class="yes">Allow</button>${all}<button class="no">Deny</button></div>`);
@@ -717,6 +721,7 @@ async function start() {
   try { const d = await (await fetch('/api/downloads')).json(); downloads.update(d); layout.downloads(d); drawDownloadsBadge(d); for (const x of d) if (x.state === 'downloading') showDownload({ ...x, phase: 'downloading' }); } catch {}
   window.addEventListener('bob-downloads', () => downloads.open());
   connect();
+  setupStopAll($('handsStopAll'), { note });
   input.focus();
   applyCaps();
   cellar.firstRun();

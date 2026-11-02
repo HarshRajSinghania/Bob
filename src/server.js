@@ -23,6 +23,9 @@ import { describe as describeFile, openFile } from './files.js';
 import { refuseForeign } from './guard.js';
 import { search } from './search.js';
 import { hkSettings, cleanHousekeeping, KINDS, UNITS } from './housekeeping.js';
+import { handsRoute } from './hands-routes.js';
+import { schedulesRoute, startSchedules } from './hands-schedules.js';
+import { handsSettings } from './hands-settings.js';
 
 const cfg = loadConfig();
 const publicDir = path.join(appDir, 'public');
@@ -42,6 +45,7 @@ function broadcast(ev) {
 const brain = new Brain(cfg, broadcast);
 const shop = new ModelShop(cfg, broadcast, brain.engine);
 brain.shop = shop; // so Bob can tell when a model is on the PC but not assigned to a job
+startSchedules(brain); // ticks once a minute; nothing is ever due while the Schedules hand is off
 if (!shop.found.at) shop.scan().catch(() => {});
 
 function workshopView() {
@@ -191,7 +195,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && p === '/api/hardware') return send(res, 200, await shop.hardware());
     if (req.method === 'GET' && p === '/api/settings') {
-      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, lookText: lookText(cfg.look), personality: cleanPersonality(cfg.personality), lookComments: cfg.lookComments !== false, userName: cfg.userName || '', callMe: cfg.callMe || '', windowsName: cfg.windowsName || '', engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: cfg.ollamaKeepAlive || '10m', tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg) });
+      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, lookText: lookText(cfg.look), personality: cleanPersonality(cfg.personality), lookComments: cfg.lookComments !== false, userName: cfg.userName || '', callMe: cfg.callMe || '', windowsName: cfg.windowsName || '', engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: cfg.ollamaKeepAlive || '10m', tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg), hands: handsSettings(cfg)  });
     }
     if (req.method === 'POST' && p.startsWith('/api/models/') || req.method === 'POST' && p === '/api/settings') {
       if (!isLocal) return send(res, 403, { error: 'Downloads and settings can only be changed on the PC itself.' });
@@ -269,9 +273,11 @@ const server = http.createServer(async (req, res) => {
       return send(res, 404, { error: 'not found' });
     }
     if (req.method === 'POST' && p === '/api/approve') {
-      const { id, allow } = await body(req);
-      return send(res, brain.answerApproval(id, allow) ? 200 : 404, { ok: true });
+      const { id, allow, rows } = await body(req);
+      return send(res, brain.answerApproval(id, allow, rows) ? 200 : 404, { ok: true });
     }
+    if (p === '/api/hands/schedules' && await schedulesRoute({ req, res, p, isLocal, brain, body, send })) return;
+    if (p.startsWith('/api/hands') && await handsRoute({ req, res, p, isLocal, brain, cfg, body, send })) return;
     if (req.method === 'POST' && p === '/api/transcribe') {
       const chunks = [];
       let size = 0;
