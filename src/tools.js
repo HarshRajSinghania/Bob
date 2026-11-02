@@ -315,7 +315,7 @@ export function buildTools(cfg) {
 
   t.make_music = {
     schema: fn('make_music', "Make a piece of music on {{USER}}'s PC with the audio workshop (a few minutes). The chat brain steps out of the GPU while it plays.", {
-      prompt: str('Style tags: genre, mood, instruments, tempo. Like "chiptune, upbeat, 140 bpm, square lead".'),
+      prompt: str('Style tags: genre, mood, instruments, tempo. Like "chiptune, upbeat, 140 bpm, square lead". If {{USER}} gave no style, pick one that fits and say what you picked.'),
       lyrics: str('Optional lyrics with [verse] and [chorus] markers. Leave empty for instrumental.'),
       seconds: { type: 'integer', description: 'Length in seconds, 10 to 240, default 30.' }
     }, ['prompt']),
@@ -378,7 +378,7 @@ export function buildTools(cfg) {
   t.ask_specialist = {
     schema: fn('ask_specialist', "Put on a different hat (and brain) for a focused job. The answer goes straight to {{USER}}.", {
       hat: str('tinker = coding, including fixing a crash, error or bug in a project, ledger = data and spreadsheets, scout = web research with sources, painter = image/video prompts, reviewer = careful second look', { enum: Object.keys(HATS) }),
-      task: str('Everything the job needs: the request and any details or pasted text from the chat.')
+      task: str('Everything the job needs: the request and any details or pasted text from the chat. Pass it on as it is; the workbench finds files itself, so don\'t ask for paths or line numbers first.')
     }),
     async run({ hat, task }, ctx) { return ctx.brain.runHat(hat, task, ctx); },
     summary: ({ hat }) => `hat: ${hat}`,
@@ -398,13 +398,17 @@ export function buildTools(cfg) {
   };
 
   t.search_files = {
-    schema: fn('search_files', "Search the text inside a project's source files. Returns matching lines with file and line number.", {
-      project: str('Project name', { enum: Object.keys(cfg.projects || {}) }),
+    // 1.5.32: project is optional. Brains kept asking "which project?" when the user didn't say; now leaving it out
+    // searches every project (results say which file each hit is in).
+    schema: fn('search_files', "Search the text inside {{USER}}'s project source files. Returns matching lines with file and line number. If {{USER}} didn't name a project, leave project out: it searches all of them.", {
+      project: str('Project name (optional; leave out to search every project)', { enum: Object.keys(cfg.projects || {}) }),
       text: str('Text to look for (case-insensitive).')
-    }),
+    }, ['text']),
     async run({ project, text }) {
-      const root = cfg.projects?.[project];
-      if (!root) throw new Error(`Unknown project. I know: ${Object.keys(cfg.projects || {}).join(', ')}`);
+      const all = cfg.projects || {};
+      if (project && !all[project]) throw new Error(`Unknown project. I know: ${Object.keys(all).join(', ')}`);
+      const roots = project ? [all[project]] : Object.values(all);
+      if (!roots.length) throw new Error('No projects are set up yet, so there\'s nothing to search. I\'ll look in a folder instead: tell me which one, or I\'ll start with Documents. (For you, Bob: use list_folder and read_file. Projects live under "projects" in config.json; there is no switch for them in the app yet.)');
       const needle = String(text || '').toLowerCase();
       if (needle.length < 2) throw new Error('Give me at least 2 characters to look for.');
       const hits = [];
@@ -427,10 +431,10 @@ export function buildTools(cfg) {
           });
         }
       };
-      walk(root);
+      for (const root of roots) walk(root);
       return hits.length ? hits.join('\n') : `No matches in ${scanned} files.`;
     },
-    summary: ({ project, text }) => `search ${project} for "${text}"`
+    summary: ({ project, text }) => `search ${project || 'all projects'} for "${text}"`
   };
 
   t.edit_file = {

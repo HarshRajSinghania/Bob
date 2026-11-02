@@ -171,6 +171,8 @@ function clean(patch) {
     for (const k of ['model', 'config', 'voices', 'ref']) if (typeof t[k] === 'string') out.tts[k] = t[k];
     if (typeof t.voice === 'string' && /^[a-z]{2}_[a-z]{2,20}$/.test(t.voice)) out.tts.voice = t.voice;
     if (typeof t.speed === 'number') out.tts.speed = Math.min(2, Math.max(0.5, t.speed));
+    // 1.5.33: the Windows voice picked by name ('' = Automatic). Only a plain name, nothing that could be a path.
+    if (typeof t.windowsVoice === 'string') out.tts.windowsVoice = /^[\w .,()'-]{0,100}$/.test(t.windowsVoice) ? t.windowsVoice : '';
   }
   if (out.cloudHelpers) {
     // Only on/off and a model name per known provider. Addresses and keys can't be set from here.

@@ -630,7 +630,8 @@ export class ModelShop {
     const imgCur = p.engine === 'maestro' && mz.image ? `maestro:${mz.image}` : imgNow;
     const vidCur = mz.video ? `maestro:${mz.video}` : vidNow;
     const tp = this.cfg.tts?.provider;
-    const speechNow = tp === 'piper' || tp === 'kokoro' ? this.catalog.models.find((m) => m.category === 'speech' && this.locate(m).model === this.cfg.tts.model)?.id || '' : tp === 'chatterbox' ? 'chatterbox' : 'windows';
+    // 1.5.33: with no model file set (Kokoro picked but not downloaded yet), don't match a model that isn't here either.
+    const speechNow = tp === 'piper' || tp === 'kokoro' ? (this.cfg.tts?.model && this.catalog.models.find((m) => m.category === 'speech' && m.use?.tts?.provider === tp && this.locate(m).model === this.cfg.tts.model)?.id) || (tp === 'kokoro' ? 'kokoro-v1' : '') : tp === 'chatterbox' ? 'chatterbox' : 'windows';
     const editNow = this.catalog.models.find((m) => m.use?.painter?.sdcpp?.edit && p.sdcpp?.edit?.diffusionModel && this.locate(m).diffusionModel === p.sdcpp.edit.diffusionModel)?.id || '';
     const current = { ...Object.fromEntries(ModelShop.JOBS.filter((j) => j.kind === 'llm').map((j) => [j.id, this.cfg.models?.[j.id] || ''])), image: imgCur, edit: editNow, video: vidCur, voice: sttNow, speech: speechNow, music: aw.music ? 'ace-step' : '', sfx: aw.sfx ? 'audioldm2' : '' };
     // Embedding models (for matching Topics by meaning), from Ollama only; never downloaded by Bob.

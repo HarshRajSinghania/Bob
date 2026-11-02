@@ -33,7 +33,7 @@ function bundledFile(cfg, engine, voice) {
 // Piper's sample page keeps one clip per voice, laid out like the voice files on Hugging Face.
 export function piperOfficial(entry) {
   const url = (entry.files || []).map((f) => f.url).find((u) => /\.onnx$/.test(u)) || '';
-  const m = url.match(/piper-voices\/resolve\/main\/([a-z]{2})\/([a-z]{2}_[A-Z]{2})\/([^/]+)\/([^/]+)\//);
+  const m = url.match(/piper-voices\/resolve\/[\w.-]+\/([a-z]{2})\/([a-z]{2}_[A-Z]{2})\/([^/]+)\/([^/]+)\//);
   return m ? `${PIPER_SAMPLES_PAGE}samples/${m[1]}/${m[2]}/${m[3]}/${m[4]}/speaker_0.mp3` : '';
 }
 

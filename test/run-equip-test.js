@@ -103,7 +103,7 @@ const ctx = { roles, models, brains: { small: 'gemma4:e4b' }, embed: '', selecte
   }
   const small = ['z-image-turbo-q5', 'z-image-turbo-q4', 'flux2-klein-4b', 'flux2-klein-4b-q4', 'wan2.2-ti2v-5b-q4'].map(byId);
   check('the small-card versions are in the catalog', small.every(Boolean));
-  check('their links are checked: every file comes from Hugging Face and the big ones carry a checksum', small.every((m) => m.files.every((f) => /^https:\/\/huggingface\.co\/[\w.-]+\/[\w.-]+\/resolve\/main\//.test(f.url) && !f.verify)) && small.every((m) => /^[0-9a-f]{64}$/.test(m.files.find((f) => f.role === 'diffusionModel').sha256)));
+  check('their links are checked: every file comes from Hugging Face and the big ones carry a checksum', small.every((m) => m.files.every((f) => /^https:\/\/huggingface\.co\/[\w.-]+\/[\w.-]+\/resolve\/[0-9a-f]{40}\//.test(f.url) && !f.verify)) && small.every((m) => /^[0-9a-f]{64}$/.test(m.files.find((f) => f.role === 'diffusionModel').sha256)));
   check('the small painters and editors share helper files, so they download once', byId('z-image-turbo-q5').files.slice(1).map((f) => f.url).join() === byId('z-image-turbo-q4').files.slice(1).map((f) => f.url).join() && byId('flux2-klein-4b').files.slice(1).map((f) => f.url).join() === byId('flux2-klein-4b-q4').files.slice(1).map((f) => f.url).join());
   check('FLUX.2 klein in the sets is the Apache 4B, not the non-commercial 9B or dev', small.filter((m) => /klein/.test(m.id)).every((m) => m.license === 'Apache 2.0' && m.files.every((f) => !/9b|flux2-dev|FLUX\.2-dev/i.test(f.url))));
 }

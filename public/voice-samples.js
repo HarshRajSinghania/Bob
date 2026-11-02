@@ -43,6 +43,8 @@ export function createSampler() {
     if (engine === 'windows') {
       if (!('speechSynthesis' in window)) { reset(); return note(btn, 'This window has no Windows voice.'); }
       const u = new SpeechSynthesisUtterance(SAMPLE_LINE);
+      // 1.5.33: a named Windows voice (picked under Bob's voice); 'default' is Windows' own choice.
+      if (voice && voice !== 'default') { const v = speechSynthesis.getVoices().find((x) => x.name === voice); if (v) u.voice = v; }
       u.onend = reset;
       btn.classList.add('on'); btn.textContent = '■ Stop';
       speechSynthesis.speak(u);

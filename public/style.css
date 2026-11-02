@@ -865,3 +865,11 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .seg3-btn input { position: absolute; opacity: 0; pointer-events: none; }
 .seg3-btn.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); font-weight: 600; }
 .seg3-btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 1.5.33: Bob's voice picker: engine, then the voice inside it (nested), with Play sample. Big targets for remote desktop. */
+.voice-pick { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.voice-nest { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-left: 12px; border-left: 3px solid var(--accent); }
+.pick-inline { display: inline-flex; gap: 6px; align-items: center; }
+.pick-inline > span { font-weight: 600; }
+.pick-inline select { min-height: 36px; }
+.voice-head { display: grid; gap: 6px; margin-bottom: 8px; }

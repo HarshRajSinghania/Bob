@@ -210,11 +210,15 @@ async function sayNext() {
   saying = false;
   sayNext();
 }
+let winVoiceName = '';
+window.addEventListener('bob-voice', (e) => { winVoiceName = e.detail?.windowsVoice || ''; });
 function browserSpeak(text) {
   if (!('speechSynthesis' in window)) return;
   const plain = text.replace(/```[\s\S]*?```/g, ' (code) ').replace(/[*_`#>]/g, '').replace(/https?:\/\/\S+/g, 'a link').slice(0, 800);
   const u = new SpeechSynthesisUtterance(plain);
-  const v = speechSynthesis.getVoices().find((x) => /en-(CA|US|GB)/.test(x.lang) && /male|david|guy|george|ryan/i.test(x.name));
+  // 1.5.33: the Windows voice picked in Settings, by name; otherwise Bob's own pick (an English male voice if there is one).
+  const all = speechSynthesis.getVoices();
+  const v = (winVoiceName && all.find((x) => x.name === winVoiceName)) || all.find((x) => /en-(CA|US|GB)/.test(x.lang) && /male|david|guy|george|ryan/i.test(x.name));
   if (v) u.voice = v;
   u.rate = 1.02;
   u.onstart = () => { talkingUntil = Date.now() + 60000; };
@@ -792,7 +796,7 @@ async function start() {
     if (!s.ollama) note('I can\'t reach my engine (' + (s.engine || 'Ollama') + ') right now. Is it running? (The AI Toggle shortcut turns Ollama on.)', 'error');
   } catch {}
   try {
-    const st = await (await fetch('/api/settings')).json(); setLook(st.look); applyStyle(st.style); drawSessions(st.sessions, st.session);
+    const st = await (await fetch('/api/settings')).json(); winVoiceName = st.tts?.windowsVoice || ''; setLook(st.look); applyStyle(st.style); drawSessions(st.sessions, st.session);
     // Opt-in: tell the user a newer Bob is ready to build. Never updates by itself.
     if (st.updates?.autoCheck) { const c = await (await fetch('/api/update/check')).json(); if (c.newer) note(`A newer Bob (${c.available.label}) is ready. Settings, Check for updates.`); }
   } catch {}

@@ -23,7 +23,7 @@ A few words used below:
 
 | What | Before | Now |
 |---|---|---|
-| Gaming session, "hi", brain already loaded | 38.7 s (old Qwen3 4B thought first, even when told not to) | **0.1 s to the first word, 1.8 s to the full answer** (Qwen3 4B Instruct 2507) |
+| Gaming session, "hi", brain already loaded | 38.7 s (Qwen3 4B Thinking 2507 thought first, and can't be told not to) | **0.1 s to the first word, 1.8 s to the full answer** (Qwen3 4B Instruct 2507) |
 | Gaming session, "hi", brain not loaded yet | 28.6 s | **1.7 s / 2.8 s** |
 | Gaming session, a 4,000-token chat, warm | (not usable) | **0.2 s / 2.8 s** |
 | 26B main brain, generation speed | 5 tok/s (spilled out of the card at 131K context) | **71 to 75 tok/s** (32K context, fits on the card) |
@@ -58,9 +58,9 @@ Seconds to the first word / to the full answer, on the processor:
 | **Qwen3 4B Instruct 2507** (picked) | 1.7 / 2.8 | 0.1 / 1.8 | 0.1 / 7.1 | 2.1 / 5.6 | 0.2 / 2.8 | 14 to 16 tok/s | 3.5 GB |
 | Qwen3 1.7B | 1.7 / 2.1 | 0.1 / 0.5 | 0.1 / 2.5 | 1.9 / 10.1 | 0.1 / 1.6 | 24 to 29 tok/s | 2.1 GB |
 | Gemma 4 E4B | 6.7 / 7.6 | 0.3 / 1.0 | 0.4 / 6.9 | 7.1 / 28.6 | 0.4 / 19.3 | 13 tok/s | 3.9 GB |
-| Qwen3 4B (the older "hybrid" version) | 2.8 / 28.6 | 0.1 / 38.7 | 0.1 / 38.7 | 3.3 / 46.9 | 0.2 / 44 | 14 to 16 tok/s | 3.5 GB |
+| Qwen3 4B Thinking 2507 (what Ollama calls "qwen3:4b") | 2.8 / 28.6 | 0.1 / 38.7 | 0.1 / 38.7 | 3.3 / 46.9 | 0.2 / 44 | 14 to 16 tok/s | 3.5 GB |
 
-The older Qwen3 4B starts quickly, then thinks to itself for half a minute before it says anything useful, even when told not to. That's the 29 to 39 s the 2507 version got rid of.
+The Thinking version starts quickly, then thinks to itself for half a minute before it says anything useful, even when told not to. That's the 29 to 39 s the 2507 version got rid of.
 
 **What about hiding the graphics card completely?** We also ran every brain with the card hidden from the engine. Warm replies are about as fast, but a cold start is far slower, because the processor then has to read the whole 2,300-token prompt by itself: 2507 takes about **26 s** to its first word instead of 1.7 s, and a cold 4K chat about 81 s. Lending the engine about 0.6 GB of the card is what keeps Gaming chat feeling alive, so Automatic lends it whenever the game leaves room, and **Never use the card** is there if you'd rather wait.
 
@@ -72,7 +72,7 @@ Speed isn't enough. Bob does things by calling tools (set a reminder, paint a pi
 
 | Brain | Runs on | Right, Bob's real path | All tools at once | Core tools only | Faked calls | Average time |
 |---|---|---|---|---|---|---|
-| Qwen3 4B (hybrid) | processor | **23** | 22 | 18 | 0 | 54 s |
+| Qwen3 4B Thinking 2507 | processor | **23** | 22 | 18 | 0 | 54 s |
 | **Qwen3 4B Instruct 2507** (picked) | processor | **22** | 21 | 11 | 0 | **3.4 s** |
 | Qwen 3.8 27B | card | **22** | 22 | 22 | 0 | 5.1 s |
 | Gemma 4 26B | card | 20 | 19 | 16 | 1 | 1.2 s |
@@ -91,7 +91,7 @@ Two things jump out:
 
 11 of the 25 jobs were right for all seven working brains. These are the 14 that tripped at least one of them up. ✓ means right.
 
-| Job (the tool it needs) | 2507 | 1.7B | E4B | Gemma 26B | Qwen 3.8 | Coder 30B | Old 4B |
+| Job (the tool it needs) | 2507 | 1.7B | E4B | Gemma 26B | Qwen 3.8 | Coder 30B | 4B Thinking |
 |---|---|---|---|---|---|---|---|
 | Make a chiptune song (music) | asked first | ✓ | asked first | asked first | empty reply | asked first | ✓ |
 | Zip up a folder (files) | ✓ | ✓ | asked first | asked first | looked first | looked first | looked first |
@@ -122,7 +122,7 @@ How to read the misses:
 ### Why Qwen3 4B Instruct 2507
 
 - **Best tool score of the fast brains** (22/25), tied with Qwen 3.8 27B, which needs the graphics card.
-- **No thinking delay.** The 2507 Instruct version is the same 4B family as the old hybrid model, trained to answer directly. The hybrid scored one more point but took 54 s per request on average; 2507 took 3.4 s.
+- **No thinking delay.** The 2507 Instruct version is the same 4B family as the Thinking version, trained to answer directly. The Thinking version scored one more point but took 54 s per request on average; 2507 took 3.4 s.
 - **About 2 s from cold and 0.1 to 0.2 s warm to the first word**, and most replies are finished in 2 to 7 s, on the processor.
 - **3.5 GB of RAM**, which leaves plenty for a game on a 32 GB PC.
 - Qwen3 1.7B is faster and lighter (2.1 GB) and a good choice for PCs with less RAM, but it scored 20 and once faked a tool call. Gemma 4 E4B is a fine brain on the card, but on the processor it is about 4 times slower to start and, on this engine, much more hesitant with tools.
@@ -255,6 +255,75 @@ Speed is no good if a job falls over halfway.
 - **Strict tool lists**: Bob never sends an empty choice list in a tool's description. llama.cpp rejected the whole request when that happened.
 
 ---
+
+## What testing taught us
+
+Measuring nine brains on a real PC turned up a few things we didn't expect. Some were Bob's bugs, some were the test's, and one was the brains being polite. Here's what we learned and what changed.
+
+### A busy processor starves a brain completely
+
+We assumed a brain on the processor would just get a bit slower while a game ran. It doesn't: with every core busy, the game wins every fight for the processor, and "hi" took anywhere from 56 seconds to over 4 minutes. The same brain on the graphics card answered in 0.2 to 2 seconds while the game kept 96 to 98% of its speed. That's why the Gaming session's graphics card switch has an **Automatic** position that moves the small brain onto the card when the processor is maxed out (see [Gaming and the graphics card](#gaming-and-the-graphics-card)).
+
+### Judge a brain by when it starts and finishes
+
+Tokens per second is the number everyone quotes, but it's not what you feel. What you feel is how long until Bob starts answering and how long until he's done. A 4B brain with no forced thinking (Qwen3 4B Instruct 2507) starts in 0.1 to 2 s and finishes in 2 to 7 s on the processor. A thinking model the same size and speed takes 30 to 50 s to say hi.
+
+### Check what a model really is
+
+The brain Ollama calls "qwen3:4b" turned out to be **Qwen3 4B Thinking 2507**, which thinks on every reply and can't be told not to. We'd been treating it as the older hybrid model that can switch thinking off. The name inside the model file told the truth; the short tag didn't, so check the file when picking a brain.
+
+### Small brains are enough for everyday jobs
+
+Qwen3 4B Instruct 2507 (3.5 GB) matched the 27B Qwen 3.8 on tool use (22/25), and Qwen3 1.7B (2.1 GB) scored 20/25, both on the processor alone. You don't need a big graphics card for Bob to be useful, which is good news for laptops and lighter PCs.
+
+### "Asking first" was the wording, not the engine
+
+Gemma 4 E4B scored 24/25 on Ollama in an early test and 14/25 on Bob's own engine, so we suspected the engine. A side-by-side test on the same PC showed E4B behaves the same on both. The real cause was Bob's instructions, which made brains cautious: most of E4B's misses were "which folder?" or "what style?" instead of just doing the job. Bob 1.5.30 tells his brains to get on with it using sensible defaults, say what they picked, and only ask when they truly can't guess. That alone turned 6 of E4B's 11 misses into real tool calls.
+
+### Why tool calls failed, and the fixes
+
+When we dug into every miss, three causes kept coming up:
+
+- **No sampling settings.** Bob sent none, so every brain ran on the engine's loose defaults. Each brain now gets its maker's recommended settings, a little cooler when it's choosing a tool.
+- **A missing chat template.** One older model file had no template describing how to lay out a conversation, so its tool calls came out as garbage. Bob now supplies the right template when a file lacks one.
+- **Announcing a job, then stopping.** Brains would say "I'll draw it. What style?" and never make the call. Bob's instructions now say the tool call goes in the same reply as the announcement.
+
+Two brains, Qwen2.5 Coder 7B and the copy of GPT-OSS 20B we had from Ollama, also wrote their tool calls as plain text instead of real calls. Since Bob 1.5.29, he recognises those and runs them anyway. The official GPT-OSS build carries its own template, so it doesn't need the rescue.
+
+And one we'd fixed earlier: a tool description with an empty list of choices made llama.cpp refuse the whole request for the Qwen brains. Bob 1.5.26 leaves empty lists out.
+
+### Test the real thing
+
+Our first tool test was unfair. It told the brains "you can't make pictures, video or music" while handing them exactly those tools, and that's where the worst misses were. The new test uses Bob's real instructions and settings, lets a brain look at a folder before acting, and reruns only the jobs that failed, so a fix is measured where it matters.
+
+### After the fixes
+
+The scores earlier on this page are the first round, before any of these fixes. We then reran only the jobs each brain had failed, on Bob's own code, three tries each. A job only counts as fixed if the brain got it right all three times. Pass 1 used the new wording and settings. Pass 2 reran whatever was left, with one more safeguard added. (The video job was skipped, because no video maker was installed on the test PC.)
+
+| Brain | Old misses retested | Fixed in pass 1 | Fixed in pass 2 (of what was left) | Still not right 3 times out of 3 |
+|---|---|---|---|---|
+| Gemma 4 E4B | 10 | 4 | 2 of 6 | zip (2/3), spreadsheet (2/3), music (0/3, asks the mood), code search (0/3, asks which project) |
+| Qwen3 4B Instruct 2507 | 3 | 2 | 0 of 1 | weather with web search off (1/3): says it can't, but not where the switch is |
+| Qwen3 1.7B | 5 | 4 | 0 of 1 | the same weather case (1/3; once it made the weather up) |
+| Qwen3 4B Thinking 2507 | 2 | 1 | 1 of 1 | none |
+| Qwen3 Coder 30B | 5 | 4 | 0 of 1 | undo (1/3, wanders through folders first) |
+| Gemma 4 26B | 4 | 4 | nothing left | none |
+| Qwen 3.8 27B | 2 | 2 | nothing left | none |
+| GPT-OSS 20B, with the right template | 22 | 18 | 1 of 4 | crash fix, music, code search (0/3 each, asks first) |
+
+In pass 2 we also re-ran the tidy and zip jobs that pass 1 had fixed, to make sure the new safeguard didn't undo them. It didn't: they all still passed.
+
+Gemma 4 26B and Qwen 3.8 27B now get every job we tested right. GPT-OSS went from 2 out of 25 to fixing 18 of its 22 misses in one go, just by giving it the template it was missing. What's left are mostly judgement calls, like asking "which project?" before searching code, or "what mood?" before writing music. Those are fair questions, not broken tools.
+
+The weather miss was on us: with web search off, a small brain correctly said it couldn't look it up but forgot to say where the switch is. Bob 1.5.33 now tells every brain to always say where the switch is. (Video and music makers weren't installed on the test PC, so for those jobs a brain that said it couldn't make one counted as right.) Full 25-job scores for the official GPT-OSS build and for Qwen2.5 Coder with the text-call rescue are still running.
+
+### Check that a fix actually arrived
+
+The 32K context speed-up (see [Engine tuning](#engine-tuning)) never reached existing installs: an older settings file still asked every brain to reserve a 128K memory window, so big brains on those PCs stayed slower than they should be. Nothing broke, which is exactly why nobody noticed. Since Bob 1.5.32, an old 128K setting left in config.json is set aside, so brains use their session's size again (32K for most, 64K for Office). A size you pick in Settings still wins. Lesson learned: measure on a PC that has been updated, not only on a fresh one.
+
+### Downloads: trust the file, not the signpost
+
+One video model's download failed with "different size than Bob expects", even though the file itself hadn't changed. Its folder on Hugging Face had been renamed, and Bob was reading the size from the "this has moved" notice instead of from the real file. Since Bob 1.5.32, he follows the site's redirects to the real file before judging its size, checks the site's file list before refusing anything, and the links use the new folder name. Since Bob 1.5.33, every download link is also pinned to an exact version (commit) of its repository, so a rename can't move a link again. The size and SHA-256 pins (a fingerprint of the exact file) did their job: Bob refused the mismatch rather than keeping a file he couldn't vouch for.
 
 ## What's next
 

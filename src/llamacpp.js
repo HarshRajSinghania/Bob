@@ -7,6 +7,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
 import { tidySchema } from './toolbox.js';
+import { templateFor, samplingFor } from './model-family.js';
 import { gaming } from './sessions.js';
 import { gamingCard, decideCard } from './gaming-card.js';
 import { tuning, cpuPlan, startDir, startFile, promptHash, tidyStarts } from './tuning.js';
@@ -234,6 +235,7 @@ export class LlamaCpp {
     else if (!args.includes('-ngl')) args.push('-ngl', '999');
     // 1.5.19: one conversation at a time, so it gets the whole context (more slots split it into small pieces).
     if (!args.some((a) => ['-np', '--parallel'].includes(a))) args.push('-np', '1');
+    args.push(...this.templateArgs(model, gguf, args));
     // Speculative decoding: a small "draft" model guesses ahead and the big one checks, often 1.5-2x faster.
     const d = lc.draft;
     if (d?.model && d.model !== model && d.enabled !== false && !cpu) {
@@ -242,6 +244,20 @@ export class LlamaCpp {
       args.push('-md', draft, ...num(d.max ?? 16, '--draft-max'), ...num(d.min ?? 1, '--draft-min'), '-ngld', String(d.ngld ?? 99));
     }
     return args;
+  }
+
+  // 1.5.32: a brain file with no chat template of its own gets its family's (model-family.js), so tool calls keep
+  // the format the brain was trained on instead of llama.cpp's generic ChatML fallback.
+  templateArgs(model, gguf, args = []) {
+    if (args.some((a) => ['--chat-template', '--chat-template-file'].includes(a))) return [];
+    try { const t = templateFor(this.lc, model, gguf); return t ? ['--chat-template-file', t] : []; } catch { return []; }
+  }
+
+  // 1.5.32: the family's recommended sampling for this request ({} = llama-server's own defaults).
+  sampling(model, { tools, think } = {}) {
+    let gguf = null;
+    try { gguf = this.resolve(model).gguf; } catch {} // no file found: the family comes from the name alone
+    try { return samplingFor(this.lc, model, gguf, { tools, think }); } catch { return {}; }
   }
 
   // ---------- Get Bob ready while you type (1.5.24) ----------
@@ -436,6 +452,7 @@ export class LlamaCpp {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ model, messages: LlamaCpp.toOpenAI(messages), tools: tools && tools.length ? tidySchema(tools) : undefined, stream: true, // 1.5.26: no empty enums (llama.cpp rejects them)
+        ...this.sampling(model, { tools: !!tools?.length, think }),
         // 1.5.16: a quick reply asks the chat template to skip thinking (templates that don't know the switch ignore it).
         ...(think === false ? { chat_template_kwargs: { enable_thinking: false } } : {}) }),
       signal

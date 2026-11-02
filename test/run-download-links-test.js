@@ -32,5 +32,15 @@ const src = fs.readFileSync(new URL('../src/models.js', import.meta.url), 'utf8'
 const hopeless = new RegExp(src.match(/const hopeless = \/(.+?)\/i\.test/)[1], 'i');
 check('a size or checksum mismatch on the website is not retried', hopeless.test('x.safetensors is a different size on the website than this Bob expects') && hopeless.test('x has changed on the website since this Bob was made') && !hopeless.test('fetch failed'));
 check('a redirect\'s own length is never taken as the file size', /r\.status === 200 \? r\.headers\.get\('content-length'\)/.test(src));
+// 1.5.33: every download link in the catalog is pinned to an exact Hugging Face commit, never a branch like "main",
+// so a file can't change or move under Bob after he ships. (Made with bob-wip's pin-catalog tool; renamed repos use
+// their new names.)
+const cat = JSON.parse(fs.readFileSync(new URL('../catalog.json', import.meta.url), 'utf8'));
+const urls = [];
+(function walk(o) { if (Array.isArray(o)) o.forEach(walk); else if (o && typeof o === 'object') { for (const [k, v] of Object.entries(o)) if (typeof v === 'string' && /^https:\/\//.test(v) && /url$/i.test(k)) urls.push(v); else walk(v); } })(cat);
+const loose = urls.filter((u) => /huggingface\.co\/.+\/resolve\//.test(u) && !/\/resolve\/[0-9a-f]{40}\//.test(u));
+check('every catalog download link is pinned to an exact Hugging Face commit (no "main")', urls.length >= 40 && loose.length === 0, loose.slice(0, 3).join(' '));
+const pinned = urls.filter((u) => /\/resolve\//.test(u));
+check('every catalog file link also has its pinned size', (() => { const files = []; (function w(o) { if (Array.isArray(o)) o.forEach(w); else if (o && typeof o === 'object') { if (typeof o.url === 'string' && /\/resolve\//.test(o.url)) files.push(o); Object.values(o).forEach(w); } })(cat); return files.length === pinned.length && files.every((f) => f.bytes > 0); })());
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

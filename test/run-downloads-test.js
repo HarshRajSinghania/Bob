@@ -154,7 +154,7 @@ check('403 counts as needing an account too', /Hugging Face account/.test(linkEr
   const cat = JSON.parse(fs.readFileSync(new URL('../catalog.json', import.meta.url), 'utf8'));
   // 1.3.3: FLUX schnell comes from an ungated mirror now; a gated entry is still refused, saying why.
   const flux = cat.models.find((m) => m.id === 'flux-schnell');
-  check('FLUX schnell downloads from the ungated Comfy-Org mirror (fp8), every file pinned', !flux.gated && flux.files.every((f) => !/black-forest-labs/.test(f.url)) && /Comfy-Org\/flux1-schnell\/resolve\/main\/flux1-schnell-fp8\.safetensors$/.test(flux.files[0].url) && flux.files.slice(0, 2).every((f) => /^[0-9a-f]{64}$/.test(f.sha256)));
+  check('FLUX schnell downloads from the ungated Comfy-Org mirror (fp8), every file pinned', !flux.gated && flux.files.every((f) => !/black-forest-labs/.test(f.url)) && /Comfy-Org\/Flux-1-Schnell\/resolve\/[0-9a-f]{40}\/flux1-schnell-fp8\.safetensors$/.test(flux.files[0].url) && flux.files.slice(0, 2).every((f) => /^[0-9a-f]{64}$/.test(f.sha256)));
   shop.catalog.models.push({ id: 'test-gated', name: 'Gated test model', category: 'images', sizeGB: 1, gated: true, gatedWhy: 'Needs an account.', files: [{ url: 'https://huggingface.co/x/y/resolve/main/z.safetensors', role: 'diffusionModel' }] });
   let threw = '';
   try { await shop.download('test-gated'); } catch (e) { threw = e.message; }
@@ -163,7 +163,7 @@ check('403 counts as needing an account too', /Hugging Face account/.test(linkEr
   check('gpt-oss-20b: the file name has the right case, with checksum, and the old spelling is still recognised', /gpt-oss-20b-MXFP4\.gguf$/.test(oss.files[0].url) && /^[0-9a-f]{64}$/.test(oss.files[0].sha256) && oss.files[0].aka.includes('gpt-oss-20b-mxfp4.gguf'));
   check('gated models are never in a starter set', cat.packs.every((p) => p.models.every((id) => !cat.models.find((m) => m.id === id)?.gated)));
   const ltx = cat.models.find((m) => m.id === 'ltx-2.3-22b');
-  check('LTX-2.3: the text encoder comes from the qat repo, and every file has a pinned checksum', ltx.files.find((f) => f.role === 'llm').url === 'https://huggingface.co/unsloth/gemma-3-12b-it-qat-GGUF/resolve/main/gemma-3-12b-it-qat-UD-Q4_K_XL.gguf' && ltx.files.every((f) => /^[0-9a-f]{64}$/.test(f.sha256)) && ltx.sizeGB === 28);
+  check('LTX-2.3: the text encoder comes from the qat repo, and every file has a pinned checksum', /^https:\/\/huggingface\.co\/unsloth\/gemma-3-12b-it-qat-GGUF\/resolve\/[0-9a-f]{40}\/gemma-3-12b-it-qat-UD-Q4_K_XL\.gguf$/.test(ltx.files.find((f) => f.role === 'llm').url) && ltx.files.every((f) => /^[0-9a-f]{64}$/.test(f.sha256)) && ltx.sizeGB === 28);
   const cel = fs.readFileSync(new URL('../public/cellar.js', import.meta.url), 'utf8');
   check('the shop shows "needs a Hugging Face account" instead of a Download button', /if \(m\.gated\) return/.test(cel));
 }

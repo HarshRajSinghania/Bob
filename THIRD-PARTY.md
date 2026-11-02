@@ -5,9 +5,10 @@
 | Part | Where | Licence |
 | --- | --- | --- |
 | IBM Plex Mono (font) | `public/fonts/` | SIL Open Font License 1.1 (`public/fonts/IBM-Plex-Mono-OFL.txt`) |
+| Chat templates for model families (Gemma 4, GPT-OSS, Qwen) | `src/templates/` | Apache-2.0 (from each model's publisher), collected by llama.cpp (MIT); see `src/templates/README.md` |
 | Electron (Chromium and Node.js inside it) | the release zip: `Bob.exe` and the files beside it, Electron's official build, unchanged | MIT, with Chromium's notices in `LICENSES.chromium.html` in the same folder |
 
-The font and Electron are separate works distributed alongside Bob, not combined into his code, so
+The font, the chat templates and Electron are separate works distributed alongside Bob, not combined into his code, so
 their licences sit beside the GPL. Bob's own code has no runtime npm dependencies.
 
 ## Downloaded only when you click

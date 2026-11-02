@@ -202,7 +202,7 @@ export function createCellar() {
           ${has || !cur ? '' : `<option value="${esc(cur)}" selected>${esc(cur)} (not found)</option>`}
           ${cur ? '' : '<option value="" selected>Pick one</option>'}
           ${list.map((o) => `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
-        </select>${!cur && opts.length && j.kind !== 'llm' ? `<div class="ready-hint"><span class="tag good">On this PC, not assigned yet</span> <button data-userole="${esc(j.id)}" data-value="${esc(opts[0].value)}">Use ${esc(opts[0].label)}</button></div>` : ''}</td></tr>`;
+        </select>${j.id === 'speech' && cur ? nestedVoiceHtml() : ''}${!cur && opts.length && j.kind !== 'llm' ? `<div class="ready-hint"><span class="tag good">On this PC, not assigned yet</span> <button data-userole="${esc(j.id)}" data-value="${esc(opts[0].value)}">Use ${esc(opts[0].label)}</button></div>` : ''}</td></tr>`;
     };
     const thinkers = roles.jobs.filter((j) => j.kind === 'llm');
     const makers = roles.jobs.filter((j) => j.kind !== 'llm');
@@ -233,12 +233,49 @@ export function createCellar() {
       <ul class="voice-grid">${list.map((v) => `<li class="sample-row"><span>${esc(v.label)}${canUse && v.voice === cur ? ' <span class="tag good">Bob\'s voice</span>' : ''}</span>${v.have === 'none' ? `<span class="muted">${v.filesHere ? 'after the Kokoro engine' : 'needs Kokoro'}</span>` : hear('kokoro', v.voice, 'Play')}${canUse && v.voice !== cur ? `<button type="button" class="link" data-usevoice="${esc(v.voice)}">Use</button>` : ''}</li>`).join('')}</ul></details>`;
   }
 
+  // 1.5.33: one picker for Bob's voice everywhere it's chosen: the engine, then (nested under it) the voice inside that
+  // engine, with Play sample. Kokoro has 22 voices; Windows has whatever voices Windows has; each Piper voice is its own
+  // download, so Piper voices are listed in the engine list itself.
+  const speechNow = () => roles?.current?.speech || ({ kokoro: 'kokoro-v1', chatterbox: 'chatterbox' }[settings.tts?.provider] || 'windows');
+  const engineLabel = (o) => o.value === 'windows' ? 'Windows (built in)' : o.value === 'chatterbox' ? 'Chatterbox (copies a voice)'
+    : /kokoro/.test(o.value) ? `Kokoro (${(settings.kokoroVoices || []).length} voices)` : /^piper-/.test(o.value) ? `Piper: ${o.label}` : o.label;
+  let winHooked = false;
+  function winVoices() {
+    let list = [];
+    try { list = speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang)); } catch {}
+    // Windows fills its voice list a moment after the page opens: draw again once it's there.
+    if (!list.length && !winHooked && 'speechSynthesis' in window) { winHooked = true; try { speechSynthesis.addEventListener('voiceschanged', () => draw(), { once: true }); } catch {} }
+    return list;
+  }
+  function nestedVoiceHtml() {
+    const t = settings.tts || {}, cur = speechNow();
+    if (/kokoro/.test(cur)) {
+      const v = t.voice || 'am_michael';
+      // Not set up yet: a button right here to set it up (the voice samples that come with Bob still play).
+      const ready = voices.find((x) => x.engine === 'kokoro')?.installed;
+      return `<span class="voice-nest"><label class="pick-inline"><span>Voice</span><select data-tts="voice" aria-label="Kokoro voice">${(settings.kokoroVoices || []).map(([id, label]) => `<option value="${esc(id)}" ${id === v ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select></label>${hear('kokoro', v, 'Play sample')}${ready ? '' : '<button type="button" class="mini" data-gocat="speech" data-gomodel="kokoro-v1">Set up Kokoro</button>'}</span>`;
+    }
+    if (cur === 'windows') {
+      const list = winVoices(), w = t.windowsVoice || '';
+      return `<span class="voice-nest"><label class="pick-inline"><span>Voice</span><select data-winvoice aria-label="Windows voice"><option value="" ${w ? '' : 'selected'}>Automatic (an English voice Bob picks)</option>${w && !list.some((x) => x.name === w) ? `<option value="${esc(w)}" selected>${esc(w)}</option>` : ''}${list.map((x) => `<option value="${esc(x.name)}" ${x.name === w ? 'selected' : ''}>${esc(x.name.replace(/^Microsoft /, ''))}</option>`).join('')}</select></label>${sampleButton('windows', w || 'default', 'Play sample', 'A voice built into Windows.')}</span>`;
+    }
+    if (cur === 'chatterbox') return `<span class="voice-nest"><span class="muted">Copies the voice from your recording (bob.wav in Bob's Voices folder).</span>${hear('chatterbox', 'bob', 'Play sample')}</span>`;
+    const p = voices.find((x) => x.engine === 'piper' && x.catalogId === cur) || voices.find((x) => x.engine === 'piper' && x.installed);
+    return `<span class="voice-nest"><span class="muted">One voice per Piper download; more in 💬 Voice &amp; conversation.</span>${p ? hear('piper', p.voice, 'Play sample') : ''}</span>`;
+  }
+  function voicePickHtml() {
+    const opts = roles?.options?.speech || [{ value: 'windows', label: 'Windows voices (built in)' }];
+    const cur = speechNow();
+    return `<span class="voice-pick sample-row"><label class="pick-inline"><span>Voice engine</span><select data-role="speech" aria-label="Voice engine">${opts.some((o) => o.value === cur) ? '' : `<option value="${esc(cur)}" selected>${esc(engineLabel({ value: cur, label: cur }))} · not set up yet</option>`}${opts.map((o) => `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(engineLabel(o))}</option>`).join('')}</select></label>${nestedVoiceHtml()}</span>`;
+  }
+
   function voiceHtml() {
     const t = settings.tts || {};
-    if (t.provider === 'kokoro') return `<div class="row"><label class="pick"><strong>Bob's voice (Kokoro)</strong><select data-tts="voice">${(settings.kokoroVoices || []).map(([id, label]) => `<option value="${esc(id)}" ${id === t.voice ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select></label><span class="sample-row">${hear('kokoro', t.voice || 'am_michael')}</span>
+    const head = `<div class="voice-head"><strong>Bob's voice</strong>${voicePickHtml()}</div>`;
+    if (t.provider === 'kokoro') return `${head}<div class="row">
       <label class="pick"><strong>Speed: <b data-speedlabel>${(t.speed || 1).toFixed(1)}×</b></strong><input type="range" min="0.6" max="1.6" step="0.1" data-tts="speed" value="${t.speed || 1}"></label></div>${engineStep(engineById('kokoro'), voiceOf('kokoro', t.voice || 'am_michael')?.filesHere ? 'Voices downloaded' : 'Kokoro is picked as Bob\'s voice')}${kokoroGrid(true)}`;
-    if (t.provider === 'chatterbox') return `<div><strong>Bob's voice (Chatterbox)</strong><p class="muted">To copy a voice, put a clear 10 to 20 second recording named bob.wav in ${esc(t.voicesFolder)}. Only use a voice you have the right to use (your own, or one you have permission for).</p>${voiceOf('chatterbox', 'bob')?.installed ? `<p class="sample-row">${hear('chatterbox', 'bob')}</p>` : engineStep(engineById('chatterbox'), 'Chatterbox is picked as Bob\'s voice')}</div>`;
-    return `<div><strong>Bob's voice (Windows)</strong><p class="sample-row">${sampleButton('windows', 'default', 'Hear a sample', 'The voice built into Windows.')}</p></div>`;
+    if (t.provider === 'chatterbox') return `${head}<div><p class="muted">To copy a voice, put a clear 10 to 20 second recording named bob.wav in ${esc(t.voicesFolder)}. Only use a voice you have the right to use (your own, or one you have permission for).</p>${voiceOf('chatterbox', 'bob')?.installed ? `<p class="sample-row">${hear('chatterbox', 'bob')}</p>` : engineStep(engineById('chatterbox'), 'Chatterbox is picked as Bob\'s voice')}</div>`;
+    return head;
   }
 
   // Making Bob's own engine (llama.cpp) faster. Blank means llama.cpp's own default.
@@ -297,13 +334,12 @@ export function createCellar() {
 
   function everydayHtml() {
     const st = settings.style || {};
-    const v = voiceNow();
     const lookName = (settings.lookText || '').split(/[:.,(]/)[0].replace(/["“”]/g, '').trim() || 'Sysop';
     const theme = findTheme(st.theme || 'inn', st.custom || []);
     const motion = st.motion || 'on';
     const mopt = (val, label) => `<button type="button" role="radio" aria-checked="${motion === val}" data-motion="${val}">${label}</button>`;
     return `<div class="everyday">
-      ${srow('Bob\'s voice', esc(v.name), `${v.play} <button type="button" class="mini" data-tab="speech">Change</button>`)}
+      ${srow('Bob\'s voice', voicePickHtml(), '<button type="button" class="mini" data-tab="speech">More voice settings</button>')}
       ${srow('Bob\'s look', esc(lookName), '<button type="button" class="mini" data-tab="style">Change</button>')}
       ${srow('Theme', esc(theme?.name || 'Bob\'s Inn'), '<button type="button" class="mini" data-tab="style">Change</button>')}
       ${srow('Animations', `<span class="ttabs" role="radiogroup" aria-label="Animations">${mopt('on', 'On')}${mopt('system', 'Follow Windows')}${mopt('off', 'Off')}</span>`)}
@@ -763,7 +799,8 @@ export function createCellar() {
       if ('callme' in el.dataset) { const r = await api('/api/settings', { callMe: el.value }); settings.userName = r.userName; settings.callMe = r.callMe; el.value = r.callMe; showDials(dialValues()); flash(el, `Saved. Bob calls you ${r.userName}.`); return; }
       if ('starterpack' in el.dataset) { starterPack = el.value; starterPicks = null; draw(); return; }
       if (el.dataset.starterpick) { const p = new Set(currentPicks()); el.checked ? p.add(el.dataset.starterpick) : p.delete(el.dataset.starterpick); starterPicks = p; draw(); return; }
-      if (el.dataset.tts) { const v = el.dataset.tts === 'speed' ? Number(el.value) : el.value; const r = await api('/api/settings', { tts: { [el.dataset.tts]: v } }); settings.tts = { ...settings.tts, ...r.tts }; if (el.dataset.tts === 'voice') { const sb = el.closest('.row')?.querySelector('[data-sample-engine="kokoro"]'); if (sb) sb.dataset.sampleVoice = el.value; } flash(el, 'Saved. Press ▶ Hear a sample to hear it.'); return; }
+      if ('winvoice' in el.dataset) { const r = await api('/api/settings', { tts: { windowsVoice: el.value } }); settings.tts = { ...settings.tts, ...r.tts }; const sb = el.closest('.voice-nest')?.querySelector('[data-sample-engine="windows"]'); if (sb) sb.dataset.sampleVoice = el.value || 'default'; window.dispatchEvent(new CustomEvent('bob-voice', { detail: settings.tts })); flash(el, 'Saved.'); return; }
+      if (el.dataset.tts) { const v = el.dataset.tts === 'speed' ? Number(el.value) : el.value; const r = await api('/api/settings', { tts: { [el.dataset.tts]: v } }); settings.tts = { ...settings.tts, ...r.tts }; if (el.dataset.tts === 'voice') { for (const sb of dlg.querySelectorAll('[data-sample-engine="kokoro"]:not(.voice-grid *)')) sb.dataset.sampleVoice = el.value; for (const s of dlg.querySelectorAll('select[data-tts="voice"]')) s.value = el.value; } flash(el, 'Saved. Press ▶ Play sample to hear it.'); return; }
       if (el.dataset.speed) { const v = el.value.trim() === '' ? null : Number(el.value); const r = await api('/api/settings', { speed: { [el.dataset.speed]: v } }); settings.speed = r.speed; el.value = r.speed[el.dataset.speed] ?? ''; flash(el, 'Saved.'); return; }
       if ('fit' in el.dataset) { const r = await api('/api/settings', { speed: { fit: el.checked } }); settings.speed = r.speed; flash(el, 'Saved.'); return; }
       if (el.dataset.draft) {
@@ -812,6 +849,8 @@ export function createCellar() {
       else if (el.dataset.role && el.value) {
         const r = await api('/api/models/role', { job: el.dataset.role, value: el.value });
         roles.current[el.dataset.role] = el.value;
+        // 1.5.33: a new voice engine brings its own voice list (nested under it): draw again.
+        if (el.dataset.role === 'speech') { sampler.stop(); await eqReload(); draw(); window.dispatchEvent(new CustomEvent('bob-voice', { detail: settings.tts })); if (r.needsEngine) askEngine(dlg); return; }
         flash(el, 'Saved.');
         if (r.needsEngine) askEngine(el.closest('td') || el.parentElement);
       }

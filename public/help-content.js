@@ -312,7 +312,7 @@ ${set('Alerts', 'Off', 'Pops up a Windows notification when I need you, for exam
   // ---------------- Settings ----------------
   { id: 'settings-everyday', group: 'Settings', title: 'Settings: the everyday page', words: 'everyday voice look theme colours animations cat one brain launch start-up updates first-time setup check this pc version web search',
     html: `<p>Settings opens on one short page that shows what's set now. Most people never need more than this.</p>
-<dl>${set('Bob\'s voice', 'Windows voice', 'The voice I read replies in. <strong>Play sample</strong> lets you hear it; <strong>Change</strong> opens Voice &amp; conversation.')}
+<dl>${set('Bob\'s voice', 'Windows voice', 'The voice I read replies in. First pick the <strong>Voice engine</strong> (Windows, Kokoro, a Piper voice or Chatterbox); right next to it, <strong>Voice</strong> picks the voice inside that engine (Kokoro has 22; Windows has whichever voices your Windows has), and <strong>Play sample</strong> lets you hear it. If the engine isn\'t set up yet, <strong>Set up Kokoro</strong> takes you straight to it. <strong>More voice settings</strong> opens Voice &amp; conversation (speed, and every Kokoro voice side by side).')}
 ${set('Bob\'s look', 'Sysop', 'My avatar. <strong>Change</strong> opens Style.')}
 ${set('Theme', 'Bob\'s Inn', 'The colours of the window. <strong>Change</strong> opens Style.')}
 ${set('Animations', 'On', 'On, Follow Windows or Off. Off stops moving parts, such as the cat and the brain-swap animation.')}
@@ -331,7 +331,7 @@ ${set('Check for updates when Bob starts', 'Off', 'I look at the folder I was bu
 <li><strong>How much each session keeps in mind</strong> (context): 8K to 256K. More lets me read longer files and chats, but uses more graphics memory and loads slower. <em>Default</em> uses the engine's own setting (32K for most sessions, 64K for Office; Coding keeps the engine's full default).</li></ul>` },
 
   { id: 'settings-voice', group: 'Settings', title: 'Settings: Voice details', words: 'kokoro chatterbox speed hey bob read aloud listen voice engine',
-    html: `<dl>${set('Bob\'s voice', 'Windows voice', 'With Kokoro: pick one of 22 voices and hear it. With Chatterbox: the voice is copied from bob.wav in my voices folder. With Windows: the voice built into Windows. <strong>Hear all Kokoro voices</strong> plays each one so you can compare.')}
+    html: `<dl>${set('Bob\'s voice', 'Windows voice', 'Pick the <strong>Voice engine</strong>, then the <strong>Voice</strong> inside it, with <strong>Play sample</strong>, the same way as on the everyday page (and in Brains, next to Bob\'s voice). With Kokoro: pick one of 22 voices and hear it. With Windows: pick any English voice Windows has, or Automatic. With Chatterbox: I copy the voice from your recording (bob.wav in my Voices folder). With Windows: the voice built into Windows. <strong>Hear all Kokoro voices</strong> plays each one so you can compare.')}
 ${set('Speed', '1.0×', 'From 0.6× (slower) to 1.6× (faster). Kokoro only.')}
 ${set('Listen for "Hey Bob"', 'Off', 'Same as Listen in the left menu. Only while the window is open.')}
 ${set('Read replies aloud', 'Off', 'Same as Read aloud in the left menu.')}</dl>
