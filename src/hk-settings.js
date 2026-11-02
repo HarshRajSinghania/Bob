@@ -13,6 +13,7 @@ export const ageMs = (a) => (a && a.n > 0 && UNITS[a.unit] ? a.n * UNITS[a.unit]
 // The housekeeping settings, cleaned (config.js calls this for the "housekeeping" key).
 export function cleanHousekeeping(v = {}) {
   const out = { enabled: v.enabled === true, wakeBrain: v.wakeBrain === true };
+  if (typeof v.embedModel === 'string' && /^[\w.:/-]{1,80}$/.test(v.embedModel)) out.embedModel = v.embedModel;
   for (const k of Object.keys(KINDS)) {
     const c = v[k] || {};
     const n = Math.round(Number(c.n));

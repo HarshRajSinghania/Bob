@@ -101,6 +101,9 @@ export class Ollama {
   // How long Ollama keeps a model in memory after use (setting ollamaKeepAlive, default 10 minutes).
   keepAlive() { const k = String(this.cfg?.ollamaKeepAlive ?? '10m'); return /^\d+[smh]$|^-1$/.test(k) ? (k === '-1' ? -1 : k) : '10m'; }
 
+  // A model's details; "capabilities" lists completion, vision, audio, tools, thinking (newer Ollama).
+  async show(model) { return this.json('/api/show', { model }); }
+
   // Embeddings for topic matching (housekeeping). Never downloads: a model that isn't on this PC is an error,
   // and the housekeeper then matches topics by name and words instead.
   async embed(model, input) {

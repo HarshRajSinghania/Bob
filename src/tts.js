@@ -109,7 +109,7 @@ export function speakable(text) {
 // Returns a WAV file as a Buffer.
 export function say(cfg, text, { signal } = {}) {
   const t = cfg.tts || {};
-  if (!ttsReady(cfg)) return Promise.reject(new Error('Bob\'s own voice isn\'t set up. Pick one in Models and settings (left menu, Model roles).'));
+  if (!ttsReady(cfg)) return Promise.reject(new Error('Bob\'s own voice isn\'t set up. Pick one in Models and settings (left menu, Equip Bob, Voice slot).'));
   const words = speakable(text);
   if (!words) return Promise.reject(new Error('Nothing to say.'));
   if (t.provider === 'kokoro' || t.provider === 'chatterbox') return sayPython(cfg, t.provider, words, signal);

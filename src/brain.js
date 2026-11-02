@@ -729,7 +729,7 @@ export class Brain {
   async makeVideo({ reference, ...args }, ctx) {
     const refs = this.pickRefs(reference);
     if (this.cfg.maestro?.enabled && this.cfg.maestro?.video) return this.viaMaestro('video', args, ctx);
-    if (!paintingAvailable(this.cfg, 'video')) throw new Error('Video isn\'t set up yet. Pick a video maker in Models and settings (left menu, Model roles). I can write the video prompt instead.');
+    if (!paintingAvailable(this.cfg, 'video')) throw new Error('Video isn\'t set up yet. Pick a video maker in Models and settings (left menu, Equip Bob, Video slot). I can write the video prompt instead.');
     // The first reference becomes the opening frame; the clip moves on from there.
     if (refs.length) return this.paintOwn('video', { ...args, prompt: this.withLooks(args.prompt, refs), image: this.refs.pathOf(refs[0]) }, ctx);
     return this.paintOwn('video', args, ctx);
@@ -747,8 +747,8 @@ export class Brain {
   async noEditModel(what) {
     const waiting = await this.editModelWaiting();
     const fix = waiting
-      ? `${waiting} is on this PC but isn't assigned to "Picture edits": Models and settings, Model roles, Picture edits (one click, or the "Use" button shown there).`
-      : 'No picture-edit model is on this PC yet: Models and settings, Pictures, a picture-edit model (Qwen Image Edit), then Model roles, Picture edits.';
+      ? `${waiting} is on this PC but isn't assigned to "Picture edits": Models and settings, Equip Bob, the Picture editor slot (one click).`
+      : 'No picture-edit model is on this PC yet: Models and settings, Pictures, a picture-edit model (Qwen Image Edit), then Equip Bob, the Picture editor slot.';
     return `Didn't paint anything. Editing ${what} and keeping it looking the same needs a picture-edit model. ${fix} Tell the user that plainly. Offer the alternative too: rework the picture from itself (make_image with mode start_from), where the look can drift.`;
   }
 

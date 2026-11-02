@@ -3,6 +3,8 @@ import { setLook } from './bob-sprite.js';
 import { progressHtml, animateWorkers } from './progress.js';
 import { createStylePage } from './style-page.js';
 import { createSampler, sampleButton, sampleHint } from './voice-samples.js';
+import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks, starterPlan, slotValue } from './equip.js';
+import { drawBob } from './bob-sprite.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -132,12 +134,12 @@ export function createCellar() {
     if (groupOf(tab)) setTab(tab);
     const cats = [], seen = new Set();
     for (const c of data.categories) { const g = groupOf(c.id); const item = g || c; if (!seen.has(item.id)) { seen.add(item.id); cats.push(item); } }
-    const tabs = [{ id: 'roles', label: 'Model roles', icon: '🧭' }, ...cats, { id: 'found', label: 'On this PC', icon: '🔎' }, { id: 'style', label: 'Style', icon: '🎨' }, { id: 'settings', label: 'Settings', icon: '⚙' }];
+    const tabs = [{ id: 'roles', label: 'Equip Bob', icon: '🧰' }, ...cats, { id: 'found', label: 'On this PC', icon: '🔎' }, { id: 'style', label: 'Style', icon: '🎨' }, { id: 'settings', label: 'Settings', icon: '⚙' }];
     const bar = `<nav class="tabs" role="tablist">${tabs.map((c) => `<button role="tab" aria-selected="${c.id === tab}" data-tab="${c.id}">${c.icon} ${esc(c.label)}</button>`).join('')}</nav>`;
     let body = '';
     if (tab === 'settings') body = settingsHtml();
     else if (tab === 'style') body = stylePage.html(settings);
-    else if (tab === 'roles') body = rolesHtml();
+    else if (tab === 'roles') body = eqView === 'list' ? `<p><button type="button" class="link" data-eqview="doll">Back to Equip Bob</button></p>${rolesHtml()}` : (roles ? equipHtml(eqCtx()) : '<p class="muted">Loading...</p>');
     else if (tab === 'found') body = `<p class="muted">Scanned ${data.scannedAt ? new Date(data.scannedAt).toLocaleString() : 'never'}. <button data-scan>Look again</button></p>${extrasHtml() || '<p>Nothing extra found.</p>'}`;
     else if (GROUPS.some((g) => g.id === tab)) body = groupHtml(GROUPS.find((g) => g.id === tab));
     else {
@@ -238,14 +240,14 @@ export function createCellar() {
   function settingsHtml() {
     return `<section class="settings">
       <p class="muted">Bob's look and the colours are on the <button class="link" data-tab="style">🎨 Style</button> tab.</p>
-      <div class="updates"><strong>Updates</strong><p class="muted">This is Bob ${esc(settings.version?.label || '')}. Updating tests the newest Bob from the folder he came from and puts him next to this one, in a window that shows every step, then asks before restarting him. Your chats, notes, models and settings stay as they are.</p>
+      <div class="updates"><strong>Updates</strong><p class="muted">This is Bob ${esc(settings.version?.label || '')}. Update builds the newest Bob, shows every step, and asks before restarting. Your chats, notes, models and settings stay.</p>
         <div class="row"><button data-checkupdate>Check for a newer Bob</button><span class="update-out muted"></span></div>
         <div class="update-steps"></div>
         <label class="switch"><input type="checkbox" data-set="autoCheck" ${settings.updates?.autoCheck ? 'checked' : ''}><span><strong>Check when Bob starts</strong><br><span class="muted">Off unless you turn it on. Bob only tells you; updating always takes your click.</span></span></label></div>
       ${housekeepingHtml()}
-      <div><strong>Downloads</strong><p class="muted">Downloads queue up, ${settings.downloads?.concurrent === 2 ? 'two' : 'one'} at a time, and can be paused, resumed, cancelled and reordered.</p><button data-opendl>Open Downloads</button></div>
+      <div><strong>Downloads</strong><p class="muted">Downloads run ${settings.downloads?.concurrent === 2 ? 'two' : 'one'} at a time. You can pause, resume, cancel or reorder them.</p><button data-opendl>Open Downloads</button></div>
       <label class="switch"><input type="checkbox" data-set="oneBrain" ${settings.oneBrain ? 'checked' : ''}>
-        <span><strong>One brain (snappier)</strong><br><span class="muted">In the Normal session, all of Bob's copies use his main brain, so he never stops to swap brains (about 20 seconds each). Specialist brains are better for long coding or review jobs.</span></span></label>
+        <span><strong>One brain (snappier)</strong><br><span class="muted">In the Normal session, every copy of Bob uses the main brain, so there's no 20-second brain swap. Specialist brains are better for long coding or review jobs.</span></span></label>
       <label class="pick"><strong>Bob's cat</strong><input data-set="catName" maxlength="24" value="${esc(settings.catName || 'Patches')}" aria-label="Cat's name" style="width:12em"><span class="muted">The cat who ignores him in The Idle Process.</span></label>
       <div><strong>Bob's voice</strong><p class="muted">Voice, speed and samples are on the <button class="link" data-tab="speech">💬 Voice &amp; conversation</button> page, with hearing you and his everyday brain.</p></div>
       <label class="switch"><input type="checkbox" data-set="autostart" ${settings.autostart ? 'checked' : ''} ${settings.platform !== 'win32' ? 'disabled' : ''}>
@@ -253,12 +255,12 @@ export function createCellar() {
       <label class="pick"><strong>Bob's engine</strong>
         <select data-set="engine"><option value="ollama" ${settings.engine === 'ollama' ? 'selected' : ''}>Ollama (if you already have it)</option><option value="llamacpp" ${settings.engine === 'llamacpp' ? 'selected' : ''}>Bob's own (llama.cpp, nothing else needed)</option></select>
         <span class="muted">Takes effect next time Bob starts.</span></label>
-      <div><strong>Engines</strong><p class="muted">The programs that run the models. Each one comes from its official GitHub page, matched to your graphics card.</p>
+      <div><strong>Engines</strong><p class="muted">The programs that run the models, from their official GitHub pages, matched to your graphics card.</p>
         ${(data.engines || []).map((e) => `<article class="model" id="m-engine:${esc(e.id)}"><header><strong>${esc(e.name)}</strong></header><p>${esc(e.what)}</p>
           <div class="act">${live.has('engine:' + e.id) ? progress(live.get('engine:' + e.id)) : e.installed ? `<div class="have">✓ Installed${e.version ? ` (${esc(e.version)})` : ''}</div>${e.pinned || settings.platform !== 'win32' ? '' : `<button data-checkengine="${esc(e.id)}">Check for a newer build</button>`}` : settings.platform !== 'win32' ? '<div class="muted">Windows only</div>' : `<button class="get" data-engine="${esc(e.id)}">Get ${esc(e.name)}</button>`}</div><div class="confirm" hidden></div></article>`).join('')}</div>
       ${speedHtml()}
       <div><strong>ComfyUI workflows</strong> <span class="tag">off unless you turn it on</span>
-        <p class="muted">For jobs Bob's own engines can't do (ComfyUI custom nodes, face fixers, IP-Adapter, long multi-step graphs). Bob drives ComfyUI for you; you never have to open it. ComfyUI must be running on this PC (for example from Pinokio). Put workflows in the workflows folder as Workflow > Export (API) files.</p>
+        <p class="muted">For jobs Bob's own engines can't do (custom nodes, face fixers, long multi-step graphs). Bob drives ComfyUI for you; it just has to be running on this PC (for example from Pinokio). Add workflows to the workflows folder as Workflow > Export (API) files.</p>
         <label class="switch"><input type="checkbox" data-set="workshop" ${settings.workshop?.enabled ? 'checked' : ''}><span><strong>Let Bob use ComfyUI</strong><br><span class="muted">${settings.workshop?.enabled ? `Workflows folder: ${esc(settings.workshop.folder)} · ${settings.workshop.count} workflow${settings.workshop.count === 1 ? '' : 's'}` : 'Off.'}</span></span></label>
         <label class="pick"><strong>ComfyUI port</strong><input data-set="workshopPort" inputmode="numeric" value="${esc(settings.workshop?.port || 8188)}" aria-label="ComfyUI port" style="width:7em"></label></div>
       <div><strong>Cloud helpers</strong> <span class="tag">off unless you turn one on</span>
@@ -269,7 +271,7 @@ export function createCellar() {
         </div>`).join('')}</div>
       <p class="muted">Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'} · Free disk: ${hw?.freeGB ?? '?'} GB</p>
       <p><button data-welcome>Run the first-time setup again</button></p>
-      <div class="remove-bob"><strong>Remove Bob</strong><p class="muted">Takes Bob off this PC: his program, his Start menu shortcut and "Launch on start-up". His chats, settings and the models he downloaded stay unless you tick them below. The rest of the inn folder is never removed. Bob adds no services and nothing else to Windows.</p>
+      <div class="remove-bob"><strong>Remove Bob</strong><p class="muted">Takes off Bob's program, his Start menu shortcut and "Launch on start-up". His chats, settings and models stay unless you tick them below. Nothing else in the inn folder or in Windows is touched.</p>
         <button data-removebob>Remove Bob…</button><div class="remove-confirm" hidden></div></div>
       <p class="muted">Bob ${esc(settings.version?.label || '')}</p>
     </section>`;
@@ -295,6 +297,8 @@ export function createCellar() {
     if (!data) { $('cellar-body').innerHTML = '<p class="muted">Loading...</p>'; return; }
     $('cellar-body').innerHTML = mode === 'welcome' ? welcomeHtml() : shopHtml();
     stylePage.paintPreviews(dlg);
+    const doll = dlg.querySelector('.doll-bob');
+    if (doll) { const c = doll.getContext('2d'); c.imageSmoothingEnabled = false; try { drawBob(c, 160, {}, settings?.look); } catch {} }
     if (jumpTo) { const el = dlg.querySelector('#sub-' + CSS.escape(jumpTo)); jumpTo = ''; el?.scrollIntoView({ block: 'start' }); }
   }
 
@@ -302,9 +306,84 @@ export function createCellar() {
     [data, hw, settings, roles, cloud, caps] = await Promise.all([api('/api/models'), api('/api/hardware'), api('/api/settings'), api('/api/roles'), api('/api/cloud'), api('/api/capabilities').catch(() => ({}))]);
     voices = (await api('/api/voice/samples').catch(() => ({}))).voices || [];
     job = data.job;
+    await applyStarter().catch(() => {});
     live.clear();
     for (const d of data.downloads || []) if (d.state === 'downloading') live.set(d.id, { ...d, phase: d.phase === 'downloading' ? 'downloading' : d.phase });
     draw();
+  }
+
+  // ---- Equip Bob ----
+  let eqSelected = 'bob', eqView = (() => { try { return localStorage.getItem('bob-equip-view') || 'doll'; } catch { return 'doll'; } })();
+  function eqCtx() {
+    return { roles, models: data?.models || [], brains: settings?.sessionBrains || {}, embed: roles?.current?.embed || '', selected: eqSelected, vramGB: hw?.vramGB || hw?.gpu?.vramGB || null,
+      packs: data?.packs || [], packId: starterPack, picks: starterPicks, engines: data?.engines || [], starterOpen };
+  }
+  // Starter set: which set, what's ticked (null = the defaults), and what still has to be equipped once it's downloaded.
+  let starterPack = null, starterPicks = null, starterOpen = null;
+  const PLAN_KEY = 'bob-starter-plan';
+  const readPlan = () => { try { return JSON.parse(localStorage.getItem(PLAN_KEY) || '{}'); } catch { return {}; } };
+  const savePlan = (p) => { try { Object.keys(p).length ? localStorage.setItem(PLAN_KEY, JSON.stringify(p)) : localStorage.removeItem(PLAN_KEY); } catch {} };
+  const currentPack = () => { const ps = data?.packs || []; return ps.find((p) => p.id === starterPack) || packFor(ps, eqCtx().vramGB); };
+  const currentPicks = () => starterPicks || starterTicks(currentPack(), data.models, eqCtx().vramGB);
+  // Put each starter model that is now on this PC into its slots (the person pressed "Equip starter set" for this).
+  async function applyStarter() {
+    const plan = readPlan();
+    const ids = Object.keys(plan);
+    if (!ids.length || !roles) return false;
+    let changed = false;
+    for (const id of ids) {
+      const m = data.models.find((x) => x.id === id);
+      if (!m || m.status?.state !== 'installed') continue;
+      for (const sid of plan[id]) {
+        const slot = allSlots().find((s) => s.id === sid);
+        const v = slot && slotValue(slot, m, roles);
+        if (v && equipped(slot, eqCtx()) !== v) { await equipSlot(slot, v).catch(() => {}); changed = true; }
+      }
+      delete plan[id];
+    }
+    savePlan(plan);
+    if (changed) await eqReload();
+    return changed;
+  }
+  async function eqReload() { [roles, settings] = await Promise.all([api('/api/roles'), api('/api/settings')]); }
+  // Puts a model in a slot (or takes it off with value ''), then redraws. Returns what the server said.
+  async function equipSlot(slot, value) {
+    let r = {};
+    if (slot.how === 'brain') r = await api('/api/settings', { sessionBrains: { [slot.id]: value } });
+    else if (slot.how === 'embed') r = await api('/api/settings', { housekeeping: { embedModel: value } });
+    else r = await api('/api/models/role', { job: slot.id, value });
+    return r;
+  }
+  async function equip(slotId, value, { offer = true } = {}) {
+    const slot = allSlots().find((s) => s.id === slotId);
+    if (!slot) return;
+    const r = await equipSlot(slot, value);
+    await eqReload();
+    eqSelected = slotId;
+    draw();
+    const panel = dlg.querySelector('.kit-panel');
+    if (r.needsEngine && panel) askEngine(panel);
+    if (offer && value && slot.kind === 'llm') offerMore(slot, value);
+  }
+  // One model, several slots: offer the other slots it can fill. Empty ones are ticked; occupied ones aren't.
+  async function offerMore(slot, value) {
+    let caps = [];
+    try { caps = (await api('/api/models/caps?name=' + encodeURIComponent(value))).caps || []; } catch {}
+    const e = entryOf(data.models, value);
+    const sees = caps.includes('vision') || e?.category === 'vision';
+    const ctx = eqCtx();
+    const fits = allSlots().filter((s) => s.id !== slot.id && s.kind === 'llm' && s.how !== 'embed' && (s.id !== 'eyes' || sees) && equipped(s, ctx) !== value);
+    const hears = (roles.options.voice || []).find((o) => o.value === `ollama:${value}`);
+    if (hears && roles.current.voice !== hears.value) fits.push({ ...allSlots().find((s) => s.id === 'voice'), value: hears.value });
+    if (!fits.length) return;
+    const panel = dlg.querySelector('.kit-panel');
+    if (!panel) return;
+    const box = document.createElement('div');
+    box.className = 'confirm also';
+    box.innerHTML = `<p><strong>Also use it for:</strong> <span class="muted">one model in several slots loads once, so there's no swap between those jobs.</span></p>
+      ${fits.map((s) => { const cur = equipped(s, ctx); const helper = HELPERS.some((h) => h.id === s.id); return `<label class="also-row"><input type="checkbox" data-also="${s.id}" data-alsovalue="${s.value || value}" ${cur || helper ? '' : 'checked'}> ${s.icon} ${esc(s.name)} <span class="muted">${cur ? `(now: ${esc(cur)})` : helper ? '(uses the main brain now)' : '(empty)'}</span></label>`; }).join('')}
+      <div class="row"><button type="button" class="get" data-alsogo>Use it for these</button><button type="button" data-alsono>No thanks</button></div>`;
+    panel.prepend(box);
   }
 
   function confirmBox(el, m, anyway) {
@@ -346,6 +425,38 @@ export function createCellar() {
       if ('opentidy' in b.dataset) { dlg.close(); window.dispatchEvent(new Event('bob-tidy')); return; }
       if ('hkrun' in b.dataset) { const r = await api('/api/hk/run', {}); b.parentElement.querySelector('.hk-out').textContent = r.busy ? 'Bob is already on it.' : 'Started. Bob tells you in the chat when he\'s done; chats are summed up only with a brain loaded.'; return; }
       if (b.dataset.usevoice) { const r = await api('/api/settings', { tts: { voice: b.dataset.usevoice } }); settings.tts = { ...settings.tts, ...r.tts }; draw(); return; }
+      if (b.dataset.starter) {
+        const pack = currentPack();
+        const { ids, plan } = starterPlan(pack, data.models, data.engines || [], currentPicks());
+        const box = dlg.querySelector('.starter-confirm');
+        const names = ids.map((id) => { if (id.startsWith('engine:')) { const e = engineById(id.slice(7)); return `<li>${esc(e?.name || id)} <span class="muted">(engine, ${esc(ENGINE_SIZE[id.slice(7)] || 'small')})</span></li>`; } const m = data.models.find((x) => x.id === id); return `<li>${esc(m.name)} <span class="muted">${gb(m.sizeGB)} from ${m.ollama ? 'Ollama' : 'Hugging Face'} · licence ${esc(m.license)}</span></li>`; }).join('');
+        const total = ids.reduce((n, id) => n + (data.models.find((m) => m.id === id)?.sizeGB || 0), 0);
+        box.hidden = false;
+        box.innerHTML = `${ids.length ? `<p>Download these, about ${gb(total)} in all${hw?.freeGB != null ? ` (${hw.freeGB} GB free)` : ''}. Each one is put in its slot when it's done.</p><ul>${names}</ul>${ids.some((id) => ['engine:kokoro', 'engine:audio'].includes(id)) ? '<p class="muted">The Kokoro voice engine needs Python 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> installed first.</p>' : ''}` : '<p>Everything ticked is already on this PC. Bob puts each one in its slot now.</p>'}
+          <div class="row"><button class="get" data-starteryes>${ids.length ? 'Yes, download and equip' : 'Equip them'}</button><button data-no>Cancel</button></div>`;
+        box.dataset.plan = JSON.stringify({ ids, plan });
+        return;
+      }
+      if ('starteryes' in b.dataset) {
+        const box = b.closest('.starter-confirm');
+        const { ids, plan } = JSON.parse(box.dataset.plan || '{}');
+        savePlan({ ...readPlan(), ...plan });
+        if (ids?.length) job = await api('/api/models/download', { ids });
+        await applyStarter();
+        draw();
+        return;
+      }
+      if (b.dataset.slotpick) { eqSelected = b.dataset.slotpick; draw(); dlg.querySelector('.kit-panel')?.scrollIntoView({ block: 'nearest' }); return; }
+      if (b.dataset.equip && b.tagName === 'BUTTON') { await equip(eqSelected, b.dataset.equip); return; }
+      if (b.dataset.unequip) { const sl = allSlots().find((s) => s.id === b.dataset.unequip); await equip(sl.id, sl.off === 'windows' ? 'windows' : '', { offer: false }); return; }
+      if (b.dataset.eqview) { eqView = b.dataset.eqview; try { localStorage.setItem('bob-equip-view', eqView); } catch {} draw(); return; }
+      if ('alsono' in b.dataset) { b.closest('.also').remove(); return; }
+      if ('alsogo' in b.dataset) {
+        const picks = [...b.closest('.also').querySelectorAll('input[data-also]:checked')];
+        for (const c of picks) await equipSlot(allSlots().find((s) => s.id === c.dataset.also), c.dataset.alsovalue);
+        await eqReload(); draw();
+        return;
+      }
       if (b.dataset.jump) { dlg.querySelector('#sub-' + CSS.escape(b.dataset.jump))?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
       if (b.dataset.tab) { sampler.stop(); setTab(b.dataset.tab); draw(); }
       else if (b.dataset.get) confirmBox(b.closest('.model'), data.models.find((m) => m.id === b.dataset.get));
@@ -398,11 +509,40 @@ export function createCellar() {
     } catch (err) { alertIn(b, err.message); }
   });
 
+  // Drag a model from the kit onto a slot. Only slots of the same kind light up and take it.
+  let dragKit = null;
+  dlg.addEventListener('dragstart', (e) => {
+    const li = e.target.closest?.('li.kit[draggable]');
+    if (!li) return;
+    dragKit = { value: li.dataset.equip, kind: li.dataset.kind };
+    e.dataTransfer.effectAllowed = 'copy';
+    try { e.dataTransfer.setData('text/plain', dragKit.value); } catch {}
+    for (const sl of dlg.querySelectorAll('.slot')) sl.classList.toggle('can-drop', sl.dataset.kind === dragKit.kind);
+  });
+  dlg.addEventListener('dragend', () => { dragKit = null; for (const sl of dlg.querySelectorAll('.slot')) sl.classList.remove('can-drop', 'drop-here'); });
+  dlg.addEventListener('dragover', (e) => {
+    const sl = e.target.closest?.('.slot');
+    if (!sl || !dragKit || sl.dataset.kind !== dragKit.kind) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    sl.classList.add('drop-here');
+  });
+  dlg.addEventListener('dragleave', (e) => { e.target.closest?.('.slot')?.classList.remove('drop-here'); });
+  dlg.addEventListener('drop', async (e) => {
+    const sl = e.target.closest?.('.slot');
+    if (!sl || !dragKit || sl.dataset.kind !== dragKit.kind) return;
+    e.preventDefault();
+    const kit = dragKit; dragKit = null;
+    try { await equip(sl.dataset.slot, kit.value); } catch (err) { alertIn(sl, err.message); }
+  });
+
   dlg.addEventListener('input', (e) => { if (tab === 'style') stylePage.onInput(e.target); });
 
   dlg.addEventListener('change', async (e) => {
     const el = e.target;
     try {
+      if ('starterpack' in el.dataset) { starterPack = el.value; starterPicks = null; draw(); return; }
+      if (el.dataset.starterpick) { const p = new Set(currentPicks()); el.checked ? p.add(el.dataset.starterpick) : p.delete(el.dataset.starterpick); starterPicks = p; draw(); return; }
       if (el.dataset.tts) { const v = el.dataset.tts === 'speed' ? Number(el.value) : el.value; const r = await api('/api/settings', { tts: { [el.dataset.tts]: v } }); settings.tts = { ...settings.tts, ...r.tts }; if (el.dataset.tts === 'voice') { const sb = el.closest('.row')?.querySelector('[data-sample-engine="kokoro"]'); if (sb) sb.dataset.sampleVoice = el.value; } flash(el, 'Saved. Press ▶ Hear a sample to hear it.'); return; }
       if (el.dataset.speed) { const v = el.value.trim() === '' ? null : Number(el.value); const r = await api('/api/settings', { speed: { [el.dataset.speed]: v } }); settings.speed = r.speed; el.value = r.speed[el.dataset.speed] ?? ''; flash(el, 'Saved.'); return; }
       if ('fit' in el.dataset) { const r = await api('/api/settings', { speed: { fit: el.checked } }); settings.speed = r.speed; flash(el, 'Saved.'); return; }
@@ -482,6 +622,7 @@ export function createCellar() {
   }
 
   $('cellar-close').onclick = () => dlg.close();
+  dlg.addEventListener('toggle', (e) => { if (e.target.classList?.contains('starter')) starterOpen = e.target.open; }, true);
   dlg.addEventListener('close', () => { sampler.stop(); stylePage.closing(settings); window.dispatchEvent(new Event('bob-caps')); });
 
   return {
@@ -502,3 +643,4 @@ export function createCellar() {
     }
   };
 }
+

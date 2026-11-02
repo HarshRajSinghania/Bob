@@ -179,6 +179,14 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && p === '/api/capabilities') return send(res, 200, capabilities(cfg));
     if (req.method === 'GET' && p === '/api/roles') return send(res, 200, await shop.roles());
+    // What an Ollama model can do (completion, vision, audio, tools, thinking), for Equip Bob's "also use it for".
+    if (req.method === 'GET' && p === '/api/models/caps') {
+      const name = String(url.searchParams.get('name') || '');
+      if (!/^[\w.:/-]{1,120}$/.test(name)) return send(res, 400, { error: 'bad name' });
+      let caps = [];
+      try { if (brain.engine.show) caps = (await brain.engine.show(name)).capabilities || []; } catch {}
+      return send(res, 200, { name, caps });
+    }
     if (req.method === 'GET' && p === '/api/hardware') return send(res, 200, await shop.hardware());
     if (req.method === 'GET' && p === '/api/settings') {
       return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: cfg.ollamaKeepAlive || '10m', tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg) });
@@ -229,9 +237,11 @@ const server = http.createServer(async (req, res) => {
             const cur = hkSettings(cfg), h = b.housekeeping, next = { ...cur };
             if ('enabled' in h) next.enabled = h.enabled === true;
             if ('wakeBrain' in h) next.wakeBrain = h.wakeBrain === true;
+            if ('embedModel' in h) next.embedModel = h.embedModel;
             for (const k of Object.keys(KINDS)) if (h[k] && typeof h[k] === 'object') next[k] = { ...cur[k], ...h[k] };
             saveSettings(cfg, { housekeeping: cleanHousekeeping(next) });
             out.housekeeping = hkSettings(cfg);
+            brain.housekeeper.noEmbed = false; // a newly picked embedding model gets a fresh try
           }
           if (b.updates && typeof b.updates === 'object') { saveSettings(cfg, { updates: { autoCheck: b.updates.autoCheck === true } }); out.updates = cfg.updates; }
           if (b.downloads && typeof b.downloads === 'object') { saveSettings(cfg, { downloads: { ...(cfg.downloads || {}), ...b.downloads } }); out.downloads = cfg.downloads; shop.pumpDownloads(); }

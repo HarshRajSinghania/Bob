@@ -609,40 +609,190 @@
           "voice": "am_michael"
         }
       }
+    },
+    {
+      "id": "nomic-embed-text",
+      "category": "embed",
+      "name": "Nomic Embed Text",
+      "what": "Tiny helper that lets Topics and search find related things by meaning. Runs on the processor.",
+      "sizeGB": 0.27,
+      "vramGB": 0,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "small",
+      "ollama": "nomic-embed-text:latest"
     }
   ],
   "packs": [
     {
       "id": "big",
-      "label": "Full inn (16 GB card or more)",
-      "minVramGB": 16,
+      "label": "16 GB card or more",
+      "minVramGB": 12,
       "models": [
         "gemma4-26b",
         "qwen3-coder-30b",
-        "gpt-oss-20b",
-        "whisper-large-v3-turbo",
-        "z-image-turbo"
-      ]
+        "z-image-turbo",
+        "qwen-image-edit-2509",
+        "wan2.2-ti2v-5b",
+        "gemma4-e4b",
+        "kokoro-v1",
+        "nomic-embed-text"
+      ],
+      "slots": {
+        "gemma4-26b": [
+          "bob",
+          "deep"
+        ],
+        "qwen3-coder-30b": [
+          "tinker"
+        ],
+        "z-image-turbo": [
+          "image"
+        ],
+        "qwen-image-edit-2509": [
+          "edit"
+        ],
+        "wan2.2-ti2v-5b": [
+          "video"
+        ],
+        "gemma4-e4b": [
+          "small",
+          "eyes",
+          "voice"
+        ],
+        "kokoro-v1": [
+          "speech"
+        ],
+        "nomic-embed-text": [
+          "embed"
+        ]
+      },
+      "notes": {
+        "gemma4-e4b": "the quick brain, and it sees pictures and hears you"
+      },
+      "times": "Pictures take about 10 seconds each, clips a few minutes.",
+      "cardGB": 16
     },
     {
       "id": "mid",
-      "label": "Cozy inn (8 to 12 GB card)",
-      "minVramGB": 8,
+      "label": "8 GB card",
+      "minVramGB": 7,
       "models": [
         "gemma4-e4b",
-        "qwen2.5-coder-7b",
-        "whisper-large-v3-turbo",
+        "kokoro-v1",
+        "nomic-embed-text",
+        "qwen3-coder-30b",
+        "z-image-turbo",
+        "wan2.2-ti2v-5b"
+      ],
+      "slots": {
+        "gemma4-e4b": [
+          "bob",
+          "small",
+          "eyes",
+          "voice"
+        ],
+        "qwen3-coder-30b": [
+          "tinker"
+        ],
+        "z-image-turbo": [
+          "image"
+        ],
+        "wan2.2-ti2v-5b": [
+          "video"
+        ],
+        "kokoro-v1": [
+          "speech"
+        ],
+        "nomic-embed-text": [
+          "embed"
+        ]
+      },
+      "tick": [
+        "qwen3-coder-30b",
         "z-image-turbo"
-      ]
+      ],
+      "notes": {
+        "gemma4-e4b": "one model for chat, quick brain, eyes and ears, so everyday chat never swaps",
+        "qwen3-coder-30b": "the best coder; most of it sits in your RAM, so replies are slower (roughly 15 to 25 words a second)",
+        "z-image-turbo": "bigger than your card, so it runs part in RAM: slower",
+        "wan2.2-ti2v-5b": "slow on this card: keep clips short"
+      },
+      "times": "Rough guesses, not yet measured on an 8 GB card: about 1 to 2 minutes a picture, 10 minutes or more a clip. Bob puts his brain away while he paints, so chat waits until the picture is done.",
+      "cardGB": 8
     },
     {
       "id": "small",
-      "label": "Roadside hut (laptop or small card)",
+      "label": "6 GB card (most laptops)",
+      "minVramGB": 5,
+      "models": [
+        "gemma4-e4b",
+        "kokoro-v1",
+        "nomic-embed-text",
+        "qwen2.5-coder-7b",
+        "z-image-turbo",
+        "wan2.2-ti2v-5b"
+      ],
+      "slots": {
+        "gemma4-e4b": [
+          "bob",
+          "small",
+          "eyes",
+          "voice"
+        ],
+        "qwen2.5-coder-7b": [
+          "tinker"
+        ],
+        "z-image-turbo": [
+          "image"
+        ],
+        "wan2.2-ti2v-5b": [
+          "video"
+        ],
+        "kokoro-v1": [
+          "speech"
+        ],
+        "nomic-embed-text": [
+          "embed"
+        ]
+      },
+      "notes": {
+        "gemma4-e4b": "one model for chat, quick brain, eyes and ears",
+        "qwen2.5-coder-7b": "small, quick coder that fits the card",
+        "z-image-turbo": "much bigger than your card: very slow; a smaller version for 6 GB cards is planned",
+        "wan2.2-ti2v-5b": "very slow on this card; best skipped for now"
+      },
+      "times": "Rough guesses, not yet measured on a 6 GB card: 2 to 4 minutes a picture if it runs at all; clips are very slow. Bob puts his brain away while he paints.",
+      "cardGB": 6
+    },
+    {
+      "id": "cpu",
+      "label": "No graphics card (processor only)",
       "minVramGB": 0,
       "models": [
-        "qwen3-4b",
-        "whisper-base-en"
-      ]
+        "gemma4-e4b",
+        "kokoro-v1",
+        "nomic-embed-text"
+      ],
+      "slots": {
+        "gemma4-e4b": [
+          "bob",
+          "small",
+          "eyes",
+          "voice"
+        ],
+        "kokoro-v1": [
+          "speech"
+        ],
+        "nomic-embed-text": [
+          "embed"
+        ]
+      },
+      "notes": {
+        "gemma4-e4b": "chats, plans, researches, sees pictures and hears you, all on the processor"
+      },
+      "times": "Without a graphics card Bob can talk, plan, research, read pictures and speak, but not paint or film.",
+      "cardGB": 0
     }
   ]
 }

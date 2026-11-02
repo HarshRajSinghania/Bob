@@ -562,12 +562,18 @@ export class ModelShop {
     const speechNow = tp === 'piper' || tp === 'kokoro' ? this.catalog.models.find((m) => m.category === 'speech' && this.locate(m).model === this.cfg.tts.model)?.id || '' : tp === 'chatterbox' ? 'chatterbox' : 'windows';
     const editNow = this.catalog.models.find((m) => m.use?.painter?.sdcpp?.edit && p.sdcpp?.edit?.diffusionModel && this.locate(m).diffusionModel === p.sdcpp.edit.diffusionModel)?.id || '';
     const current = { ...Object.fromEntries(ModelShop.JOBS.filter((j) => j.kind === 'llm').map((j) => [j.id, this.cfg.models?.[j.id] || ''])), image: imgCur, edit: editNow, video: vidCur, voice: sttNow, speech: speechNow, music: aw.music ? 'ace-step' : '', sfx: aw.sfx ? 'audioldm2' : '' };
-    return { jobs: ModelShop.JOBS, options: { llm: llms, ...opts }, current, maestroRunning: maestro.length > 0 };
+    // Embedding models (for matching Topics by meaning), from Ollama only; never downloaded by Bob.
+    const embed = [...names].filter((n) => /embed/.test(n)).sort().map((n) => ({ value: n, label: n }));
+    const embNow = this.cfg.housekeeping?.embedModel || 'nomic-embed-text';
+    current.embed = embed.find((o) => o.value === embNow || o.value.split(':')[0] === embNow)?.value || '';
+    return { jobs: ModelShop.JOBS, options: { llm: llms, ...opts, embed }, current, maestroRunning: maestro.length > 0 };
   }
 
   async setRole(job, value) {
     const j = ModelShop.JOBS.find((x) => x.id === job);
     if (!j) throw new Error('No such job.');
+    // Taking a helper brain off: that job goes back to the main brain (the main brain itself can't be taken off).
+    if (j.kind === 'llm' && value === '' && job !== 'bob') { saveSettings(this.cfg, { models: { [job]: '' } }); return { models: { [job]: '' } }; }
     if (j.kind === 'llm') {
       const { options } = await this.roles();
       if (!options.llm.some((o) => o.value === value)) throw new Error(`${value} isn't on this PC.`);

@@ -39,7 +39,7 @@ const ctx = (pics = []) => ({ pics, emit() {}, signal: new AbortController().sig
 {
   const b = bob({ waiting: 'Qwen Image Edit 2509' });
   const r = await b.makeImage({ prompt: 'watercolour', reference: ['photo'] }, ctx([photo]));
-  check('an edit model on the PC but not assigned is named, with where to assign it', !b.painted.length && /Qwen Image Edit 2509 is on this PC but isn't assigned to "Picture edits"/.test(r) && /Model roles/.test(r));
+  check('an edit model on the PC but not assigned is named, with where to assign it', !b.painted.length && /Qwen Image Edit 2509 is on this PC but isn't assigned to "Picture edits"/.test(r) && /Equip Bob/.test(r));
 }
 {
   const b = bob();
