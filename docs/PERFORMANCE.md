@@ -80,12 +80,22 @@ Speed isn't enough. Bob does things by calling tools (set a reminder, paint a pi
 | Qwen3 1.7B | processor | 20 | 20 | 9 | 1 | 1.9 s |
 | Gemma 4 E4B | processor | 14 | 15 | 13 | 0 | 3.6 s |
 | Qwen2.5 Coder 7B | card | 2 | 2 | 2 | 16 | 0.6 s |
-| GPT-OSS 20B | card | 2 | 2 | 2 | 4 | 7 s |
+| GPT-OSS 20B (copy from Ollama, no template) | card | 2 | 2 | 2 | 4 | 7 s |
 
 Two things jump out:
 
 - **The fallback matters.** On core tools alone, the small brains often say "I can't do that yet" instead of asking for the tool they need. Bob's real path catches that and retries with every tool, which takes 2507 from 11 to 22.
-- **Qwen2.5 Coder 7B and GPT-OSS 20B didn't fail at thinking, they failed at formatting.** Qwen2.5 Coder writes its tool calls as plain JSON text, and our copy of GPT-OSS wrote its tool calls as text in its own format. Bob 1.5.29 learned to rescue plain-text tool calls, and both are being retested (GPT-OSS with its official llama.cpp build). We'll update this table when the results are in.
+- **Qwen2.5 Coder 7B and GPT-OSS 20B didn't fail at thinking, they failed at formatting.** Qwen2.5 Coder writes its tool calls as plain JSON text, and our copy of GPT-OSS had no chat template, so its calls came out as text in its own format. Once that was fixed, both became real contenders (see below).
+
+After the fixes, we ran the full 25 jobs again for these two, on the card with Bob 1.5.30's wording (the round-1 fixes; these runs came before 1.5.33):
+
+| Brain | Right, Bob's real path | All tools at once | Core tools only | Calls rescued from plain text | Average time |
+|---|---|---|---|---|---|
+| **GPT-OSS 20B** (official llama.cpp build) | **25** | 23 | 11 | 0 | **0.3 s** |
+| Qwen2.5 Coder 7B (with the text-call rescue) | 16 (was 2) | 19 | 5 | 14 (of its 16 right) | 0.6 s |
+| GPT-OSS 20B (copy from Ollama, no template) | 2 | | | | |
+
+The official GPT-OSS build is the best tool user we measured: every job right, in about a third of a second each. It runs on the graphics card, so it's a candidate for Bob's card-based slots rather than for Gaming. Qwen2.5 Coder went from 2 to 16 purely because Bob 1.5.29 learned to read plain-text tool calls, which is good news for lighter PCs. (It scored higher with every tool offered up front, 19, than on Bob's real path; we're looking into why.) The copy without a template stays at 2: a rescue can't fix a file that doesn't describe its own conversation format, so get the official build.
 
 ### Who missed which job
 
@@ -315,7 +325,7 @@ In pass 2 we also re-ran the tidy and zip jobs that pass 1 had fixed, to make su
 
 Gemma 4 26B and Qwen 3.8 27B now get every job we tested right. GPT-OSS went from 2 out of 25 to fixing 18 of its 22 misses in one go, just by giving it the template it was missing. What's left are mostly judgement calls, like asking "which project?" before searching code, or "what mood?" before writing music. Those are fair questions, not broken tools.
 
-The weather miss was on us: with web search off, a small brain correctly said it couldn't look it up but forgot to say where the switch is. Bob 1.5.33 now tells every brain to always say where the switch is. (Video and music makers weren't installed on the test PC, so for those jobs a brain that said it couldn't make one counted as right.) Full 25-job scores for the official GPT-OSS build and for Qwen2.5 Coder with the text-call rescue are still running.
+The weather miss was on us: with web search off, a small brain correctly said it couldn't look it up but forgot to say where the switch is. Bob 1.5.33 now tells every brain to always say where the switch is. (Video and music makers weren't installed on the test PC, so for those jobs a brain that said it couldn't make one counted as right.) Full 25-job scores for the official GPT-OSS build (25/25) and Qwen2.5 Coder with the text-call rescue (16/25) are in [Can it use tools?](#can-it-use-tools).
 
 ### Check that a fix actually arrived
 

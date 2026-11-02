@@ -1,4 +1,5 @@
 // Loads config.json and works out the folders Bob uses.
+import { cleanHouseStyle } from '../public/house-style.js';
 import { cleanHousekeeping } from './hk-settings.js';
 import { cleanHands } from './hands-settings.js';
 import fs from 'node:fs';
@@ -112,7 +113,7 @@ export const VERSION = (() => {
   } catch { return { release: '0.9', branch: '', build: 0, label: '0.9.0' }; }
 })();
 
-export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask', 'brainMode', 'allTools', 'quickOnCpu', 'quarantine', 'resumeJobs', 'pictureNoWait', 'readyWhileTyping', 'gamesFirst', 'pictureFit', 'webSearch', 'gamingCard'];
+export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask', 'brainMode', 'allTools', 'quickOnCpu', 'quarantine', 'resumeJobs', 'pictureNoWait', 'readyWhileTyping', 'gamesFirst', 'pictureFit', 'webSearch', 'gamingCard', 'houseStyle', 'projectList', 'defaultProject'];
 const LOCKED_LLAMACPP = ['exe', 'preArgs'];
 
 function deepMerge(into, from) {
@@ -140,6 +141,9 @@ function clean(patch) {
   if ('resumeJobs' in out) out.resumeJobs = out.resumeJobs === true; // 1.5.16, off unless switched on
   if ('quickOnCpu' in out) out.quickOnCpu = out.quickOnCpu === true;
   if ('webSearch' in out) out.webSearch = out.webSearch === true;
+  if ('houseStyle' in out) out.houseStyle = cleanHouseStyle(out.houseStyle); // 1.5.34 House style (public/house-style.js)
+  if ('projectList' in out) out.projectList = cleanProjects(out.projectList); // 1.5.34 Projects in Settings
+  if ('defaultProject' in out) out.defaultProject = typeof out.defaultProject === 'string' ? out.defaultProject.slice(0, 60) : '';
   if ('gamingCard' in out) out.gamingCard = ['auto', 'never', 'always'].includes(out.gamingCard) ? out.gamingCard : 'auto'; // 1.5.32
   for (const k of ['readyWhileTyping', 'gamesFirst', 'pictureFit']) if (k in out) out[k] = out[k] === true; // 1.5.24, off unless switched on
   if ('pictureNoWait' in out) out.pictureNoWait = out.pictureNoWait !== false; // 1.5.20, on unless switched off
@@ -245,7 +249,39 @@ export function cleanStyle(st) {
 }
 
 export function mergeSettings(cfg, patch) {
-  return deepMerge(cfg, clean(patch));
+  return applyProjects(deepMerge(cfg, clean(patch)));
+}
+
+// 1.5.34: projects picked in Settings (projectList) replace the hand-written "projects" in config.json once saved.
+// An empty saved list means "no projects" (removed in Settings); no saved list keeps config.json's.
+export function cleanProjects(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const p of list.slice(0, 50)) {
+    const name = String(p?.name || '').replace(/[\u0000-\u001f<>{}"`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    const dir = String(p?.path || '').replace(/[\u0000-\u001f]/g, '').trim();
+    if (!name || !dir || !path.isAbsolute(dir) || seen.has(name.toLowerCase())) continue;
+    seen.add(name.toLowerCase());
+    out.push({ name, path: dir });
+  }
+  return out;
+}
+function applyProjects(cfg) {
+  if (Array.isArray(cfg.projectList)) cfg.projects = Object.fromEntries(cfg.projectList.map((p) => [p.name, p.path]));
+  if (cfg.defaultProject && !(cfg.projects || {})[cfg.defaultProject]) cfg.defaultProject = '';
+  return cfg;
+}
+
+// Settings saved whole (not merged key by key), so an emptied box or a removed project really goes away.
+export function replaceSettings(cfg, patch) {
+  const safe = clean(patch);
+  let saved = {};
+  try { saved = JSON.parse(fs.readFileSync(cfg.settingsFile, 'utf8')); } catch {}
+  for (const [k, v] of Object.entries(safe)) { saved[k] = v; cfg[k] = v; }
+  fs.writeFileSync(cfg.settingsFile, JSON.stringify(saved, null, 2));
+  applyProjects(cfg);
+  return saved;
 }
 
 // Apply a change now and remember it.

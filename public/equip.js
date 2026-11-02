@@ -3,6 +3,7 @@
 // fits a slot goes in it. Empty slots say what Bob can't do yet, with a Get button for a recommended model.
 // Nothing is ever equipped by itself. Pure HTML builders; cellar.js handles the clicks.
 import { packFor, canDo, suit, pickFor } from './fit.js';
+import { houseStyleHtml, houseGroupOf } from './house-style.js';
 export { packFor };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const gb = (n) => (n == null ? '' : n >= 1 ? `${(+n).toFixed(n >= 10 ? 0 : 1)} GB` : `${Math.round(n * 1000)} MB`);
@@ -125,7 +126,8 @@ function kitHtml(slot, ctx) {
   const engine = slot.engine && !(ctx.roles?.options?.[slot.kind] || []).length
     ? `<div class="model engine-step"><p>${esc(slot.name)} comes with the audio tools.</p><button class="get" data-engine="${esc(slot.engine)}">Get the audio tools</button><div class="confirm" hidden></div></div>` : '';
   const embedTip = slot.how === 'embed' && !all.length ? '<p class="muted">Nothing here yet. An embedding model such as nomic-embed-text in Ollama shows up here once it is on this PC.</p>' : '';
-  return `<h3>${slot.icon} ${esc(slot.name)}</h3><p class="muted">${esc(slot.does)}</p>${engine}${embedTip}<ol class="kit-list">${items || (engine || embedTip ? '' : '<li class="muted">Nothing that does this job runs well on this PC yet.</li>')}</ol>${more}`;
+  const house = houseGroupOf(slot.id) ? houseStyleHtml(houseGroupOf(slot.id), ctx.houseStyle) : ''; // 1.5.34 House style
+  return `<h3>${slot.icon} ${esc(slot.name)}</h3><p class="muted">${esc(slot.does)}</p>${house}${engine}${embedTip}<ol class="kit-list">${items || (engine || embedTip ? '' : '<li class="muted">Nothing that does this job runs well on this PC yet.</li>')}</ol>${more}`;
 }
 
 // Everything equipped against the card: they don't all have to be loaded at once (Bob swaps), but it shows what fits together.
@@ -219,6 +221,7 @@ export function equipHtml(ctx) {
       <div class="equip-mid">
         <div class="doll"><div class="doll-col">${col('L')}</div><div class="doll-mid"><canvas class="doll-bob" width="160" height="160" aria-label="Bob"></canvas><div class="muted">Bob</div></div><div class="doll-col">${col('R')}</div></div>
         <details class="helpers"${HELPERS.some((h) => h.id === ctx.selected) ? ' open' : ''}><summary>Helpers (optional: each uses the main brain unless you pick one)</summary><div class="helper-row">${HELPERS.map((s) => slotHtml(s, ctx)).join('')}</div></details>
+        ${houseStyleHtml('times', ctx.houseStyle)}
       </div>
       <section class="kit-panel" aria-live="polite"><div class="kit-head muted">Inventory</div>${kitHtml(sel, ctx)}</section>
     </div>`;

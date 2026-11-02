@@ -26,8 +26,9 @@ check('each meter splits into Bob and everything else', /everything else \$\{a\}
 check('a processor meter and a graph of the last 5 minutes (off until asked for, remembered)', /Processor · \$\{cpu\.loadPct\}% busy/.test(layout) && /hist\.length > 60/.test(layout) && /bob-now-graph/.test(layout) && /let lastGpu = null, showGraph = false, lastOk = 0;/.test(layout));
 // The 1.5.26 slip: pollGpu() runs on load, so everything it touches must be declared before it can be called.
 {
-  const lines = layout.split('\n'), at = lines.findIndex((l) => l.replace(/\/\/.*$/, '').includes('pollGpu()'));
-  const firstCall = lines.slice(0, at).join('\n').length;
+  // split on \r?\n: GitHub's Windows build checks files out with CRLF line ends, and . doesn't match \r.
+  const lines = layout.split(/\r?\n/), at = lines.findIndex((l) => l.replace(/\/\/.*$/, '').includes('pollGpu()'));
+  const firstCall = layout.split(/\n/).slice(0, at).join('\n').length;
   check('everything the readings use is declared before pollGpu() can first run', ['let lastGpu', 'lastOk = 0', 'const hist', 'let gpuAt', 'brainSt = null'].every((d) => layout.indexOf(d) > -1 && layout.indexOf(d) < firstCall));
 }
 check('stops while a full-screen game covers Bob, starts again when he is seen', /appendSwitch\('enable-features', 'CalculateNativeWinOcclusion'\)/.test(read('electron/main.cjs')) && /document\.addEventListener\('visibilitychange', pollGpu\)/.test(layout) && /out\.reads = \+\+gpuReads/.test(server));

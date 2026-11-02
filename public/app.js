@@ -412,6 +412,11 @@ function onEvent(ev) {
       if (!/^hat:/.test(ev.summary)) note(`· ${ev.summary}`);
       endReply(ev);
       break;
+    case 'house': { // 1.5.34: "Used your house style: 30 seconds · Change" (House style on Equip Bob)
+      const el = add('note house', `${esc(ev.text)} · <button type="button" class="link" data-house="${esc(ev.group || '')}">Change</button>`);
+      el.querySelector('[data-house]')?.addEventListener('click', () => cellar.open('shop', 'roles', { house: ev.group }));
+      break;
+    }
     case 'image': { addMedia(ev, 'image'); ping('Bob finished a picture', ev.file || ''); break; }
     case 'audio': { addMedia(ev, 'audio'); ping('Bob finished a sound', ev.file || ''); break; }
     case 'video': { addMedia(ev, 'video'); ping('Bob finished a clip', ev.file || ''); break; }

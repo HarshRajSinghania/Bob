@@ -1,6 +1,7 @@
 // Bob knows his own settings (2026-11-02: "he should be aware of all of his settings so he can help someone
 // set him up"). The bob_help tool searches the same Help text the window shows (public/help-content.js) and adds
 // what is set right now, so Bob can say exactly where a switch is and whether it's on. Read-only: it changes nothing.
+import { houseStylePrompt } from '../public/house-style.js';
 import { HELP } from '../public/help-content.js';
 import { webOn } from './web.js';
 import { currentSession } from './sessions.js';
@@ -51,6 +52,8 @@ export function settingsNow(cfg) {
     `Cloud helpers on: ${cloud.length ? cloud.join(', ') : 'none'}`,
     `Keep the graphics card free for quick answers: ${onOff(cfg.quickOnCpu === true)}`,
     `Gaming session: graphics card: ${{ auto: 'Automatic', never: 'Never use the card', always: 'Always borrow a little' }[gamingCard(cfg)]}`,
+    `House style (Equip Bob): ${houseStylePrompt(cfg.houseStyle).replace(/^\s+/, '').replace(/^.*?: /, '') || 'none set (Bob picks)'}`,
+    `Projects (Settings): ${Object.keys(cfg.projects || {}).join(', ') || 'none'}${cfg.defaultProject ? `; main project ${cfg.defaultProject}` : ''}`,
     `Speed for this PC: Get Bob ready while you type ${onOff(cfg.readyWhileTyping === true)}, Let games go first ${onOff(cfg.gamesFirst === true)}, Match picture settings to my graphics card ${onOff(cfg.pictureFit === true)}`
   ].join('\n');
 }

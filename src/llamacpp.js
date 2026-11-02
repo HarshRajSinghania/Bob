@@ -84,15 +84,22 @@ export class LlamaCpp {
     for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { stop(); process.exit(0); });
   }
 
+  // 1.5.35: also by Ollama name (like "gpt-oss:20b"): when Bob's own pinned copy of that model is downloaded, his engine
+  // uses it instead of Ollama's copy. Measured: Ollama's gpt-oss blob has no chat template and got 2 of 25 tool jobs
+  // right on llama.cpp; the official file got 25 of 25.
   catalogFile(id) {
-    if (!/^[\w.-]+$/.test(id)) return null;
+    if (!/^[\w.:/-]+$/.test(id)) return null;
     try {
       const cat = JSON.parse(fs.readFileSync(this.cfg.catalogFile || new URL('../catalog.json', import.meta.url), 'utf8'));
-      const e = cat.models.find((m) => m.id === id);
+      const e = cat.models.find((m) => m.id === id) || cat.models.find((m) => m.ollama && (m.ollama === id || `${m.ollama}:latest` === id || m.ollama === `${id}:latest`));
       const f = e?.files?.find((x) => x.role === 'gguf');
       if (!f) return null;
-      const file = path.join(this.cfg.bobModelsDir || path.join(this.cfg.agentDir, 'models', 'bob'), e.category, decodeURIComponent(f.url.split('/').pop().split('?')[0]));
-      return fs.existsSync(file) ? { gguf: file } : null;
+      const root = this.cfg.bobModelsDir || path.join(this.cfg.agentDir, 'models', 'bob');
+      const name = decodeURIComponent(f.url.split('/').pop().split('?')[0]);
+      // Its own folder first; an older Bob may have filed it under another one (for example chat instead of coding).
+      const file = [e.category, ...fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)]
+        .map((dir) => path.join(root, dir, name)).find((x) => fs.existsSync(x) && !fs.existsSync(x + '.part'));
+      return file ? { gguf: file } : null;
     } catch { return null; }
   }
 
@@ -128,7 +135,7 @@ export class LlamaCpp {
     try { size = fs.statSync(this.resolve(this.current).gguf).size; } catch {}
     const vram = await this.vramOf(this.child.pid);
     // Without a per-process figure from nvidia-smi, how the model splits between card and RAM is unknown.
-    return [{ name: this.current, size, vram, split: vram > 0, ctx: this.currentCtx || this.lc.ctx || DEFAULT_CTX }];
+    return [{ name: this.current, own: Boolean(this.currentOwn), size, vram, split: vram > 0, ctx: this.currentCtx || this.lc.ctx || DEFAULT_CTX }];
   }
 
   // Graphics memory llama-server holds, in bytes, from nvidia-smi (ships with the NVIDIA driver). 0 when unknown.
@@ -369,6 +376,9 @@ export class LlamaCpp {
     this.currentCtx = ctx || null;
     this.currentCpu = Boolean(cpu);
     this.currentCard = card;
+    // 1.5.35: picked by its Ollama name but running from Bob's own copy: say so (Now running) and log it once per model.
+    this.currentOwn = model.includes(':') && !this.lc.models?.[model] && Boolean(this.catalogFile(model));
+    if (this.currentOwn && !(this.ownLogged ||= new Set()).has(model)) { this.ownLogged.add(model); try { this.log?.('engine', `${model}: running from Bob's own copy (${path.basename(this.catalogFile(model).gguf)}) instead of Ollama's`); } catch {} }
     try { fs.writeFileSync(pidFile, String(child.pid)); } catch {}
     const deadline = Date.now() + (this.lc.loadTimeoutSeconds || 300) * 1000;
     const ready = (async () => {

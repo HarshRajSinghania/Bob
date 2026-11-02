@@ -301,6 +301,29 @@ export function createCellar() {
   }
 
   // Housekeeping: off unless turned on. Each kind has its own age limit and "ask me" (default) or "tidy automatically".
+  // 1.5.34 Projects: the folders Bob searches when you say "my project" (search_files), and which one is the main one.
+  // Before this they could only be set by hand in config.json, so brains kept asking "which project?".
+  function projectsHtml() {
+    const list = settings?.projectList || [];
+    const def = settings?.defaultProject || '';
+    const rows = list.map((p, i) => `<li class="project-row"><label><input type="radio" name="mainproject" data-mainproject="${esc(p.name)}" ${p.name === def ? 'checked' : ''}> <strong>${esc(p.name)}</strong></label>
+      ${p.name === def ? '<span class="tag good">main project</span>' : ''}<span class="muted proj-path">${esc(p.path)}</span>${p.missing ? ' <span class="error">(folder not found)</span>' : ''} <button type="button" class="mini" data-projremove="${i}" title="Your files aren't touched.">Remove from list</button> <span class="muted">Your files aren't touched.</span></li>`).join('');
+    return `<p class="muted">Folders Bob can search and work in. The main one is what he uses when you say "my project".</p>
+      <details class="more"><summary>What projects are for</summary><p class="muted">${'Folders with your code or work. When you say "search my project" or "my project", Bob looks here. The main project is searched first and is the one "my project" means. Bob can read these folders; changing files still needs the Files Hand and your OK.'}</p></details>
+      ${list.length ? '<p class="muted proj-main-head">Main: pick the dot next to a project.</p>' : ''}
+      <ul class="project-list">${rows || '<li class="muted">No projects yet. Bob searches nothing until you add one.</li>'}</ul>
+      ${list.length ? `<label class="project-none"><input type="radio" name="mainproject" data-mainproject="" ${def ? '' : 'checked'}> No main project</label>` : ''}
+      <div class="project-add"><label for="proj-name">Name</label><input id="proj-name" type="text" maxlength="60" placeholder="like My Game">
+        <label for="proj-path">Folder</label><input id="proj-path" type="text" placeholder="C:\\Projects\\MyGame"> <button type="button" class="mini" data-projbrowse>Browse…</button>
+        <button type="button" data-projadd disabled>Add project</button><p class="error proj-error" hidden></p></div>`;
+  }
+  async function saveProjects(list, def) {
+    const r = await api('/api/settings', { projectList: list.map(({ name, path }) => ({ name, path })), ...(def !== undefined ? { defaultProject: def } : {}) });
+    const errBox = dlg.querySelector('.proj-error');
+    if (r.projectError) { if (errBox) { errBox.textContent = r.projectError; errBox.hidden = false; } return false; }
+    settings.projectList = r.projectList; settings.defaultProject = r.defaultProject; draw(); return true;
+  }
+
   function housekeepingHtml() {
     const hk = settings.housekeeping || {};
     const KINDS = [['chats', 'Chats', 'summed up first, so the topic notes and a summary stay'], ['pictures', 'Pictures and clips Bob made', ''], ['sounds', 'Sounds and music Bob made', ''], ['tasks', 'Finished tasks', 'the chats keep what was said'], ['logs', 'Logbook and update logs', '']];
@@ -339,7 +362,9 @@ export function createCellar() {
   const saveOpen = () => { try { localStorage.setItem(OPEN_KEY, JSON.stringify([...openPanels])); } catch {} };
   const panel = (id, label, note, body, help = '') => `<details class="spanel" data-panel="${esc(id)}" id="sub-${esc(id)}" ${openPanels.has(id) ? 'open' : ''}><summary><span class="spanel-title">${esc(label)}</span>${help}<span class="muted spanel-note">${esc(note)}</span></summary><div class="spanel-body">${body}</div></details>`;
   // More everyday panels slot in here as [id, label, note, () => html] (for example Projects), between How Bob works and This PC.
-  const EVERY_EXTRA = [];
+  // 1.5.34 Projects (folders Bob searches for "my project"), its own panel in the everyday settings.
+  // The note is what a closed panel shows: what's set now.
+  const EVERY_EXTRA = [['ev-projects', '📁 Projects', () => { const n = (settings?.projectList || []).length; return n ? `${n} project${n === 1 ? '' : 's'} · Main: ${settings.defaultProject || 'none'}` : 'No projects yet. Add the folders Bob searches when you say "my project".'; }, () => projectsHtml()]];
 
   function everydayHtml() {
     const st = settings.style || {};
@@ -365,7 +390,7 @@ export function createCellar() {
       ${sswitch('autostart', settings.autostart, 'Launch Bob on start-up', 'Off unless you turn it on.', settings.platform !== 'win32' ? 'disabled' : '')}
       ${sswitch('webSearch', settings.webSearch === true, 'Let Bob search the web', 'Off unless you turn it on. Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page addresses leave your PC.')}
       ${sswitch('autoCheck', settings.updates?.autoCheck, 'Check for updates when Bob starts', 'Off unless you turn it on. Bob only tells you; updating always takes your click.')}
-`)}${EVERY_EXTRA.map(([id, label, note, body]) => panel(id, label, note, body())).join('')}${panel('ev-pc', '💻 This PC and updates', pcSum, `
+`)}${EVERY_EXTRA.map(([id, label, note, body]) => panel(id, label, typeof note === 'function' ? note() : note, body())).join('')}${panel('ev-pc', '💻 This PC and updates', pcSum, `
       <div class="updates srow-foot"><span class="muted">Bob ${esc(settings.version?.label || '')} · Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'} · Free disk: ${hw?.freeGB ?? '?'} GB</span>
         <div class="row"><button type="button" data-checkupdate>Check for updates</button><button type="button" data-welcome>Run first-time setup</button><button type="button" data-pccheck>Check this PC</button><span class="update-out muted"></span></div>
         <div class="update-steps"></div><div class="pc-check" aria-live="polite"></div></div>`)}
@@ -462,6 +487,7 @@ export function createCellar() {
 
   const ADV = [
     ['brains', '🧠 Brains', 'model roles session brains context thinking making', () => rolesHtml()],
+    ['house', '🎨 House style', 'house style defaults default length mood genre music picture style shape clip video sound effects morning time evening night times of day', () => `<p class="muted">Your defaults for music, pictures, clips, sound effects and times of day live on Equip Bob, next to each slot.</p><button type="button" data-gohouse>Open House style on Equip Bob</button>`],
     ['voice', '🔊 Voice details', 'kokoro chatterbox speed hey bob read aloud listen', () => voiceDetailsHtml()],
     ['look', '🎨 Look & feel', 'theme editor now running layout', () => lookExtrasHtml()],
     ['engines', '⚙ Engines & speed', 'unload idle keep alive graphics memory vram engine ollama llama.cpp downloads fit memory speculative decoding draft flags threads batch gaming graphics card borrow automatic never always', () => enginesHtml()],
@@ -540,6 +566,7 @@ export function createCellar() {
     const head = dlg.querySelector('.cellar-head'); if (head) dlg.style.setProperty('--cellar-head-h', head.offsetHeight + 'px');
     const bar = dlg.querySelector('.cellar-tabs'); dlg.style.setProperty('--cellar-tabs-h', (bar ? bar.offsetHeight : 0) + 'px');
     if (tab === 'settings' && settingsQuery) filterSettings();
+    if (houseFocus) { const d = dlg.querySelector(`#house-${houseFocus}`); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); d.querySelector('input, select')?.focus(); houseFocus = null; } }
     if (jumpTo) { const el = dlg.querySelector('#sub-' + CSS.escape(jumpTo)); jumpTo = ''; if (el?.tagName === 'DETAILS') el.open = true; el?.scrollIntoView({ block: 'start' }); }
   }
 
@@ -555,10 +582,12 @@ export function createCellar() {
   }
 
   // ---- Equip Bob ----
+  let houseFocus = null; // 1.5.34: "Change" on a "Used your house style" line opens that House style box
   let eqSelected = 'bob', eqView = (() => { try { return localStorage.getItem('bob-equip-view') || 'doll'; } catch { return 'doll'; } })();
   function eqCtx() {
     return { roles, models: data?.models || [], brains: settings?.sessionBrains || {}, embed: roles?.current?.embed || '', selected: eqSelected, vramGB: hw?.vramGB || hw?.gpu?.vramGB || null, ramGB: hw?.ramGB || null, freeGB: hw?.freeGB ?? null, platform: settings?.platform, showUnsuited,
       packs: data?.packs || [], packId: starterPack, picks: starterPicks, engines: data?.engines || [], starterOpen,
+      houseStyle: settings?.houseStyle || {},
       attributes: settings ? attributesHtml({ personality: settings.personality, look: settings.look, lookText: settings.lookText, lookComments: settings.lookComments, user: settings.userName, callMe: settings.callMe, windowsName: settings.windowsName }) : '' };
   }
   // Starter set: which set, what's ticked (null = the defaults), and what still has to be equipped once it's downloaded.
@@ -656,6 +685,17 @@ export function createCellar() {
         if (r.needsEngine) askEngine(b.closest('td') || b.parentElement); else draw();
         return;
       }
+      if ('gohouse' in b.dataset) { eqView = 'doll'; eqSelected = 'music'; houseFocus = 'music'; setTab('roles'); draw(); await load().catch(() => {}); return; }
+      if ('projbrowse' in b.dataset) { const r = await api('/api/pick-folder', {}); const box = dlg.querySelector('#proj-path'); if (r.folder && box) { box.value = r.folder; projAddState(); const nm = dlg.querySelector('#proj-name'); if (nm && !nm.value) nm.value = r.folder.split(/[\\/]/).filter(Boolean).pop() || ''; } else if (r.error) { const eb = dlg.querySelector('.proj-error'); if (eb) { eb.textContent = r.error; eb.hidden = false; } } return; }
+      if ('projadd' in b.dataset) {
+        const name = dlg.querySelector('#proj-name')?.value.trim(); const dir = dlg.querySelector('#proj-path')?.value.trim();
+        const eb = dlg.querySelector('.proj-error');
+        if (!name || !dir) { if (eb) { eb.textContent = 'Give the project a name and a folder.'; eb.hidden = false; } return; }
+        const list = [...(settings.projectList || []), { name, path: dir }];
+        await saveProjects(list, settings.defaultProject || (list.length === 1 ? name : undefined));
+        return;
+      }
+      if (b.dataset.projremove !== undefined) { const list = (settings.projectList || []).filter((_, i) => i !== Number(b.dataset.projremove)); await saveProjects(list); return; }
       if (b.dataset.removebob !== undefined) {
         const box = dlg.querySelector('.remove-confirm');
         const pl = await api('/api/uninstall');
@@ -812,6 +852,9 @@ export function createCellar() {
     const rb = dlg.querySelector('[data-resetbob]');
     if (rb) rb.disabled = isDefault(p);
   }
+  // 1.5.34 Projects: "Add project" stays greyed out until a folder is filled in.
+  const projAddState = () => { const b = dlg.querySelector('[data-projadd]'); if (b) b.disabled = !dlg.querySelector('#proj-path')?.value.trim(); };
+  dlg.addEventListener('input', (e) => { if (e.target.id === 'proj-path') projAddState(); });
   dlg.addEventListener('input', (e) => { if (tab === 'style') stylePage.onInput(e.target); if (e.target.dataset?.ssearch !== undefined) { settingsQuery = e.target.value; filterSettings(); } if (e.target.dataset?.dial) showDials(dialValues()); });
 
   dlg.addEventListener('change', async (e) => {
@@ -819,6 +862,14 @@ export function createCellar() {
     try {
       if ('advanced' in el.dataset) { advanced = el.checked; try { localStorage.setItem('bob-settings-advanced', advanced ? '1' : '0'); } catch {} draw(); return; }
       if (el.dataset.proxy) { const side = $(el.dataset.proxy); if (side && (side.getAttribute('aria-pressed') === 'true') !== el.checked) side.click(); setTimeout(() => { el.checked = side?.getAttribute('aria-pressed') === 'true'; }, 300); return; }
+      if (el.dataset.mainproject !== undefined) { await saveProjects(settings.projectList || [], el.dataset.mainproject); return; }
+      if (el.dataset.hs) { // 1.5.34 House style boxes (Equip Bob): the whole group is saved, so an emptied box clears
+        const group = el.dataset.hs.split('.')[0];
+        const vals = {};
+        for (const i of dlg.querySelectorAll(`[data-hs^="${group}."]`)) { const k = i.dataset.hs.split('.')[1]; if (i.value !== '') vals[k] = i.type === 'number' ? Number(i.value) : i.value; }
+        const r = await api('/api/settings', { houseStyle: { ...(settings.houseStyle || {}), [group]: vals } });
+        settings.houseStyle = r.houseStyle; return;
+      }
       if (el.dataset.dial) { const p = dialValues(); const r = await api('/api/settings', { personality: p }); settings.personality = r.personality; showDials(r.personality); return; }
       if ('preset' in el.dataset) { const ps = PRESETS.find((x) => x.id === el.value); if (!ps) return; const r = await api('/api/settings', { personality: ps.set }); settings.personality = r.personality; draw(); return; }
       if ('callme' in el.dataset) { const r = await api('/api/settings', { callMe: el.value }); settings.userName = r.userName; settings.callMe = r.callMe; el.value = r.callMe; showDials(dialValues()); flash(el, `Saved. Bob calls you ${r.userName}.`); return; }
@@ -926,7 +977,7 @@ export function createCellar() {
   dlg.addEventListener('close', () => { mid?.classList.remove('paged'); for (const id of ['cellarBtn', 'settingsBtn', 'styleBtn']) $(id)?.classList.remove('on'); $('chatBtn')?.classList.add('on'); sampler.stop(); stylePage.closing(settings); window.dispatchEvent(new Event('bob-caps')); });
 
   return {
-    async open(which = 'shop', pickTab) { mode = which; if (pickTab) setTab(pickTab); else if (which === 'settings') { mode = 'shop'; setTab('settings'); } if (!dlg.open) { mid?.classList.add('paged'); mid ? dlg.show() : dlg.showModal(); } dlg.scrollTop = 0; draw(); await load().catch((e) => { $('cellar-body').innerHTML = `<p class="error">${esc(e.message)}</p>`; }); },
+    async open(which = 'shop', pickTab, opts = {}) { mode = which; if (opts.house) { const slot = { music: 'music', pictures: 'image', video: 'video', sfx: 'sfx' }[opts.house]; if (slot) eqSelected = slot; eqView = 'doll'; houseFocus = opts.house; } if (pickTab) setTab(pickTab); else if (which === 'settings') { mode = 'shop'; setTab('settings'); } if (!dlg.open) { mid?.classList.add('paged'); mid ? dlg.show() : dlg.showModal(); } dlg.scrollTop = 0; draw(); await load().catch((e) => { $('cellar-body').innerHTML = `<p class="error">${esc(e.message)}</p>`; }); },
     async firstRun() {
       try { const s = await api('/api/settings'); if (!s.setupDone) this.open('welcome'); } catch {}
     },

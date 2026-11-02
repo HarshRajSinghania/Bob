@@ -388,6 +388,22 @@ ${set('Never type into password fields', 'On', 'I never type into a password box
 ${set('Stop a command after', '15 minutes', '1 minute to 2 hours.')}</dl>
 <p>Below: <strong>Recipes</strong>, <strong>Schedules</strong>, <strong>Recent file jobs</strong> (with Undo), <strong>Recent commands</strong>, and <strong>Run the self-test</strong>, which checks the Recycle Bin, Undo, tidying, running a program and Stop in a throwaway folder of dummy files. Nothing of yours is touched and no Hand needs to be on. Then ${go('quarantine', 'Quarantine')}: <strong>Let the reviewer quarantine Bob</strong> (off).</p>` },
 
+  { id: 'settings-projects', group: 'Settings', title: 'Settings: Projects', words: 'projects folders code search my project main project default browse unreal android website which project',
+    html: `<p>Your projects are folders with your code or work in them. When you ask me to "search my project files" or talk about "my project", I look here, so I don't have to ask which one.</p>
+<dl>${set('Add project', 'None', 'Give it a name and pick its folder with <strong>Browse…</strong> (or type the folder). I can read and search a project\'s files. Changing them still needs the Files Hand and your OK.')}
+${set('Main project', 'None', 'The one I search first, and the one "my project" means. Pick <strong>No main project</strong> and I search them all equally.')}
+${set('Remove', '', 'Takes the project off my list. The folder and its files are not touched.')}</dl>
+<p>With no projects, I can't search code by name, so I'll offer to look in a folder you point me at instead.</p>` },
+  { id: 'house-style', group: 'Models', title: 'House style: your defaults for music, pictures, clips and times', words: 'house style defaults music mood genre length instrumental lyrics picture style shape square wide tall video clip length sound effects times of day morning afternoon evening night schedule used your default change',
+    html: `<p>On <strong>Equip Bob</strong>, the Painter, Video, Music and Sound effects slots each have a <strong>House style</strong> box. Under the doll there's <strong>What times of day mean</strong>. These are what I use when you don't say, so I can get on with it instead of asking.</p>
+<dl>${set('House style for music', 'Bob picks', 'Genre and mood (like "chiptune, upbeat"), length in seconds, and instrumental or with lyrics.')}
+${set('House style for pictures', 'Bob picks', 'A style (like "clean digital art") and a shape: square, wide or tall.')}
+${set('House style for clips', 'Bob picks', 'A style and a length (1 to 5 seconds).')}
+${set('House style for sound effects', 'Bob picks', 'A length (1 to 20 seconds).')}
+${set('What times of day mean', 'Bob picks', 'What "morning", "afternoon", "evening" and "night" mean for reminders and schedules, like 08:00.')}</dl>
+<p>Every box starts empty. Empty means I pick something sensible and tell you what I picked. Anything you say in the request wins over the defaults. When I use one, the chat says <strong>Used your house style: ...</strong> with a <strong>Change</strong> button that brings you straight to the box.</p>` },
+  { id: 'settings-house', group: 'Settings', title: 'Settings: House style', words: 'house style defaults music pictures clips sound effects times of day equip bob',
+    html: `<p>Your House style (what I use when a request doesn't say: music, pictures, clips, sound effects, times of day) lives on <strong>Equip Bob</strong>, next to each slot. The button here takes you there. See <strong>House style</strong> in Help for every box.</p>` },
   { id: 'settings-housekeeping', group: 'Settings', title: 'Settings: Housekeeping', words: 'tidy old chats pictures logs ask first automatically load a brain tidy up now',
     html: `<dl>${set('Tidy up old things by himself', 'Off', 'Only while I\'m idle (10 minutes quiet, nothing running). I mention old things at most once a day. I\'m tidy, not a nag.')}
 ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for tidying. Leave off while gaming, so the graphics card stays free.')}</dl>

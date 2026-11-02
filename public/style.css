@@ -258,7 +258,7 @@ body.still .meter.moving i { animation: none; }
 .editor { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; margin: 8px 0; }
 .editor label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .editor input[type="color"] { width: 36px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: calc(var(--r) * 0.5); background: none; cursor: pointer; }
-.cellar input[type="text"], .cellar input[type="search"] { font: inherit; padding: 7px; border-radius: var(--r); background: var(--bg); color: var(--text); border: 1px solid var(--line); }
+.cellar input[type="text"], .cellar input[type="search"], .cellar .hs-grid input[type="number"], .cellar .hs-grid input[type="time"] { font: inherit; padding: 7px; border-radius: var(--r); background: var(--bg); color: var(--text); border: 1px solid var(--line); }
 .avatars h4 { margin: 10px 0 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
 .avatars .looks button { width: 72px; padding: 4px; }
 .avatars .looks canvas { width: 48px; height: 48px; }
@@ -890,3 +890,17 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .spanel .mini, .spanel button.link, .spanel input[type="text"], .spanel input:not([type]), .spanel select { min-height: 32px; }
 .spanel .mini { padding: 4px 12px; }
 .cellar .settings { padding-bottom: 160px; }
+
+/* 1.5.34 House style boxes (Equip Bob) and Projects (Settings) */
+.house-style { margin: 8px 0; padding: 6px 10px; border: 1px solid var(--line, #444); border-radius: 8px; }
+.house-style summary { cursor: pointer; font-weight: 600; }
+.hs-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 10px; align-items: center; }
+.hs-grid input, .hs-grid select { width: 100%; min-width: 0; }
+.note.house button.link { font: inherit; }
+.project-list { list-style: none; padding: 0; margin: 6px 0; }
+.project-row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 4px 0; }
+.project-add { display: grid; grid-template-columns: max-content minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; margin-top: 8px; }
+.project-add [data-projadd], .project-add .proj-error { grid-column: 1 / -1; justify-self: start; }
+.project-add #proj-name { grid-column: span 2; }
+.note.house button.link { min-height: 32px; padding: 4px 8px; }
+.project-row .proj-path { overflow-wrap: anywhere; word-break: break-all; }

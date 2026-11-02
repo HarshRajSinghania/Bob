@@ -407,7 +407,8 @@ export function buildTools(cfg) {
     async run({ project, text }) {
       const all = cfg.projects || {};
       if (project && !all[project]) throw new Error(`Unknown project. I know: ${Object.keys(all).join(', ')}`);
-      const roots = project ? [all[project]] : Object.values(all);
+      // 1.5.34: the main project (Settings > Projects) is searched first.
+      const roots = project ? [all[project]] : [...new Set([all[cfg.defaultProject], ...Object.values(all)].filter(Boolean))];
       if (!roots.length) throw new Error('No projects are set up yet, so there\'s nothing to search. I\'ll look in a folder instead: tell me which one, or I\'ll start with Documents. (For you, Bob: use list_folder and read_file. Projects live under "projects" in config.json; there is no switch for them in the app yet.)');
       const needle = String(text || '').toLowerCase();
       if (needle.length < 2) throw new Error('Give me at least 2 characters to look for.');
