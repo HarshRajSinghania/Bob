@@ -184,7 +184,21 @@ async function turn(text, script) {
   check('"make me a picture" answered with only words gets one more go, and the picture is made', paints.length === 1 && r.events.filter((e) => e.type === 'image').length === 1, `${paints.length} ${r.events.map((e) => e.type).join()}`);
   check('...the picture is kept with Bob\'s reply (still there after a reload)', r.hist.some((m) => m.media?.some((x) => x.type === 'image')));
   check('...and the job\'s ledger (saved in the queue) lists the output and the action', r.job.handoff?.outputs?.length === 1 && r.job.handoff.outputs[0].tool === 'make_image' && r.job.handoff.actions.some((a) => a.name === 'make_image' && a.ok), JSON.stringify(r.job.handoff?.outputs));
-  check('...the brain swap back after painting went through the gate', r.job.handoff.steps.some((s) => /painter/.test(s.what || '') && s.state === 'done') && r.job.handoff.steps.filter((s) => s.kind === 'load' && !/painter/.test(s.what)).length >= 2, JSON.stringify(r.job.handoff.steps.map((s) => `${s.kind}:${s.what}:${s.state}`)));
+  // 1.5.20 quick hand-back: the picture was all that was asked, so the brain isn't loaded back just to say so.
+  const loadsAfter = (job) => { const st = job.handoff.steps; const i = st.findIndex((s) => /painter/.test(s.what || '')); return st.slice(i + 1).filter((s) => s.kind === 'load').length; };
+  check('...the picture goes through the gate, and the brain is NOT loaded back after it (quick hand-back)', r.job.handoff.steps.some((s) => /painter/.test(s.what || '') && s.state === 'done') && loadsAfter(r.job) === 0 && replies.length === 1, JSON.stringify(r.job.handoff.steps.map((s) => `${s.kind}:${s.what}:${s.state}`)));
+  check('...Bob\'s reply is the short hand-back line, kept with the picture', r.hist.some((m) => m.role === 'assistant' && /^Here's the picture\. Tell me what to change/.test(m.content) && m.media?.some((x) => x.type === 'image')), JSON.stringify(r.hist.map((m) => [m.role, m.content])));
+}
+{
+  cfg.pictureNoWait = false;
+  const r = await turn('make me a picture of an owl', [call('make_image', { prompt: 'an owl' }), say('Here is your owl.')]);
+  delete cfg.pictureNoWait;
+  const st = r.job.handoff.steps, i = st.findIndex((s) => /painter/.test(s.what || ''));
+  check('with "Show pictures without waiting" off, the brain loads back and answers the old way', i >= 0 && st.slice(i + 1).some((s) => s.kind === 'load') && r.hist.some((m) => m.content === 'Here is your owl.'), JSON.stringify(st.map((s) => `${s.kind}:${s.what}`)));
+}
+{
+  const r = await turn('make me a picture of a boat and save it to a file called boat.png', [call('make_image', { prompt: 'a boat' }), say('Saved it too.')]);
+  check('a picture plus something else asked for: the brain loads back to finish the job', r.hist.some((m) => m.content === 'Saved it too.'), JSON.stringify(r.hist.map((m) => m.content)));
 }
 {
   const r = await turn('show me a picture of the fox', [say('Sure, here you go!'), say('There it is!')]);
@@ -235,6 +249,16 @@ async function turn(text, script) {
   check('the brain status carries the handoff flags', s.handoff && 'card' in s.handoff && 'waiting' in s.handoff);
 }
 
+{
+  const { quickHandBack } = await import('../src/brain.js');
+  const pic = { tool_calls: [{ function: { name: 'make_image' } }] };
+  const ask = { ledger: { expect: { kind: 'picture' } } };
+  check('quick hand-back: brain stayed on the card (fits, or on the processor) -> usual reply', quickHandBack({}, { ...ask, painted: { kind: 'image', count: 1, brainLeft: false } }, pic) === null);
+  check('quick hand-back: the paint call failed -> usual reply', quickHandBack({}, { ...ask, painted: null }, pic) === null);
+  check('quick hand-back: a clip gets its own line', /^Here's the clip/.test(quickHandBack({}, { ledger: { expect: { kind: 'video' } }, painted: { kind: 'video', count: 1, brainLeft: true } }, { tool_calls: [{ function: { name: 'make_video' } }] }) || ''));
+  check('quick hand-back: a picture next to another tool call -> usual reply', quickHandBack({}, { ...ask, painted: { kind: 'image', count: 1, brainLeft: true } }, { tool_calls: [...pic.tool_calls, { function: { name: 'web_search' } }] }) === null);
+  check('quick hand-back: Bob painted without being asked -> usual reply', quickHandBack({}, { ledger: { expect: null }, painted: { kind: 'image', count: 1, brainLeft: true } }, pic) === null);
+}
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -309,6 +309,52 @@
       }
     },
     {
+      "id": "z-image-turbo-q8",
+      "category": "images",
+      "name": "Z-Image Turbo (quick-load version)",
+      "what": "The same fast picture model in a smaller file: about half the download (11 GB). It loads faster and leaves room on a 16 GB card for the Quick brain.",
+      "sizeGB": 11.2,
+      "vramGB": 10,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "small",
+      "needs": "stable-diffusion.cpp",
+      "files": [
+        {
+          "url": "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q8_0.gguf",
+          "role": "diffusionModel",
+          "sha256": "df1c5baa86d1398c979495a6072dbcee79444fdb884a2445582ba0769c44e9a1",
+          "bytes": 6577440704
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
+          "role": "vae",
+          "bytes": 335304388,
+          "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38"
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q8_0.gguf",
+          "role": "llm",
+          "sha256": "391c1e410fd9f4cf2de2b510273b56a84c19ce18f4fa3bfb3774031dac4ef068",
+          "bytes": 4280405600
+        }
+      ],
+      "use": {
+        "painter": {
+          "engine": "sdcpp",
+          "sdcpp": {
+            "image": {
+              "diffusionModel": "$file:diffusionModel",
+              "vae": "$file:vae",
+              "llm": "$file:llm",
+              "steps": 8,
+              "cfg": 1.0
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "z-image-turbo-q5",
       "category": "images",
       "name": "Z-Image Turbo (8 GB card version)",

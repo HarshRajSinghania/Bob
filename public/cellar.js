@@ -323,6 +323,7 @@ export function createCellar() {
     return `<label class="pick${held ? ' dim' : ''}"><strong>Free memory after Bob has been quiet for</strong>
         <select data-set="keepAlive" aria-label="Free memory after Bob has been quiet for">${kaOpts.some(([v]) => v === ka) ? '' : `<option value="${esc(ka)}" selected>${esc(ka)}</option>`}${kaOpts.map(([v, label]) => `<option value="${v}" ${v === ka ? 'selected' : ''}>${label}</option>`).join('')}</select>
         <span class="muted">${held ? 'Not used right now: "Free memory when Bob is idle" on the chat page is off, so his small brain stays loaded.' : 'Used while "Free memory when Bob is idle" on the chat page is on.'} Big brains (Coding, Deep thought) are freed after 2 minutes, or sooner if you pick less.</span></label>
+      ${sswitch('pictureNoWait', settings.pictureNoWait !== false, 'Show pictures without waiting for Bob\'s brain', 'Bob shows a finished picture or clip straight away with a short line, instead of loading his brain back just to talk about it. Turn off if you want him to comment on each one.')}
       ${sswitch('quickOnCpu', settings.quickOnCpu === true, 'Keep the graphics card free for quick answers', 'Low effort answers run on the processor, so games and pictures keep the card. Replies start much slower (about half a minute). Applies in the Normal and Light sessions.')}
       <label class="pick"><strong>Bob's engine</strong>
         <select data-set="engine"><option value="ollama" ${settings.engine === 'ollama' ? 'selected' : ''}>Ollama (if you already have it)</option><option value="llamacpp" ${settings.engine === 'llamacpp' ? 'selected' : ''}>Bob's own (llama.cpp, nothing else needed)</option></select>
@@ -729,6 +730,7 @@ export function createCellar() {
       }
       if (el.dataset.sctx) { const v = el.value ? Number(el.value) : null; const r = await api('/api/settings', { sessionCtx: { [el.dataset.sctx]: v } }); settings.sessionCtx = r.sessionCtx; flash(el, 'Saved. Applies when the brain next loads.'); return; }
       if (el.dataset.sbrain) { const r = await api('/api/settings', { sessionBrains: { [el.dataset.sbrain]: el.value } }); settings.sessionBrains = r.sessionBrains; flash(el, 'Saved.'); return; }
+      if (el.dataset.set === 'pictureNoWait') { const r = await api('/api/settings', { pictureNoWait: el.checked }); settings.pictureNoWait = r.pictureNoWait; el.checked = r.pictureNoWait; return; }
       if (el.dataset.set === 'quickOnCpu') { const r = await api('/api/settings', { quickOnCpu: el.checked }); settings.quickOnCpu = r.quickOnCpu; el.checked = r.quickOnCpu; return; }
       if (el.dataset.set === 'resumeJobs') { const r = await api('/api/settings', { resumeJobs: el.checked }); settings.resumeJobs = r.resumeJobs; el.checked = r.resumeJobs; return; }
       if (el.dataset.set === 'allTools') { const r = await api('/api/settings', { allTools: el.checked }); settings.allTools = r.allTools; el.checked = r.allTools; return; }

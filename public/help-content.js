@@ -62,10 +62,11 @@ export const HELP = [
     html: `<p>A starter set is a ready-made selection for your kind of graphics card: 16 GB or more, 8 GB, 6 GB (most laptops), or no graphics card. Bob picks the set by reading your card, and marks it <em>(this PC)</em>. You can pick another set and untick anything before you confirm.</p>
 <p>Everything in the starter sets is free to use, including for commercial work. The "8 GB" and "6 GB" versions are the same models squeezed to fit smaller cards: pictures lose a little fine detail but look much the same.</p>` },
 
-  { id: 'memory-brains', group: 'Models', title: 'Memory, brains and swaps', words: 'free memory idle unload small brain big brain swap one brain context graphics memory ram keep light tools all tools at once',
+  { id: 'memory-brains', group: 'Models', title: 'Memory, brains and swaps', words: 'free memory idle unload picture wait small brain big brain swap one brain context graphics memory ram keep light tools all tools at once',
     html: `<ul><li><strong>Free memory when Bob is idle</strong> (top of the chat, on unless you turn it off): while Bob is quiet nothing stays on your graphics card. Typing loads his small brain again in a few seconds.</li>
 <li><strong>Big brains</strong> (Coding, Deep thought) load only for their job and go about 2 minutes later.</li>
 <li><strong>Brain swaps:</strong> when a job needs a different brain, Bob puts one away and loads the other, usually 10 to 20 seconds. Using one brain for several jobs avoids that.</li>
+<li><strong>Show pictures without waiting for Bob's brain</strong> (Settings, Advanced, on unless you turn it off): after a picture or clip, Bob shows it straight away with a short line instead of loading his brain back first. His brain loads again when you start typing.</li>
 <li><strong>One brain (snappier)</strong> in Settings makes every copy of Bob use the main brain, so he never swaps.</li>
 <li><strong>Context</strong> (how much Bob keeps in mind): more lets him read longer files and chats, but uses more graphics memory and loads slower. Set it per session in Settings, Brains.</li>
 <li><strong>Tools only when needed:</strong> Bob starts each chat with a few everyday tools, and adds the picture, file and Hands ones when a message needs them. That leaves more room for your chat. To send them all every time, turn on <strong>Give Bob all his tools at once</strong> in Settings, Show advanced settings, Engines &amp; speed.</li>

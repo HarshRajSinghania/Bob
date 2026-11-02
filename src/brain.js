@@ -80,6 +80,21 @@ export const ALT_ROUTE_NUDGE = (who) => ` (If another route could still do this,
 export const ALT_ROUTE_DONE = (who) => ` (You already tried another way this turn. Stop here and tell ${who} plainly what failed, in the tools' own words.)`;
 const DOING_TOOLS = new Set(['write_file', 'edit_file', 'save_spreadsheet']);
 const isLook = (name) => ['app_look', 'list_schedules'].includes(name);
+
+// 1.5.20 quick hand-back: the line Bob shows with a finished picture or clip when the brain had to leave the card for
+// the painter and nothing else was asked for. null = reply the usual way (brain loads back and talks about it).
+// Setting pictureNoWait (Settings, on): off brings back the old way.
+const PAINT_TOOLS = new Set(['make_image', 'make_video']);
+export function quickHandBack(cfg, ctx, reply) {
+  if (cfg?.pictureNoWait === false) return null;
+  const calls = reply?.tool_calls || [];
+  if (!calls.length || !calls.every((c) => PAINT_TOOLS.has(c.function?.name))) return null;
+  const p = ctx?.painted;
+  if (!p?.brainLeft || p.count !== calls.length) return null; // a call failed, or the brain never left: talk as usual
+  const ex = ctx.ledger?.expect;
+  if (!ex || !['picture', 'show', 'video'].includes(ex.kind) || ex.also?.length) return null; // more was asked for
+  return p.kind === 'video' ? "Here's the clip. Tell me what to change, or ask for another." : "Here's the picture. Tell me what to change, or ask for another.";
+}
 const callKey = (name, args) => { let a = args; if (typeof a === 'string') { try { a = JSON.parse(a); } catch {} } return `${name}|${JSON.stringify(a ?? {})}`; };
 const CANT_NUDGE = 'You now have every tool you can use on this PC. If one of them does what was asked, call it now. If none does, say so in one line; don\'t repeat yourself.';
 const EMPTY_NUDGE = 'Your last reply was empty. You now have every tool you can use on this PC. Do what was asked: call the right tool now (for a picture, make_image), or answer in words.';
@@ -991,6 +1006,7 @@ export class Brain {
       } else if (!reply.tool_calls && this.checkTurn(ctx, reply, true)) continue; // asked for something that didn't happen: one more go
       if (!reply.tool_calls) { this.keepGroups(sessionId, used); return; }
       let ended = false;
+      ctx.painted = null; // what the painter made in this round (for the quick hand-back below)
       for (const call of reply.tool_calls) {
         const name = call.function?.name;
         // A tool from a group that isn't added yet: small brains sometimes call it straight away. Add its group and run it.
@@ -1025,6 +1041,18 @@ export class Brain {
         msgs.push({ role: 'tool', tool_name: name, content: res.text });
         if (HAND_TOOLS.has(name) && !/^Error:|said no/.test(String(res.text))) ctx.handsDid = true;
         if (res.endsTurn) ended = true;
+      }
+      // 1.5.20: a picture or clip that was all the user asked for is shown with a short line, instead of loading the
+      // brain back onto the card (6 s for the quick brain, 20-30 s for a big one) just to say "here it is".
+      // The brain loads again when the user starts typing (or right away with "Free memory when Bob is idle" off).
+      const quick = !ended && quickHandBack(this.cfg, ctx, reply);
+      if (quick) {
+        emit({ type: 'token', text: `${String(reply.content || '').trim() ? '\n\n' : ''}${quick}` });
+        msgs.push({ role: 'assistant', content: quick });
+        this.log('handoff', 'showed the result without loading the brain back (it loads when typing starts)');
+        this.checkTurn(ctx, msgs.at(-1), false);
+        this.keepGroups(sessionId, used);
+        return;
       }
       if (ended) {
         // The hat's answer was already shown to the user; keep it in the history as Bob's words.
@@ -1196,6 +1224,7 @@ export class Brain {
       onRetry: (e) => { this.log('handoff', `painting failed (${e.message.slice(0, 120)}); trying once more`); ctx.ledger?.step('retry', { what: 'painter', why: e.message }).done(); ctx.emit({ type: 'announce', text: `Making the ${video ? 'clip' : 'picture'} didn't work. Trying once more.` }); }
     });
     ctx.emit({ type, url: `/images/${encodeURIComponent(name)}`, file });
+    ctx.painted = { kind, count: (ctx.painted?.count || 0) + 1, brainLeft: Boolean(ctx.painted?.brainLeft || unloaded.length) };
     this.setState('thinking', '', null);
     return `${video ? 'Made a clip' : 'Painted a picture'}, saved as ${file}. The user can see it in the chat.`;
   }
