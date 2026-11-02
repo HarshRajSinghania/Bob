@@ -282,10 +282,11 @@ export function createCellar() {
 
   function enginesHtml() {
     const ka = settings.ollamaKeepAlive || '5m';
-    const kaOpts = [['5m', '5 minutes'], ['10m', '10 minutes'], ['30m', '30 minutes'], ['1h', '1 hour'], ['-1', 'Never (keep it loaded)']];
-    return `<label class="pick"><strong>Free memory after Bob has been quiet for</strong>
+    const kaOpts = [['1m', '1 minute'], ['2m', '2 minutes'], ['150s', '2½ minutes'], ['5m', '5 minutes'], ['10m', '10 minutes'], ['15m', '15 minutes'], ['30m', '30 minutes'], ['1h', '1 hour']];
+    const held = settings.brainMode === 'always';
+    return `<label class="pick${held ? ' dim' : ''}"><strong>Free memory after Bob has been quiet for</strong>
         <select data-set="keepAlive" aria-label="Free memory after Bob has been quiet for">${kaOpts.some(([v]) => v === ka) ? '' : `<option value="${esc(ka)}" selected>${esc(ka)}</option>`}${kaOpts.map(([v, label]) => `<option value="${v}" ${v === ka ? 'selected' : ''}>${label}</option>`).join('')}</select>
-        <span class="muted">Same setting as "Free memory when Bob is idle" on the chat page. Never turns that switch off.</span></label>
+        <span class="muted">${held ? 'Not used right now: "Free memory when Bob is idle" on the chat page is off, so his small brain stays loaded.' : 'Used while "Free memory when Bob is idle" on the chat page is on.'} Big brains (Coding, Deep thought) are freed after 2 minutes, or sooner if you pick less.</span></label>
       <label class="pick"><strong>Bob's engine</strong>
         <select data-set="engine"><option value="ollama" ${settings.engine === 'ollama' ? 'selected' : ''}>Ollama (if you already have it)</option><option value="llamacpp" ${settings.engine === 'llamacpp' ? 'selected' : ''}>Bob's own (llama.cpp, nothing else needed)</option></select>
         <span class="muted">Takes effect next time Bob starts.</span></label>

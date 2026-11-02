@@ -97,19 +97,9 @@ export function onHandsEvent(ev, { add, scrollDown, note }) {
   return false;
 }
 
-// ---- Stop everything (top of the window, shown while Hands are on) ----
-let stopAllBtn = null;
-export function setupStopAll(btn, { note } = {}) {
-  stopAllBtn = btn;
-  btn.onclick = async () => {
-    btn.disabled = true;
-    try { const r = await post('/api/hands/stop-all'); note?.(`Stopped ${r.stopped} thing${r.stopped === 1 ? '' : 's'}. All Hands are off now; turn them back on in Settings.`); showStopAll(false); }
-    catch (e) { note?.(e.message, 'error'); }
-    btn.disabled = false;
-  };
-  fetch('/api/hands').then((r) => r.json()).then((v) => showStopAll(v.settings?.enabled || v.running?.length)).catch(() => {});
-}
-function showStopAll(on) { if (stopAllBtn) stopAllBtn.hidden = !on && !runs.size; }
+// 1.5.3: the "Stop everything" button above Send is gone; the ✋ Hands button on the chat page is the one kill switch.
+// Turning Hands off for good is the master switch in Settings, Hands. showStopAll is kept as a no-op for the callers below.
+function showStopAll() {}
 
 // ---- Settings: the Hands section ----
 // Schedules: what's set up, a switch each, Remove, and the separate opt-in Windows task.
@@ -135,7 +125,7 @@ export async function mountHandsSettings(box) {
     box.innerHTML = `<strong>Hands</strong> <span class="tag">off unless you turn them on</span>
       <p class="muted">Hands let Bob do things on this PC, not just talk about them. Each one is off until you switch it on. Even then he shows you exactly what he'll do (every file, or the exact command) and waits for your click every time. "Allow the rest of this job" only covers the same kind of thing until that job ends. He never runs as administrator, never handles passwords, and never touches secret files, read-only projects or his own settings. Everything goes in the logbook.</p>
       <button type="button" class="stop-all big" data-hstopall>✋ Stop everything</button>
-      <label class="switch"><input type="checkbox" data-hmaster ${s.enabled ? 'checked' : ''}><span><strong>Let Bob use Hands</strong><br><span class="muted">The master switch. Off = every Hand below is off.</span></span></label>
+      <label class="switch"><input type="checkbox" data-hmaster ${s.enabled ? 'checked' : ''}><span><strong>Let Bob use Hands</strong><br><span class="muted">The master switch. Off = every Hand below is off.</span>${s.enabled && s.held ? '<br><span class="warn-text">Stopped right now with the Hands switch on the chat page. Click it there to carry on.</span>' : ''}</span></label>
       ${v.hands.map((h) => { const [first, ...rest] = String(h.what || '').split(/(?<=\.)\s+/); return `<label class="switch${s.enabled ? '' : ' dim'}"><input type="checkbox" data-hand="${esc(h.id)}" ${s[h.id]?.on ? 'checked' : ''} ${s.enabled ? '' : 'disabled'}><span><strong>${esc(h.label)}</strong><br><span class="muted">${esc(first)}</span></span></label>${rest.length ? `<details class="more"><summary>More</summary><p class="muted">${esc(rest.join(' '))}</p></details>` : ''}`; }).join('')}
       <div class="hands-folders"><strong>Folders the Files Hand may work in</strong>
         ${folders.length ? folders.map((f) => `<label class="switch small"><input type="checkbox" data-hfolder="${esc(f)}" ${s.folders.includes(f) ? 'checked' : ''}><span>${esc(f)}</span></label>`).join('') : '<p class="muted">No folders yet.</p>'}

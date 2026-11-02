@@ -10,7 +10,15 @@ export function createBrainBar({ post, note }) {
   let st = null, timer = null, lastWake = 0;
 
   const secs = (n) => (n ? `about ${n} seconds` : 'a few seconds');
-  const list = () => st.models.map((m) => `${m.name} ${m.gb} GB${m.onCard ? '' : ' (in system memory)'}`).join(', ');
+  // "5.8 GB on the graphics card · 1.2 GB in RAM": RAM shows when part of a brain sits in system memory (1.5.3).
+  const where = (cardGB, ramGB, onCard) => {
+    if (ramGB == null) return `${cardGB} GB ${onCard ? 'on the graphics card' : 'in RAM'}`;
+    const parts = [];
+    if (cardGB > 0) parts.push(`${cardGB} GB on the graphics card`);
+    if (ramGB > 0) parts.push(`${ramGB} GB in RAM`);
+    return parts.join(' · ') || '0 GB';
+  };
+  const list = () => st.models.map((m) => `${m.name} ${where(m.gb, m.ramGB, m.onCard)}`).join(', ');
 
   function draw() {
     if (!st) return;
@@ -20,17 +28,17 @@ export function createBrainBar({ post, note }) {
     swLabel.title = on
       ? `On: gives the graphics memory back after Bob has been quiet for ${st.sleepAfter || '5 minutes'}. Typing loads it again (${secs(st.wakeSeconds)}). Change the time in Settings, Advanced, Engines & speed.`
       : st.bigSession
-        ? `Off: in the ${st.session} session Bob's brain is a big one, so it's still freed about 2 minutes after each job.`
+        ? `Off: in the ${st.session} session Bob's brain is a big one, so it's still freed ${st.bigGrace || '2 minutes'} after each job.`
         : 'Off: Bob\'s small brain stays loaded so he answers straight away. Big brains (coding, deep thought, pictures, video) are still freed right after their job.';
     const chat = st.models.find((m) => m.chat);
-    const where = chat && !chat.onCard ? 'in system memory' : 'on the graphics card';
+    const mem = where(st.gb, st.ramGB, !(chat && !chat.onCard));
     let text, title;
     if (!st.engineOk) { text = 'Brain: engine not answering'; title = 'Bob can\'t reach his engine. Check it\'s running (Settings, Advanced, Engines & speed).'; }
     else if (st.state === 'waking') { text = 'Brain: loading...'; title = `Loading the small brain (${secs(st.wakeSeconds)}).`; }
-    else if (st.state === 'working') { text = `Brain: working · ${st.gb} GB ${where}`; title = `In memory now: ${list() || 'loading'}. Big brains are freed when the job is done.`; }
+    else if (st.state === 'working') { text = `Brain: working · ${mem}`; title = `In memory now: ${list() || 'loading'}. Big brains are freed when the job is done.`; }
     else if (st.state === 'awake') {
-      text = `Brain: loaded · ${st.gb} GB ${where}`;
-      title = `In memory: ${list()}. ` + (!on && !st.bigSession ? 'Stays loaded (Free memory when Bob is idle is off).' : st.bigSession ? 'Freed about 2 minutes after the job.' : `Freed after ${st.sleepAfter || '5 minutes'} quiet.`);
+      text = `Brain: loaded · ${mem}`;
+      title = `In memory: ${list()}. ` + (!on && !st.bigSession ? 'Stays loaded (Free memory when Bob is idle is off).' : st.bigSession ? `Freed ${st.bigGrace || '2 minutes'} after the job.` : `Freed after ${st.sleepAfter || '5 minutes'} quiet.`);
     } else { text = 'Brain: memory freed'; title = on || st.bigSession ? `Nothing on the graphics card. Typing loads the small brain (${secs(st.wakeSeconds)}).` : 'Loading the small brain shortly.'; }
     pillText.textContent = text;
     pill.title = title;

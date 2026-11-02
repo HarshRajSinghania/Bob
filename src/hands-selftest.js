@@ -30,7 +30,7 @@ export async function selfTest(cfg, { log = () => {}, run = runCommand, platform
   const work = path.join(root, 'work');
   fs.mkdirSync(work, { recursive: true });
   // A copy of the settings that only knows the throwaway folder, with its own undo journal.
-  const tcfg = { ...cfg, dataDir: path.join(root, 'data'), hands: { ...(cfg.hands || {}), enabled: true, files: { on: true }, run: { on: true }, folders: [work] } };
+  const tcfg = { ...cfg, dataDir: path.join(root, 'data'), hands: { ...(cfg.hands || {}), enabled: true, held: false, files: { on: true }, run: { on: true }, folders: [work] } };
   fs.mkdirSync(tcfg.dataDir, { recursive: true });
   const old = new Date(Date.now() - 3600_000);
   const dummy = (name) => { const f = path.join(work, name); fs.writeFileSync(f, `Bob's self-test file. Safe to delete.\n`); fs.utimesSync(f, old, old); return f; };

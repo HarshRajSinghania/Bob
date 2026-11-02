@@ -221,6 +221,7 @@ Hands are Bob's way of doing things for you on your PC rather than just talking 
 Hands are built to be careful:
 
 - **Every Hand is off** until you switch it on in Settings (Show advanced settings, Hands), and each one has an off switch you can flip at any time.
+- **The ✋ Hands button on the chat page** (next to "Free memory when Bob is idle") is a kill switch. Click it and Hands stop at once: anything running stops, waiting cards are answered No, and the button shows *Stopped*. Click it again to let Bob carry on. It never switches a Hand on: if Hands are off in Settings it says *Off in Settings* and has nothing to stop.
 - **Bob shows you exactly what he's about to do** (a preview card) and waits for your click.
 - "**Allow for the rest of this job**" is something you have to choose, and it ends when the job ends.
 - File changes keep an **undo** list, and anything removed goes to the Recycle Bin.

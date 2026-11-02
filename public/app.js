@@ -12,8 +12,9 @@ import { createLayout } from './layout.js';
 import { esc, render, renderRich, fileCard } from './rich.js';
 import { createTopics } from './topics.js';
 import { createTidy } from './tidy.js';
-import { handsApproval, onHandsEvent, setupStopAll } from './hands.js';
+import { handsApproval, onHandsEvent } from './hands.js';
 import { createBrainBar } from './brain-bar.js';
+import { createHandsSwitch } from './hands-switch.js';
 
 const cellar = createCellar();
 const api = async (url, data) => {
@@ -29,6 +30,7 @@ const layout = createLayout({ post: (u, d) => post(u, d), openTasks: () => tasks
 const $ = (id) => document.getElementById(id);
 const log = $('log'), input = $('input'), sendBtn = $('send'), stopBtn = $('stop'), statusEl = $('status');
 const brainBar = createBrainBar({ post: (u, d) => post(u, d), note: (t, k) => note(t, k) });
+const handsSwitch = createHandsSwitch({ note: (t, k) => note(t, k) });
 const bobCanvas = $('bob'), bobCtx = bobCanvas.getContext('2d');
 bobCtx.imageSmoothingEnabled = false;
 
@@ -308,6 +310,7 @@ function onEvent(ev) {
   if (ev.type === 'brain') return;
   if (ev.type === 'status') return setStatus(ev);
   if (ev.sessionId && ev.sessionId !== sessionId && ev.type !== 'reminder') return;
+  if (ev.type === 'hands') handsSwitch.update(ev.settings);
   if (onHandsEvent(ev, { add, scrollDown, note })) return;
   switch (ev.type) {
     case 'queue':
@@ -732,7 +735,6 @@ async function start() {
   try { const d = await (await fetch('/api/downloads')).json(); downloads.update(d); layout.downloads(d); drawDownloadsBadge(d); for (const x of d) if (x.state === 'downloading') showDownload({ ...x, phase: 'downloading' }); } catch {}
   window.addEventListener('bob-downloads', () => downloads.open());
   connect();
-  setupStopAll($('handsStopAll'), { note });
   input.focus();
   applyCaps();
   cellar.firstRun();

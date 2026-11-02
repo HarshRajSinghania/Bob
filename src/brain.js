@@ -24,7 +24,7 @@ import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
 import { scheduleTools } from './hands-schedules.js';
 import { toolsOff } from './hands-settings.js';
-import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, BIG_GRACE_MS } from './brain-mode.js';
+import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -120,7 +120,7 @@ export class Brain {
         if (this.turns.size || this.waking) return;
         const g = await (this.engine.unload ? this.engine.unload(chat) : this.engine.unloadAll()).catch(() => []);
         if (g.length) { this.log('model', `let go of ${g.join(', ')} (big brain, idle)`); this.broadcast({ type: 'brain' }); }
-      }, BIG_GRACE_MS);
+      }, bigGraceMs(this.cfg));
       this.graceTimer.unref?.();
     }
     if (holdsChatBrain(this.cfg) && !this.turns.size) await this.wake('always on');
@@ -144,14 +144,20 @@ export class Brain {
     const chat = chatBrain(this.cfg);
     const mine = loaded.filter((m) => isBobs(this.cfg, m.name) || sameModel(m.name, chat.model));
     const gb = (b) => Math.round((b || 0) / 1e8) / 10;
-    const models = mine.map((m) => ({ name: m.name, gb: gb(m.vram || m.size), onCard: m.vram > 0 || (!m.vram && !chat.cpu), chat: sameModel(m.name, chat.model) }));
+    // gb: on the graphics card; ramGB: the part in system memory (RAM), when the engine says how it splits.
+    const models = mine.map((m) => {
+      const split = m.split !== false && m.size > 0;
+      const ramGB = split ? gb(Math.max(0, m.size - (m.vram || 0))) : null;
+      return { name: m.name, gb: split ? gb(m.vram || 0) : gb(m.vram || m.size), ramGB, onCard: m.vram > 0 || (!m.vram && !chat.cpu && !split), chat: sameModel(m.name, chat.model) };
+    });
+    const ramKnown = models.some((m) => m.ramGB != null);
     const state = this.waking ? 'waking' : this.turns.size ? 'working' : models.length ? 'awake' : 'asleep';
     let wakeSeconds = null;
     try { if (chat.model) wakeSeconds = await this.engine.estimateLoad(chat.model); } catch {}
     return {
       mode: brainMode(this.cfg), holds: holdsChatBrain(this.cfg), bigSession: bigSession(this.cfg), session: currentSession(this.cfg).label,
-      state, models, gb: Math.round(models.reduce((a, m) => a + m.gb, 0) * 10) / 10,
-      chatBrain: chat.model || null, sleepAfter: sleepAfterText(this.cfg), wakeSeconds, engineOk
+      state, models, gb: Math.round(models.reduce((a, m) => a + m.gb, 0) * 10) / 10, ramGB: ramKnown ? Math.round(models.reduce((a, m) => a + (m.ramGB || 0), 0) * 10) / 10 : null,
+      chatBrain: chat.model || null, sleepAfter: sleepAfterText(this.cfg), bigGrace: msText(bigGraceMs(this.cfg)), wakeSeconds, engineOk
     };
   }
 

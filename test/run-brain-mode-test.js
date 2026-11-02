@@ -23,6 +23,14 @@ check('off keeps the small brain', brainMode({ brainMode: 'always' }) === 'alway
 check('Advanced "Never" (an old -1 keep-alive) is the same as the switch off', brainMode({ ollamaKeepAlive: '-1' }) === 'always');
 check('off does not hold a big brain: Coding and Deep thought sessions still free it', !holdsChatBrain({ brainMode: 'always', session: 'deep', models: { bob: 'a' } }) && !holdsChatBrain({ brainMode: 'always', session: 'coding', models: { bob: 'a' } }) && holdsChatBrain({ brainMode: 'always', session: 'light', models: { bob: 'a' } }));
 check('the label says the idle time in words', sleepAfterText({}) === '5 minutes' && sleepAfterText({ ollamaKeepAlive: '1h' }) === '1 hour' && sleepAfterText({ ollamaKeepAlive: '30m' }) === '30 minutes' && sleepAfterText({ ollamaKeepAlive: '-1' }) === null);
+{
+  const { msText, bigGraceMs, keepTime } = await import('../src/brain-mode.js');
+  check('new times read naturally: 1 minute, 2½ minutes, 15 minutes', sleepAfterText({ ollamaKeepAlive: '1m' }) === '1 minute' && sleepAfterText({ ollamaKeepAlive: '150s' }) === '2½ minutes' && sleepAfterText({ ollamaKeepAlive: '15m' }) === '15 minutes' && msText(90000) === '1½ minutes');
+  check('big brains go after 2 minutes, or sooner if the time is shorter', bigGraceMs({ ollamaKeepAlive: '1m' }) === 60000 && bigGraceMs({ ollamaKeepAlive: '30m' }) === 120000 && bigGraceMs({ brainMode: 'always' }) === 120000);
+  check('an old Never ("-1") shows as switch off plus 5 minutes', keepTime({ ollamaKeepAlive: '-1' }) === '5m' && brainMode({ ollamaKeepAlive: '-1' }) === 'always' && keepTime({ ollamaKeepAlive: '150s' }) === '150s');
+  const srv = fs.readFileSync(new URL('../src/server.js', import.meta.url), 'utf8');
+  check('picking a time never flips the chat-page switch', /ollamaKeepAlive: b\.ollamaKeepAlive, brainMode: brainMode\(cfg\)/.test(srv) && !/brainMode: 'wake' \}\);/.test(srv));
+}
 check('model names match with or without :latest', sameModel('gemma4', 'gemma4:latest') && !sameModel('gemma4:e4b', 'gemma4:26b'));
 {
   const sc = { settingsFile: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bob-set-')), 'settings.json') };

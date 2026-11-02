@@ -112,14 +112,19 @@ export function createLayout({ post, openTasks, openDownloads }) {
     clearTimeout(gpuTimer);
     if (body.classList.contains('right-hidden') || document.hidden) return;
     try {
-      const { gpu } = await (await fetch('/api/gpu')).json();
+      const { gpu, ram, brain } = await (await fetch('/api/gpu')).json();
       const el = $('nowGpu');
-      if (!gpu) el.textContent = `No NVIDIA card info.${model ? ` Brain: ${model}` : ''}`;
-      else {
-        const pct = Math.min(100, Math.round((gpu.usedGB / gpu.totalGB) * 100));
-        el.innerHTML = `<div class="meter"><i style="width:${pct}%"></i></div><span></span>`;
-        el.querySelector('span').textContent = `${gpu.usedGB} of ${gpu.totalGB} GB in use${model ? ` · ${model}` : ''}`;
-      }
+      // 1.5.3: graphics card and system memory (RAM), each with a meter; the brain by its friendly name.
+      const row = (label, m) => {
+        const pct = Math.min(100, Math.round((m.usedGB / m.totalGB) * 100));
+        return `<div class="mem-row"><span class="mem-label"></span><div class="meter"><i style="width:${pct}%"></i></div><span class="mem-text"></span></div>`;
+      };
+      el.innerHTML = `${gpu ? row('Graphics card', gpu) : '<div class="mem-row"><span class="mem-label"></span><span class="mem-text"></span></div>'}${ram?.totalGB ? row('RAM', ram) : ''}${brain ? '<div class="mem-brain"></div>' : ''}`;
+      const rows = el.querySelectorAll('.mem-row');
+      rows[0].querySelector('.mem-label').textContent = 'Graphics card';
+      rows[0].querySelector('.mem-text').textContent = gpu ? `${gpu.usedGB} of ${gpu.totalGB} GB in use` : 'not detected';
+      if (rows[1]) { rows[1].querySelector('.mem-label').textContent = 'RAM'; rows[1].querySelector('.mem-text').textContent = `${ram.usedGB} of ${ram.totalGB} GB in use`; }
+      if (brain) el.querySelector('.mem-brain').textContent = `Brain: ${brain}`;
     } catch {}
     gpuTimer = setTimeout(pollGpu, 5000);
   }

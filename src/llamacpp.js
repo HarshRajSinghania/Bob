@@ -66,7 +66,9 @@ export class LlamaCpp {
     if (!(this.current && this.child && this.child.exitCode === null)) return [];
     let size = 0;
     try { size = fs.statSync(this.resolve(this.current).gguf).size; } catch {}
-    return [{ name: this.current, size, vram: await this.vramOf(this.child.pid) }];
+    const vram = await this.vramOf(this.child.pid);
+    // Without a per-process figure from nvidia-smi, how the model splits between card and RAM is unknown.
+    return [{ name: this.current, size, vram, split: vram > 0 }];
   }
 
   // Graphics memory llama-server holds, in bytes, from nvidia-smi (ships with the NVIDIA driver). 0 when unknown.

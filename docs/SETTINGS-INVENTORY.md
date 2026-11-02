@@ -49,4 +49,5 @@ Update this file in the same handover as any change to settings.
 | First-time setup | What should I call you?; Setup pack; model ticks | suggested pack | ok |
 
 ## Not yet reviewed
+- 1.5.3 chat page: ✋ Hands kill switch (On / Stopped / Off in Settings; only stops, never switches on) and the Memory section (Graphics card + RAM meters, Brain: friendly name).
 - Wake on input / Always on toggle and the memory label on the chat page (thread "Keep Bob light when idle"). Waiting for its handover.

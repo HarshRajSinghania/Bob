@@ -28,9 +28,10 @@ export const HANDS = {
 
 const isAbs = (p) => typeof p === 'string' && p.length < 400 && !p.includes('\0') && (/^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('/'));
 
-// The settings, cleaned. enabled = the master switch. Each Hand has { on }. folders = where the Files hand may work.
+// The settings, cleaned. enabled = the master switch (Settings). held = the chat-page kill switch: it can only stop
+// Hands that Settings has on, never switch anything on. Each Hand has { on }. folders = where the Files hand may work.
 export function cleanHands(v = {}) {
-  const out = { enabled: v.enabled === true };
+  const out = { enabled: v.enabled === true, held: v.held === true };
   for (const id of Object.keys(HANDS)) out[id] = { on: v[id]?.on === true };
   out.folders = [...new Set([].concat(v.folders || []).filter(isAbs))].slice(0, 30);
   out.timeoutMin = [1, 5, 15, 30, 60, 120].includes(Number(v.timeoutMin)) ? Number(v.timeoutMin) : 15;
@@ -38,10 +39,16 @@ export function cleanHands(v = {}) {
 }
 export const handsSettings = (cfg) => cleanHands(cfg.hands || {});
 
-// Is this Hand usable right now? Both the master switch and its own switch must be on.
+// Is this Hand usable right now? The master switch and its own switch must be on, and the chat-page switch not stopped.
 export function handOn(cfg, id) {
   const h = handsSettings(cfg);
-  return h.enabled && h[id]?.on === true;
+  return h.enabled && !h.held && h[id]?.on === true;
+}
+// Why a Hand can't be used, in words for Bob to pass on.
+export function handOffWhy(cfg, id) {
+  const who = cfg.userName || 'The user', h = handsSettings(cfg);
+  if (h.enabled && h.held && h[id]?.on) return `Hands are stopped with the Hands switch on the chat page. ${who} can switch them back on there.`;
+  return `The ${HANDS[id].label} Hand is switched off. ${who} can turn it on in Settings, Hands.`;
 }
 
 // The tool names that belong to Hands that are off right now (brain.toolSchemas hides them; each tool checks again when run).

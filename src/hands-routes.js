@@ -4,11 +4,13 @@
 //   POST /api/hands/settings   { enabled?, files: { on }?, run: { on }?, folders?, timeoutMin? }
 //   POST /api/hands/stop       { runId }  stop one running command
 //   POST /api/hands/stop-all   stop everything a Hand is doing, deny waiting Hand cards, all Hands off
+//   POST /api/hands/hold       { held } the chat-page kill switch: true stops (works from anywhere), false only on the PC
+//                              and only when Settings has Hands on; it never changes Settings
 //   POST /api/hands/undo       { id? }    undo a file job (the user's own click is the approval)
 //   POST /api/hands/recipes    { save: { name, cmd, args, cwd } } or { remove: name }
 //   POST /api/hands/selftest   run the self-test in a throwaway folder (the user's click; nothing of theirs is touched)
 //   POST /api/hands/run-recipe { name }  run a recipe now (the user's click is the approval; output goes to the chat)
-import { handsView, stopRun, stopEverything, saveRecipe, removeRecipe, loadRecipes, runApproved } from './hands.js';
+import { handsView, stopRun, stopEverything, holdHands, saveRecipe, removeRecipe, loadRecipes, runApproved } from './hands.js';
 import { handsSettings, cleanHands, HANDS, handOn } from './hands-settings.js';
 import fs from 'node:fs';
 import { undoJob } from './hands-files.js';
@@ -21,6 +23,7 @@ export async function handsRoute({ req, p, isLocal, brain, cfg, body, send, res 
   if (req.method !== 'POST') { send(res, 404, { error: 'not found' }); return true; }
   const b = await body(req);
   if (p === '/api/hands/stop-all') { send(res, 200, { stopped: stopEverything(brain), ...handsView(cfg) }); return true; }
+  if (p === '/api/hands/hold' && b.held === true) { send(res, 200, { stopped: holdHands(brain, true), ...handsView(cfg) }); return true; }
   if (p === '/api/hands/stop') { const ok = stopRun(String(b.runId || '')); if (ok) brain.log('hands', `Stop pressed on run ${b.runId}`); send(res, ok ? 200 : 404, { ok }); return true; }
   if (!isLocal) { send(res, 403, { error: 'Hands can only be changed on the PC itself.' }); return true; }
   try {
@@ -38,6 +41,7 @@ export async function handsRoute({ req, p, isLocal, brain, cfg, body, send, res 
       send(res, 200, handsView(cfg));
       return true;
     }
+    if (p === '/api/hands/hold') { holdHands(brain, false); send(res, 200, handsView(cfg)); return true; }
     if (p === '/api/hands/undo') {
       const r = undoJob(cfg, b.id ? String(b.id) : '');
       brain.log('hands', `undo (your click): ${r.job.label}: ${r.done.length} done${r.failed.length ? `, ${r.failed.length} failed` : ''}`);

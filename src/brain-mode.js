@@ -39,12 +39,23 @@ export function bobsBrains(cfg) {
 export function isBobs(cfg, name) { return bobsBrains(cfg).some((m) => sameModel(m, name)); }
 
 // The keep-alive setting in words, for the status label: "5 minutes", "1 hour", or null for never.
+// The idle time to show in Settings: always a real time (no Never since 1.5.3; the chat-page switch off keeps him loaded).
+export function keepTime(cfg) { const k = String(cfg?.ollamaKeepAlive ?? '5m'); return /^\d+[smh]$/.test(k) ? k : '5m'; }
 export function sleepAfterText(cfg) {
-  const k = String(cfg?.ollamaKeepAlive ?? '5m');
-  if (k === '-1') return null;
-  const m = k.match(/^(\d+)([smh])$/);
-  if (!m) return '5 minutes';
-  const n = Number(m[1]);
-  const unit = { s: 'second', m: 'minute', h: 'hour' }[m[2]];
-  return `${n} ${unit}${n === 1 ? '' : 's'}`;
+  const ms = keepMs(cfg);
+  return ms === Infinity ? null : msText(ms);
 }
+// 1.5.3: finer choices (1, 2, 2½, 5, 10, 15, 30 minutes, 1 hour). 2½ minutes is stored as "150s" (Ollama's format).
+function keepMs(cfg) {
+  const k = String(cfg?.ollamaKeepAlive ?? '5m');
+  if (k === '-1') return Infinity;
+  const m = k.match(/^(\d+)([smh])$/);
+  return m ? Number(m[1]) * { s: 1000, m: 60000, h: 3600000 }[m[2]] : 300000;
+}
+export function msText(ms) {
+  if (ms % 3600000 === 0) { const h = ms / 3600000; return `${h} hour${h === 1 ? '' : 's'}`; }
+  if (ms % 30000 === 0 && ms >= 60000) { const whole = Math.floor(ms / 60000), half = ms % 60000 ? '½' : ''; return `${whole}${half} minute${whole === 1 && !half ? '' : 's'}`; }
+  const s = Math.round(ms / 1000); return `${s} second${s === 1 ? '' : 's'}`;
+}
+// Big brains (the chat brain in Coding and Deep thought) get 2 minutes for a follow-up, or less if the setting is shorter.
+export function bigGraceMs(cfg) { return Math.min(BIG_GRACE_MS, keepMs(cfg)); }

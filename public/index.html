@@ -42,6 +42,7 @@
         <button id="brainPill" type="button" class="brain-pill asleep" aria-expanded="false" aria-controls="brainPop"><span id="brainPillText" role="status" aria-live="polite">Checking...</span></button>
         <div id="brainPop" class="brain-pop" hidden></div>
         <button id="brainFree" type="button" class="brain-switch" role="switch" aria-checked="true"><span class="lbl">Free memory when Bob is idle</span><span class="st" id="brainFreeSt">On</span></button>
+        <button id="handsBtn" type="button" class="brain-switch hands-btn" data-on="false" data-state="settings-off" aria-pressed="false"><span class="lbl">✋ Hands</span><span class="st" id="handsBtnSt">Off in Settings</span></button>
       </div>
       <button id="dlbar" class="dlbar" type="button" hidden title="Open Downloads"><span class="meter moving"><i></i></span><span class="dlbar-text"></span></button>
       <span class="ctx-fill"></span>
@@ -69,7 +70,6 @@
     <input id="attachFile" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
     <textarea id="input" rows="2" placeholder="Tell Bob what you need..." autocomplete="off"></textarea>
     <div class="buttons">
-      <button id="handsStopAll" type="button" class="stop-all" hidden title="Stops every command Bob is running, says No to his waiting Hand cards, and switches all Hands off">✋ Stop everything</button>
       <button id="stop" type="button" class="stop" hidden>Stop</button>
       <button id="send" type="submit" class="send">Send</button>
     </div>
@@ -81,7 +81,7 @@
     <div class="now-head"><strong>Now running</strong><span class="ctx-fill"></span><button id="hideRight" type="button" class="link" title="Hide (Ctrl+J)">Hide »</button></div>
     <section><div class="now-sec">Tasks <span class="muted">drag to reorder</span><span class="ctx-fill"></span><button type="button" class="link" data-alltasks>See all</button></div><ol id="nowTasks" class="tlist"></ol></section>
     <section><div class="now-sec">Downloads<span class="ctx-fill"></span><button type="button" class="link" data-alldl>Manage</button></div><ol id="nowDl" class="tlist"></ol></section>
-    <section><div class="now-sec">Graphics card</div><div id="nowGpu" class="muted now-gpu">Checking...</div></section>
+    <section><div class="now-sec">Memory</div><div id="nowGpu" class="muted now-gpu">Checking...</div></section>
   </aside>
   </div>
 

@@ -13,7 +13,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import os from 'node:os';
 import { insideAny, appDir } from './config.js';
-import { HANDS, handOn, handsSettings, cleanHands } from './hands-settings.js';
+import { HANDS, handOn, handOffWhy, handsSettings, cleanHands } from './hands-settings.js';
 import { planFiles, planCard, applyFiles, undoJob, loadJournal, handsRoots } from './hands-files.js';
 import { checkCommand, runCommand } from './hands-run.js';
 import { appsTools } from './hands-apps.js';
@@ -37,6 +37,18 @@ export function stopRun(id) { const r = running.get(id); if (!r) return false; r
 
 // "Stop everything": stops every running command, turns the master switch off, and tells the brain to deny
 // anything waiting for approval from a Hand. Returns how many things it stopped.
+// The chat-page Hands switch (1.5.3). held = true stops whatever a Hand is doing, answers waiting cards No and keeps
+// every Hand from being used, without changing Settings. held = false only works when Settings has Hands on.
+export function holdHands(brain, held) {
+  const cur = handsSettings(brain.cfg);
+  if (!held && !cur.enabled) throw new Error('Hands are off in Settings. Turn them on there first (Settings, Hands).');
+  let n = 0;
+  if (held) { for (const r of running.values()) { r.controller.abort(); n++; } n += brain.denyHands?.() || 0; }
+  brain.saveHands(cleanHands({ ...cur, held }));
+  brain.log?.('hands', held ? `Hands switch on the chat page: stopped (${n} thing${n === 1 ? '' : 's'} stopped)` : 'Hands switch on the chat page: back on');
+  return n;
+}
+
 export function stopEverything(brain) {
   let n = 0;
   for (const r of running.values()) { r.controller.abort(); n++; }
@@ -106,7 +118,7 @@ export async function runApproved(cfg, { cmd, args = [], cwd }, { emit = () => {
   return `${res.killed === 'stopped' ? 'Stopped by the user.' : res.killed === 'timeout' ? `Stopped: it ran past the ${handsSettings(cfg).timeoutMin}-minute limit.` : `Finished with exit code ${res.code}${res.code === 0 ? ' (success)' : ''}.`}\nOutput (end):\n${tail || '(no output)'}`;
 }
 
-const off = (cfg, id) => { if (!handOn(cfg, id)) throw new Error(`The ${HANDS[id].label} Hand is switched off. ${cfg.userName || 'The user'} can turn it on in Settings, Hands.`); };
+const off = (cfg, id) => { if (!handOn(cfg, id)) throw new Error(handOffWhy(cfg, id)); };
 
 // The tools. brain is used for its logbook.
 export function handsTools(brain, opts = {}) {

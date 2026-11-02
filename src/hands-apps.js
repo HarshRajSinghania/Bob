@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { appDir } from './config.js';
-import { handOn, HANDS } from './hands-settings.js';
+import { handOn, handOffWhy, HANDS } from './hands-settings.js';
 
 const fn = (name, description, properties, required = Object.keys(properties)) => ({ type: 'function', function: { name, description, parameters: { type: 'object', properties, required } } });
 const str = (description, extra = {}) => ({ type: 'string', description, ...extra });
@@ -188,7 +188,7 @@ export function appsTools(brain, { driver = null, track = () => () => {} } = {})
     if (!state.untrack) state.untrack = track({ line: 'Apps hand', stop: () => { state.driving = false; drv.stop(); } });
   };
 
-  const off = () => { if (!handOn(cfg, 'apps')) throw new Error(`The ${HANDS.apps.label} Hand is switched off. ${cfg.userName || 'The user'} can turn it on in Settings, Hands.`); };
+  const off = () => { if (!handOn(cfg, 'apps')) throw new Error(handOffWhy(cfg, 'apps')); };
   const notStopped = (ctx) => { if (ctx && state.stoppedCtx === ctx) throw new Error(`${cfg.userName || 'The user'} took back the mouse, so Bob stopped using apps for this job. Don't try again; ask what they'd like instead.`); };
 
   async function windows() {
@@ -212,6 +212,9 @@ export function appsTools(brain, { driver = null, track = () => () => {} } = {})
   }
   const label = (w) => `${w.title} (${w.process})`;
   const targetText = (t = {}) => [t.type || '', t.name ? `"${t.name}"` : '', t.id ? `[id ${t.id}]` : '', t.nth > 1 ? `#${t.nth}` : ''].filter(Boolean).join(' ') || 'the window';
+  // For the card: no "[id 15]" bits, and a field by its name alone ('Document "Text editor"' -> 'Text editor').
+  const plain = (l) => String(l || '').replace(/\s*\[id [^\]]*\]/g, '').trim();
+  const field = (l) => { const m = plain(l).match(/"([^"]+)"/); return m ? m[1] : plain(l); };
 
   const t = {};
 
@@ -275,8 +278,8 @@ export function appsTools(brain, { driver = null, track = () => () => {} } = {})
         await drv.request('picture', { hwnd: w.hwnd, file });
         if (fs.existsSync(file) || driver) { ctx?.emit?.({ type: 'image', url: `/images/${encodeURIComponent(name)}`, file }); pic = '\nA picture of the window is in the chat.'; }
       }
-      const lines = items.slice(0, 150).map((x) => `- ${x.type}${x.name ? ` "${String(x.name).slice(0, 80)}"` : ''}${x.id ? ` [id ${String(x.id).slice(0, 40)}]` : ''}${x.password ? ' (password field: never typed in)' : ''}${x.enabled === false ? ' (greyed out)' : ''}${x.value ? ` = "${String(x.value).slice(0, 60)}"` : ''}`);
-      return `Window: ${label(w)}\n${lines.join('\n') || '(nothing readable; this app may not support UI Automation)'}${pic}\nTo use one, call app_act with its type and name (and id if names repeat).`;
+      const lines = items.slice(0, 150).map((x) => `- ${x.type}${x.name ? ` "${String(x.name).slice(0, 80)}"` : ''}${x.id ? ` [id ${String(x.id).slice(0, 40)}]` : ''}${x.password ? ' (password field: never typed in)' : x.typable ? ' (you can type here)' : ''}${x.enabled === false ? ' (greyed out)' : ''}${x.value ? ` = "${String(x.value).slice(0, 60)}"` : ''}`);
+      return `Window: ${label(w)}\n${lines.join('\n') || '(nothing readable; this app may not support UI Automation)'}${pic}\nTo use one, call app_act with its type and name (and id if names repeat). To type, pick one marked "you can type here".`;
     },
     summary: ({ window }) => `apps: look ${window || '(windows)'}`
   };
@@ -289,7 +292,7 @@ export function appsTools(brain, { driver = null, track = () => () => {} } = {})
       name: str('Its name, as app_look listed it.'),
       id: str('Its id, if app_look showed one (use it when names repeat).'),
       nth: { type: 'integer', description: 'If several match, which one (1 = first).' },
-      text: str('type: the text to put in the field (replaces what is there).'),
+      text: str('type: the text. A one-line field gets it in place of what is there; a document (like Notepad\'s page) gets it added at the end. For a document you can give the window and leave type and name empty.'),
       keys: str('keys: the key or combination, like "Enter", "Tab", "Ctrl+S".')
     }, ['window', 'action']),
     approvalGroup: (a) => `apps-act:${String(a.window || '').toLowerCase()}`,
@@ -297,16 +300,29 @@ export function appsTools(brain, { driver = null, track = () => () => {} } = {})
       off(); notStopped(ctx);
       const w = await findWindow(args.window);
       const target = { type: args.type ? String(args.type).replace(/[^A-Za-z]/g, '') : '', name: args.name ? String(args.name).slice(0, 200) : '', id: args.id ? String(args.id).slice(0, 200) : '', nth: Math.max(1, Math.min(50, Number(args.nth) || 1)) };
+      // Ask the helper what this would really land on, so the card shows that (not just what Bob named).
+      let real = '', note = '';
+      if (['type', 'focus'].includes(args.action) || target.name || target.id) {
+        if (!['click', 'type', 'keys', 'focus'].includes(args.action)) throw new Error('The action should be click, type, keys or focus.');
+        const r = await drv.request('resolve', { hwnd: w.hwnd, action: args.action, target });
+        if (r.password) throw new Error('Bob never types into password fields.');
+        if (r.enabled === false) throw new Error(`${r.label} is greyed out.`);
+        real = r.label || '';
+        if (r.swapped) note = ` (${plain(r.swapped)} doesn't accept typing, so Bob will type into the window's main text area instead)`;
+      }
+      const tt = () => plain(real || targetText(target)); // ids stay off the card (they're for Bob, not you)
       let what;
-      if (args.action === 'click') { if (!target.name && !target.id) throw new Error('Say what to click (its name or id from app_look).'); what = `Click ${targetText(target)}`; }
+      if (args.action === 'click') { if (!target.name && !target.id) throw new Error('Say what to click (its name or id from app_look).'); what = `Click ${tt()}`; }
       else if (args.action === 'type') {
         if (args.text == null || String(args.text).length > 4000) throw new Error('Say the text to type (at most 4000 characters).');
         if (/password|passwd|pwd|\bpin\b/i.test(`${target.name} ${target.id}`)) throw new Error('Bob never types into password fields.');
-        what = `Type into ${targetText(target)}: "${String(args.text).slice(0, 300)}${String(args.text).length > 300 ? '...' : ''}"`;
-      } else if (args.action === 'keys') { const k = keysFor(args.keys); if (ctx) ctx.appsKeys = k; what = `Press ${String(args.keys)}${target.name || target.id ? ` in ${targetText(target)}` : ''}${/%\{F4\}$/.test(k) ? ' (this closes the window)' : ''}`; }
-      else if (args.action === 'focus') what = `Put the cursor in ${targetText(target)}`;
+        const said = `${String(args.text).slice(0, 300)}${String(args.text).length > 300 ? '...' : ''}`;
+        // A one-line field gets the text in place of what is there; a document gets it added at the end (same as the helper).
+        what = /^Edit\b/.test(real) ? `Replace what's in "${field(real || targetText(target))}" with: "${said}"` : `Add to the end of "${field(real || targetText(target))}"${note}: "${said}"`;
+      } else if (args.action === 'keys') { const k = keysFor(args.keys); if (ctx) ctx.appsKeys = k; what = `Press ${String(args.keys)}${target.name || target.id ? ` in ${tt()}` : ''}${/%\{F4\}$/.test(k) ? ' (this closes the window)' : ''}`; }
+      else if (args.action === 'focus') what = `Put the cursor in ${tt()}${note}`;
       else throw new Error('The action should be click, type, keys or focus.');
-      if (ctx) { ctx.appsWindow = w; ctx.appsTarget = target; }
+      if (ctx) { ctx.appsWindow = w; ctx.appsTarget = target; ctx.appsExpect = real; }
       return { text: `${what} in ${label(w)}. A red bar shows while Bob drives; move the mouse or press Esc to stop him.`, command: what, cwd: label(w), button: 'Do it' };
     },
     async run(args, ctx) {
@@ -314,7 +330,10 @@ export function appsTools(brain, { driver = null, track = () => () => {} } = {})
       const w = ctx?.appsWindow || await findWindow(args.window);
       const target = ctx?.appsTarget || { type: args.type || '', name: args.name || '', id: args.id || '', nth: Number(args.nth) || 1 };
       const keys = args.action === 'keys' ? (ctx?.appsKeys || keysFor(args.keys)) : '';
-      if (ctx) { ctx.appsWindow = null; ctx.appsTarget = null; ctx.appsKeys = null; state.lastCtx = ctx; }
+      // What the card showed: if the window now resolves to something else, the helper does nothing.
+      const expect = ctx?.appsExpect || '';
+      if (['click', 'type', 'focus'].includes(args.action) && !expect) throw new Error('Bob had no approved target for that action, so he did nothing. Ask again.');
+      if (ctx) { ctx.appsWindow = null; ctx.appsTarget = null; ctx.appsKeys = null; ctx.appsExpect = null; state.lastCtx = ctx; }
       // Check the window again right before acting: it may have changed title (a password prompt) or closed.
       const now = (await windows()).find((x) => String(x.hwnd) === String(w.hwnd));
       const b = blockedWindow(now, { ownPids }); if (b) throw new Error(b);
@@ -324,7 +343,11 @@ export function appsTools(brain, { driver = null, track = () => () => {} } = {})
       state.driving = true;
       let r;
       try {
-        r = await drv.request('act', { hwnd: w.hwnd, action: args.action, target, text: args.action === 'type' ? String(args.text) : '', keys });
+        r = await drv.request('act', { hwnd: w.hwnd, action: args.action, target, text: args.action === 'type' ? String(args.text) : '', keys, expect });
+      } catch (e) {
+        // Windows' own reason, word for word, so Bob passes it on instead of inventing one.
+        log('hands', `apps: ${args.action} in ${label(w)} failed: ${e.message}`);
+        throw new Error(`${e.message} (That is the real reason, from Windows. Tell ${cfg.userName || 'the user'} it in plain words; don't blame a "simulation" or guess another cause. Nothing else was done.)`);
       } finally {
         // With per-action approval the mouse is yours again between actions (you need it for the next card);
         // only an "allow the rest of this job" streak keeps the red bar up until the helper goes idle.
@@ -336,6 +359,7 @@ export function appsTools(brain, { driver = null, track = () => () => {} } = {})
         }
       }
       log('hands', `apps: ${args.action} ${targetText(target)} in ${label(w)}: ${r.did || 'done'}`);
+      if (/wasn't there/.test(r.did || '')) return `Not sure it worked: ${r.did}. Have a look at the window to check. (Bob: say so plainly and use app_look before trying again.)`;
       return `Done: ${r.did || args.action}. Use app_look to check the result if it matters.`;
     },
     summary: ({ action, window, name }) => `apps: ${action}${name ? ` "${name}"` : ''} in ${window}`

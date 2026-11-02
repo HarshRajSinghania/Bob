@@ -46,5 +46,6 @@ Verdicts are **Approved**, **Approved with edits** (make the listed edits, no se
 | Bob's look | avatar, sprite |
 | Hands | tools, actions |
 | Equip Bob | model roles, who does what |
-| Graphics memory | VRAM (on Everyday pages) |
+| Graphics memory, graphics card | VRAM (on Everyday pages) |
+| RAM | system memory, main memory |
 | Settings / Show advanced settings | preferences, config |

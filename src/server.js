@@ -1,5 +1,6 @@
 // Bob's local server: serves the panel and a small API. Only listens on this PC.
-import { brainMode, BRAIN_MODES } from './brain-mode.js';
+import { ramNow } from './server-ram.js';
+import { brainMode, BRAIN_MODES, keepTime } from './brain-mode.js';
 import http from 'node:http';
 import { lookText } from './look.js';
 import { cleanPersonality } from '../public/personality.js';
@@ -199,7 +200,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && p === '/api/hardware') return send(res, 200, await shop.hardware());
     if (req.method === 'GET' && p === '/api/settings') {
-      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, lookText: lookText(cfg.look), personality: cleanPersonality(cfg.personality), lookComments: cfg.lookComments !== false, userName: cfg.userName || '', callMe: cfg.callMe || '', windowsName: cfg.windowsName || '', engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: brainMode(cfg) === 'always' ? '-1' : (cfg.ollamaKeepAlive || '5m'), brainMode: brainMode(cfg), tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg), hands: handsSettings(cfg)  });
+      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, lookText: lookText(cfg.look), personality: cleanPersonality(cfg.personality), lookComments: cfg.lookComments !== false, userName: cfg.userName || '', callMe: cfg.callMe || '', windowsName: cfg.windowsName || '', engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: keepTime(cfg), brainMode: brainMode(cfg), tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg), hands: handsSettings(cfg)  });
     }
     if (req.method === 'POST' && p.startsWith('/api/models/') || req.method === 'POST' && p === '/api/settings') {
       if (!isLocal) return send(res, 403, { error: 'Downloads and settings can only be changed on the PC itself.' });
@@ -257,15 +258,16 @@ const server = http.createServer(async (req, res) => {
           // "Free memory when Bob is idle" (chat page) and "Free memory after Bob has been quiet for" (Advanced) are one
           // setting: Never there is the switch off here. The time is kept while the switch is off, for when it's on again.
           if (typeof b.ollamaKeepAlive === 'string') {
+            // 1.5.3: picking a time never flips the chat-page switch (an old "-1" still means switch off).
             if (b.ollamaKeepAlive === '-1') saveSettings(cfg, { brainMode: 'always' });
-            else saveSettings(cfg, { ollamaKeepAlive: b.ollamaKeepAlive, brainMode: 'wake' });
+            else saveSettings(cfg, { ollamaKeepAlive: b.ollamaKeepAlive, brainMode: brainMode(cfg) });
             brain.applyBrainMode().catch(() => {});
           }
           if (typeof b.brainMode === 'string' && BRAIN_MODES.includes(b.brainMode)) {
             saveSettings(cfg, { brainMode: b.brainMode, ...(b.brainMode === 'wake' && String(cfg.ollamaKeepAlive) === '-1' ? { ollamaKeepAlive: '5m' } : {}) });
             brain.applyBrainMode().catch(() => {});
           }
-          if (typeof b.ollamaKeepAlive === 'string' || typeof b.brainMode === 'string') { out.brainMode = brainMode(cfg); out.ollamaKeepAlive = out.brainMode === 'always' ? '-1' : (cfg.ollamaKeepAlive || '5m'); }
+          if (typeof b.ollamaKeepAlive === 'string' || typeof b.brainMode === 'string') { out.brainMode = brainMode(cfg); out.ollamaKeepAlive = keepTime(cfg); }
           if (typeof b.oneBrain === 'boolean') { saveSettings(cfg, { oneBrain: b.oneBrain }); out.oneBrain = cfg.oneBrain === true; }
           if (b.housekeeping && typeof b.housekeeping === 'object') {
             const cur = hkSettings(cfg), h = b.housekeeping, next = { ...cur };
@@ -328,7 +330,12 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && p === '/api/queue') return send(res, 200, brain.queueView());
     if (req.method === 'GET' && p === '/api/downloads') return send(res, 200, shop.downloadsView());
-    if (req.method === 'GET' && p === '/api/gpu') return send(res, 200, await gpuNow());
+    if (req.method === 'GET' && p === '/api/gpu') {
+      // The brain by its friendly name (model ids stay in Advanced), plus system memory (1.5.3).
+      const id = brain.state?.model || '';
+      const entry = id && shop.catalog.models.find((m) => m.ollama && (m.ollama === id || m.ollama === id + ':latest' || m.ollama + ':latest' === id));
+      return send(res, 200, { ...(await gpuNow()), ram: ramNow(), brain: id ? (entry?.name || id) : '' });
+    }
     if (req.method === 'GET' && p === '/api/update/check') return send(res, 200, checkUpdate());
     if (req.method === 'GET' && p === '/api/update/status') return send(res, 200, updateStatus(cfg) || {});
     if (req.method === 'POST' && p === '/api/update/restart') {

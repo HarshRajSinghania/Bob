@@ -166,6 +166,7 @@ body.still .meter i { transition: none; }
 @media (max-width: 520px) { .roles th, .roles td { display: block; width: 100%; border: 0; padding: 4px 0; } .roles tr { display: block; padding: 6px 0; border-bottom: 1px solid var(--line); } }
 
 .model.dim, tr.dim { opacity: 0.55; }
+.pick.dim > strong, .pick.dim > .muted { opacity: 0.6; }
 .model.dim:hover, .model.dim:focus-within { opacity: 0.85; }
 .cellar button.link { background: none; border: none; padding: 4px 0; color: var(--muted); text-decoration: underline; }
 .cellar button.link:hover { color: var(--accent); }
@@ -628,4 +629,21 @@ details.more > summary:hover { color: var(--accent); }
 .brain-switch[aria-checked="true"] { color: var(--text); }
 .brain-switch[aria-checked="true"] .st { background: var(--accent); color: var(--on-accent); }
 @media (forced-colors: active) { .brain-switch .st { border: 1px solid CanvasText; } }
-@media (max-width: 700px) { .brain-pill { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; } }
+@media (max-width: 700px) { .brain-pill { max-width: 46vw; } }
+/* 1.5.3: the brain label stays on one line and ends in "…" when there is no room; the full text is in its popover. */
+.brain-pill { min-width: 0; max-width: 100%; overflow: hidden; }
+#brainPillText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 1.5.3: Now running shows the graphics card and RAM, one meter each. */
+.now-gpu .mem-row { display: grid; grid-template-columns: 7.5em 1fr; align-items: center; gap: 2px 8px; }
+.now-gpu .mem-row .meter { grid-column: 2; }
+.now-gpu .mem-row .mem-text { grid-column: 2; }
+.now-gpu .mem-row .mem-label { grid-row: 1 / span 2; color: var(--text); }
+.now-gpu .mem-brain { margin-top: 2px; }
+/* The Session menu gets its own line in the left menu, so its name isn't cut off. */
+.side .session-wrap { flex-wrap: wrap; }
+.side .session { flex: 1 1 100%; }
+/* 1.5.3: the Hands kill switch by "Free memory when Bob is idle": On, Stopped (red) or Off in Settings (dimmed). */
+.brain-switch.hands-btn[data-on="true"] { color: var(--text); }
+.brain-switch.hands-btn[data-on="true"] .st { background: var(--good); color: #10200f; }
+.brain-switch.hands-btn[data-state="stopped"] .st { background: var(--bad); color: var(--on-accent); }
+.brain-switch.hands-btn[data-state="settings-off"] { opacity: .75; }

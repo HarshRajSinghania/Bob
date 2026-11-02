@@ -24,7 +24,7 @@ export class Ollama {
 
   async loaded() {
     const r = await this.json('/api/ps');
-    return (r.models || []).map((m) => ({ name: m.name || m.model, size: m.size, vram: m.size_vram }));
+    return (r.models || []).map((m) => ({ name: m.name || m.model, size: m.size, vram: m.size_vram, split: true }));
   }
 
   // cpu: the model must be running on the processor only (Art session), so the painter keeps the card.

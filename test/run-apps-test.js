@@ -50,9 +50,22 @@ check('the red bar says how to take back control, and moving the mouse or Esc st
 check('the bar is click-through and never steals focus', /ShowWithoutActivation \{ get \{ return true; \} \}/.test(ps) && /0x08000000/.test(ps) && /0x00000020/.test(ps));
 check('it only acts while driving, and not after you took over', /if \(stopped\) throw new Exception\("Stopped: you took back control\."\)/.test(ps) && /if \(!driving\) throw/.test(ps));
 check('it never types into or reads password fields', /if \(e\.Current\.IsPassword\) throw new Exception\("Bob never types into password fields\."\)/.test(ps) && /if \(!pw && e\.TryGetCurrentPattern\(ValuePattern/.test(ps));
-check("it prefers the app's own controls, and puts the pointer back after a real click", ps.indexOf('InvokePattern.Pattern') < ps.indexOf('mouse_event(0x0002') && /SetCursorPos\(old\.X, old\.Y\)/.test(ps));
+check("it prefers the app's own controls, and puts the pointer back after a real click", /if \(action == "click"\) \{\s*if \(e\.TryGetCurrentPattern\(InvokePattern\.Pattern[\s\S]*?ClickAt\(e\);\s*return "clicked "/.test(ps) && /MoveTo\(old\.X, old\.Y\)/.test(ps));
 check('it opens only apps that are really in the Start menu, through the shell', /Get-StartApps \| Where-Object \{ \$_\.AppID -eq \$id \}/.test(ps) && /shell:AppsFolder/.test(ps));
 check("it ends when Bob does (stdin closes) and hides the bar on the way out", /if \(\$null -eq \$line\) \{ break \}/.test(ps) && /\[BobApps\.Driver\]::Drive\(\$false\)\s*$/.test(ps.trim() + '\n'));
+
+check('typing into documents (Windows 11 Notepad) uses real keystrokes after putting the cursor there', /static AutomationElement TextArea\(/.test(ps) && /IsKeyboardFocusable/.test(ps) && /KEYEVENTF_UNICODE/.test(ps) && /FocusIn\(e, h, label\);\s*Quiet\([^)]*\);[\s\S]{0,140}CtrlEnd\(\);\s*TypeChars\(h, text\);/.test(ps));
+check("a refused SetFocus is never the final word: it falls back to a real click, then gives a plain reason", /try \{ e\.SetFocus\(\); \} catch \(InvalidOperationException\) \{ \}/.test(ps) && /ClickAt\(e\);\s*Thread\.Sleep\(120\);\s*if \(!HasFocus/.test(ps) && !/^\s*e\.SetFocus\(\);\s*$/m.test(ps));
+check('it makes sure the window is really in front before typing, or says why not', /static void Front\(IntPtr h\)[\s\S]*AttachThreadInput[\s\S]*Windows wouldn't bring that window to the front/.test(ps));
+check('after typing it reads the text back to check', /static string Checked\(/.test(ps) && /TextPattern\.Pattern/.test(ps));
+check("typing into something that can't take text (Notepad's tab title) uses the window's text area and says so", /if \(IsTextArea\(w\)\) \{ swapped = Describe/.test(ps) && /so Bob typed into the window's main text area instead/.test(ps) && /d\["typable"\] = true/.test(ps));
+check('typing re-checks every few characters that the approved window is still in front and you have not taken over', /if \(n % 8 == 0\) \{\s*if \(!driving\) throw[\s\S]*?if \(!InFront\(h\)\) throw new Exception\("Typing stopped after "/.test(ps) && /TypeChars\(h, text\)/.test(ps));
+check("your mouse is never muted: the watch compares with where Bob last put the pointer", /lock \(PosLock\) \{ SetCursorPos\(x, y\); GetCursorPos\(out baseline\); \}/.test(ps) && !/Quiet\(\d+\);\s*SetCursorPos/.test(ps) && (ps.match(/SetCursorPos\(/g) || []).length === 2 && /quietUntil\) && \(GetAsyncKeyState\(0x1B\)/.test(ps));
+check('positions use real pixels on scaled screens', /SetProcessDPIAware\(\)/.test(ps) && /\[BobApps\.Driver\]::Init\(\)/.test(ps));
+check('the helper refuses to act if the window now resolves to something other than what was approved', /if \(!String\.IsNullOrEmpty\(expect\) && Label\(e\) != expect\) throw/.test(ps) && /'resolve' \{/.test(ps));
+check('the helper strips a byte-order mark and answers bad JSON instead of dropping it', /TrimStart\(\[char\]0xFEFF\)/.test(ps) && /error = 'bad JSON'/.test(ps));
+check('names in messages have no doubled spaces', /String\.Join\(" ", parts\.ToArray\(\)\)/.test(ps));
+check('UI Automation errors come back as plain sentences', /catch \(InvalidOperationException ex\) \{\s*throw new Exception\("Windows refused: "/.test(ps));
 
 // ---------- The tools, through the brain's approval flow ----------
 const dataDir = path.join(tmp, 'inn', 'bob');
@@ -96,7 +109,7 @@ const l1 = await fake.runTool('app_look', {}, ctx());
 check('listing windows needs a card too, and hides the off-limits ones', /List open windows/.test(cards().at(-1).command) && /Untitled - Notepad/.test(l1.text) && /Paint/.test(l1.text) && !/Command Prompt|KeePass|Windows Security|\bBob \(/.test(l1.text));
 const l2 = await fake.runTool('app_look', { window: 'notepad', picture: true }, ctx());
 check('looking at a window shows a card naming it', /Look at Untitled - Notepad/.test(cards().at(-1).command) && cards().at(-1).cwd === 'notepad');
-check('Bob gets the names of its controls, and never a password value', /Button "Save" \[id save\]/.test(l2.text) && /Edit "Text editor".*= "hello"/.test(l2.text) && /password field: never typed in/.test(l2.text));
+check('Bob gets the names of its controls, and never a password value', /Button "Save" \[id save\]/.test(l2.text) && /Document "Text editor".*you can type here.*= "hello"/.test(l2.text) && /Text "Untitled" \[id ContentTextBlock\]$/m.test(l2.text) && /password field: never typed in/.test(l2.text));
 check('the picture of the window goes to the chat', events.some((e) => e.type === 'image' && /window-\d+\.png/.test(e.url)) && /picture of the window/.test(l2.text));
 const nC2 = cards().length;
 for (const w of ['cmd', 'KeePassXC', 'Windows Security', 'Bob']) {
@@ -116,10 +129,30 @@ check('the red bar goes up just for the action and comes down after', /drive:tru
 check('the window is checked again right before acting', ops.indexOf('windows', 1) < ops.indexOf('act'));
 check('the result goes back to Bob and into the logbook', /Done: click Save/.test(a1.text) && logs.some((l) => /apps: click Button "Save" in Untitled - Notepad/.test(l)));
 const t1 = await fake.runTool('app_act', { window: 'notepad', action: 'type', type: 'Edit', name: 'Text editor', text: 'Shopping list' }, ctx());
-check('typing shows the text on the card', /Type into Edit "Text editor": "Shopping list"/.test(cards().at(-1).command) && /Done/.test(t1.text) && sent().some((m) => m.op === 'act' && m.text === 'Shopping list'));
+check('typing shows the text on the card, and that a one-line field gets it in place of what is there', /^Replace what's in "Text editor" with: "Shopping list"/.test(cards().at(-1).command) && /Done/.test(t1.text) && sent().some((m) => m.op === 'act' && m.text === 'Shopping list'));
+const f1 = await fake.runTool('app_act', { window: 'notepad', action: 'type', text: 'FAIL FOCUS' }, ctx());
+check("when Windows refuses, Bob gets the real reason and is told not to invent one", /wouldn't let Bob put the cursor/.test(f1.text) && /real reason, from Windows/.test(f1.text) && /simulation/.test(f1.text) && logs.some((l) => /failed: Windows wouldn't let Bob/.test(l)));
+check('the red bar still comes down after a failed action', sent().filter((m) => m.op === 'drive').at(-1).on === false);
+const f2 = await fake.runTool('app_act', { window: 'notepad', action: 'type', text: 'NOT THERE' }, ctx());
+check("if the text isn't there when read back, Bob says it may not have worked", /^Not sure it worked/.test(f2.text));
+const g1 = await fake.runTool('app_act', { window: 'notepad', action: 'type', type: 'Text', id: 'ContentTextBlock', text: 'hello' }, ctx());
+const gc = cards().at(-1);
+check("the card shows what Bob will really type into, not just what he named (Notepad's tab title -> its page)", /^Add to the end of "Text editor" \(Text doesn't accept typing, so Bob will type into the window's main text area instead\): "/.test(gc.command) && !/\[id /.test(gc.command) && /Done/.test(g1.text), gc.command);
+check('the helper is told what the card showed, so a changed window means nothing is done', sent().filter((m) => m.op === 'act').at(-1).expect === 'Document "Text editor" [id 15]');
+check('every act is preceded by "drive on"', (() => { const l = sent(); return l.every((m, i) => m.op !== 'act' || l.slice(0, i).reverse().find((x) => x.op === 'drive')?.on === true); })());
+{
+  let msg = ''; try { await fake.tools.app_act.run({ window: 'notepad', action: 'type', text: 'x' }, { emit() {}, allowAll: new Set() }); } catch (e) { msg = e.message; }
+  check('type/click/focus never run without the target the card showed', /no approved target/.test(msg));
+}
+const nP = cards().length;
+const pw2 = await fake.runTool('app_act', { window: 'notepad', action: 'type', type: 'Edit', name: 'Secret', id: 'pw', text: 'x' }, ctx());
+check("a field the helper flags as a password is refused before any card, even with a harmless name", /never types into password/.test(pw2.text) && cards().length === nP);
+const nG = cards().length;
+const g2 = await fake.runTool('app_act', { window: 'notepad', action: 'click', name: 'Greyed' }, ctx());
+check('a greyed-out target is refused before any card', /greyed out/.test(g2.text) && cards().length === nG);
 const nC3 = cards().length;
 const t2 = await fake.runTool('app_act', { window: 'notepad', action: 'type', type: 'Edit', name: 'Password', id: 'pw', text: 'x' }, ctx());
-check('a field that looks like a password is refused before any card', /never types into password/.test(t2.text) && cards().length === nC3);
+check('a password field (by name, or flagged by the helper) is refused before any card', /never types into password/.test(t2.text) && cards().length === nC3);
 const k1 = await fake.runTool('app_act', { window: 'notepad', action: 'keys', keys: 'Win+R' }, ctx());
 check('the Windows key is refused before any card', /Windows key/.test(k1.text) && cards().length === nC3);
 const k2 = await fake.runTool('app_act', { window: 'notepad', action: 'keys', keys: 'Ctrl+S' }, ctx());
