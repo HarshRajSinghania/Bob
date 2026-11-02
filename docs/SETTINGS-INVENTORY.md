@@ -102,3 +102,5 @@ Update this file in the same handover as any change to settings.
 | Session picker, Gaming | "…on the processor with a small brain, which usually starts answering within a few seconds." (was "about half a minute", out of date since 1.5.25) | | wording fix |
 | Chat page > Effort row | 🌐 Web search pill (OFF/ON badge), same setting as "Let Bob search the web" | off | ok (approved with edits, 1.5.28) |
 | Now running > Memory | Readings: card/RAM (Bob vs everything else), Processor busy, Last reply speed, Context use, Show graph button (off until clicked) | display only | ok (approved with edits, perf-readings) |
+| Get models > 🎵 Music | ACE-Step 1.5 music models card (about 10.1 GB, download on click only) | not downloaded | ok (approved with edits, 1.5.37) |
+| Settings > Advanced > Engines & speed | Pick up where Bob left off after a restart (was "Pick up unfinished jobs after a restart") | off | ok (approved with edits, 1.5.38) |

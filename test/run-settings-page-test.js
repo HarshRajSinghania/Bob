@@ -43,7 +43,9 @@ const catalog = JSON.parse(read('catalog.json'));
 const files = catalog.models.flatMap((m) => (m.files || []).map((f) => ({ id: m.id, ...f })));
 const bad = files.filter((f) => !(Number.isInteger(f.bytes) && f.bytes > 0) || (!f.sizeOnly && !/^[0-9a-f]{64}$/.test(f.sha256 || '')));
 check(`every catalog file has its size, and its sha256 unless marked sizeOnly (${files.length} files)`, files.length > 40 && !bad.length, bad.map((f) => f.id).join(','));
-check('only the small Piper .onnx.json files are size-only', files.filter((f) => f.sizeOnly).every((f) => /\.onnx\.json$/.test(f.url) && !f.sha256) && files.filter((f) => f.sizeOnly).length === 3);
+// 1.5.37: plus the small text files of ACE-Step's music models (configs, tokenizer lists), which their commit pin holds.
+const small = files.filter((f) => f.sizeOnly);
+check('only small files are size-only: three Piper .onnx.json and the music models\' configs', small.every((f) => !f.sha256 && f.bytes < 50e6 && (/\.onnx\.json$/.test(f.url) || /\/ACE-Step\/Ace-Step1\.5\/resolve\/[0-9a-f]{40}\//.test(f.url))) && small.filter((f) => /\.onnx\.json$/.test(f.url)).length === 3);
 const sameUrl = new Map();
 for (const f of files) { const k = sameUrl.get(f.url); if (k && (k.bytes !== f.bytes || k.sha256 !== f.sha256)) check(`one file, one pin: ${f.url}`, false); sameUrl.set(f.url, f); }
 

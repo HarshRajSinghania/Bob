@@ -374,6 +374,22 @@ function onEvent(ev) {
       no.onclick = () => el.remove();
       return;
     }
+    case 'offer-download': { // 1.5.37: a job needs a model that isn't here yet. Nothing downloads until this is pressed.
+      const sz = ev.sizeGB ? `about ${ev.sizeGB} GB, ` : '';
+      const el = add('suggest', `<span>${esc(ev.why === 'music' ? 'Music needs its models first' : 'This needs a model first')}: ${esc(ev.name)} (${esc(sz)}one time only). You can watch it in Downloads.</span><button type="button">${esc(ev.why === 'music' ? 'Download the music models' : 'Download it')}</button><button type="button" class="link">Not now</button>`);
+      const [yes, no] = el.querySelectorAll('button');
+      yes.onclick = async () => {
+        yes.disabled = true;
+        try { await api('/api/models/download', { id: ev.id }); el.remove(); note(`Downloading the ${ev.name}. Progress is in Downloads. Ask me for the ${ev.why === 'music' ? 'song' : 'job'} again when it's done.`); }
+        catch (e) { yes.disabled = false; note(e.message, 'error'); }
+      };
+      no.onclick = () => el.remove();
+      return;
+    }
+    case 'busy-note': // 1.5.37: your message waits behind a picture, song or clip; Bob says so at once
+      note(ev.text, 'announce');
+      scrollDown();
+      return;
     case 'start':
       endReply(ev);
       running.add(ev.turnId);

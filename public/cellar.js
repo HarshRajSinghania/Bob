@@ -93,7 +93,9 @@ export function createCellar() {
   function card(m) {
     const lic = m.commercial ? esc(m.license) : `${esc(m.license)} · personal use only`;
     const eng = m.needs && (data.engines || []).find((e) => e.name === m.needs);
-    const needs = m.needs ? (eng && !eng.installed ? `<span class="tag warn">needs ${esc(m.needs)}: get it in Settings</span>` : `<span class="tag">uses ${esc(m.needs)}</span>`) : '';
+    // 1.5.37: a missing engine can be got right here, next to what needs it.
+    const nm = eng?.id === 'audio' ? 'the audio tools' : m.needs;
+    const needs = m.needs ? (eng && !eng.installed ? `<span class="tag warn">needs ${esc(nm)} first</span>${settings?.platform && settings.platform !== 'win32' ? '' : `<button type="button" class="get" data-engine="${esc(eng.id)}">Get ${esc(nm)}</button>`}` : `<span class="tag">uses ${esc(m.needs)}</span>`) : '';
     // Size hints only; "Recommended" (below) is what says which model to pick on this PC.
     const pick = { small: 'Light', tiny: 'Tiny', optional: 'Optional' }[m.pick] || '';
     const fit = suit(m);
@@ -109,7 +111,7 @@ export function createCellar() {
       <header><strong>${esc(m.name)}</strong>${pick ? `<span class="tag">${pick}</span>` : ''}</header>
       <p>${esc(m.what)}</p>
       ${jobs.length ? `<p class="muted jobs-line">Can do: ${esc(jobs.join(', '))}</p>` : ''}
-      <div class="facts"><span>${gb(m.sizeGB)} download</span>${m.vramGB ? `<span>wants ${m.vramGB} GB graphics memory</span>` : '<span>runs on the processor</span>'}<span>${lic}</span>${badge}${needs}</div>
+      <div class="facts"><span>${m.into ? `about ${gb(m.sizeGB)}, one time` : `${gb(m.sizeGB)} download`}</span>${m.vramGB ? `<span>wants ${m.vramGB} GB graphics memory</span>` : '<span>runs on the processor</span>'}<span>${lic}</span>${badge}${needs}</div>
       ${m.category === 'speech' ? cardSample(m) : ''}
       <div class="act">${action(m)}</div>
       <div class="confirm" hidden></div>
@@ -762,7 +764,7 @@ export function createCellar() {
         box.innerHTML = ['kokoro', 'chatterbox'].includes(b.dataset.engine)
           ? `<p>Set up ${esc(eng?.name)}: ${esc(eng?.what)} It goes in Bob's own folder; nothing else on your PC changes. If you don't have Python yet, get 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> first.</p>`
           : b.dataset.engine === 'audio'
-          ? `<p>Set up the audio tools: ACE-Step 1.5 for music (MIT, a song in seconds) and AudioLDM 2 for sound effects (personal use only), each in its own folder only Bob uses. You need Python 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> installed first. About 6 GB now, plus about 6 GB of models the first time he makes each kind. Nothing else on your PC changes.</p>`
+          ? `<p>Set up the audio tools: ACE-Step 1.5 for music (MIT, a song in seconds) and AudioLDM 2 for sound effects (personal use only), each in its own folder only Bob uses. You need Python 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> installed first. About 6 GB now. The music models (about 10 GB) are a separate download that you start; sound effects fetch their model the first time you make one. Nothing else on your PC changes.</p>`
           : `<p>Download ${esc(({ llamacpp: 'llama.cpp', sdcpp: 'stable-diffusion.cpp', whispercpp: 'whisper.cpp', piper: 'Piper' })[b.dataset.engine] || b.dataset.engine)} from GitHub (usually 20 to 600 MB, more with NVIDIA runtime files).</p>`;
         box.innerHTML += `<div class="row"><button class="get" data-yes="engine:${esc(b.dataset.engine)}">Yes, download</button><button data-no>Cancel</button></div>`;
       }

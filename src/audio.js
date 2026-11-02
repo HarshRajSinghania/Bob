@@ -4,13 +4,30 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { unpackedDir } from './config.js';
 
 export const workshopDir = (cfg) => path.join(cfg.agentDir, 'audio-workshop');
 export const uvExe = (cfg) => path.join(workshopDir(cfg), 'uv.exe');
 export const pythonExe = (cfg) => cfg.audio?.python || path.join(workshopDir(cfg), 'venv', 'Scripts', 'python.exe');
 export const aceDir = (cfg) => path.join(workshopDir(cfg), 'ace-step-1.5');
+// 1.5.37: ACE-Step looks for its models in its own checkpoints folder. Bob fills it through his Downloads (pinned to a
+// commit, each big file sha-checked, only when the user asks), so ACE-Step never fetches anything on its own.
+export const aceModelsDir = (cfg) => cfg.audio?.aceModelsDir || path.join(aceDir(cfg), 'checkpoints');
+export const ACE_MODELS_ID = 'ace-step-music';
+
+// The music models' catalog entry and what's missing of it: [] when every file is there at its pinned size.
+export function aceModelsMissing(cfg, catalog) {
+  let cat = catalog;
+  if (!cat) { try { cat = JSON.parse(fs.readFileSync(cfg.catalogFile || path.join(unpackedDir, 'catalog.json'), 'utf8')); } catch { return []; } }
+  const entry = (cat.models || []).find((m) => m.id === ACE_MODELS_ID);
+  if (!entry?.files?.length) return [];
+  const root = aceModelsDir(cfg);
+  return entry.files.filter((f) => { try { return fs.statSync(path.join(root, f.path)).size !== f.bytes; } catch { return true; } }).map((f) => f.path);
+}
+export function aceModelsEntry(cfg) {
+  try { return JSON.parse(fs.readFileSync(cfg.catalogFile || path.join(unpackedDir, 'catalog.json'), 'utf8')).models.find((m) => m.id === ACE_MODELS_ID) || null; } catch { return null; }
+}
 // Extra voices, each in its own small Python so their packages never clash with music or each other.
 export const voicePython = (cfg, which) => cfg.audio?.voicePython?.[which] || path.join(workshopDir(cfg), `venv-${which}`, 'Scripts', 'python.exe');
 const marker = (cfg) => path.join(workshopDir(cfg), 'ready.json');
@@ -208,23 +225,47 @@ async function aceUp(cfg) {
   try { const r = await fetch(aceBase(cfg) + '/v1/models', { signal: AbortSignal.timeout(2000) }); return r.ok; } catch { return false; }
 }
 
+// 1.5.37: "uv run" starts Python as its own child, so killing uv alone left the music engine running (and an old one
+// kept downloading, or hung, across jobs). Windows ends the whole tree.
+function killTree(child) {
+  if (!child?.pid) return;
+  if (process.platform === 'win32') execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, timeout: 8000 }, () => {});
+  else { try { child.kill(); } catch {} }
+}
+
+// A music engine still answering on Bob's port that this job didn't start (left from an older Bob, a crash or an
+// earlier job) is never reused: it may be stuck, or still trying to download. It's ended first; only processes whose
+// command line is ACE-Step's own server are touched.
+export async function stopStrayAce(cfg, run = execFile) {
+  if (process.platform !== 'win32') return false;
+  const ps = "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'acestep-api' } | ForEach-Object { taskkill /PID $_.ProcessId /T /F | Out-Null }";
+  await new Promise((r) => run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, timeout: 15000 }, () => r()));
+  for (let i = 0; i < 20 && await aceUp(cfg); i++) await sleep(500);
+  return true;
+}
+
 async function startAce(cfg, signal, onProgress) {
-  if (await aceUp(cfg)) return null;
-  const env = { ...process.env, ...uvEnv(cfg), ACESTEP_API_HOST: '127.0.0.1', ACESTEP_API_PORT: String(ACE_PORT), HF_HOME: path.join(cfg.bobModelsDir || path.join(cfg.agentDir, 'models'), 'audio') };
+  if (cfg.audio?.aceUrl) return null; // tests and hand-made setups run their own
+  if (await aceUp(cfg)) {
+    await stopStrayAce(cfg);
+    if (await aceUp(cfg)) throw new Error(`Another music engine is still running on port ${ACE_PORT} and wouldn't stop. Restart the PC, then ask for the song again.`);
+  }
+  // 1.5.37: offline, so ACE-Step can't quietly download models (gigabytes, with no progress shown) in the middle of a song.
+  const env = { ...process.env, ...uvEnv(cfg), ACESTEP_API_HOST: '127.0.0.1', ACESTEP_API_PORT: String(ACE_PORT), HF_HOME: path.join(cfg.bobModelsDir || path.join(cfg.agentDir, 'models'), 'audio'), HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', ACESTEP_DOWNLOAD_SOURCE: 'huggingface' };
   const child = spawn(uvExe(cfg), ['run', 'acestep-api'], { cwd: aceDir(cfg), env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let tail = '';
   child.stdout.on('data', (d) => { tail = (tail + d).slice(-2000); });
   child.stderr.on('data', (d) => { tail = (tail + d).slice(-2000); });
-  // The first start also downloads the music models, so allow plenty of time.
+  // Loading the models onto the card takes a minute or two (they're already on the PC: see aceModelsMissing).
   const t0 = Date.now();
-  while (Date.now() - t0 < 30 * 60e3) {
-    if (signal?.aborted) { child.kill(); throw new Error('Stopped.'); }
+  while (Date.now() - t0 < 10 * 60e3) {
+    if (signal?.aborted) { killTree(child); throw new Error('Stopped.'); }
     if (child.exitCode !== null) throw new Error(`The music engine stopped while starting: ${tail.slice(-300)}`);
     if (await aceUp(cfg)) return child;
     onProgress?.(0, 100);
     await sleep(2000);
   }
-  child.kill();
+  killTree(child);
   throw new Error('The music engine took too long to start.');
 }
 
@@ -255,7 +296,7 @@ async function makeMusic(cfg, job, { signal, onProgress }) {
     }
     throw new Error('The music took too long.');
   } finally {
-    if (child) { try { child.kill(); } catch {} }
+    if (child) killTree(child);
   }
 }
 
@@ -267,7 +308,16 @@ export async function makeAudio(cfg, kind, { prompt, lyrics, seconds }, { signal
   const name = `${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID().slice(0, 8)}.wav`;
   const out = path.join(cfg.painterDir, name);
   const job = { kind, prompt: String(prompt).slice(0, 1000), lyrics: lyrics ? String(lyrics).slice(0, 4000) : '', seconds: Math.min(kind === 'music' ? 240 : 20, Math.max(1, Number(seconds) || (kind === 'music' ? 30 : 5))), out };
-  if (kind === 'music') return makeMusic(cfg, job, { signal, onProgress });
+  if (kind === 'music') {
+    // 1.5.37: the models come first, through Bob's Downloads, and only when the user says so. No silent download.
+    if (!cfg.audio?.aceUrl && aceModelsMissing(cfg).length) {
+      const e = aceModelsEntry(cfg);
+      const err = new Error(`The music models aren't downloaded yet (about ${e?.sizeGB || 8} GB, first time only). Nothing was downloaded. Ask the user if they want them: they can say yes in the chat, or click Get on "${e?.name || 'ACE-Step 1.5 music models'}" in Settings (left menu), Get models, Music. Then ask for the song again.`);
+      err.code = 'MUSIC_MODELS_MISSING';
+      throw err;
+    }
+    return makeMusic(cfg, job, { signal, onProgress });
+  }
   const script = cfg.audio?.script || path.join(unpackedDir, 'audio', 'bob-audio.py');
   const env = { HF_HOME: path.join(cfg.bobModelsDir || path.join(cfg.agentDir, 'models'), 'audio'), PYTHONUNBUFFERED: '1' };
   let made = null;

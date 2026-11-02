@@ -24,7 +24,7 @@ import { capabilities } from './capabilities.js';
 import { cloudHelpers } from './cloud.js';
 import { copyName } from './clan.js';
 import { RefShelf } from './refs.js';
-import { makeAudio } from './audio.js';
+import { makeAudio, aceModelsMissing, aceModelsEntry, ACE_MODELS_ID } from './audio.js';
 import { runWorkflow } from './workshop.js';
 import { currentSession, modelFor, laneOf, suggestSession, SESSIONS, sessionBrains, waitsForGaming, GAMING_TAG, GAMING_HINT } from './sessions.js';
 import { stampMessages, keepOlder, readSummary } from './chats.js';
@@ -869,10 +869,22 @@ export class Brain {
     this.saveQueue();
     this.log('queue', `${job.kind}: ${text}`);
     const ahead = this.queue.filter((j) => j.state === 'waiting' && j.id !== job.id).length + this.turns.size;
+    // 1.5.37: a message sent while Bob is making a picture, song or clip waits for the card. Say so straight away
+    // (a plain line, no brain needed), so a long job never looks like Bob has stopped answering.
+    const busy = this.busyLine(job);
+    if (busy) setTimeout(() => this.broadcast({ type: 'busy-note', sessionId, jobId: job.id, text: busy }), 0);
     queueMicrotask(() => this.pump());
     const tip = suggestSession(this.cfg, this.queue);
     if (tip && this.suggested !== tip.id) { this.suggested = tip.id; this.broadcast({ type: 'suggest', ...tip }); }
     return { jobId: job.id, turnId: job.id, ahead };
+  }
+
+  // What to tell someone whose message has to wait behind a long media job, or null.
+  busyLine(job) {
+    if (!this.turns.size || this.state.state !== 'painting') return null;
+    if (laneOf(this.cfg, job) !== 'talk' || !this.turns.has('talk')) return null; // it runs in its own lane: no wait
+    const what = String(this.state.detail || '').trim();
+    return `I'm still on the last job${what ? ` (${what})` : ''}. I'll answer this as soon as it's done. If this can't wait, stop it in Tasks.`;
   }
 
   cancelJob(id) {
@@ -1382,7 +1394,16 @@ export class Brain {
   // Music and sound effects from the audio workshop. Same GPU manners as the painter.
   async makeSound(kind, args, ctx) {
     const music = kind === 'music';
-    ctx.emit({ type: 'announce', text: music ? 'Stepping out of the GPU so the audio workshop can compose. Music takes a few minutes; the first time, it also fetches the music model.' : 'Stepping out of the GPU for a sound effect. About a minute; the first time, it also fetches the model.' });
+    // 1.5.37: music needs its models on the PC first. If they aren't, offer the download (the user's click) and stop here.
+    if (music && !this.cfg.audio?.aceUrl) {
+      const missing = aceModelsMissing(this.cfg);
+      if (missing.length) {
+        const e = aceModelsEntry(this.cfg);
+        ctx.emit({ type: 'offer-download', id: ACE_MODELS_ID, name: e?.name || 'ACE-Step 1.5 music models', sizeGB: e?.sizeGB || null, why: 'music' });
+        throw Object.assign(new Error(`The music models aren't on this PC yet (about ${e?.sizeGB || 8} GB, first time only). Nothing was downloaded. A "Download the music models" button is now under this chat: tell the user to press it if they want music, and to ask for the song again when it's done.`), { code: 'MUSIC_MODELS_MISSING' });
+      }
+    }
+    ctx.emit({ type: 'announce', text: music ? 'Stepping out of the GPU so the audio workshop can compose. Music takes a few minutes.' : 'Stepping out of the GPU for a sound effect. About a minute; the first time, it also fetches the model.' });
     const unloaded = await this.gate.need({ id: 'card' }, { signal: ctx.signal, emit: ctx.emit }); // the gate: the card really free first
     this.setState('painting', music ? 'Composing' : 'Making a sound', null);
     this.log(kind, `unloaded ${unloaded.join(', ') || 'nothing'}; audio workshop`);

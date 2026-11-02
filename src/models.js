@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { appDir, saveSettings } from './config.js';
 import { ENGINES, engineStatus, installEngine, latestEngine } from './engines.js';
-import { audioReady, voicesReady } from './audio.js';
+import { audioReady, voicesReady, aceModelsDir } from './audio.js';
 import { maestroModels } from './maestro.js';
 
 const MODEL_EXT = new Set(['.gguf', '.safetensors', '.ckpt', '.pt', '.pth', '.bin', '.sft']);
@@ -190,10 +190,27 @@ export class ModelShop {
     return names;
   }
 
+  // 1.5.37: where a file of this entry lives. Most go in Bob's models folder by category; an entry with "into" goes
+  // where its engine looks for it (ACE-Step's music models go in its own checkpoints folder, at their repo paths).
+  dest(entry, f) {
+    if (entry.into === 'ace-checkpoints' && f.path) {
+      const root = aceModelsDir(this.cfg);
+      const p = path.resolve(root, f.path);
+      if (!p.startsWith(path.resolve(root) + path.sep)) throw new Error('A catalog file pointed outside its folder.');
+      return p;
+    }
+    return path.join(this.dir, entry.category, fileNameOf(f.url));
+  }
+
   // Where each of an entry's files is on this PC, if anywhere. Bob's own folder first, then anything the scan found.
   locate(entry) {
     const out = {};
     for (const f of entry.files || []) {
+      if (entry.into) { // only its own folder counts, and only at the right size (half a download doesn't)
+        const p = this.dest(entry, f);
+        try { if (!f.bytes || fs.statSync(p).size === f.bytes) out[f.role] = p; } catch {}
+        continue;
+      }
       const name = fileNameOf(f.url);
       const mine = path.join(this.dir, entry.category, name);
       if (fs.existsSync(mine)) { out[f.role] = mine; continue; }
@@ -385,7 +402,7 @@ export class ModelShop {
   }
 
   dropParts(entry) {
-    for (const f of entry.files || []) fs.rmSync(path.join(this.dir, entry.category, fileNameOf(f.url)) + '.part', { force: true });
+    for (const f of entry.files || []) { try { fs.rmSync(this.dest(entry, f) + '.part', { force: true }); } catch {} }
   }
 
   pause(id) {
@@ -514,13 +531,12 @@ export class ModelShop {
     } catch (e) { if (/disk space/.test(e.message)) throw e; }
     pub.total = total || pub.total;
     pub.done = 0;
-    const folder = path.join(this.dir, entry.category);
-    fs.mkdirSync(folder, { recursive: true });
     for (const [i, h] of heads.entries()) {
       const name = fileNameOf(h.f.url);
       pub.file = name; pub.fileIndex = i + 1;
       pub.phase = 'downloading';
-      const final = path.join(folder, name);
+      const final = this.dest(entry, h.f);
+      fs.mkdirSync(path.dirname(final), { recursive: true });
       const part = final + '.part';
       const hash = crypto.createHash('sha256');
       let have = 0;
@@ -553,8 +569,10 @@ export class ModelShop {
       if (h.sha && digest !== h.sha) { fs.rmSync(part, { force: true }); throw new Error(`${name} came through damaged (checksum didn't match). I deleted it; try again.`); }
       fs.renameSync(part, final);
       pub.done = base + got;
-      this.found.files.push({ path: final, name, size: got, kind: entry.category, owner: 'Bob' });
+      if (!entry.into) this.found.files.push({ path: final, name, size: got, kind: entry.category, owner: 'Bob' });
     }
+    // 1.5.37: ACE-Step's own half-finished download (left before Bob fetched the models himself) is only clutter now.
+    if (entry.into === 'ace-checkpoints') { try { fs.rmSync(path.join(aceModelsDir(this.cfg), '.cache', 'huggingface'), { recursive: true, force: true }); } catch {} }
     try { fs.writeFileSync(this.scanFile, JSON.stringify(this.found, null, 1)); } catch {}
   }
 

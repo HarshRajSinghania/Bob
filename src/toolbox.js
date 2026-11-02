@@ -77,7 +77,7 @@ export function guessGroups(brain, text) {
 }
 
 // The chat chip when a group is added (clarity reviewer's words; Hands match their names in Settings).
-const CHIP = { pictures: 'Using his picture tools', documents: 'Using his document tools', files: 'Using his file tools', run: 'Using Hands: run programs', schedules: 'Using Hands: schedules', apps: 'Using Hands: apps', memory: 'Forgetting a topic', cloud: 'Using a cloud helper' };
+const CHIP = { pictures: 'Using his picture, video and music tools', documents: 'Using his document tools', files: 'Using his file tools', run: 'Using Hands: run programs', schedules: 'Using Hands: schedules', apps: 'Using Hands: apps', memory: 'Forgetting a topic', cloud: 'Using a cloud helper' };
 
 export const allToolsOn = (cfg) => cfg.allTools === true;
 
