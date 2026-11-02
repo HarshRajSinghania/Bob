@@ -10,6 +10,8 @@ import { summary, size } from './progress.js';
 import { createTasks, createDownloads, makeSortable, neighbour, taskRow } from './lists.js';
 import { createLayout } from './layout.js';
 import { esc, render, renderRich, fileCard } from './rich.js';
+import { createTopics } from './topics.js';
+import { createTidy } from './tidy.js';
 
 const cellar = createCellar();
 const api = async (url, data) => {
@@ -216,6 +218,32 @@ $('styleBtn').onclick = () => cellar.open('shop', 'style');
 $('tasksBtn').onclick = () => tasks.open();
 $('dlBtn').onclick = () => downloads.open();
 function countBadge(btn, n) { const b = btn.querySelector('.badge'); if (!b) return; b.hidden = !n; b.textContent = n > 99 ? '99+' : String(n); }
+const topicsPage = createTopics({ api, openChat: (id, msgId) => openChat(id, msgId) });
+const tidyPage = createTidy({ api, onCount: (n) => countBadge($('tidyBtn'), n) });
+$('topicsBtn').onclick = () => topicsPage.open();
+$('tidyBtn').onclick = () => tidyPage.open();
+window.addEventListener('bob-tidy', () => tidyPage.open());
+// A past chat from Topics or search: switch to it and show its recent part (older parts are summed up).
+async function openChat(id, msgId) {
+  if (busy) { note('Bob is busy in this chat. Open the other one when he has finished.'); return; }
+  sessionId = id;
+  store.set('bob-session', sessionId);
+  log.innerHTML = '';
+  await loadHistory(40);
+  const el = msgId && log.querySelector(`[data-mid="${CSS.escape(msgId)}"]`);
+  if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2500); }
+  else if (msgId) note('That message is in the older part of this chat, which Bob keeps summed up. The Topics page shows it in full.');
+}
+async function loadHistory(n = 20) {
+  try {
+    const h = await (await fetch('/api/history?session=' + encodeURIComponent(sessionId))).json();
+    for (const m of h.slice(-n)) {
+      if (m.forgotten) { if (m.role === 'user') note(m.content); continue; }
+      const el = decorate(add(m.role === 'user' ? 'msg you' : 'msg bob', m.role === 'user' ? esc(m.content) + picsHtml(m.pics) : render(m.content) + mediaHtml(m.media)), m.content, m.media);
+      if (m.id) el.dataset.mid = m.id;
+    }
+  } catch {}
+}
 $('newchat').onclick = () => {
   if (busy) return;
   sessionId = 'chat-' + Date.now();
@@ -361,6 +389,19 @@ function onEvent(ev) {
       layout.needsYou();
       break;
     }
+    case 'tidy': {
+      // Housekeeping found old things (at most once a day, only when it's on). Nothing goes without a click.
+      countBadge($('tidyBtn'), ev.count);
+      const el = add('suggest', `<span>Housekeeping: ${ev.count} old thing${ev.count === 1 ? '' : 's'} haven't come up in a while${ev.bytes > 1e6 ? ` (${Math.round(ev.bytes / 1e6)} MB)` : ''}. Nothing goes without your OK.</span><button type="button" data-t="look">Have a look</button><button type="button" class="link" data-t="later">Later</button>`);
+      for (const b of el.querySelectorAll('button')) b.onclick = () => { el.remove(); if (b.dataset.t === 'look') tidyPage.open(); };
+      break;
+    }
+    case 'tidy-done':
+      topicsPage.refresh();
+      if (ev.error) note(`Housekeeping stopped: ${ev.error}`, 'error');
+      else note(`Housekeeping: ${[ev.summaries && `summed up ${ev.summaries} chat${ev.summaries === 1 ? '' : 's'}`, ev.topics && `filed ${ev.topics} chat${ev.topics === 1 ? '' : 's'} under topics`, ev.auto && `tidied ${ev.auto} thing${ev.auto === 1 ? '' : 's'}`, ev.ask && `${ev.ask} thing${ev.ask === 1 ? '' : 's'} to look at in Tidy up`].filter(Boolean).join(', ') || 'nothing to do'}.${ev.error ? '' : ''}`);
+      if (ev.ask != null) countBadge($('tidyBtn'), ev.ask);
+      break;
     case 'reminder':
       add('approval', `<p><strong>Reminder:</strong> ${esc(ev.text)}</p><div class="done">${esc(ev.local || '')}</div>`);
       speak('Reminder: ' + ev.text);
@@ -647,10 +688,7 @@ window.addEventListener('bob-caps', applyCaps);
 
 // ---------- Start ----------
 async function start() {
-  try {
-    const h = await (await fetch('/api/history?session=' + encodeURIComponent(sessionId))).json();
-    for (const m of h.slice(-20)) decorate(add(m.role === 'user' ? 'msg you' : 'msg bob', m.role === 'user' ? esc(m.content) + picsHtml(m.pics) : render(m.content) + mediaHtml(m.media)), m.content, m.media);
-  } catch {}
+  await loadHistory(20);
   let cat = 'Patches';
   try { cat = (await (await fetch('/api/settings')).json()).catName || cat; } catch {}
   if (!log.children.length) note(`Welcome to The Idle Process. Coffee's on, VRAM's mostly free, ${cat} is ignoring us. What are we building?`);

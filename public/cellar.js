@@ -182,6 +182,23 @@ export function createCellar() {
     </div>`;
   }
 
+  // Housekeeping: off unless turned on. Each kind has its own age limit and "ask me" (default) or "tidy automatically".
+  function housekeepingHtml() {
+    const hk = settings.housekeeping || {};
+    const KINDS = [['chats', 'Chats', 'summed up first, so the topic notes and a summary stay'], ['pictures', 'Pictures and clips Bob made', ''], ['sounds', 'Sounds and music Bob made', ''], ['tasks', 'Finished tasks', 'the chats keep what was said'], ['logs', 'Logbook and update logs', '']];
+    const units = ['minutes', 'hours', 'days', 'weeks', 'months'];
+    return `<div class="housekeeping"><strong>Housekeeping</strong> <span class="tag">off unless you turn it on</span>
+      <p class="muted">Bob tidies up after himself while he's idle: he sums up the older part of long chats, files what you talked about under Topics, moves lasting facts to his memory file, and offers to clear away things that haven't come up for a while. Removed things go to the Recycle Bin. Pinned chats, pictures and topics are never touched, and everything he does goes in the logbook.</p>
+      <label class="switch"><input type="checkbox" data-hk="enabled" ${hk.enabled ? 'checked' : ''}><span><strong>Let Bob keep house</strong><br><span class="muted">Only while he's idle (10 minutes quiet, nothing running). He mentions old things at most once a day.</span></span></label>
+      <label class="switch"><input type="checkbox" data-hk="wakeBrain" ${hk.wakeBrain ? 'checked' : ''} ${hk.enabled ? '' : 'disabled'}><span><strong>Load a brain for it if none is loaded</strong><br><span class="muted">Off: he sums up and sorts topics only when his brain is already in memory, so a game keeps the graphics card.</span></span></label>
+      <table class="hk-table"><thead><tr><th>What</th><th>When it hasn't come up for</th><th>Then</th></tr></thead><tbody>
+      ${KINDS.map(([k, label, note]) => { const c = hk[k] || {}; return `<tr><td>${esc(label)}${note ? `<br><span class="muted">${esc(note)}</span>` : ''}</td>
+        <td><input type="number" min="1" max="999" data-hkkind="${k}" data-hkfield="n" value="${esc(c.n || '')}" aria-label="${esc(label)}: how many" style="width:5em"> <select data-hkkind="${k}" data-hkfield="unit" aria-label="${esc(label)}: unit">${units.map((u) => `<option ${u === c.unit ? 'selected' : ''}>${u}</option>`).join('')}</select></td>
+        <td><select data-hkkind="${k}" data-hkfield="mode" aria-label="${esc(label)}: what then"><option value="ask" ${c.mode !== 'auto' ? 'selected' : ''}>Ask me first</option><option value="auto" ${c.mode === 'auto' ? 'selected' : ''}>Tidy automatically</option></select></td></tr>`; }).join('')}
+      </tbody></table>
+      <div class="row"><button data-opentidy>Open Tidy up</button><button data-hkrun>Tidy up now</button><span class="muted hk-out"></span></div></div>`;
+  }
+
   function settingsHtml() {
     return `<section class="settings">
       <p class="muted">Bob's look and the colours are on the <button class="link" data-tab="style">🎨 Style</button> tab.</p>
@@ -189,6 +206,7 @@ export function createCellar() {
         <div class="row"><button data-checkupdate>Check for a newer Bob</button><span class="update-out muted"></span></div>
         <div class="update-steps"></div>
         <label class="switch"><input type="checkbox" data-set="autoCheck" ${settings.updates?.autoCheck ? 'checked' : ''}><span><strong>Check when Bob starts</strong><br><span class="muted">Off unless you turn it on. Bob only tells you; updating always takes your click.</span></span></label></div>
+      ${housekeepingHtml()}
       <div><strong>Downloads</strong><p class="muted">Downloads queue up, ${settings.downloads?.concurrent === 2 ? 'two' : 'one'} at a time, and can be paused, resumed, cancelled and reordered.</p><button data-opendl>Open Downloads</button></div>
       <label class="switch"><input type="checkbox" data-set="oneBrain" ${settings.oneBrain ? 'checked' : ''}>
         <span><strong>One brain (snappier)</strong><br><span class="muted">In the Normal session, all of Bob's copies use his main brain, so he never stops to swap brains (about 20 seconds each). Specialist brains are better for long coding or review jobs.</span></span></label>
@@ -288,6 +306,8 @@ export function createCellar() {
         dlg.querySelector('.remove-confirm').innerHTML = `<p>Removing Bob${r.removes?.inn ? ', his chats and settings' : ''}${r.removes?.models ? ', his models' : ''}. Bob closes now.</p>`;
         return;
       }
+      if ('opentidy' in b.dataset) { dlg.close(); window.dispatchEvent(new Event('bob-tidy')); return; }
+      if ('hkrun' in b.dataset) { const r = await api('/api/hk/run', {}); b.parentElement.querySelector('.hk-out').textContent = r.busy ? 'Bob is already on it.' : 'Started. Bob tells you in the chat when he\'s done; chats are summed up only with a brain loaded.'; return; }
       if (b.dataset.usevoice) { const r = await api('/api/settings', { tts: { voice: b.dataset.usevoice } }); settings.tts = { ...settings.tts, ...r.tts }; draw(); return; }
       if (b.dataset.tab) { sampler.stop(); tab = b.dataset.tab; draw(); }
       else if (b.dataset.get) confirmBox(b.closest('.model'), data.models.find((m) => m.id === b.dataset.get));
@@ -370,6 +390,8 @@ export function createCellar() {
       if (el.dataset.set === 'catName') { const r = await api('/api/settings', { catName: el.value }); settings.catName = r.catName; el.value = r.catName; return; }
       if (el.dataset.set === 'workshop') { const r = await api('/api/settings', { workshop: { enabled: el.checked } }); settings.workshop = r.workshop; draw(); return; }
       if (el.dataset.set === 'workshopPort') { const r = await api('/api/settings', { workshop: { port: Number(el.value) } }); settings.workshop = r.workshop; return; }
+      if (el.dataset.hk) { const r = await api('/api/settings', { housekeeping: { [el.dataset.hk]: el.checked } }); settings.housekeeping = r.housekeeping; draw(); return; }
+      if (el.dataset.hkkind) { const v = el.dataset.hkfield === 'n' ? Number(el.value) : el.value; const r = await api('/api/settings', { housekeeping: { [el.dataset.hkkind]: { [el.dataset.hkfield]: v } } }); settings.housekeeping = r.housekeeping; if (el.dataset.hkfield === 'n') el.value = r.housekeeping[el.dataset.hkkind].n; flash(el, el.dataset.hkfield === 'mode' && v === 'auto' ? 'Saved. Bob tidies these without asking (to the Recycle Bin).' : 'Saved.'); return; }
       if (el.dataset.set === 'autoCheck') { const r = await api('/api/settings', { updates: { autoCheck: el.checked } }); settings.updates = r.updates; el.checked = r.updates.autoCheck; return; }
       if (el.dataset.set === 'autostart') { const r = await api('/api/settings', { autostart: el.checked }); settings.autostart = r.autostart; el.checked = r.autostart; }
       else if (el.dataset.cloud) { const r = await api('/api/settings', { cloudHelpers: { [el.dataset.cloud]: { enabled: el.checked } } }); cloud = r.cloud || cloud; flash(el.closest('.cloud'), el.checked ? 'On. Bob still asks every time.' : 'Off.'); }

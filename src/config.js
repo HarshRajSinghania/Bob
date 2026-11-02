@@ -1,4 +1,5 @@
 // Loads config.json and works out the folders Bob uses.
+import { cleanHousekeeping } from './hk-settings.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -91,7 +92,7 @@ export const VERSION = (() => {
   } catch { return { release: '0.9', branch: '', build: 0, label: '0.9.0' }; }
 })();
 
-export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates'];
+export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping'];
 const LOCKED_LLAMACPP = ['exe', 'preArgs'];
 
 function deepMerge(into, from) {
@@ -115,6 +116,7 @@ function clean(patch) {
   if ('ollamaKeepAlive' in out) out.ollamaKeepAlive = /^\d+[smh]$|^-1$/.test(String(out.ollamaKeepAlive)) ? String(out.ollamaKeepAlive) : undefined;
   if ('oneBrain' in out) out.oneBrain = out.oneBrain === true;
   if ('updates' in out) out.updates = { autoCheck: out.updates?.autoCheck === true };
+  if ('housekeeping' in out) out.housekeeping = cleanHousekeeping(out.housekeeping || {});
   if ('downloads' in out) { const d = out.downloads || {}; out.downloads = { concurrent: Number(d.concurrent) === 2 ? 2 : 1, resumeOnStart: d.resumeOnStart === true }; }
   if ('session' in out) out.session = ['normal', 'art', 'coding', 'office', 'deep', 'light'].includes(out.session) ? out.session : 'normal';
   if ('sessionBrains' in out) {

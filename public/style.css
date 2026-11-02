@@ -118,7 +118,7 @@ body.still .mic.on { animation: none; }
 .cellar::backdrop { background: var(--backdrop); }
 .cellar-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); z-index: 1; }
 .cellar-head h2 { margin: 0; font-size: 18px; }
-#cellar-body, #tasks-body, #downloads-body { padding: 12px 14px 16px; }
+#cellar-body, #tasks-body, #downloads-body, #topics-body, #tidy-body { padding: 12px 14px 16px; }
 .cellar button { font: inherit; padding: 7px 12px; border-radius: calc(var(--r) * 1); border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
 .cellar button:hover { border-color: var(--accent); }
 .cellar button.get { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
@@ -420,3 +420,41 @@ details.voices summary { cursor: pointer; font-weight: 600; }
 button.danger { background: #a8432f; color: #fff; border-color: #a8432f; }
 .remove-confirm code { word-break: break-all; }
 .ready-hint { margin-top: .35em; display: flex; flex-wrap: wrap; gap: .4em; align-items: center; }
+
+/* Topics and Tidy up (1.1.0) */
+.topics-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.topics-top input[type="search"] { flex: 1 1 260px; padding: 8px 10px; border-radius: var(--r); border: 1px solid var(--line); background: var(--bg, #1d1510); color: var(--text); font: inherit; }
+.topic-group h3 { margin: 14px 0 6px; }
+.topic { border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; margin-bottom: 8px; }
+.topic.pinned { border-color: var(--accent); }
+.topic.drop { outline: 2px dashed var(--accent); }
+.topic header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.topic header .mini { margin-left: auto; }
+.topic-name { font-weight: 700; font-size: 1.02em; }
+.topic-line { margin: 4px 0 0; }
+.topic-more { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.topic-more textarea { width: 100%; box-sizing: border-box; font: inherit; background: var(--bg, #1d1510); color: var(--text); border: 1px solid var(--line); border-radius: var(--r); padding: 6px; }
+.topic-pics { display: flex; flex-wrap: wrap; gap: 6px; }
+.topic-pics img { width: 84px; height: 84px; object-fit: cover; border-radius: calc(var(--r) * .75); }
+.topic-msgs { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 4px; }
+.topic-msgs li { display: flex; gap: 6px; align-items: flex-start; border: 1px solid var(--line); border-radius: calc(var(--r) * .75); padding: 4px 6px; cursor: grab; }
+.topic-msgs li > span:nth-child(2) { flex: 1; }
+.topic-msgs .grip { color: var(--muted); user-select: none; }
+.suggest-note { border-left: 3px solid var(--accent); padding-left: 8px; }
+.chat-list, .search-hits, .tidy-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.chat-list li, .search-hits li { border: 1px solid var(--line); border-radius: var(--r); padding: 6px 8px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; align-items: center; }
+.hit-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: calc(var(--r) * .5); }
+.tidy-row { display: flex; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: var(--r); padding: 6px 8px; }
+.tidy-row.keep { opacity: .6; }
+.tidy-what { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tidy-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: calc(var(--r) * .5); }
+.tidy-btns { display: flex; gap: 4px; align-items: center; }
+.tidy-btns .tick, .tidy-btns .cross { width: 34px; height: 34px; padding: 0; font-size: 16px; }
+.tidy-btns .tick[aria-pressed="true"] { border-color: var(--good, #7cbf6a); color: var(--good, #7cbf6a); }
+.tidy-btns .cross[aria-pressed="true"] { border-color: var(--bad); color: var(--bad); }
+.tidy-foot { margin-top: 12px; }
+.hk-table { border-collapse: collapse; margin: 6px 0; }
+.hk-table td, .hk-table th { padding: 4px 8px 4px 0; text-align: left; vertical-align: top; }
+.row.wrap { flex-wrap: wrap; }
+.msg.flash { outline: 2px solid var(--accent); }
+.mini { font-size: 12px; padding: 1px 7px; }

@@ -16,6 +16,8 @@ import { RefShelf } from './refs.js';
 import { makeAudio } from './audio.js';
 import { runWorkflow } from './workshop.js';
 import { currentSession, modelFor, laneOf, suggestSession, SESSIONS } from './sessions.js';
+import { stampMessages, keepOlder, readSummary } from './chats.js';
+import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -45,6 +47,8 @@ export class Brain {
     fs.mkdirSync(this.sessionDir, { recursive: true });
     this.reminderTimer = setInterval(() => this.checkReminders(), 15000);
     this.reminderTimer.unref?.();
+    this.housekeeper = new Housekeeper(cfg, this);
+    this.tools.forget_topic = forgetTopicTool(this);
   }
 
   checkReminders() {
@@ -97,9 +101,13 @@ export class Brain {
   sessionFile(id) { return path.join(this.sessionDir, id.replace(/[^a-zA-Z0-9-]/g, '') + '.json'); }
 
   saveSession(id) {
-    const msgs = this.session(id);
-    while (msgs.length > MAX_HISTORY) msgs.shift();
-    while (msgs.length && msgs[0].role !== 'user') msgs.shift(); // never start mid tool-call
+    const msgs = stampMessages(this.session(id));
+    // Bob reads the last 40 messages every turn. Older ones move to the chat's older file (word for word)
+    // and the housekeeper sums them up when Bob is idle; they used to be dropped without a trace.
+    const dropped = [];
+    while (msgs.length > MAX_HISTORY) dropped.push(msgs.shift());
+    while (msgs.length && msgs[0].role !== 'user') dropped.push(msgs.shift()); // never start mid tool-call
+    if (dropped.length) { try { keepOlder(this.cfg, id, dropped); } catch {} }
     for (const m of msgs) delete m.images; // pictures stay on the shelf; Bob keeps the description
     try { fs.writeFileSync(this.sessionFile(id), JSON.stringify(msgs)); } catch {}
   }
@@ -107,7 +115,7 @@ export class Brain {
   history(id) {
     return this.session(id)
       .filter((m) => (m.role === 'user' || m.role === 'assistant') && (m.content || m.media?.length))
-      .map((m) => ({ role: m.role, content: m.role === 'user' && m.text != null ? m.text : (m.content || ''), ...(m.media?.length ? { media: m.media } : {}), pics: (m.refs || []).map((id) => this.refs.find(id)).filter(Boolean).map((r) => ({ name: r.name, url: `/refs/${r.file}` })) }));
+      .map((m) => ({ role: m.role, id: m.id, at: m.at, ...(m.forgotten ? { forgotten: true } : {}), content: m.role === 'user' && m.text != null ? m.text : (m.content || ''), ...(m.media?.length ? { media: m.media } : {}), pics: (m.refs || []).map((id) => this.refs.find(id)).filter(Boolean).map((r) => ({ name: r.name, url: `/refs/${r.file}` })) }));
   }
 
   // Makes sure a model is in memory, telling the user first if it means a wait.
@@ -321,6 +329,7 @@ export class Brain {
 
   enqueue(sessionId, text, attach = []) {
     this.lastActivity = Date.now();
+    this.housekeeper?.pause(); // anything the housekeeper was asking the brain gives way at once
     const job = { id: crypto.randomUUID(), sessionId, text, refs: [].concat(attach || []).slice(0, 4), state: 'waiting', at: Date.now(), kind: Brain.guessKind(text, [].concat(attach || []).length > 0) };
     this.queue.push(job);
     this.saveQueue();
@@ -429,7 +438,7 @@ export class Brain {
       if (['image', 'video', 'audio'].includes(ev.type) && typeof ev.url === 'string' && ev.url.startsWith('/images/')) media.push({ type: ev.type, url: ev.url, name: path.basename(decodeURIComponent(ev.url.slice(8))) });
       return emit(ev);
     };
-    try { return await this.runOn(msgs, text, keep, signal, pics, job); }
+    try { return await this.runOn(msgs, text, keep, signal, pics, job, sessionId); }
     finally {
       if (media.length) {
         const added = msgs.slice(base);
@@ -441,8 +450,26 @@ export class Brain {
     }
   }
 
-  async runOn(msgs, text, emit, signal, pics, job = null) {
-    const user = { role: 'user', content: text };
+  // What Bob carries from earlier, instead of the whole old chat: the summary of this chat's older part,
+  // and the topic notes closest to what the user just said.
+  async recall(sessionId, text) {
+    const parts = [];
+    const sum = sessionId ? readSummary(this.cfg, sessionId)?.summary : '';
+    if (sum) parts.push(`Earlier in this chat (summed up): ${sum}`);
+    try {
+      const hk = this.housekeeper;
+      if (hk && hk.topics.load().topics.length) {
+        let vec = null;
+        if (hkSettings(this.cfg).enabled) vec = (await Promise.race([hk.embed([text]), new Promise((r) => setTimeout(() => r(null), 1500))]))?.[0] || null;
+        const notes = hk.topics.relevant(text, { vec, k: 3 });
+        if (notes.length) parts.push(`Notes from earlier talks (topics; the user can edit these):\n${notes.map((t) => `- ${t.project ? t.project + ' > ' : ''}${t.name}: ${(t.note || t.summary).slice(0, 600)}${t.open?.length ? ` Open: ${t.open.join('; ')}` : ''}`).join('\n')}`);
+      }
+    } catch {}
+    return parts.join('\n\n');
+  }
+
+  async runOn(msgs, text, emit, signal, pics, job = null, sessionId = null) {
+    const user = { role: 'user', content: text, at: Date.now() };
     let picNote = '';
     if (pics.length) {
       const { note, images } = await this.look(pics, emit, signal);
@@ -461,11 +488,12 @@ export class Brain {
     const brainCtx = await this.fitCtx(model, wantCtx);
     if (!model) throw new Error('I don\'t have a brain yet. Open Models and settings (in the menu on the left) and pick one; the first-time setup suggests the right one for this PC.');
     this.setState('thinking', '', this.state.model);
+    const earlier = await this.recall(sessionId, text);
 
     for (let step = 0; step < MAX_STEPS; step++) {
       await this.ensureModel(model, emit, signal, 'bob', { cpu, ctx: brainCtx });
       this.setState('thinking', '', model);
-      const sys = { role: 'system', content: this.withLimits(systemPrompt({ now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName })) };
+      const sys = { role: 'system', content: this.withLimits(systemPrompt({ now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName })) + (earlier ? `\n\n${earlier}` : '') };
       const reply = await this.engine.chat({
         model, messages: [sys, ...msgs], tools, signal, cpu, think, ctx: brainCtx,
         onToken: (t) => emit({ type: 'token', text: t })

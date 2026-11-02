@@ -19,6 +19,8 @@ import { voiceList, publicView, sampleFor, clearSamples } from './voice-samples.
 import { checkUpdate, startUpdate, updateStatus, requestRestart } from './update.js';
 import { describe as describeFile, openFile } from './files.js';
 import { refuseForeign } from './guard.js';
+import { search } from './search.js';
+import { hkSettings, cleanHousekeeping, KINDS, UNITS } from './housekeeping.js';
 
 const cfg = loadConfig();
 const publicDir = path.join(appDir, 'public');
@@ -179,7 +181,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/roles') return send(res, 200, await shop.roles());
     if (req.method === 'GET' && p === '/api/hardware') return send(res, 200, await shop.hardware());
     if (req.method === 'GET' && p === '/api/settings') {
-      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: cfg.ollamaKeepAlive || '10m', tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform });
+      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: cfg.ollamaKeepAlive || '10m', tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg) });
     }
     if (req.method === 'POST' && p.startsWith('/api/models/') || req.method === 'POST' && p === '/api/settings') {
       if (!isLocal) return send(res, 403, { error: 'Downloads and settings can only be changed on the PC itself.' });
@@ -223,6 +225,14 @@ const server = http.createServer(async (req, res) => {
           if (b.sessionCtx && typeof b.sessionCtx === 'object') { saveSettings(cfg, { sessionCtx: b.sessionCtx }); out.sessionCtx = cfg.sessionCtx; }
           if (typeof b.ollamaKeepAlive === 'string') { saveSettings(cfg, { ollamaKeepAlive: b.ollamaKeepAlive }); out.ollamaKeepAlive = cfg.ollamaKeepAlive || '10m'; }
           if (typeof b.oneBrain === 'boolean') { saveSettings(cfg, { oneBrain: b.oneBrain }); out.oneBrain = cfg.oneBrain === true; }
+          if (b.housekeeping && typeof b.housekeeping === 'object') {
+            const cur = hkSettings(cfg), h = b.housekeeping, next = { ...cur };
+            if ('enabled' in h) next.enabled = h.enabled === true;
+            if ('wakeBrain' in h) next.wakeBrain = h.wakeBrain === true;
+            for (const k of Object.keys(KINDS)) if (h[k] && typeof h[k] === 'object') next[k] = { ...cur[k], ...h[k] };
+            saveSettings(cfg, { housekeeping: cleanHousekeeping(next) });
+            out.housekeeping = hkSettings(cfg);
+          }
           if (b.updates && typeof b.updates === 'object') { saveSettings(cfg, { updates: { autoCheck: b.updates.autoCheck === true } }); out.updates = cfg.updates; }
           if (b.downloads && typeof b.downloads === 'object') { saveSettings(cfg, { downloads: { ...(cfg.downloads || {}), ...b.downloads } }); out.downloads = cfg.downloads; shop.pumpDownloads(); }
           if (typeof b.catName === 'string') { saveSettings(cfg, { catName: b.catName }); out.catName = cfg.catName || 'Patches'; }
@@ -335,6 +345,46 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && p === '/api/voice/samples/clear') { if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' }); clearSamples(cfg); return send(res, 200, { ok: true }); }
     if (req.method === 'POST' && p === '/api/stop') return send(res, 200, { stopped: brain.stop() });
+
+    // Housekeeping, topics, past chats and search. Reading works from the phone too; changes only on the PC.
+    const hk = brain.housekeeper;
+    if (req.method === 'GET' && p === '/api/chats') return send(res, 200, { chats: hk.chats(), tidied: hk.summaries().slice(0, 200) });
+    if (req.method === 'GET' && p === '/api/topics') return send(res, 200, hk.topics.list());
+    if (req.method === 'GET' && p === '/api/topics/messages') {
+      const t = hk.topics.get(String(url.searchParams.get('id') || ''));
+      if (!t) return send(res, 404, { error: 'No such topic.' });
+      return send(res, 200, hk.topicMessages(t));
+    }
+    if (req.method === 'GET' && p === '/api/topics/forget-preview') {
+      try { return send(res, 200, hk.forgetPreview(String(url.searchParams.get('id') || ''), { mode: url.searchParams.get('mode') === 'all' ? 'all' : 'note' })); }
+      catch (e) { return send(res, 404, { error: e.message }); }
+    }
+    if (req.method === 'GET' && p === '/api/search') return send(res, 200, search(cfg, { topics: hk.topics, summaries: hk.summaries() }, String(url.searchParams.get('q') || '').slice(0, 200)));
+    if (req.method === 'GET' && p === '/api/hk') { const st = hk.state(); return send(res, 200, { settings: hkSettings(cfg), kinds: KINDS, units: Object.keys(UNITS), items: hk.publicItems(), lastRun: st.lastRun, lastScan: st.lastScan, working: hk.working }); }
+    if (req.method === 'POST' && (p.startsWith('/api/hk/') || p.startsWith('/api/topics/') || p === '/api/pin')) {
+      if (!isLocal) return send(res, 403, { error: 'Tidying and topics can only be changed on the PC itself.' });
+      const b = await body(req);
+      try {
+        if (p === '/api/hk/scan') return send(res, 200, { items: hk.publicItems(hk.scan()) });
+        if (p === '/api/hk/tidy') { if (!hk.items.length) hk.scan(); return send(res, 200, { results: await hk.tidy([].concat(b.choices || []).slice(0, 2000)), items: hk.publicItems() }); }
+        if (p === '/api/hk/run') {
+          if (hk.working) return send(res, 200, { busy: true });
+          hk.tick({ force: true }).then((did) => broadcast({ type: 'tidy-done', ...did })).catch((e) => broadcast({ type: 'tidy-done', error: e.message }));
+          return send(res, 200, { started: true });
+        }
+        if (p === '/api/pin') return send(res, 200, { pins: hk.pin(String(b.kind), String(b.id), b.pinned === true) });
+        const id = String(b.id || '');
+        if (p === '/api/topics/rename') return send(res, 200, hk.topics.rename(id, b.name, b.project));
+        if (p === '/api/topics/edit') return send(res, 200, hk.topics.edit(id, { note: b.note, summary: b.summary, open: b.open }));
+        if (p === '/api/topics/pin') return send(res, 200, hk.topics.pin(id, b.pinned === true));
+        if (p === '/api/topics/fade') return send(res, 200, hk.topics.fade(id, b.after && UNITS[b.after.unit] ? { n: Number(b.after.n), unit: b.after.unit } : null));
+        if (p === '/api/topics/merge') { const into = hk.topics.merge(id, String(b.into || '')); brain.log('topics', `merged a topic into ${into}`); return send(res, 200, { id: into }); }
+        if (p === '/api/topics/move') return send(res, 200, { ok: hk.topics.moveMessage(String(b.session || ''), String(b.msgId || ''), String(b.to || '')) });
+        if (p === '/api/topics/forget') return send(res, 200, hk.forget(id, { mode: b.mode === 'all' ? 'all' : 'note', pictures: b.pictures === true }));
+        if (p === '/api/topics/accept') return send(res, 200, hk.topics.change(id, (t) => { if (t.suggested) { t.note = t.suggested.note || t.note; t.summary = t.suggested.summary || t.summary; t.suggested = undefined; } }));
+        return send(res, 404, { error: 'not found' });
+      } catch (e) { return send(res, 409, { error: e.message }); }
+    }
 
     // Files Bob mentions: a preview in the chat, plus Open / Show in folder / Copy (open and copy only on the PC itself).
     if (req.method === 'POST' && p === '/api/file/info') {
