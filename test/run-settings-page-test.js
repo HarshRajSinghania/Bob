@@ -89,7 +89,8 @@ check('self-test: recycle a file, Undo, and it\'s back', byName('Recycle')?.ok, 
 check('self-test: tidy 3 files, Undo, and they\'re back', byName('Tidy')?.ok, byName('Tidy')?.says);
 check('self-test: git --version', byName('Run git')?.ok, byName('Run git')?.says);
 check('self-test: a 30-second run is stopped and its process is gone', byName('Start a 30')?.ok, byName('Start a 30')?.says);
-check('self-test: the Windows task Status is skipped off Windows', byName('Ask the Windows')?.ok && /Skipped/.test(byName('Ask the Windows')?.says));
+if (process.platform === 'win32') check('self-test: the Windows task Status runs on Windows', byName('Ask the Windows')?.ok && !/Skipped/.test(byName('Ask the Windows')?.says), byName('Ask the Windows')?.says);
+else check('self-test: the Windows task Status is skipped off Windows', byName('Ask the Windows')?.ok && /Skipped/.test(byName('Ask the Windows')?.says));
 check('self-test cleans up its throwaway folder and logs to the logbook', st.cleaned && JSON.stringify(fs.readdirSync(cfg.innDir)) === JSON.stringify(before) && logs.some((l) => /self-test \(your click\): 5 of 5/.test(l)), JSON.stringify(logs));
 check('self-test works with every Hand off (it is your click, on dummy files only)', st.passed === 5);
 check('the Self-test button is in Settings, Hands, and the route is PC-only', /data-hselftest>Run the self-test/.test(hands) && /if \(!isLocal\)[\s\S]*\/api\/hands\/selftest/.test(read('src/hands-routes.js')));
