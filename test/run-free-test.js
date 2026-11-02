@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { cleanHands, freeOn, limitOn, readOnlyRoots, LIMITS } from '../src/hands-settings.js';
 import { checkCommand } from '../src/hands-run.js';
 import { planFiles, applyFiles, undoJob, guardPath } from '../src/hands-files.js';
@@ -47,7 +48,7 @@ const put = (rel, body = 'x', root = work) => { const f = path.join(root, rel); 
   check('secret files are off-limits with the limit on', isSensitive(cfg, env) && throws(() => guardPath(cfg, env), /keys or passwords/));
   const open = withLimits({ secrets: false });
   check('with "Keep secret files private" off, Bob may touch them', !isSensitive(open, env) && guardPath(open, env) === env);
-  check('Bob\'s own config stays off-limits even then', isSensitive(open, path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'config.json')));
+  check('Bob\'s own config stays off-limits even then', isSensitive(open, fileURLToPath(new URL('../config.json', import.meta.url))));
   check('run refuses a secret file only while the limit is on', !checkCommand(cfg, { cmd: 'notepad', args: [env], cwd: work }).ok && checkCommand(open, { cmd: 'notepad', args: [env], cwd: work }).ok);
 }
 
