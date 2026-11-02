@@ -118,11 +118,11 @@ Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Security prob
 
 ## Code signing policy
 
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+We have applied to the [SignPath Foundation](https://signpath.org) for free code signing for open-source projects. **Bob's releases are not code-signed yet.** Until then, Windows may warn that Bob is from an unknown publisher. This section describes how signing will work once the application is approved.
 
-- Only files built from this repository's source by its GitHub Actions workflow (`.github/workflows/build.yml`) are signed. Bob's release zip also contains Electron's official runtime, unchanged. Those files are Electron's, and Bob doesn't sign them.
+- Only files built from this repository's source by its GitHub Actions workflow (`.github/workflows/build.yml`) will be signed. Bob's release zip also contains Electron's official runtime, unchanged. Those files are Electron's, and Bob won't sign them.
 - Committers and reviewers: the members of this repository with write access.
-- Approvers: the project owner (MouseWurX). Every signing request for a release is approved by hand.
+- Approvers: the project owner (MouseWurX). Every signing request for a release will be approved by hand.
 
 **Privacy policy** ([PRIVACY.md](PRIVACY.md)): This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. In particular, Bob reaches the internet for: model and engine downloads (from the address shown before you confirm), voice samples from a voice's publisher, web searches, only if you turn on "Let Bob search the web" (off to start with; then Bob may search DuckDuckGo and read pages when a question needs it, and only the search words and page address go to that site), and cloud AI helpers you switch on with your own API key (each use asks first). Phone access over Tailscale is off unless you turn it on. Bob sends no telemetry.
 
