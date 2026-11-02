@@ -7,6 +7,9 @@ import { Ollama } from './ollama.js';
 import { LlamaCpp } from './llamacpp.js';
 import { buildTools, today, loadReminders, saveReminders } from './tools.js';
 import { systemPrompt, HATS } from './persona.js';
+import { lookPrompt } from './look.js';
+import { personalityPrompt } from '../public/personality.js';
+import { saveSettings } from './config.js';
 import { paint, paintingAvailable } from './painter.js';
 import { maestroMake } from './maestro.js';
 import { capabilities } from './capabilities.js';
@@ -493,11 +496,13 @@ export class Brain {
     for (let step = 0; step < MAX_STEPS; step++) {
       await this.ensureModel(model, emit, signal, 'bob', { cpu, ctx: brainCtx });
       this.setState('thinking', '', model);
-      const sys = { role: 'system', content: this.withLimits(systemPrompt({ now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName })) + (earlier ? `\n\n${earlier}` : '') };
+      const sys = { role: 'system', content: this.withLimits(systemPrompt({ now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName, look: lookPrompt(this.cfg), dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') })) + (earlier ? `\n\n${earlier}` : '') };
       const reply = await this.engine.chat({
         model, messages: [sys, ...msgs], tools, signal, cpu, think, ctx: brainCtx,
         onToken: (t) => emit({ type: 'token', text: t })
       });
+      // He's seen the new look once; that's enough.
+      if (this.cfg.lookChange) { try { saveSettings(this.cfg, { lookChange: null }); } catch {} this.cfg.lookChange = null; }
       msgs.push(reply);
       if (!reply.tool_calls) return;
       let ended = false;
@@ -613,7 +618,7 @@ export class Brain {
     // Raw pictures only go to a brain that can see; any brain still gets the Eyes descriptions above.
     if (ctx.pics?.length && await this.engine.hasVision?.(model).catch(() => false)) userMsg.images = ctx.pics.map((r) => this.refs.base64(r));
     const messages = [
-      { role: 'system', content: this.withLimits(systemPrompt({ hat, now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), copy, cat: this.cfg.catName })) },
+      { role: 'system', content: this.withLimits(systemPrompt({ hat, now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), copy, cat: this.cfg.catName, dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') })) },
       userMsg
     ];
     let final = '';

@@ -5,6 +5,7 @@ import { createStylePage } from './style-page.js';
 import { createSampler, sampleButton, sampleHint } from './voice-samples.js';
 import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks, starterPlan, slotValue } from './equip.js';
 import { drawBob } from './bob-sprite.js';
+import { attributesHtml, cleanPersonality, greeting, PRESETS, DEFAULTS, isDefault } from './personality.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -299,6 +300,9 @@ export function createCellar() {
     stylePage.paintPreviews(dlg);
     const doll = dlg.querySelector('.doll-bob');
     if (doll) { const c = doll.getContext('2d'); c.imageSmoothingEnabled = false; try { drawBob(c, 160, {}, settings?.look); } catch {} }
+    const mini = dlg.querySelector('.attr-avatar');
+    if (mini) { const c = mini.getContext('2d'); c.imageSmoothingEnabled = false; try { drawBob(c, 64, {}, settings?.look); } catch {} }
+    dlg.classList.toggle('wide', mode === 'shop' && tab === 'roles' && eqView !== 'list');
     if (jumpTo) { const el = dlg.querySelector('#sub-' + CSS.escape(jumpTo)); jumpTo = ''; el?.scrollIntoView({ block: 'start' }); }
   }
 
@@ -316,7 +320,8 @@ export function createCellar() {
   let eqSelected = 'bob', eqView = (() => { try { return localStorage.getItem('bob-equip-view') || 'doll'; } catch { return 'doll'; } })();
   function eqCtx() {
     return { roles, models: data?.models || [], brains: settings?.sessionBrains || {}, embed: roles?.current?.embed || '', selected: eqSelected, vramGB: hw?.vramGB || hw?.gpu?.vramGB || null,
-      packs: data?.packs || [], packId: starterPack, picks: starterPicks, engines: data?.engines || [], starterOpen };
+      packs: data?.packs || [], packId: starterPack, picks: starterPicks, engines: data?.engines || [], starterOpen,
+      attributes: settings ? attributesHtml({ personality: settings.personality, look: settings.look, lookText: settings.lookText, lookComments: settings.lookComments, user: settings.userName }) : '' };
   }
   // Starter set: which set, what's ticked (null = the defaults), and what still has to be equipped once it's downloaded.
   let starterPack = null, starterPicks = null, starterOpen = null;
@@ -446,6 +451,8 @@ export function createCellar() {
         draw();
         return;
       }
+      if (b.dataset.askbob) { dlg.close(); window.dispatchEvent(new CustomEvent('bob-ask', { detail: b.dataset.askbob })); return; }
+      if ('resetbob' in b.dataset) { const r = await api('/api/settings', { personality: DEFAULTS }); settings.personality = r.personality; draw(); return; }
       if (b.dataset.slotpick) { eqSelected = b.dataset.slotpick; draw(); dlg.querySelector('.kit-panel')?.scrollIntoView({ block: 'nearest' }); return; }
       if (b.dataset.equip && b.tagName === 'BUTTON') { await equip(eqSelected, b.dataset.equip); return; }
       if (b.dataset.unequip) { const sl = allSlots().find((s) => s.id === b.dataset.unequip); await equip(sl.id, sl.off === 'windows' ? 'windows' : '', { offer: false }); return; }
@@ -536,11 +543,24 @@ export function createCellar() {
     try { await equip(sl.dataset.slot, kit.value); } catch (err) { alertIn(sl, err.message); }
   });
 
-  dlg.addEventListener('input', (e) => { if (tab === 'style') stylePage.onInput(e.target); });
+  // The dials: the greeting updates as you slide; the setting saves when you let go.
+  const dialValues = () => cleanPersonality(Object.fromEntries([...dlg.querySelectorAll('[data-dial]')].map((x) => [x.dataset.dial, Number(x.value)])));
+  function showDials(p) {
+    const g = dlg.querySelector('.greet');
+    if (g) g.innerHTML = `<span class="muted">He'd say hello like this:</span><br>"${esc(greeting(p, settings?.userName))}"`;
+    const sel = dlg.querySelector('[data-preset]');
+    if (sel) { const hit = PRESETS.find((x) => Object.keys(DEFAULTS).every((k) => (x.set[k] ?? 2) === p[k])); sel.value = hit?.id || ''; sel.options[0].textContent = hit ? '' : 'Your own mix'; }
+    const rb = dlg.querySelector('[data-resetbob]');
+    if (rb) rb.disabled = isDefault(p);
+  }
+  dlg.addEventListener('input', (e) => { if (tab === 'style') stylePage.onInput(e.target); if (e.target.dataset?.dial) showDials(dialValues()); });
 
   dlg.addEventListener('change', async (e) => {
     const el = e.target;
     try {
+      if (el.dataset.dial) { const p = dialValues(); const r = await api('/api/settings', { personality: p }); settings.personality = r.personality; showDials(r.personality); return; }
+      if ('preset' in el.dataset) { const ps = PRESETS.find((x) => x.id === el.value); if (!ps) return; const r = await api('/api/settings', { personality: ps.set }); settings.personality = r.personality; draw(); return; }
+      if ('lookcomments' in el.dataset) { const r = await api('/api/settings', { lookComments: el.checked }); settings.lookComments = r.lookComments; flash(el, 'Saved.'); return; }
       if ('starterpack' in el.dataset) { starterPack = el.value; starterPicks = null; draw(); return; }
       if (el.dataset.starterpick) { const p = new Set(currentPicks()); el.checked ? p.add(el.dataset.starterpick) : p.delete(el.dataset.starterpick); starterPicks = p; draw(); return; }
       if (el.dataset.tts) { const v = el.dataset.tts === 'speed' ? Number(el.value) : el.value; const r = await api('/api/settings', { tts: { [el.dataset.tts]: v } }); settings.tts = { ...settings.tts, ...r.tts }; if (el.dataset.tts === 'voice') { const sb = el.closest('.row')?.querySelector('[data-sample-engine="kokoro"]'); if (sb) sb.dataset.sampleVoice = el.value; } flash(el, 'Saved. Press ▶ Hear a sample to hear it.'); return; }

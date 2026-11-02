@@ -95,7 +95,7 @@ export function createStylePage({ api, redraw, flash }) {
     if (b.dataset.motion) { await save(settings, { motion: b.dataset.motion }); redraw(); return true; }
     if (b.dataset.nowneed) { await save(settings, { openNowOnNeed: b.dataset.nowneed === '1' }); redraw(); return true; }
     if (b.dataset.theme) { draft = null; await save(settings, { theme: b.dataset.theme }); redraw(); return true; }
-    if (b.dataset.look) { await api('/api/settings', { look: b.dataset.look }); setLook(b.dataset.look); settings.look = b.dataset.look; redraw(); return true; }
+    if (b.dataset.look) { const r = await api('/api/settings', { look: b.dataset.look }); setLook(b.dataset.look); settings.look = b.dataset.look; if (r.lookText) settings.lookText = r.lookText; redraw(); return true; }
     if (b.dataset.avgroup) { avatarFilter = b.dataset.avgroup; redraw(); return true; }
     if ('newtheme' in b.dataset) { startDraft(settings); redraw(); return true; }
     if ('edittheme' in b.dataset) { startDraft(settings, findTheme(style.theme, style.custom)); redraw(); return true; }

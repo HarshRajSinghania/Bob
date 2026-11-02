@@ -179,7 +179,12 @@ export function equipHtml(ctx) {
       <button type="button" class="link" data-eqview="list">Plain list instead</button></div>
     ${starterHtml(ctx)}
     ${weightHtml(ctx)}
-    <div class="doll"><div class="doll-col">${col('L')}</div><div class="doll-mid"><canvas class="doll-bob" width="160" height="160" aria-label="Bob"></canvas><div class="muted">Bob's kit</div></div><div class="doll-col">${col('R')}</div></div>
-    <details class="helpers"${HELPERS.some((h) => h.id === ctx.selected) ? ' open' : ''}><summary>Helpers (optional: each uses the main brain unless you pick one)</summary><div class="helper-row">${HELPERS.map((s) => slotHtml(s, ctx)).join('')}</div></details>
-    <section class="kit-panel" aria-live="polite">${kitHtml(sel, ctx)}</section>`;
+    <div class="equip-page">
+      ${ctx.attributes || ''}
+      <div class="equip-mid">
+        <div class="doll"><div class="doll-col">${col('L')}</div><div class="doll-mid"><canvas class="doll-bob" width="160" height="160" aria-label="Bob"></canvas><div class="muted">Bob</div></div><div class="doll-col">${col('R')}</div></div>
+        <details class="helpers"${HELPERS.some((h) => h.id === ctx.selected) ? ' open' : ''}><summary>Helpers (optional: each uses the main brain unless you pick one)</summary><div class="helper-row">${HELPERS.map((s) => slotHtml(s, ctx)).join('')}</div></details>
+      </div>
+      <section class="kit-panel" aria-live="polite"><div class="kit-head muted">Inventory</div>${kitHtml(sel, ctx)}</section>
+    </div>`;
 }

@@ -223,6 +223,15 @@ const tidyPage = createTidy({ api, onCount: (n) => countBadge($('tidyBtn'), n) }
 $('topicsBtn').onclick = () => topicsPage.open();
 $('tidyBtn').onclick = () => tidyPage.open();
 window.addEventListener('bob-tidy', () => tidyPage.open());
+// "Ask Bob what he thinks" (Equip Bob, Attributes): puts the question in the chat and sends it.
+window.addEventListener('bob-ask', (e) => { const t = String(e.detail || '').slice(0, 300); if (!t) return; $('input').value = t; $('composer').requestSubmit(); });
+// Click Bob (or press Enter on him) to open Equip Bob.
+bobCanvas.tabIndex = 0;
+bobCanvas.setAttribute('role', 'button');
+bobCanvas.title = 'Equip Bob: his models, attributes and look';
+bobCanvas.setAttribute('aria-label', 'Bob. Open Equip Bob');
+bobCanvas.addEventListener('click', () => cellar.open('shop', 'roles'));
+bobCanvas.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cellar.open('shop', 'roles'); } });
 // A past chat from Topics or search: switch to it and show its recent part (older parts are summed up).
 async function openChat(id, msgId) {
   if (busy) { note('Bob is busy in this chat. Open the other one when he has finished.'); return; }

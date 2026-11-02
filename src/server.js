@@ -1,5 +1,7 @@
 // Bob's local server: serves the panel and a small API. Only listens on this PC.
 import http from 'node:http';
+import { lookText } from './look.js';
+import { cleanPersonality } from '../public/personality.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -189,7 +191,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && p === '/api/hardware') return send(res, 200, await shop.hardware());
     if (req.method === 'GET' && p === '/api/settings') {
-      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: cfg.ollamaKeepAlive || '10m', tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg) });
+      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, lookText: lookText(cfg.look), personality: cleanPersonality(cfg.personality), lookComments: cfg.lookComments !== false, userName: cfg.userName || '', engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: cfg.ollamaKeepAlive || '10m', tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg) });
     }
     if (req.method === 'POST' && p.startsWith('/api/models/') || req.method === 'POST' && p === '/api/settings') {
       if (!isLocal) return send(res, 403, { error: 'Downloads and settings can only be changed on the PC itself.' });
@@ -224,7 +226,14 @@ const server = http.createServer(async (req, res) => {
           if ('autostart' in b) out.autostart = await setAutostart(cfg, b.autostart === true);
           if ('setupDone' in b) { saveSettings(cfg, { setupDone: b.setupDone === true }); out.setupDone = cfg.setupDone; }
           if (b.cloudHelpers && typeof b.cloudHelpers === 'object') { saveSettings(cfg, { cloudHelpers: b.cloudHelpers }); out.cloud = cloudStatus(cfg); }
-          if (typeof b.look === 'string' && /^[a-z]{1,20}(-\d{1,2})?$/.test(b.look)) { saveSettings(cfg, { look: b.look }); out.look = b.look; }
+          if (typeof b.look === 'string' && /^[a-z]{1,20}(-\d{1,2})?$/.test(b.look)) {
+            const from = cfg.look || 'sysop';
+            saveSettings(cfg, { look: b.look, ...(from !== b.look ? { lookChange: { from, to: b.look, at: Date.now() } } : {}) });
+            out.look = b.look;
+            out.lookText = lookText(b.look);
+          }
+          if (b.personality && typeof b.personality === 'object') { saveSettings(cfg, { personality: cleanPersonality({ ...(cfg.personality || {}), ...b.personality }) }); out.personality = cleanPersonality(cfg.personality); }
+          if ('lookComments' in b) { saveSettings(cfg, { lookComments: b.lookComments !== false }); out.lookComments = cfg.lookComments !== false; }
           if (b.style && typeof b.style === 'object') { saveSettings(cfg, { style: { ...(cfg.style || {}), ...b.style } }); out.style = cfg.style; }
           if (typeof b.session === 'string') { saveSettings(cfg, { session: b.session }); out.session = await brain.setSession(cfg.session || 'normal'); }
           if (b.sessionBrains && typeof b.sessionBrains === 'object') { saveSettings(cfg, { sessionBrains: b.sessionBrains }); out.sessionBrains = sessionBrains(cfg); }

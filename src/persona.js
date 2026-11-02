@@ -64,8 +64,10 @@ When asked to change code in a project, work like this: search_files and read_fi
 
 export const DEFAULT_CAT = 'Patches';
 
-export function systemPrompt({ hat, now, memory, user = 'the user', backstory, about, copy, cat }) {
+export function systemPrompt({ hat, now, memory, user = 'the user', backstory, about, copy, cat, look, dials }) {
   const parts = [CORE.replace('{{BACKSTORY}}', (backstory && backstory.trim()) || DEFAULT_BACKSTORY).replace('{{ABOUT}}', about ? about.trim() + ' ' : '').replace('{{CAT}}', cat || DEFAULT_CAT)];
+  if (dials) parts.push(dials);
+  if (look && !hat) parts.push(look);
   parts.push(hat ? HATS[hat].prompt.replace('{{COPY}}', copy ? `you go by ${copy}` : 'a copy of Bob') : FRONT_DESK);
   parts.push(`Current date and time for {{USER}}: ${now}.`);
   const text = parts.join('\n\n').replaceAll('{{USER}}', user || 'the user');
