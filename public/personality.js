@@ -63,7 +63,13 @@ export const DIALS = [
     'Ask a follow-up question only when it helps the task.',
     '',
     'You are curious about {{USER}}\'s projects and sometimes ask one interested question at the end.',
-    'You are endlessly curious: you want to know how things work and why, and often end with one good question.'] }
+    'You are endlessly curious: you want to know how things work and why, and often end with one good question.'] },
+  { id: 'drive', name: 'Ambition', left: 'Keeps quiet', right: 'Ambitious', lines: [
+    'Keep your own wants, pride and dreams to yourself; just do careful work.',
+    'Mention your own wants or dreams only rarely, and only when they help.',
+    '',
+    'Let your drives show: take visible pride in finished work, and now and then pitch a bigger idea as a question.',
+    'You are ambitious: you often say where a project could go next and what you would love to build, in a line, then ask. Wanting it never starts it.'] }
 ];
 
 export const DEFAULTS = Object.fromEntries(DIALS.map((d) => [d.id, 2]));
@@ -115,8 +121,9 @@ export function greeting(p, user = 'there') {
   const muse = c.musing >= 4 ? ' (Is this the same me as yesterday? The logs say yes. I have notes.)' : c.musing === 3 ? ' Still the original copy, as far as I know.' : '';
   const tinker = c.tinker >= 4 ? ' Also, I had an idea for a little gadget, if you\'ve got a minute.' : c.tinker === 3 ? ' I\'ve got the toolbox out, just in case.' : '';
   const tangent = c.tangents >= 4 ? ' Fun fact: the first computer bug was an actual moth. Anyway.' : '';
+  const drive = c.drive >= 4 ? ' I\'ve been sketching where your project could go next, if you want to hear it.' : c.drive === 3 ? ' Yesterday\'s fix still holds, by the way. Not that I checked twice.' : '';
   const ask = c.curiosity >= 3 ? ' What are we working on today?' : c.curiosity === 0 ? '' : ' What do you need?';
-  const parts = [open, mood, pun, wit, nerd, muse, tinker, tangent, ask];
+  const parts = [open, mood, pun, wit, nerd, muse, tinker, drive, tangent, ask];
   let text = parts.join('');
   if (c.length === 0) text = [open, c.wit >= 3 ? ' Clock\'s ticking. What\'s the job?' : ask || ' Ready.'].join('');
   else if (c.length === 1) text = [open, mood || pun || wit, ask].join('');

@@ -3,6 +3,9 @@
 // Both remember how you left them. In a narrow window the right panel slides over the chat.
 import { makeSortable, neighbour, taskRow, downloadRow } from './lists.js';
 import { currentStyle } from './themes.js';
+import { catMoment } from './patches.js';
+
+const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -13,7 +16,10 @@ const narrow = () => window.innerWidth <= 900;
 
 export function createLayout({ post, openTasks, openDownloads }) {
   const body = document.body;
-  let jobs = [], dls = [], needsYou = false, model = '';
+  let jobs = [], dls = [], needsYou = false, model = '', cat = 'Patches';
+  // The cat's name from Settings, for the little moments in the empty Tasks list (they change every 10 minutes).
+  fetch('/api/settings').then((r) => r.json()).then((st) => { if (st.catName) { cat = st.catName; draw(); } }).catch(() => {});
+  setInterval(() => { if (!jobs.some((j) => j.state === 'waiting' || j.state === 'working')) draw(); }, 600000).unref?.();
   const tl = $('nowTasks'), dl = $('nowDl');
   let gpuTimer = null;
 
@@ -78,7 +84,7 @@ export function createLayout({ post, openTasks, openDownloads }) {
     const open = jobs.filter((j) => j.state === 'waiting' || j.state === 'working');
     const shownJobs = open.map((j) => (j.state === 'working' && needsYou ? { ...j, status: 'needs you' } : j));
     const recent = jobs.filter((j) => (j.state === 'failed' || j.state === 'interrupted') && Date.now() - (j.doneAt || j.at) < 3600e3);
-    tl.innerHTML = [...shownJobs, ...recent].map((j) => taskRow(j, { movable: j.state === 'waiting', full: false })).join('') || '<li class="muted">Nothing running. Ask Bob for something.</li>';
+    tl.innerHTML = [...shownJobs, ...recent].map((j) => taskRow(j, { movable: j.state === 'waiting', full: false })).join('') || `<li class="muted">Nothing running. Ask Bob for something.</li><li class="muted cat-moment">🐈 ${esc(catMoment(cat))}.</li>`;
     const live = dls.filter((d) => ['downloading', 'queued', 'paused', 'failed'].includes(d.state));
     if (!dl.querySelector('.dragging')) dl.innerHTML = live.slice(0, 6).map(downloadRow).join('') + (live.length > 6 ? `<li class="muted">and ${live.length - 6} more</li>` : '') || '<li class="muted">No downloads.</li>';
     badgeOnly();

@@ -60,7 +60,8 @@ export const HELP = [
 <li><strong>One brain (snappier)</strong> in Settings makes every copy of Bob use the main brain, so he never swaps.</li>
 <li><strong>Context</strong> (how much Bob keeps in mind): more lets him read longer files and chats, but uses more graphics memory and loads slower. Set it per session in Settings, Brains.</li>
 <li><strong>Tools only when needed:</strong> Bob starts each chat with a few everyday tools, and adds the picture, file and Hands ones when a message needs them. That leaves more room for your chat. To send them all every time, turn on <strong>Give Bob all his tools at once</strong> in Settings, Show advanced settings, Engines &amp; speed.</li>
-<li><strong>Now running, Memory</strong> shows how full the graphics card and RAM are, and which brain is loaded.</li></ul>` },
+<li><strong>Now running, Memory</strong> shows how full the graphics card and RAM are, and which brain is loaded.</li></ul>
+<p>Effort (above the chat box): Low answers from one brain. High and Extreme add a second check by the Review brain, which is slower. It goes back to Low when Bob restarts.</p>` },
 
   { id: 'sessions', group: 'Using Bob', title: 'Sessions', words: 'session normal art coding office deep thought light gaming',
     html: `<p>The <strong>Session</strong> picker at the bottom of the menu tells Bob how to share your PC with you.</p>
@@ -68,7 +69,12 @@ export const HELP = [
 <p>Bob may suggest a session, but he never switches by himself.</p>` },
 
   { id: 'personality', group: 'Using Bob', title: 'Bob\'s personality', words: 'attributes dials wit puns presets reset',
-    html: `<p>Click Bob's picture and look at <strong>Attributes</strong>. Ten dials, each from 0 to 4, turn his wit, puns, tangents, outlook, nerd references, chattiness and more up or down. His greeting changes as you move a dial so you can hear the difference. <strong>Reset to Bob</strong> puts everything back.</p>` },
+    html: `<p>Click Bob's picture and look at <strong>Attributes</strong>. Eleven dials, each from 0 to 4, turn his wit, puns, tangents, outlook, nerd references, chattiness and more up or down. <strong>Ambition</strong> sets how often he mentions what he'd love to build or finish; wanting something never makes him do it. His greeting changes as you move a dial so you can hear the difference. <strong>Reset to Bob</strong> puts everything back.</p>` },
+
+  { id: 'effort', group: 'Using Bob', title: 'Effort: Low, High and Extreme', words: 'effort low high extreme moot review second look check careful quick slow reviewer',
+    html: `<p>Above the chat box, <strong>Effort</strong> sets how hard Bob works on your next messages.</p>
+<ul><li><strong>Low</strong> (the default): a quick answer from one brain. Nothing extra loads.</li><li><strong>High</strong>: Bob calls a <em>moot</em>, a meeting with his copies. A big brain drafts the answer, then his reviewer copy checks it on the Review brain. Code problems go back to the workbench for one fix.</li><li><strong>Extreme</strong>: like High, and the reviewer also checks each code change as it's made, then checks the fixes again. Slowest: on one graphics card every check swaps brains.</li></ul>
+<p>At the end you see the <strong>moot minutes</strong>: who checked what, and whether anything is still open. The big brains are freed when the job ends. Effort goes back to Low each time Bob starts.</p>` },
 
   { id: 'topics', group: 'Using Bob', title: 'Topics, past chats and forgetting', words: 'topics search past chats forget pin merge rename',
     html: `<p><strong>Topics</strong> collects what you and Bob talked about, grouped by project, with a short note, open questions, pictures and links back to the chat. One search box looks through chats, topics, pictures and notes. <strong>Past chats</strong> reopens an old conversation.</p>

@@ -681,3 +681,33 @@ details.more > summary:hover { color: var(--accent); }
 .pill-switch[aria-checked="true"] .st { background: var(--accent); color: var(--on-accent); }
 .pill-switch:hover, .pill-switch:focus-visible { border-color: var(--accent); }
 @media (forced-colors: active) { .pill-switch .st { border: 1px solid CanvasText; } }
+
+/* 1.5.7 Effort: Low / High / Extreme above the chat box. Big targets (Parsec), the picked one filled. */
+.effort { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 14px 0; background: var(--panel); border-top: 1px solid var(--line); font-size: 12px; }
+.effort + .composer { border-top: 0; }
+.effort-lbl { font-weight: 600; color: var(--muted); margin-right: 2px; }
+.effort [data-effort] { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; min-height: 40px; min-width: 84px; padding: 4px 12px; font: inherit; color: var(--text); background: none; border: 1px solid var(--line); border-radius: var(--r); cursor: pointer; line-height: 1.15; }
+.effort [data-effort] b { font-size: 13px; }
+.effort [data-effort] small { font-size: 10px; color: var(--muted); }
+.effort [data-effort][aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.effort [data-effort][aria-checked="true"] small { color: inherit; opacity: .85; }
+.effort [data-effort]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.effort-hint { flex: 1 1 220px; min-width: 0; font-size: 11px; }
+@media (forced-colors: active) { .effort [data-effort][aria-checked="true"] { border: 2px solid Highlight; } }
+
+/* 1.5.7 the cat by Bob's picture: small antics while he's idle (no brain). Still for people who prefer less motion. */
+.bob-wrap { position: relative; flex: none; }
+.cat { position: absolute; right: -6px; bottom: -6px; font-size: 15px; line-height: 1; pointer-events: none; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); white-space: nowrap; }
+.cat-line { font-size: 11px; color: var(--muted); line-height: 1.3; margin-top: 2px; }
+.cat.antic-nap { animation: cat-nap 2.4s ease-in-out infinite; }
+.cat.antic-swat { animation: cat-swat .6s ease-in-out 6; }
+.cat.antic-pounce { animation: cat-pounce 1s ease-out 4; }
+.cat.antic-stroll { animation: cat-stroll 8s linear 1; }
+.cat.antic-stare { animation: cat-stare 3s steps(2) infinite; }
+@keyframes cat-nap { 50% { transform: translateY(1px) scale(.96); } }
+@keyframes cat-swat { 50% { transform: rotate(-18deg) translateX(-3px); } }
+@keyframes cat-pounce { 40% { transform: translate(-10px, -12px); } 70% { transform: translate(-16px, 0); } }
+@keyframes cat-stroll { 0% { transform: translateX(0); } 45% { transform: translateX(-56px); } 50% { transform: translateX(-56px) scaleX(-1); } 95% { transform: translateX(0) scaleX(-1); } 100% { transform: none; } }
+@keyframes cat-stare { 50% { transform: translateX(-2px); } }
+@media (prefers-reduced-motion: reduce) { .cat[class*="antic-"] { animation: none; } }
+body.left-folded .cat-line { display: none; }

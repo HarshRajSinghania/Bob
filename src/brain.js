@@ -8,7 +8,9 @@ import { LlamaCpp } from './llamacpp.js';
 import { buildTools, today, loadReminders, saveReminders } from './tools.js';
 import { systemPrompt, HATS } from './persona.js';
 import { lookPrompt } from './look.js';
-import { personalityPrompt } from '../public/personality.js';
+import { personalityPrompt, cleanPersonality } from '../public/personality.js';
+import { catPrompt } from '../public/patches.js';
+import { cleanEffort, careful, draftBrain, effortPrompt, mootOpening, runMoot, checkpoint } from './moot.js';
 import { saveSettings } from './config.js';
 import { paint, paintingAvailable } from './painter.js';
 import { maestroMake } from './maestro.js';
@@ -486,12 +488,12 @@ export class Brain {
   }
 
   queueView() {
-    return this.queue.map(({ id, sessionId, text, state, at, error, refs, kind, startedAt, doneAt, steps }) => {
+    return this.queue.map(({ id, sessionId, text, state, at, error, refs, kind, startedAt, doneAt, steps, effort }) => {
       const out = (steps || []).find((x) => x.state === 'in progress');
       // Plain status for the Tasks panel: Queued, In progress, Delegated (to which copy), Completed...
       const status = state === 'waiting' ? 'queued' : state === 'working' ? (out ? 'delegated' : 'in progress') : state === 'done' ? 'completed' : state;
       return { id, sessionId, kind, text: text.slice(0, 140), state, status, at, startedAt, doneAt, error, pics: (refs || []).length,
-        delegatedTo: out ? { hat: out.hat, label: out.label, copy: out.copy } : null, steps: (steps || []).slice(-8) };
+        delegatedTo: out ? { hat: out.hat, label: out.label, copy: out.copy } : null, steps: (steps || []).slice(-8), effort: effort || 'low' };
     });
   }
 
@@ -537,10 +539,10 @@ export class Brain {
     return 'chat';
   }
 
-  enqueue(sessionId, text, attach = []) {
+  enqueue(sessionId, text, attach = [], effort = 'low') {
     this.lastActivity = Date.now();
     this.housekeeper?.pause(); // anything the housekeeper was asking the brain gives way at once
-    const job = { id: crypto.randomUUID(), sessionId, text, refs: [].concat(attach || []).slice(0, 4), state: 'waiting', at: Date.now(), kind: Brain.guessKind(text, [].concat(attach || []).length > 0) };
+    const job = { id: crypto.randomUUID(), sessionId, text, refs: [].concat(attach || []).slice(0, 4), state: 'waiting', at: Date.now(), kind: Brain.guessKind(text, [].concat(attach || []).length > 0), effort: cleanEffort(effort) };
     this.queue.push(job);
     this.saveQueue();
     this.log('queue', `${job.kind}: ${text}`);
@@ -649,7 +651,13 @@ export class Brain {
       if (['image', 'video', 'audio'].includes(ev.type) && typeof ev.url === 'string' && ev.url.startsWith('/images/')) media.push({ type: ev.type, url: ev.url, name: path.basename(decodeURIComponent(ev.url.slice(8))) });
       return emit(ev);
     };
-    try { return await this.runOn(msgs, text, keep, signal, pics, job, sessionId); }
+    try {
+      // High and Extreme effort: Bob calls a moot. The draft comes first (runOn), then his reviewer copy checks it.
+      if (careful(job)) emit({ type: 'announce', text: mootOpening(this.cfg, job.effort, base) });
+      const out = {};
+      await this.runOn(msgs, text, keep, signal, pics, job, sessionId, out);
+      if (careful(job) && out.ctx && !signal?.aborted) await runMoot(this, { msgs, base, emit: keep, signal, job, ctx: out.ctx });
+    }
     finally {
       if (media.length) {
         const added = msgs.slice(base);
@@ -679,7 +687,7 @@ export class Brain {
     return parts.join('\n\n');
   }
 
-  async runOn(msgs, text, emit, signal, pics, job = null, sessionId = null) {
+  async runOn(msgs, text, emit, signal, pics, job = null, sessionId = null, out = {}) {
     const user = { role: 'user', content: text, at: Date.now() };
     let picNote = '';
     if (pics.length) {
@@ -696,8 +704,13 @@ export class Brain {
     // The turn's pictures travel with it, so a hat Bob hands the job to can see them too.
     const ctx = { emit, signal, brain: this, cfg: this.cfg, allowAll: new Set(), pics, picNote, msgs, turnText: text, job };
     ctx.loaded = this.startGroups(sessionId, text); // toolbox groups this turn (use_tools adds more)
+    out.ctx = ctx;
     const used = new Set();
-    const { model, cpu, think, ctx: wantCtx } = modelFor(this.cfg, 'bob');
+    // High and Extreme effort draft on the big brain; Low is the usual chat brain.
+    const { model, cpu, think, ctx: wantCtx } = (careful(job) && draftBrain(this.cfg)) || modelFor(this.cfg, 'bob');
+    // Small extras, only on some turns: the effort note (High/Extreme) and now and then a moment with the cat.
+    const turnNo = msgs.filter((m) => m.role === 'user').length;
+    const extras = [effortPrompt(job?.effort), catPrompt({ cat: this.cfg.catName, turn: turnNo, dials: cleanPersonality(this.cfg.personality), user: this.cfg.userName || 'the user' })].filter(Boolean).map((x) => `\n\n${x.replaceAll('{{USER}}', this.cfg.userName || 'the user')}`).join('');
     const brainCtx = await this.fitCtx(model, wantCtx);
     if (!model) throw new Error('I don\'t have a brain yet. Open Get models (in the menu on the left) and pick one; the first-time setup suggests the right one for this PC.');
     this.setState('thinking', '', this.state.model);
@@ -707,7 +720,7 @@ export class Brain {
       await this.ensureModel(model, emit, signal, 'bob', { cpu, ctx: brainCtx });
       this.setState('thinking', '', model);
       const tools = this.frontDeskTools(ctx.loaded);
-      const sys = { role: 'system', content: this.withLimits(systemPrompt({ now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName, look: lookPrompt(this.cfg), dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') }), ctx.loaded) + (earlier ? `\n\n${earlier}` : '') };
+      const sys = { role: 'system', content: this.withLimits(systemPrompt({ now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName, look: lookPrompt(this.cfg), dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') }), ctx.loaded) + extras + (earlier ? `\n\n${earlier}` : '') };
       const reply = await this.engine.chat({
         model, messages: [sys, ...staleHandErrors(msgs, turnStart)], tools, signal, cpu, think, ctx: brainCtx,
         onToken: (t) => emit({ type: 'token', text: t })
@@ -825,11 +838,12 @@ export class Brain {
   }
 
   // Bob wearing a different hat: a different model and focus, same Bob.
-  async runHat(hat, task, ctx) {
+  async runHat(hat, task, ctx, force = null) {
     if (!HATS[hat]) throw new Error(`Unknown hat ${hat}.`);
     // "One brain" mode: every hat runs on the main model, so there's no brain swap (about 20 s each) mid-chat.
     // Normal session: the hat's own brain (or the main one with "One brain"). Other sessions: the session's brain.
-    const { model, cpu, think, ctx: wantCtx } = modelFor(this.cfg, hat);
+    // A moot (High/Extreme effort) passes force: the reviewer always runs on the Review slot brain.
+    const { model, cpu, think, ctx: wantCtx } = force || modelFor(this.cfg, hat);
     const brainCtx = await this.fitCtx(model, wantCtx);
     const copy = copyName(this.cfg, hat, HATS[hat].label);
     ctx.emit({ type: 'hat', hat, label: PLAIN_HATS[hat] || HATS[hat].label, copy });
@@ -852,7 +866,8 @@ export class Brain {
       ledger: ['save_spreadsheet', 'read_file', 'list_folder'],
       scout: ['web_search', 'fetch_page'],
       painter: ['make_image', 'make_video', 'save_reference', 'make_music', 'make_sound', 'workshop_list', 'workshop_run'],
-      tinker: ['list_folder', 'read_file', 'search_files', 'edit_file', 'write_file', 'web_search', 'fetch_page'],
+      // run_command / run_recipe only when the Run hand is on (toolSchemas leaves them out otherwise); each run is approved.
+      tinker: ['list_folder', 'read_file', 'search_files', 'edit_file', 'write_file', 'web_search', 'fetch_page', 'run_command', 'run_recipe'],
       reviewer: ['list_folder', 'read_file', 'search_files']
     }[hat] || [];
     const maxSteps = hat === 'tinker' ? 30 : hat === 'reviewer' ? 15 : MAX_STEPS;
@@ -861,12 +876,16 @@ export class Brain {
     // Raw pictures only go to a brain that can see; any brain still gets the Eyes descriptions above.
     if (ctx.pics?.length && await this.engine.hasVision?.(model).catch(() => false)) userMsg.images = ctx.pics.map((r) => this.refs.base64(r));
     const messages = [
-      { role: 'system', content: this.withLimits(systemPrompt({ hat, now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), copy, cat: this.cfg.catName, dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') })) },
+      { role: 'system', content: this.withLimits(systemPrompt({ hat, now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), copy, cat: this.cfg.catName, dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') })) + (hat !== 'reviewer' && careful(ctx.job) ? `\n\n${effortPrompt(ctx.job.effort).replaceAll('{{USER}}', this.cfg.userName || 'the user')}` : '') },
       userMsg
     ];
     let final = '';
     const did = []; // what this copy did, handed back to the main conversation afterwards
+    let swapped = false;
+    const notes = [];
     for (let step = 0; step < maxSteps; step++) {
+      // A checkpoint (Extreme) borrowed the card for the reviewer: bring this copy's brain back first.
+      if (swapped) { await this.ensureModel(model, ctx.emit, ctx.signal, hat, { cpu, ctx: brainCtx }); swapped = false; }
       const reply = await this.engine.chat({
         model, messages, tools: this.toolSchemas(hatTools), signal: ctx.signal, cpu, think, ctx: brainCtx,
         onToken: (t) => ctx.emit({ type: 'token', text: t })
@@ -880,7 +899,14 @@ export class Brain {
         let a = call.function?.arguments; if (typeof a === 'string') { try { a = JSON.parse(a); } catch { a = {}; } }
         const where = a?.path || a?.url || a?.query || a?.name || '';
         did.push(`${call.function?.name}${where ? ` ${String(where).slice(0, 160)}` : ''}: ${String(res.text).replace(/\s+/g, ' ').slice(0, 240)}`);
+        // Extreme effort: the reviewer checks each change that went through, then the work carries on.
+        if (['edit_file', 'write_file'].includes(call.function?.name) && !/^Error|said no/i.test(String(res.text))) {
+          const note = await checkpoint(this, ctx, { hat, copy, plan: final, name: call.function?.name, where, args: JSON.stringify(a), result: res.text });
+          if (note) { notes.push(note); swapped = true; this.setState('busy', `${copy} is on it (${PLAIN_HATS[hat] || HATS[hat].label})`, model); }
+        }
       }
+      // After the tool results (engines want those right after the call), so the copy reads them next.
+      if (notes.length) messages.push({ role: 'user', content: notes.splice(0).join('\n\n') });
       ctx.emit({ type: 'token', text: '\n\n' });
     }
     // The return trip: the main conversation learns what the helper did, so the next turn (and the next

@@ -8,9 +8,13 @@ export const FOUNDERS = {
   tinker: { name: 'Bobcat', why: 'heavy machinery for heavy code' },
   ledger: { name: 'Robert', why: 'insists on his full name; keeps the books' },
   scout: { name: 'Bobolink', why: 'a bird that ranges far and comes back with news' },
-  painter: { name: 'Bobcasso', why: 'the artsy one' },
-  reviewer: { name: 'Bub', why: 'short, blunt, slightly grumpy' }
+  painter: { name: 'Bobcasso', why: 'the artsy one' }
+  // The reviewer has no founder name: he takes the next fresh name from the roll, like any new copy.
 };
+
+// Names that were given once and are retired: never handed out again. A roll that still has one is moved on
+// to a fresh name the first time that copy is called.
+export const RETIRED = { reviewer: ['Bub'] };
 
 // Names for later copies (cloud helpers and anything new), handed out in order, never reused.
 export const POOL = [
@@ -40,9 +44,11 @@ export function readRoll(cfg) {
 export function copyName(cfg, key, role) {
   const roll = readRoll(cfg);
   const have = roll.copies.find((c) => c.key === key);
-  if (have) return have.name;
+  if (have && !RETIRED[key]?.includes(have.name)) return have.name;
+  if (have) have.key = `${key}:retired`; // stays on the roll (so the name is never reused) but no longer answers
   const used = new Set(roll.copies.map((c) => c.name.toLowerCase()));
   for (const f of Object.values(FOUNDERS)) used.add(f.name.toLowerCase());
+  for (const n of Object.values(RETIRED).flat()) used.add(n.toLowerCase());
   const job = String(key).startsWith('cloud:') ? 'cloud' : String(key).split(':')[0];
   const free = (list) => (list || []).find((n) => !used.has(n.toLowerCase()));
   let name = FOUNDERS[key] && !roll.copies.some((c) => c.name === FOUNDERS[key].name) ? FOUNDERS[key].name : free(POOL) || free(BY_JOB[job]) || free(GENERAL) || free(Object.values(BY_JOB).flat());

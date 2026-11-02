@@ -14,7 +14,7 @@ const read = (f) => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8')
 
 // ---- dials ----
 {
-  check('ten dials, each with five settings and a name at each end', DIALS.length === 10 && DIALS.every((d) => d.lines.length === 5 && d.left && d.right && d.name));
+  check('eleven dials, each with five settings and a name at each end', DIALS.length === 11 && DIALS.every((d) => d.lines.length === 5 && d.left && d.right && d.name));
   check('the middle of every dial is Bob as he is: nothing added', DIALS.every((d) => d.lines[2] === '') && personalityPrompt(DEFAULTS) === '' && personalityPrompt({}) === '');
   check('every other setting says something', DIALS.every((d) => [0, 1, 3, 4].every((i) => d.lines[i].length > 10)));
   const p = personalityPrompt({ ...DEFAULTS, puns: 4, mood: 0 }, 'Sam');
@@ -62,7 +62,7 @@ const read = (f) => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8')
 {
   const html = attributesHtml({ personality: { puns: 4 }, look: 'robot-2', lookText: '"Servo", drawn as a robot', user: 'Sam' });
   check('the panel has the avatar card first, then sliders, then the greeting', html.indexOf('avatar-card') < html.indexOf('data-dial') && html.lastIndexOf('data-dial') < html.indexOf('class="greet"'));
-  check('a slider per dial, with labels for screen readers', (html.match(/type="range"/g) || []).length === 10 && /aria-label="Puns: None to Relentless"/.test(html));
+  check('a slider per dial, with labels for screen readers', (html.match(/type="range"/g) || []).length === 11 && /aria-label="Puns: None to Relentless"/.test(html));
   check('presets, Reset to Bob, and Ask Bob', /data-preset/.test(html) && /data-resetbob/.test(html) && !/data-resetbob disabled/.test(html) && /data-askbob=/.test(html));
   check('Reset is greyed out when he is already plain Bob', /data-resetbob disabled/.test(attributesHtml({ personality: {}, look: 'sysop', lookText: 'x' })));
   check('a mix that matches no preset says "Your own mix"', /Your own mix/.test(html) && !/Your own mix/.test(attributesHtml({ personality: PRESETS[2].set, look: 'sysop', lookText: 'x' })));

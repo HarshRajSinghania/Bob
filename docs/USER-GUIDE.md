@@ -133,7 +133,7 @@ The "8 GB" and "6 GB" versions are the same models **squeezed** to fit smaller c
 
 Bob has a dry, curious, slightly nerdy personality. You can turn that up or down.
 
-Click Bob's picture and look at **Attributes** on the left. There are ten dials, each from 0 to 4. The middle (2) is Bob as he comes.
+Click Bob's picture and look at **Attributes** on the left. There are eleven dials, each from 0 to 4. The middle (2) is Bob as he comes.
 
 | Dial | Low end | High end |
 |---|---|---|
@@ -147,6 +147,7 @@ Click Bob's picture and look at **Attributes** on the left. There are ten dials,
 | Copied-mind musings | Never | Often |
 | Builder itch | Calm | Must build |
 | Curiosity | Just the job | Endlessly curious |
+| Ambition | Keeps quiet | Ambitious |
 
 As you move a dial, Bob's **greeting** changes so you can hear the difference right away. There are presets too, such as *Replicant on a deadline* (short and to the point), *Butler mode* (formal and polite) and *Pun-dit* (you've been warned). **Reset to Bob** puts everything back.
 

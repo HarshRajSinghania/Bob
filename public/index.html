@@ -13,8 +13,8 @@
   <div class="app">
   <nav id="side" class="side" aria-label="Bob's menu">
     <div class="side-top">
-      <canvas id="bob" width="56" height="56" aria-label="Bob"></canvas>
-      <div class="who"><div class="name">Bob</div><div id="status" class="status" role="status">Getting the fire going...</div></div>
+      <div class="bob-wrap"><canvas id="bob" width="56" height="56" aria-label="Bob"></canvas><span id="cat" class="cat" aria-hidden="true">🐈</span></div>
+      <div class="who"><div class="name">Bob</div><div id="status" class="status" role="status">Getting the fire going...</div><div id="catLine" class="cat-line" aria-hidden="true" hidden></div></div>
       <button id="foldLeft" type="button" class="fold" title="Fold the menu (Ctrl+B)" aria-label="Fold the menu" aria-expanded="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6"/></svg></button>
     </div>
     <button id="newchat" type="button" class="nav-new" title="Start a new conversation" aria-label="New chat"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">New chat</span><span class="short" aria-hidden="true">New</span></button>
@@ -65,6 +65,13 @@
 
   <div id="queue" class="queue" hidden aria-live="polite"></div>
   <div id="tray" class="tray" hidden></div>
+  <div id="effort" class="effort" role="radiogroup" aria-label="Effort" data-level="low">
+    <span class="effort-lbl">Effort</span>
+    <button type="button" role="radio" aria-checked="true" data-effort="low"><b>Low</b><small>Quick</small></button>
+    <button type="button" role="radio" aria-checked="false" data-effort="high" tabindex="-1"><b>High</b><small>Checked</small></button>
+    <button type="button" role="radio" aria-checked="false" data-effort="extreme" tabindex="-1"><b>Extreme</b><small>Slowest</small></button>
+    <span id="effortHint" class="muted effort-hint" aria-live="polite"></span>
+  </div>
   <form id="composer" class="composer">
     <button id="mic" type="button" class="mic" title="Talk to Bob: click, speak, then pause">🎙</button>
     <button id="attach" type="button" class="mic" title="Attach a picture (or paste or drop one)">📎</button>

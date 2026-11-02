@@ -164,10 +164,10 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, brain.history(id));
     }
     if (req.method === 'POST' && p === '/api/chat') {
-      const { sessionId = 'main', text, refs = [] } = await body(req);
+      const { sessionId = 'main', text, refs = [], effort = 'low' } = await body(req);
       if (!text || !String(text).trim()) return send(res, 400, { error: 'empty' });
       const attach = [].concat(refs).map(String).filter((id) => /^[0-9a-f]{8}$/.test(id) && brain.refs.list().some((r) => r.id === id));
-      return send(res, 200, brain.enqueue(String(sessionId), String(text).slice(0, 20000), attach));
+      return send(res, 200, brain.enqueue(String(sessionId), String(text).slice(0, 20000), attach, String(effort)));
     }
     // Model shop and settings. Downloads and settings changes only from this PC, never from the phone.
     if (req.method === 'GET' && p === '/api/models') return send(res, 200, await shop.list());

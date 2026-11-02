@@ -58,3 +58,11 @@ Update this file in the same handover as any change to settings.
 | Get models / Equip Bob | Show models that don't suit this PC | off (remembered) | Approved with edits: use the pill switch style |
 | Help (menu, F1) | Search Help | | ok |
 | Settings > Advanced > Engines & speed | Give Bob all his tools at once: "Sends every tool with each message, which leaves less room for the chat. Leave off to keep chats light." | off | ok (approved with edits, slim tools) |
+
+## Added in 1.5.7 (careful work, Effort, drives, the cat) — approved with edits by the design thread
+| Page | Setting | Default | Review |
+|---|---|---|---|
+| Chat page, above the chat box | Effort: Low "Quick" / High "Checked" / Extreme "Slowest", with a one-line hint for the picked one | Low (back to Low each time Bob starts) | ok (with edits) |
+| Personality (Attributes) | Ambition dial: Keeps quiet to Ambitious | middle (2) | ok (with edits) |
+| Now running > Tasks (empty) | A small cat moment under "Nothing running" (changes every 10 minutes, no setting, no brain) | always | ok (with edits) |
+| Sidebar, by Bob's picture | The cat does a short antic every 1½-3 minutes while Bob is idle, with a one-line moment under his status (no brain, no setting) | always | added after review |

@@ -16,6 +16,8 @@ import { createHelp } from './help.js';
 import { handsApproval, onHandsEvent } from './hands.js';
 import { createBrainBar } from './brain-bar.js';
 import { createHandsSwitch } from './hands-switch.js';
+import { createEffort } from './effort.js';
+import { createCatAntics } from './cat-antics.js';
 
 const cellar = createCellar();
 const api = async (url, data) => {
@@ -32,6 +34,8 @@ const $ = (id) => document.getElementById(id);
 const log = $('log'), input = $('input'), sendBtn = $('send'), stopBtn = $('stop'), statusEl = $('status');
 const brainBar = createBrainBar({ post: (u, d) => post(u, d), note: (t, k) => note(t, k) });
 const handsSwitch = createHandsSwitch({ note: (t, k) => note(t, k) });
+const effort = createEffort();
+const catAntics = createCatAntics();
 const bobCanvas = $('bob'), bobCtx = bobCanvas.getContext('2d');
 bobCtx.imageSmoothingEnabled = false;
 
@@ -121,6 +125,7 @@ function setStatus(s) {
   if (s.session && sessionSel.value !== s.session.id) drawSessions(null, s.session);
   statusEl.className = `status ${s.state}`;
   statusEl.textContent = s.detail || STATUS_TEXT[s.state] || s.state;
+  catAntics.idle(s.state === 'idle');
   document.title = s.state === 'idle' ? 'Bob' : `Bob · ${STATUS_TEXT[s.state] || s.state}`;
   if (s.state === 'loading') showSwap(lastModel || 'old', s.model || 'new');
   else hideSwap();
@@ -498,7 +503,7 @@ function drawQueue(jobs) {
   countBadge($('tasksBtn'), open.length);
   for (const j of jobs) {
     const tag = jobBubbles.get(j.id)?.querySelector('.qtag');
-    if (tag) { const st = j.status || STATE_LABEL[j.state] || j.state; tag.textContent = st === 'delegated' && j.delegatedTo ? `delegated to ${j.delegatedTo.copy}` : st; tag.className = `qtag ${j.state}`; }
+    if (tag) { const st = j.status || STATE_LABEL[j.state] || j.state; tag.textContent = (st === 'delegated' && j.delegatedTo ? `delegated to ${j.delegatedTo.copy}` : st) + (j.effort === 'high' ? ' · High effort' : j.effort === 'extreme' ? ' · Extreme effort' : ''); tag.className = `qtag ${j.state}`; }
   }
   const show = jobs.filter((j) => j.state === 'waiting' || j.state === 'working' || ((j.state === 'failed' || j.state === 'interrupted') && Date.now() - j.at < 3600e3));
   qbox.hidden = !show.length;
@@ -653,11 +658,12 @@ $('composer').onsubmit = async (e) => {
   input.value = '';
   pending = [];
   drawTray();
-  const r = await post('/api/chat', { sessionId, text, refs: pics.map((p) => p.id) }).catch(() => ({ ok: false, data: { error: 'Can\'t reach Bob\'s brain. Is it running?' } }));
+  const level = effort.get();
+  const r = await post('/api/chat', { sessionId, text, refs: pics.map((p) => p.id), effort: level }).catch(() => ({ ok: false, data: { error: 'Can\'t reach Bob\'s brain. Is it running?' } }));
   const tag = bubble.querySelector('.qtag');
   if (!r.ok) { tag.textContent = 'not sent'; tag.classList.add('bad'); note(r.data.error || 'Something went wrong.', 'error'); return; }
   jobBubbles.set(r.data.jobId, bubble);
-  tag.textContent = r.data.ahead ? `queued, ${r.data.ahead} ahead` : 'queued';
+  tag.textContent = (r.data.ahead ? `queued, ${r.data.ahead} ahead` : 'queued') + (level === 'low' ? '' : ` · ${level === 'high' ? 'High' : 'Extreme'} effort`);
   if (lastJobs.some((j) => j.id === r.data.jobId && j.state !== 'waiting')) drawQueue(lastJobs); // it may already have run
 };
 // Keep Bob light: typing wakes the small brain (Wake when I type), so it's ready by the time you press Send.
