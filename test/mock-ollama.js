@@ -66,7 +66,7 @@ export function startMockOllama(port) {
       } else {
         words('Welcome to The Idle Process. I have no legs, but I do have **16 GB of VRAM**. What is the quest?');
       }
-      line({ message: { role: 'assistant', content: '' }, done: true });
+      line({ message: { role: 'assistant', content: '' }, done: true, prompt_eval_count: 900, eval_count: 40, eval_duration: 8e8 }); // 1.5.30: Ollama's end-of-reply numbers
       return res.end();
     }
     res.writeHead(404); res.end();

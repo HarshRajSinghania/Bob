@@ -1,5 +1,7 @@
 // Bob's local server: serves the panel and a small API. Only listens on this PC.
 import { ramNow, memGB } from './server-ram.js';
+import { cpuLoad } from './speed-stats.js';
+import os from 'node:os';
 import { brainMode, BRAIN_MODES, keepTime } from './brain-mode.js';
 import http from 'node:http';
 import { lookText } from './look.js';
@@ -384,7 +386,15 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/gpu') {
       // The whole graphics card (every app) and system memory (1.5.3). Bob's own brain line in Now running comes
       // from /api/brain, the same reading as the label at the top of the chat (1.5.26), so the two always agree.
-      return send(res, 200, { ...(await gpuNow()), ram: ramNow() });
+      // 1.5.30: processor load and the memory Bob's own app takes (both read inside Node, no extra program).
+      // costMs: what this reading itself cost, so its overhead can be checked on a real PC.
+      const t0 = performance.now(), c0 = process.cpuUsage();
+      const card = await gpuNow();
+      const out = { ...card, ram: ramNow(), cpu: cpuNow(), app: { ramGB: memGB(process.memoryUsage.rss()) } };
+      const c = process.cpuUsage(c0);
+      out.reads = ++gpuReads; // how many readings so far: lets a test on the PC confirm they stop under a full-screen game
+      out.costMs = { wait: Math.round((performance.now() - t0) * 10) / 10, bobCpu: Math.round((c.user + c.system) / 100) / 10, cardCheck: gpuCache.ms ?? null };
+      return send(res, 200, out);
     }
     if (req.method === 'GET' && p === '/api/update/check') return send(res, 200, checkUpdate());
     if (req.method === 'GET' && p === '/api/update/status') return send(res, 200, updateStatus(cfg) || {});
@@ -563,16 +573,26 @@ function friendlyName(id) {
   return entry?.name || id;
 }
 
+// Processor load since the last reading (Now running asks every few seconds while it is open).
+let cpuSnap = null, gpuReads = 0;
+function cpuNow() {
+  const { snap, pct } = cpuLoad(cpuSnap, os.cpus());
+  cpuSnap = snap;
+  return { loadPct: pct };
+}
+
 // Graphics card memory for the Now running panel (NVIDIA only; nvidia-smi ships with the driver).
 let gpuCache = { at: 0, val: null };
 async function gpuNow() {
   if (Date.now() - gpuCache.at < 3000) return gpuCache.val;
   const { execFile } = await import('node:child_process');
-  const gpu = await new Promise((resolve) => execFile('nvidia-smi', ['--query-gpu=name,memory.used,memory.total', '--format=csv,noheader,nounits'], { timeout: 4000, windowsHide: true }, (err, out) => {
+  const t0 = performance.now();
+  const gpu = await new Promise((resolve) => execFile('nvidia-smi', ['--query-gpu=name,memory.used,memory.total,utilization.gpu', '--format=csv,noheader,nounits'], { timeout: 4000, windowsHide: true }, (err, out) => {
     if (err) return resolve(null);
-    const [name, used, total] = String(out).split('\n')[0].split(',').map((x) => x.trim());
-    resolve(name ? { name, usedGB: Math.round(Number(used) / 102.4) / 10, totalGB: Math.round(Number(total) / 102.4) / 10 } : null);
+    const [name, used, total, load] = String(out).split('\n')[0].split(',').map((x) => x.trim());
+    // 1.5.30: how busy the card is, from the same nvidia-smi call (no extra program).
+    resolve(name ? { name, usedGB: Math.round(Number(used) / 102.4) / 10, totalGB: Math.round(Number(total) / 102.4) / 10, loadPct: Number.isFinite(Number(load)) && load !== '' ? Number(load) : null } : null);
   }));
-  gpuCache = { at: Date.now(), val: { gpu } };
+  gpuCache = { at: Date.now(), val: { gpu }, ms: Math.round((performance.now() - t0) * 10) / 10 }; // nvidia-smi's own run time
   return gpuCache.val;
 }

@@ -1,6 +1,7 @@
 // Bob's own engine: runs llama.cpp's llama-server.exe himself, one model at a time.
 // Same interface as the Ollama client, so the brain doesn't care which engine is in use.
 // Models are found by Ollama name in Ollama's model folder (no duplicate downloads), or set by path in config.
+import { replyStats } from './speed-stats.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -124,7 +125,7 @@ export class LlamaCpp {
     try { size = fs.statSync(this.resolve(this.current).gguf).size; } catch {}
     const vram = await this.vramOf(this.child.pid);
     // Without a per-process figure from nvidia-smi, how the model splits between card and RAM is unknown.
-    return [{ name: this.current, size, vram, split: vram > 0 }];
+    return [{ name: this.current, size, vram, split: vram > 0, ctx: this.currentCtx || this.lc.ctx || DEFAULT_CTX }];
   }
 
   // Graphics memory llama-server holds, in bytes, from nvidia-smi (ships with the NVIDIA driver). 0 when unknown.
@@ -435,6 +436,8 @@ export class LlamaCpp {
         if (data === '[DONE]') continue;
         const ev = JSON.parse(data);
         if (ev.error) throw new Error('llama-server: ' + (ev.error.message || JSON.stringify(ev.error)));
+        // 1.5.30: llama-server puts the reply's timings on its last chunk; kept for Now running.
+        if (ev.timings) this.lastStats = replyStats({ model: this.current || model, messages, promptTokens: (ev.timings.prompt_n || 0) + (ev.timings.cache_n || 0), outTokens: ev.timings.predicted_n, tokPerSec: ev.timings.predicted_per_second, ctx: this.currentCtx || this.lc.ctx || DEFAULT_CTX }) || this.lastStats;
         const d = ev.choices?.[0]?.delta || {};
         if (budget && d.reasoning_content && ++thought > budget && !content) onOver(); // stop.over marks it, so real errors aren't retried
         if (d.content) {

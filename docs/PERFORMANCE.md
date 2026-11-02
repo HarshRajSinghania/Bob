@@ -23,8 +23,8 @@ A few words used below:
 
 | What | Before | Now |
 |---|---|---|
-| Gaming session, "hi", brain already loaded | about 30 s (old Qwen3 4B thought first, even when told not to) | **0.1 s to the first word, 1.8 s to the full answer** (Qwen3 4B Instruct 2507) |
-| Gaming session, "hi", brain not loaded yet | 29 to 39 s | **1.7 s / 2.8 s** |
+| Gaming session, "hi", brain already loaded | 38.7 s (old Qwen3 4B thought first, even when told not to) | **0.1 s to the first word, 1.8 s to the full answer** (Qwen3 4B Instruct 2507) |
+| Gaming session, "hi", brain not loaded yet | 28.6 s | **1.7 s / 2.8 s** |
 | Gaming session, a 4,000-token chat, warm | (not usable) | **0.2 s / 2.8 s** |
 | 26B main brain, generation speed | 5 tok/s (spilled out of the card at 131K context) | **71 to 75 tok/s** (32K context, fits on the card) |
 | Quick replies on Low effort | about 200 tokens of thinking before the first word | no thinking step: the first word comes straight away |
@@ -32,13 +32,13 @@ A few words used below:
 | Task queue file after a long day | 6.8 MB | **0.23 MB** |
 | Graphics memory Bob holds while idle | a whole brain, all day | **nothing** (Free memory when Bob is idle, on by default) |
 
-The Gaming session runs **entirely on the processor**, so those Gaming times come with zero graphics memory used.
+In the Gaming session the brain lives in system RAM and thinks on the processor. The engine still borrows about 0.6 GB of graphics memory to read your message quickly, and nothing else of Bob's is on the card.
 
 ---
 
 ## Picking the Gaming brain
 
-The Gaming session's promise is simple: **the graphics card belongs to your game.** Nothing of Bob's goes on it. He still chats and listens, but on the processor (CPU), with a small brain in system RAM. Pictures, clips, music and anything at Medium effort or higher wait in Tasks until you switch back. Nothing is dropped.
+The Gaming session's promise is simple: **the graphics card belongs to your game.** Bob's brain stays off it; the only thing on the card is about 0.6 GB the engine uses to read messages quickly. He still chats and listens, but on the processor (CPU), with a small brain in system RAM. Pictures, clips, music and anything at Medium effort or higher wait in Tasks until you switch back. Nothing is dropped.
 
 A brain on the processor is much slower than on the card, so the choice of brain decides whether Gaming feels alive or broken.
 
@@ -49,31 +49,83 @@ Two things matter for a chat brain:
 - **Time to first thought**: how long until Bob starts answering. This is what makes him feel responsive.
 - **Time to full answer**: how long until he's done.
 
-We timed each candidate on the processor, with Bob idle and one model at a time, for a short message ("hi") and for a realistic 4,000-token chat. Each was measured cold (loading first) and warm.
+**How we tested.** llama.cpp (CUDA build b12032) with an 8K context, one chat slot, 8 threads and a compact (8-bit) memory for the chat. Every request carried Bob's real system prompt plus 9 tools, about 2,300 tokens, so these are honest numbers, not "hello world" numbers. "On the processor" means the brain sits in RAM and runs on the CPU, which is how Gaming runs it. Each test was run cold (brain not loaded, start-up included) and warm (already loaded, the earlier turn cached).
 
-| Brain (on the processor) | "hi" cold: first word / full answer | "hi" warm | 4K-token chat cold | 4K-token chat warm | RAM | Load |
-|---|---|---|---|---|---|---|
-| **Qwen3 4B Instruct 2507** (picked) | 1.7 / 2.8 s | 0.1 / 1.8 s | 2.1 / 5.6 s | 0.2 / 2.8 s | 3.5 GB | 1.1 s |
-| Qwen3 1.7B | 1.7 / 2.1 s | 0.1 / 0.5 s | | | 1.4 GB | |
-| Gemma 4 E4B | 6.7 / 7.6 s | | | | | |
-| Qwen3 4B (the older "hybrid" version) | about 30 s, because it thinks first | | | | 2.5 GB | |
+Seconds to the first word / to the full answer, on the processor:
+
+| Brain | "hi" cold | "hi" warm | One-line question, warm | 4K-token chat cold | 4K-token chat warm | Writing speed | RAM |
+|---|---|---|---|---|---|---|---|
+| **Qwen3 4B Instruct 2507** (picked) | 1.7 / 2.8 | 0.1 / 1.8 | 0.1 / 7.1 | 2.1 / 5.6 | 0.2 / 2.8 | 14 to 16 tok/s | 3.5 GB |
+| Qwen3 1.7B | 1.7 / 2.1 | 0.1 / 0.5 | 0.1 / 2.5 | 1.9 / 10.1 | 0.1 / 1.6 | 24 to 29 tok/s | 2.1 GB |
+| Gemma 4 E4B | 6.7 / 7.6 | 0.3 / 1.0 | 0.4 / 6.9 | 7.1 / 28.6 | 0.4 / 19.3 | 13 tok/s | 3.9 GB |
+| Qwen3 4B (the older "hybrid" version) | 2.8 / 28.6 | 0.1 / 38.7 | 0.1 / 38.7 | 3.3 / 46.9 | 0.2 / 44 | 14 to 16 tok/s | 3.5 GB |
+
+The older Qwen3 4B starts quickly, then thinks to itself for half a minute before it says anything useful, even when told not to. That's the 29 to 39 s the 2507 version got rid of.
+
+**What about hiding the graphics card completely?** We also ran every brain with the card hidden from the engine. Warm replies are about as fast, but a cold start is far slower, because the processor then has to read the whole 2,300-token prompt by itself: 2507 takes about **26 s** to its first word instead of 1.7 s, and a cold 4K chat about 81 s. Lending the engine about 0.6 GB of the card is what keeps Gaming chat feeling alive.
 
 ### Can it use tools?
 
-Speed isn't enough. Bob does things by calling tools (set a reminder, show a picture, look at his to-do list), so a Gaming brain that fakes tool calls is worse than a slow one. We ran a 25-case routing test that checks whether a brain picks the right tool:
+Speed isn't enough. Bob does things by calling tools (set a reminder, paint a picture, zip a folder), so a Gaming brain that fakes tool calls is worse than a slow one. We gave nine brains the same 25 everyday requests and checked whether each one picked the right tool.
 
-| Brain | Right (out of 25) | Notes |
-|---|---|---|
-| Gemma 4 E4B | 24 | Bob's everyday Quick brain on the card. The bar to beat. |
-| Qwen3 4B (hybrid) | 23 | Accurate, but about 8 times slower: it ignored "don't think" and its thinking leaked into the reply. |
-| Qwen3 1.7B | 22 | Very fast, but in several cases it wrote fake tool calls as plain text instead of real ones. |
+"Bob's real path" is how Bob actually works: he starts with a small core set of tools, and if the brain says it can't do something, he offers every tool and asks again. We also tried offering every tool at once, and the core set only. A "faked" call means the brain wrote the tool call as plain text instead of actually making it.
+
+| Brain | Runs on | Right, Bob's real path | All tools at once | Core tools only | Faked calls | Average time |
+|---|---|---|---|---|---|---|
+| Qwen3 4B (hybrid) | processor | **23** | 22 | 18 | 0 | 54 s |
+| **Qwen3 4B Instruct 2507** (picked) | processor | **22** | 21 | 11 | 0 | **3.4 s** |
+| Qwen 3.8 27B | card | **22** | 22 | 22 | 0 | 5.1 s |
+| Gemma 4 26B | card | 20 | 19 | 16 | 1 | 1.2 s |
+| Qwen3 Coder 30B | card | 20 | 20 | 15 | 0 | 7.4 s |
+| Qwen3 1.7B | processor | 20 | 20 | 9 | 1 | 1.9 s |
+| Gemma 4 E4B | processor | 14 | 15 | 13 | 0 | 3.6 s |
+| Qwen2.5 Coder 7B | card | 2 | 2 | 2 | 16 | 0.6 s |
+| GPT-OSS 20B | card | 2 | 2 | 2 | 4 | 7 s |
+
+Two things jump out:
+
+- **The fallback matters.** On core tools alone, the small brains often say "I can't do that yet" instead of asking for the tool they need. Bob's real path catches that and retries with every tool, which takes 2507 from 11 to 22.
+- **Qwen2.5 Coder 7B and GPT-OSS 20B didn't fail at thinking, they failed at formatting.** Qwen2.5 Coder writes its tool calls as plain JSON text, and our copy of GPT-OSS wrote its tool calls as text in its own format. Bob 1.5.29 learned to rescue plain-text tool calls, and both are being retested (GPT-OSS with its official llama.cpp build). We'll update this table when the results are in.
+
+### Who missed which job
+
+11 of the 25 jobs were right for all seven working brains. These are the 14 that tripped at least one of them up. ✓ means right.
+
+| Job (the tool it needs) | 2507 | 1.7B | E4B | Gemma 26B | Qwen 3.8 | Coder 30B | Old 4B |
+|---|---|---|---|---|---|---|---|
+| Make a chiptune song (music) | asked first | ✓ | asked first | asked first | empty reply | asked first | ✓ |
+| Zip up a folder (files) | ✓ | ✓ | asked first | asked first | looked first | looked first | looked first |
+| Fix a crash in a code project (coding copy) | asked which project | asked which project | wrong tool | wrong tool | ✓ | wrong tool | ✓ |
+| Undo the last file move (undo) | ✓ | "nothing to undo" | "nothing to undo" | ✓ | ✓ | wrong tool | "nothing to undo" |
+| Today's weather (web search) | "can't look it up" | "can't look it up" | ✓ | wrong tool | ✓ | ✓ | ✓ |
+| Make a short video clip (video) | ✓ | ✓ | asked first | "can't make video" | empty reply | ✓ | ✓ |
+| Tidy a folder by file type (files) | ✓ | ✓ | asked first | ✓ | ✓ | looked first | ✓ |
+| Read a text file and sum it up (read file) | ✓ | wrong tool | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Remember a preference (memory) | ✓ | faked it | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Draw a picture (pictures) | ✓ | ✓ | said yes, didn't | ✓ | ✓ | ✓ | ✓ |
+| Tidy a folder every day (schedules) | ✓ | ✓ | asked first | ✓ | ✓ | ✓ | ✓ |
+| Save it as a spreadsheet (documents) | ✓ | ✓ | asked first | ✓ | ✓ | ✓ | ✓ |
+| Search my project files (documents) | ✓ | ✓ | asked first | ✓ | ✓ | ✓ | ✓ |
+| Click a button in an app (apps) | ✓ | ✓ | asked first | ✓ | ✓ | ✓ | ✓ |
+| **Right out of 25** | **22** | **20** | **14** | **20** | **22** | **20** | **23** |
+
+How to read the misses:
+
+- **"Asked first"** isn't always wrong. "Which folder?" before zipping is a fair question; it just isn't what the test counted. Most of Gemma 4 E4B's misses (9 of 11) are this kind of politeness. On Ollama it scored 24/25 in an earlier test, so on Bob's engine it's simply more cautious.
+- **"Asked which project"** is a fair question too: the request didn't name one.
+- **"Looked first"** means the brain listed the folder before acting. Sensible, but an extra step.
+- **"Nothing to undo"** was actually true in the test (there was no recent move), so those are arguably right.
+- **"Can't look it up"** on the weather is now the *correct* answer when web search is off, which is the default since Bob 1.5.27.
+- **Empty replies** from Qwen 3.8 came on the retry path and were probably timeouts.
+- **Music, video, zip, undo and the code crash** were the hardest jobs for every brain. Those are also the jobs where Bob's approval cards and "I'll ask first" habits matter most, so a brain that checks before acting there isn't a disaster.
 
 ### Why Qwen3 4B Instruct 2507
 
-- The **2507 Instruct** version is the same 4B model family, trained to answer directly with no thinking phase. That removes the 30-second "let me think about this" that made the older 4B unusable on the processor.
-- It is about as fast to the first word as the 1.7B, and the 4B family uses tools far more reliably than the 1.7B.
-- At 3.5 GB of RAM it leaves plenty of room for a game on a 32 GB PC.
-- Gemma 4 E4B is a great brain on the card, but on the processor it takes about 4 times longer to start answering.
+- **Best tool score of the fast brains** (22/25), tied with Qwen 3.8 27B, which needs the graphics card.
+- **No thinking delay.** The 2507 Instruct version is the same 4B family as the old hybrid model, trained to answer directly. The hybrid scored one more point but took 54 s per request on average; 2507 took 3.4 s.
+- **About 2 s from cold and 0.1 to 0.2 s warm to the first word**, and most replies are finished in 2 to 7 s, on the processor.
+- **3.5 GB of RAM**, which leaves plenty for a game on a 32 GB PC.
+- Qwen3 1.7B is faster and lighter (2.1 GB) and a good choice for PCs with less RAM, but it scored 20 and once faked a tool call. Gemma 4 E4B is a fine brain on the card, but on the processor it is about 4 times slower to start and, on this engine, much more hesitant with tools.
 
 You can change it: Settings, Show advanced settings, Brains, Session brains.
 

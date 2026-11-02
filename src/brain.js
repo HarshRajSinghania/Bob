@@ -269,7 +269,7 @@ export class Brain {
       const split = m.split !== false && m.size > 0;
       const ramGB = split ? gb(Math.max(0, m.size - (m.vram || 0))) : null;
       // estimate: llama.cpp without a per-process figure from nvidia-smi (common on Windows) only knows the file size.
-      return { name: m.name, gb: split ? gb(m.vram || 0) : gb(m.vram || m.size), ramGB, estimate: !split && !m.vram, onCard: m.vram > 0 || (!m.vram && !chat.cpu && !split), chat: sameModel(m.name, chat.model) };
+      return { name: m.name, gb: split ? gb(m.vram || 0) : gb(m.vram || m.size), ramGB, estimate: !split && !m.vram, ctx: m.ctx || null, onCard: m.vram > 0 || (!m.vram && !chat.cpu && !split), chat: sameModel(m.name, chat.model) };
     });
     const ramKnown = models.some((m) => m.ramGB != null);
     const state = this.waking ? 'waking' : this.turns.size ? 'working' : models.length ? 'awake' : 'asleep';
@@ -279,6 +279,7 @@ export class Brain {
       mode: brainMode(this.cfg), holds: holdsChatBrain(this.cfg), bigSession: bigSession(this.cfg), session: currentSession(this.cfg).label,
       state, models, gb: Math.round(models.reduce((a, m) => a + m.gb, 0) * 10) / 10, ramGB: ramKnown ? Math.round(models.reduce((a, m) => a + (m.ramGB || 0), 0) * 10) / 10 : null,
       chatBrain: chat.model || null, sleepAfter: sleepAfterText(this.cfg), bigGrace: msText(bigGraceMs(this.cfg)), wakeSeconds, engineOk,
+      speed: this.engine.lastStats || null, // 1.5.30: the last reply's tokens per second and context use
       handoff: this.gate?.flags() || null // who has the graphics card, what's loading, how many wait (ready flags)
     };
   }

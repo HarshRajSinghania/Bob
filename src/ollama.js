@@ -1,4 +1,5 @@
 // Talks to the local Ollama server: chat streaming, what's loaded, loading and unloading.
+import { replyStats } from './speed-stats.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -25,7 +26,7 @@ export class Ollama {
 
   async loaded() {
     const r = await this.json('/api/ps');
-    return (r.models || []).map((m) => ({ name: m.name || m.model, size: m.size, vram: m.size_vram, split: true }));
+    return (r.models || []).map((m) => ({ name: m.name || m.model, size: m.size, vram: m.size_vram, split: true, ctx: m.context_length || this.ctxOf?.[m.name || m.model] || null }));
   }
 
   // cpu: the model must be running on the processor only (Art session), so the painter keeps the card.
@@ -179,6 +180,8 @@ export class Ollama {
         const msg = ev.message || {};
         if (msg.content) { content += msg.content; onToken && onToken(msg.content); }
         if (msg.tool_calls) toolCalls.push(...msg.tool_calls);
+        // 1.5.30: the last line carries the reply's numbers; kept for Now running (no extra work for Ollama).
+        if (ev.done) this.lastStats = replyStats({ model, messages, promptTokens: ev.prompt_eval_count, outTokens: ev.eval_count, tokPerSec: ev.eval_duration ? ev.eval_count / (ev.eval_duration / 1e9) : 0, ctx: ctx || this.ctxOf?.[model] }) || this.lastStats;
       }
     }
     return { role: 'assistant', content, tool_calls: toolCalls.length ? toolCalls : undefined };

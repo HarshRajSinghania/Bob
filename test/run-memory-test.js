@@ -34,8 +34,8 @@ check('the label reads "5.8 GB on the graphics card · 1.2 GB in RAM"', /GB on t
 const r = ramNow(32 * GB, 20 * GB);
 check('system RAM in use: total minus available', r.usedGB === 12 && r.totalGB === 32);
 const server = read('src/server.js'), layout = read('public/layout.js'), html = read('public/index.html');
-check('/api/gpu adds RAM; brains get friendly names on /api/brain', /ram: ramNow\(\) \}/.test(server) && /m\.label = friendlyName\(m\.name\)/.test(server) && /entry\?\.name \|\| id/.test(server));
-check('Now running: a Memory section with Graphics card and RAM meters', /<div class="now-sec">Memory<\/div>/.test(html) && /row\('RAM', ram\)/.test(layout) && /`RAM · \$\{ram\.usedGB\}/.test(layout));
+check('/api/gpu adds RAM; brains get friendly names on /api/brain', /ram: ramNow\(\), cpu: cpuNow\(\)/.test(server) && /m\.label = friendlyName\(m\.name\)/.test(server) && /entry\?\.name \|\| id/.test(server));
+check('Now running: a Memory section with Graphics card and RAM meters', /<div class="now-sec">Memory<\/div>/.test(html) && /row\(\(ram\.usedGB \/ ram\.totalGB\) \* 100, 'split-ram'\)/.test(layout) && /`RAM · \$\{ram\.usedGB\}/.test(layout));
 check('no NVIDIA card says "Graphics card: not detected", not the old wording', /'Graphics card · not detected'/.test(layout) && !/No NVIDIA card info/.test(layout));
 check('model ids stay out of Now running (friendly name only)', /m\.label \|\| m\.name/.test(layout) && !/· \$\{model\}/.test(layout));
 
@@ -51,7 +51,7 @@ check('model ids stay out of Now running (friendly name only)', /m\.label \|\| m
   check('llama.cpp without a per-process figure is marked as an estimate', s.models[0].estimate === true);
   s = await status([{ name: 'gemma4:e4b', size: 6 * GB, vram: 6 * GB, split: true }]);
   check('a measured brain is not an estimate', s.models[0].estimate === false);
-  check('the label says it is Bob\'s brain only, and the meter counts everything', /This counts Bob\\'s brain only\. The Memory meter in Now running counts everything on the card: Windows, other apps and Bob\\'s picture model\./.test(bar) && /about ' : ''/.test(bar) && /`Graphics card · \$\{gpu\.usedGB\} of \$\{gpu\.totalGB\} GB in use \(all apps\)`/.test(layout));
+  check('the label says it is Bob\'s brain only, and the meter counts everything', /This counts Bob\\'s brain only\. The Memory meter in Now running counts everything on the card: Windows, other apps and Bob\\'s picture model\./.test(bar) && /about ' : ''/.test(bar) && /`Graphics card · \$\{gpu\.usedGB\} of \$\{gpu\.totalGB\} GB in use \(all apps\)\$\{/.test(layout));
   check('the picture model gets its own line when loaded, measured only (never "about")', /st\.picture = \{ state: ps\.state, kind: ps\.kind, gb: ps\.vramBytes \? memGB\(ps\.vramBytes\) : null \}/.test(server) && /Picture model: \$\{st\.picture\.gb != null \? `\$\{st\.picture\.gb\} GB on the card`/.test(layout));
   check('nothing of Bob\'s loaded says so plainly', /'Bob has nothing on the card right now\.'/.test(layout));
   check('Now running takes Bob\'s brain from the same reading as the label, not the last model used', /dispatchEvent\(new CustomEvent\('bob-brain-status'/.test(bar) && /addEventListener\('bob-brain-status'/.test(layout) && !/brain\.state\?\.model/.test(server.slice(server.indexOf("p === '/api/gpu'"), server.indexOf("p === '/api/gpu'") + 600)));

@@ -838,3 +838,21 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .pc-tip { border: 1px solid var(--line, rgba(127,127,127,.3)); border-radius: 8px; padding: 8px 12px; margin: 8px 0; }
 .pc-tip ol { margin: 4px 0 0 1.2em; padding: 0; }
 .pc-fine { list-style: none; padding: 0; margin: 8px 0; }
+
+/* 1.5.30: Bob vs everything else under each meter, and the small graph in Now running. */
+.now-gpu .mem-split { color: var(--muted, inherit); opacity: .85; }
+.now-gpu .mem-graph-btn { justify-self: start; min-height: 32px; padding: 4px 12px; border: 1px solid var(--line, currentColor); border-radius: 6px; background: transparent; color: var(--text, inherit); cursor: pointer; font: inherit; }
+.now-gpu .mem-paused { padding: 4px 6px; border: 1px dashed var(--line, currentColor); border-radius: 4px; color: var(--muted, inherit); }
+.now-gpu .g-wrap { display: grid; grid-template-columns: auto 1fr; gap: 4px; }
+.now-gpu .g-axis { display: flex; flex-direction: column; justify-content: space-between; font-size: 10px; color: var(--muted, inherit); text-align: right; }
+.now-gpu .g-time { font-size: 11px; text-align: right; }
+.now-gpu .mem-graph svg { width: 100%; height: 48px; display: block; border: 1px solid var(--line, currentColor); border-radius: 4px; }
+.now-gpu .mem-graph path { fill: none; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.now-gpu .mem-graph path.g-mem { stroke: #4f9dde; }
+.now-gpu .mem-graph path.g-gpu { stroke: #e0a03a; stroke-dasharray: 4 2; }
+.now-gpu .mem-graph path.g-cpu { stroke: #6cbf6c; stroke-dasharray: 1 2; }
+.now-gpu .g-key { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 2px; }
+.now-gpu .g-key span::before { content: ''; display: inline-block; width: 10px; height: 2px; margin-right: 4px; vertical-align: middle; }
+.now-gpu .g-key .g-mem::before { background: #4f9dde; }
+.now-gpu .g-key .g-gpu::before { background: #e0a03a; }
+.now-gpu .g-key .g-cpu::before { background: #6cbf6c; }

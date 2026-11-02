@@ -16,6 +16,11 @@ app.setName('Bob');
 app.setAppUserModelId('ca.mousewurx.bob');
 if (!app.requestSingleInstanceLock()) { app.quit(); return; }
 
+// 1.5.30: let Windows tell the page when Bob's window is fully covered (a full-screen game). The page then reads
+// as hidden, so Now running stops its readings, and starts them again as soon as Bob can be seen. Electron leaves
+// this off by default; it costs nothing (Windows already tracks which windows are covered).
+app.commandLine.appendSwitch('enable-features', 'CalculateNativeWinOcclusion');
+
 const root = path.join(__dirname, '..');
 const exeDir = process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.execPath);
 

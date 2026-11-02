@@ -22,6 +22,10 @@ export function createLayout({ post, openTasks, openDownloads }) {
   setInterval(() => { if (!jobs.some((j) => j.state === 'waiting' || j.state === 'working')) draw(); }, 600000).unref?.();
   const tl = $('nowTasks'), dl = $('nowDl');
   let gpuTimer = null;
+  // 1.5.30: the readings' state lives up here too (pollGpu() can run before the section below; see 1.5.26).
+  let lastGpu = null, showGraph = false, lastOk = 0;
+  const hist = []; // the last 5 minutes of samples, for the graph (kept in this window only)
+  try { showGraph = localStorage.getItem('bob-now-graph') === '1'; } catch {}
   let gpuAt = 0, brainSt = null; // 1.5.26: up here, because pollGpu() can run before the graphics-card section below
 
   // ---- folding ----
@@ -118,6 +122,23 @@ export function createLayout({ post, openTasks, openDownloads }) {
   // 1.5.26: two readings, kept apart and labelled. The meters are the whole graphics card and RAM as Windows sees
   // them (every app, from nvidia-smi). "Bob's brain" is only Bob's chat brain, the same reading as the label at
   // the top of the chat (it arrives from there as bob-brain-status), so the two always show the same number.
+  // 1.5.30: each meter splits into Bob and everything else, plus processor load, speed, context and a small graph.
+  // All of it comes from the same two readings (/api/gpu and /api/brain), so nothing extra runs on the PC.
+  const k = (n) => Number(n || 0).toLocaleString('en-CA'); // 6,200 tokens
+  const about = (n) => k(n < 100 ? Math.round(n / 10) * 10 : Math.round(n / 100) * 100); // "about" numbers: to 10 or 100
+  const kctx = (n) => (n % 1024 === 0 ? `${n / 1024}K` : k(n)); // context sizes are powers of two: 32K
+  const r1 = (n) => Math.round(n * 10) / 10;
+  // Bob's share of the card and of RAM. Estimated parts make the whole share "about".
+  const bobShare = () => {
+    const st = brainSt;
+    let card = 0, ram = lastGpu?.app?.ramGB || 0, about = false;
+    for (const m of st?.models || []) {
+      if (m.ramGB == null) { if (m.onCard) card += m.gb; else ram += m.gb; about ||= Boolean(m.estimate); }
+      else { card += m.gb; ram += m.ramGB; }
+    }
+    if (st?.picture?.gb != null) card += st.picture.gb; else if (st?.picture) about = true;
+    return { card: r1(card), ram: r1(ram), about };
+  };
   const brainLine = () => {
     const el = $('nowGpu').querySelector('.mem-brain');
     if (!el) return;
@@ -125,7 +146,6 @@ export function createLayout({ post, openTasks, openDownloads }) {
     if (!st) { el.textContent = ''; return; }
     if (!st.engineOk) { el.textContent = 'Bob\'s brain: engine not answering'; return; }
     const pic = st.picture ? `Picture model: ${st.picture.gb != null ? `${st.picture.gb} GB on the card` : st.picture.state === 'loading' ? 'loading...' : 'on the card (Windows doesn\'t say how much)'}` : '';
-    if (!st.models?.length && !pic) { el.textContent = st.state === 'waking' ? 'Bob\'s brain: loading...' : 'Bob has nothing on the card right now.'; return; }
     const one = (m) => {
       const parts = [];
       if (m.ramGB == null) parts.push(`${m.estimate ? 'about ' : ''}${m.gb} GB${m.onCard ? '' : ' in RAM'}`);
@@ -133,31 +153,91 @@ export function createLayout({ post, openTasks, openDownloads }) {
       return `${m.label || m.name}, ${parts.join(' + ') || '0 GB'}`;
     };
     // One line per thing of Bob's on the card, so they add up to his share of the meter above.
-    const lines = [st.models?.length ? `Bob's brain: ${st.models.map(one).join('; ')}` : st.state === 'waking' ? 'Bob\'s brain: loading...' : 'Bob\'s brain: not loaded', pic].filter(Boolean);
+    const lines = !st.models?.length && !pic
+      ? [st.state === 'waking' ? 'Bob\'s brain: loading...' : 'Bob has nothing on the card right now.']
+      : [st.models?.length ? `Bob's brain: ${st.models.map(one).join('; ')}` : st.state === 'waking' ? 'Bob\'s brain: loading...' : 'Bob\'s brain: not loaded', pic].filter(Boolean);
+    // Speed and context of the last reply (from the engine's own end-of-reply numbers).
+    const sp = st.speed;
+    if (sp && (!st.models?.length || st.models.some((m) => m.name === sp.model))) {
+      // About 0.7 words a token for English, to the nearest 5 words.
+      if (sp.tokPerSec) lines.push(`Last reply: ${sp.tokPerSec} tokens a second (about ${Math.max(5, Math.round((sp.tokPerSec * 0.7) / 5) * 5)} words)`);
+      if (sp.used) {
+        const ctx = sp.ctx || st.models?.find((m) => m.name === sp.model)?.ctx;
+        lines.push(`Context: ${k(sp.used)}${ctx ? ` of ${kctx(ctx)} tokens (${Math.round((sp.used / ctx) * 100)}%)` : ' tokens'} · Bob's instructions and memory about ${about(sp.instructions)} · chat and files about ${about(sp.chat)}`);
+      }
+    }
     el.replaceChildren(...lines.map((t) => Object.assign(document.createElement('div'), { textContent: t })));
-    el.title = 'What Bob has on the card. "Bob\'s brain" is the same reading as the label at the top of the chat. The Graphics card meter above counts everything on the card: Windows, other apps and Bob\'s picture model.';
+    el.title = 'What Bob has on the card. "Bob\'s brain" is the same reading as the label at the top of the chat. Context is what Bob is holding in mind right now; when it fills up he forgets the oldest parts of the chat.';
+    splitLines();
+  };
+  // "Bob 6.0 GB · everything else 3.1 GB" under each meter.
+  // Readings stop while Bob can't be seen; say so, so old numbers never look live (shown when he's seen again,
+  // until the fresh reading lands a moment later, or if a reading fails).
+  // Function declarations (hoisted): pollGpu() calls this before its first await, which can be before this line runs.
+  function ago(ms) { const m = Math.round(ms / 60000); return m < 1 ? 'less than a minute ago' : m === 1 ? '1 min ago' : `${m} min ago`; }
+  function pausedLine(on, why = 'Paused while a game or another window is in front') {
+    const el = $('nowGpu'); let p = el.querySelector('.mem-paused');
+    if (!on) { if (p) p.remove(); return; }
+    if (!lastOk) return;
+    if (!p) { p = Object.assign(document.createElement('div'), { className: 'mem-paused' }); el.prepend(p); }
+    p.textContent = `${why} · last reading ${ago(Date.now() - lastOk)}`;
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pausedLine(true); });
+  const splitLines = () => {
+    const el = $('nowGpu');
+    if (!lastGpu || !brainSt) return;
+    const b = bobShare(), a = b.about ? 'about ' : '';
+    const put = (sel, used) => {
+      const t = el.querySelector(sel);
+      if (t) t.textContent = `Bob ${a}${b[sel === '.split-card' ? 'card' : 'ram']} GB · everything else ${a}${r1(Math.max(0, used - b[sel === '.split-card' ? 'card' : 'ram']))} GB`;
+    };
+    if (lastGpu.gpu) put('.split-card', lastGpu.gpu.usedGB);
+    if (lastGpu.ram?.totalGB) put('.split-ram', lastGpu.ram.usedGB);
+  };
+  // A small line graph of the last 5 minutes: graphics memory, card busy and processor busy, as percentages.
+  const graph = () => {
+    const el = $('nowGpu').querySelector('.mem-graph');
+    if (!el) return;
+    el.hidden = !showGraph;
+    if (!showGraph || hist.length < 2) { if (showGraph) el.innerHTML = '<span class="muted">Collecting a few readings...</span>'; return; }
+    const W = 200, H = 48, n = 60, mins = brainSt?.session === 'Gaming' ? 15 : 5; // 60 readings, 5 or 15 s apart
+    const path = (key) => hist.map((h, i) => (h[key] == null ? null : `${(W * (n - hist.length + i)) / (n - 1)},${H - (H * h[key]) / 100}`)).filter(Boolean).map((p, i) => (i ? 'L' : 'M') + p).join(' ');
+    const line = (key, cls) => { const d = path(key); return d ? `<path class="${cls}" d="${d}"/>` : ''; };
+    el.innerHTML = `<div class="g-wrap"><div class="g-axis" aria-hidden="true"><span>100%</span><span>0</span></div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Last ${mins} minutes, 0 to 100%: graphics memory, graphics card busy and processor busy">${line('mem', 'g-mem')}${line('gpu', 'g-gpu')}${line('cpu', 'g-cpu')}</svg></div>
+      <div class="g-time muted">Last ${mins} minutes</div>
+      <div class="g-key"><span class="g-mem">Graphics memory (% of card)</span><span class="g-gpu">Card busy</span><span class="g-cpu">Processor busy</span></div>`;
   };
   async function pollGpu() {
     clearTimeout(gpuTimer);
     if (body.classList.contains('right-hidden') || document.hidden) return;
     gpuAt = Date.now();
+    pausedLine(false);
     try {
-      const { gpu, ram } = await (await fetch('/api/gpu')).json();
+      const data = await (await fetch('/api/gpu')).json();
+      const { gpu, ram, cpu } = data;
+      lastGpu = data; lastOk = Date.now();
       const el = $('nowGpu');
-      // 1.5.3: graphics card and system memory (RAM), each with a meter.
-      const row = (label, m) => {
-        const pct = Math.min(100, Math.round((m.usedGB / m.totalGB) * 100));
-        return `<div class="mem-row"><span class="mem-text"></span><div class="meter"><i style="width:${pct}%"></i></div></div>`;
-      };
-      el.innerHTML = `${gpu ? row('Graphics card', gpu) : '<div class="mem-row"><span class="mem-text"></span></div>'}${ram?.totalGB ? row('RAM', ram) : ''}<div class="mem-brain"></div>`;
+      hist.push({ mem: gpu ? Math.round((gpu.usedGB / gpu.totalGB) * 100) : null, gpu: gpu?.loadPct ?? null, cpu: cpu?.loadPct ?? null });
+      if (hist.length > 60) hist.shift();
+      // 1.5.3: graphics card and system memory (RAM), each with a meter; 1.5.30: the processor too.
+      const row = (pct, split) => `<div class="mem-row"><span class="mem-text"></span><div class="meter"><i style="width:${Math.min(100, Math.round(pct))}%"></i></div>${split ? `<span class="mem-split ${split}"></span>` : ''}</div>`;
+      el.innerHTML = `${gpu ? row((gpu.usedGB / gpu.totalGB) * 100, 'split-card') : '<div class="mem-row"><span class="mem-text"></span></div>'}${ram?.totalGB ? row((ram.usedGB / ram.totalGB) * 100, 'split-ram') : ''}${cpu?.loadPct != null ? row(cpu.loadPct) : ''}<div class="mem-brain"></div>
+        <button type="button" class="mem-graph-btn" aria-expanded="${showGraph}">${showGraph ? 'Hide graph' : 'Show graph'}</button><div class="mem-graph" hidden></div>`;
       // 1.5.26: each meter names itself on its own line: "Graphics card · 9.1 of 15.9 GB in use (all apps)".
       const rows = el.querySelectorAll('.mem-row');
-      rows[0].querySelector('.mem-text').textContent = gpu ? `Graphics card · ${gpu.usedGB} of ${gpu.totalGB} GB in use (all apps)` : 'Graphics card · not detected';
+      rows[0].querySelector('.mem-text').textContent = gpu ? `Graphics card · ${gpu.usedGB} of ${gpu.totalGB} GB in use (all apps)${gpu.loadPct != null ? ` · ${gpu.loadPct}% busy` : ''}` : 'Graphics card · not detected';
       rows[0].title = 'Everything using the graphics card right now: Windows, games, other apps and all of Bob.';
-      if (rows[1]) rows[1].querySelector('.mem-text').textContent = `RAM · ${ram.usedGB} of ${ram.totalGB} GB in use (all apps)`;
+      let i = 1;
+      if (ram?.totalGB) rows[i++].querySelector('.mem-text').textContent = `RAM · ${ram.usedGB} of ${ram.totalGB} GB in use (all apps)`;
+      if (cpu?.loadPct != null) rows[i].querySelector('.mem-text').textContent = `Processor · ${cpu.loadPct}% busy (all apps)`;
+      el.querySelector('.mem-graph-btn').onclick = () => { showGraph = !showGraph; try { localStorage.setItem('bob-now-graph', showGraph ? '1' : '0'); } catch {} pollGpu(); };
       brainLine();
-    } catch {}
-    gpuTimer = setTimeout(pollGpu, 5000);
+      graph();
+    } catch { pausedLine(true, 'Readings paused (Bob couldn\'t read the card)'); }
+    // Every 5 seconds while Now running is open; every 15 in the Gaming session, so a game gets the most of the PC.
+    // Nothing at all while Bob can't be seen: minimised, or covered by a full-screen game (document.hidden, above);
+    // the visibilitychange listener below starts the readings again the moment he can.
+    gpuTimer = setTimeout(pollGpu, brainSt?.session === 'Gaming' ? 15000 : 5000);
   }
   // A fresh brain reading also refreshes the meters, so both are read at the same moment.
   window.addEventListener('bob-brain-status', (e) => { brainSt = e.detail; if (Date.now() - gpuAt > 1500) pollGpu(); else brainLine(); });
