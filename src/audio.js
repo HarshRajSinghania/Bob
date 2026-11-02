@@ -285,18 +285,25 @@ async function makeMusic(cfg, job, { signal, onProgress }) {
     const post = (p, body) => fetch(aceBase(cfg) + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal });
     const r = await post('/release_task', { prompt: job.prompt, lyrics: job.lyrics || '[Instrumental]', audio_duration: Math.max(10, job.seconds), batch_size: 1, audio_format: 'wav', vocal_language: 'en', thinking: false });
     if (!r.ok) throw new Error(`The music engine refused the job (${r.status}): ${(await r.text()).slice(0, 200)}`);
-    const { task_id } = await r.json();
+    // 1.5.39: ACE-Step wraps every answer as { data, code, error }. Reading task_id from the top gave undefined, so
+    // Bob polled for a job that didn't exist while the song sat finished on ACE-Step's side.
+    const rel = await r.json();
+    const task_id = rel?.data?.task_id ?? rel?.task_id;
+    // The engine's raw answer goes to the logbook (e.details), not the chat.
+    if (!task_id) throw Object.assign(new Error('The music engine didn\'t start the song properly, so I couldn\'t collect it. Ask me again; if it keeps happening, restart Bob. (Details are in the logbook.)'), { details: `release_task answered without a task id: ${JSON.stringify(rel).slice(0, 300)}` });
     const t0 = Date.now();
     while (Date.now() - t0 < 20 * 60e3) {
       await sleep(1500);
       if (signal?.aborted) throw new Error('Stopped.');
       onProgress?.(Math.min(95, Math.round((Date.now() - t0) / 600)), 100);
       const q = await (await post('/query_result', { task_id_list: [task_id] })).json();
-      const item = (q.data || q).find?.((x) => x.task_id === task_id);
+      const list = Array.isArray(q?.data) ? q.data : Array.isArray(q) ? q : [];
+      const item = list.find((x) => x && x.task_id === task_id);
       if (!item || item.status === 0) continue;
       if (item.status === 2) throw new Error(`The music engine couldn't make it: ${String(item.result || item.error || '').slice(0, 200)}`);
       const res = typeof item.result === 'string' ? JSON.parse(item.result) : item.result;
       const first = Array.isArray(res) ? res[0] : res;
+      if (!first?.file) { const found = newestSong(cfg, t0 - 5000); if (found) { fs.copyFileSync(found, job.out); onProgress?.(100, 100); return { file: job.out, name: path.basename(job.out) }; } throw Object.assign(new Error('The music engine said the song was finished but didn\'t hand over a file. Ask me again; if it keeps happening, restart Bob.'), { details: `query_result finished with no file: ${JSON.stringify(item).slice(0, 300)}` }); }
       const audioUrl = new URL(first.file, aceBase(cfg));
       if (!/^(127\.0\.0\.1|localhost)$/.test(audioUrl.hostname)) throw new Error('The music engine pointed somewhere other than this PC.');
       const buf = Buffer.from(await (await fetch(audioUrl, { signal })).arrayBuffer());
@@ -304,10 +311,22 @@ async function makeMusic(cfg, job, { signal, onProgress }) {
       onProgress?.(100, 100);
       return { file: job.out, name: path.basename(job.out) };
     }
+    // A song that finished but was never reported: take it from ACE-Step's output folder if it's newer than this job.
+    const found = newestSong(cfg, t0 - 5000);
+    if (found) { fs.copyFileSync(found, job.out); onProgress?.(100, 100); return { file: job.out, name: path.basename(job.out) }; }
     throw new Error('The music took too long.');
   } finally {
     if (child) killTree(child);
   }
+}
+
+// ACE-Step's own output folder: the newest .wav made after `since` (ms), or null.
+export function newestSong(cfg, since) {
+  const dir = path.join(aceDir(cfg), '.cache', 'acestep', 'tmp', 'api_audio');
+  try {
+    return fs.readdirSync(dir).filter((n) => /\.wav$/i.test(n)).map((n) => ({ p: path.join(dir, n), t: fs.statSync(path.join(dir, n)).mtimeMs }))
+      .filter((x) => x.t >= since).sort((a, b) => b.t - a.t)[0]?.p || null;
+  } catch { return null; }
 }
 
 // kind: 'music' | 'sfx'. Returns { file, name }.

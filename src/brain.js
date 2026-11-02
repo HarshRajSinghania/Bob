@@ -1471,10 +1471,11 @@ export class Brain {
     const unloaded = await this.gate.need({ id: 'card' }, { signal: ctx.signal, emit: ctx.emit }); // the gate: the card really free first
     this.setState('painting', music ? 'Composing' : 'Making a sound', null);
     this.log(kind, `unloaded ${unloaded.join(', ') || 'nothing'}; audio workshop`);
-    const { file, name } = await makeAudio(this.cfg, kind, args, {
+    // 1.5.39: the engine's raw answer, when there is one, goes to the logbook; the chat gets the plain line.
+    const { file, name } = await (async () => { try { return await makeAudio(this.cfg, kind, args, {
       signal: ctx.signal,
       onProgress: (n, total) => this.setState('painting', `${music ? 'Composing' : 'Making a sound'} ${Math.round((100 * n) / total)}%`, null)
-    });
+    }); } catch (e) { if (e.details) this.log(kind, e.details); throw e; } })();
     ctx.emit({ type: 'audio', url: `/images/${encodeURIComponent(name)}`, file });
     this.setState('thinking', '', null);
     // 1.5.38: plain about where it is, so Bob never claims a song only played and wasn't kept.

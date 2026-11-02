@@ -27,8 +27,8 @@ const ace = http.createServer(async (req, res) => {
   let b = ''; for await (const c of req) b += c;
   const u = new URL(req.url, 'http://x');
   if (u.pathname === '/v1/models') return res.end('[]');
-  if (u.pathname === '/release_task') { released = JSON.parse(b); return res.end(JSON.stringify({ task_id: 't1', status: 'queued', queue_position: 1 })); }
-  if (u.pathname === '/query_result') { polls++; return res.end(JSON.stringify({ data: [{ task_id: 't1', status: polls < 2 ? 0 : 1, result: JSON.stringify([{ file: '/v1/audio?path=%2Ftmp%2Fsong.wav' }]) }] })); }
+  if (u.pathname === '/release_task') { released = JSON.parse(b); return res.end(JSON.stringify({ data: { task_id: 't1', status: 'queued', queue_position: 1 }, code: 200, error: null, timestamp: Date.now(), extra: null })); } // ACE-Step wraps every answer (1.5.39)
+  if (u.pathname === '/query_result') { polls++; const asked = JSON.parse(b).task_id_list?.[0]; if (asked !== 't1') return res.end(JSON.stringify({ data: [{ task_id: asked ?? null, result: '[]', status: 0 }], code: 200 })); return res.end(JSON.stringify({ data: [{ task_id: 't1', status: polls < 2 ? 0 : 1, result: JSON.stringify([{ file: '/v1/audio?path=%2Ftmp%2Fsong.wav' }]) }] })); }
   if (u.pathname === '/v1/audio') return res.end(Buffer.from('RIFF0000WAVE'));
   res.statusCode = 404; res.end();
 });
@@ -38,6 +38,7 @@ const steps = [];
 const r = await makeAudio(cfg, 'music', { prompt: 'chiptune, upbeat', seconds: 999 }, { onProgress: (n, t) => steps.push(`${n}/${t}`) });
 check('music is made by ACE-Step 1.5 and saved as a WAV in the inn', fs.existsSync(r.file) && r.name.endsWith('.wav') && r.file.startsWith(cfg.painterDir) && fs.readFileSync(r.file, 'ascii').startsWith('RIFF'));
 check('one song, as WAV, instrumental by default, length capped', released.batch_size === 1 && released.audio_format === 'wav' && released.lyrics === '[Instrumental]' && released.audio_duration === 240, JSON.stringify(released));
+check('the job number is read from ACE-Step\'s wrapped answer, and the song is collected', polls >= 2 && fs.existsSync(r.file));
 check('progress comes through', steps.includes('100/100'), steps.join(','));
 ace.close();
 await makeAudio(cfg, 'sfx', { prompt: 'door creak', seconds: 3 }, {});

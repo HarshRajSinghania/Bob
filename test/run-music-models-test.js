@@ -104,6 +104,25 @@ for (const t of ['Here it is! The lo-fi track played for 30 seconds and is saved
 check('saying songs can\'t be saved is corrected', /saved as a \.wav file\. Find it in Made by Bob, under Sounds\./.test(noteOf('Sorry, there is no function for recording the output stream from make_music into a persistent file.')));
 check('a real song isn\'t corrected', !noteOf('Your song is ready: 30 seconds of lo-fi.', [{ name: 'make_music', ok: true, text: 'Made the song' }], [{ type: 'audio', file: 'x.wav' }]));
 for (const t of ['I can write a prompt for a track if you like.', 'Which track do you want, the one from yesterday?', 'The song I made yesterday is in Made by Bob.']) check(`ordinary talk about music isn't corrected: "${t}"`, !noteOf(t));
+const { newestSong } = await import('../src/audio.js');
+const outDir = path.join(root, 'audio-workshop', 'ace-step-1.5', '.cache', 'acestep', 'tmp', 'api_audio'); fs.mkdirSync(outDir, { recursive: true });
+fs.writeFileSync(path.join(outDir, 'old.wav'), 'RIFF'); const past = new Date(Date.now() - 3600e3); fs.utimesSync(path.join(outDir, 'old.wav'), past, past);
+const since = Date.now() - 1000; fs.writeFileSync(path.join(outDir, 'new.wav'), 'RIFF');
+check('a finished song nobody reported is found in ACE-Step\'s output folder (only one newer than the job)', newestSong(cfg, since)?.endsWith('new.wav') && newestSong(cfg, Date.now() + 60e3) === null);
+check('the engine error lines give a fix, keep raw output for the logbook, and never say a song was made', /start the song properly, so I couldn.{1,2}t collect it\. Ask me again; if it keeps happening, restart Bob\. \(Details are in the logbook\.\)'\), \{ details:/.test(audio) && /said the song was finished but didn.{1,2}t hand over a file\. Ask me again; if it keeps happening, restart Bob\.'\), \{ details:/.test(audio) && /if \(e\.details\) this\.log\(kind, e\.details\)/.test(brain));
+// (fetch is the test's stand-in here, so the engine's answer is whatever it returns.)
+// Behaviour, not just wording: an engine answer with no task id reaches the logbook, and the chat gets the plain line.
+{
+  const http = await import('node:http');
+  const srv = http.createServer(async (req, res) => { for await (const _ of req); res.end(req.url === '/release_task' ? JSON.stringify({ data: {}, code: 500, error: 'boom' }) : '[]'); });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const logs = [];
+  const me = { cfg: { ...cfg, audio: { python: 'x', aceUrl: `http://127.0.0.1:${srv.address().port}` } }, gate: { need: async () => [] }, setState() {}, log: (k, t) => logs.push(`${k}: ${t}`) };
+  let err = null;
+  try { await Brain.prototype.makeSound.call(me, 'music', { prompt: 'lo-fi', seconds: 10 }, { emit() {}, signal: null, job: null }); } catch (x) { err = x; }
+  srv.close();
+  check('a broken engine answer: plain line in the chat, raw answer in the logbook', /start the song properly/.test(err?.message || '') && !/[{}]/.test(err?.message || '') && logs.some((l) => /^music: release_task answered without a task id: \{/.test(l)), JSON.stringify(logs));
+}
 check('the logbook names music tools too', /pictures: 'Using his picture, video and music tools'/.test(read('../src/toolbox.js')));
 
 fs.rmSync(root, { recursive: true, force: true });
