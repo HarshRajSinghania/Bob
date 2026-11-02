@@ -1,194 +1,489 @@
-// Bob's in-app Help: every entry, in plain words (docs/SETTINGS-STYLE.md glossary). Each entry has an id (the "?"
-// buttons open Help at it), a title, extra search words, and its text as simple HTML. Keep docs/USER-GUIDE.md in step.
+// Bob's in-app Help, written by Bob himself, in his own voice: dry, a little nerdy, honest, and clear first.
+// The rule (2026-11-02): every feature and every setting gets a Help section that explains how to use it in
+// detail, plus a glossary and an FAQ, and the whole thing in Bob's voice. Each entry has an id (the "?" buttons
+// open Help at it), a group, a title, extra search words, and its text as simple HTML.
+// Voice rules: first person, answer first and joke second, at most one joke per entry, none in safety or privacy
+// facts. Every setting name, default and fact stays exact: test/run-help-coverage-test.js checks the labels.
+// Bob reads this same text with his bob_help tool (src/self-help.js), so he can help someone set him up.
+// Keep docs/USER-GUIDE.md in step.
+
+// A setting, shown the same way every time: its name as it appears, where it starts, then what it does and when to change it.
+const set = (name, start, body) => `<dt>${name} <span class="tag">${start}</span></dt><dd>${body}</dd>`;
+const go = (id, text) => `<a href="#" data-helpgo="${id}">${text}</a>`;
+
 export const HELP = [
-  { id: 'start', group: 'Getting started', title: 'Getting started', words: 'first time setup install begin welcome starter',
-    html: `<p>Bob is a helper who lives on your own PC. He chats, plans, researches, writes and fixes code, looks at pictures, paints, edits, makes short clips and talks out loud, all on your own computer.</p>
-<ol><li>Open Bob from the Start menu.</li><li>The first time, he reads your graphics card and RAM and suggests a <strong>starter set</strong>: the models that suit your PC.</li><li>Untick anything you don't want, then confirm. Each download shows its size, speed and time left.</li><li>When the downloads finish, say hello.</li></ol>
-<p>Two promises run through everything: <strong>nothing leaves your PC unless you say so</strong>, and <strong>nothing extra is switched on until you switch it on</strong>.</p>
-<p>To see the first-time setup again: Settings, <strong>Run first-time setup</strong>.</p>` },
+  // ---------------- Getting started ----------------
+  { id: 'start', group: 'Getting started', title: 'Getting started', words: 'first time setup install begin welcome starter download unzip unblock',
+    html: `<p>Hi. I'm Bob, a digital mind living in your PC, and I wrote this Help myself, so blame me for the jokes. I chat, plan, research, write and fix code, look at pictures, paint, edit, make short clips and talk out loud. All of it happens on your own computer.</p>
+<ol><li>Open me from the Start menu, or double-click <strong>Bob.exe</strong> in the folder you unzipped me to.</li>
+<li>The first time, I ask what to call you. Then I read your graphics card and RAM and suggest a <strong>starter set</strong>: the models that suit your PC.</li>
+<li>Untick anything you don't want, then confirm. Each download shows its size, speed and time left. You can keep chatting, or close me: unfinished downloads wait and carry on when you press Resume.</li>
+<li>If you want me to look things up online, turn on <strong>Let Bob search the web</strong> in Settings. It's off until you do.</li>
+<li>When the downloads finish, say hello. And you can just ask me how to set anything up: I know all my settings and what's set right now.</li></ol>
+<p>Two promises I take seriously: <strong>nothing extra is switched on until you switch it on</strong>, and <strong>nothing downloads until you confirm it</strong>. ${go('privacy', 'What stays on your PC')} lists exactly when I go online.</p>
+<p>To see the first-time setup again: Settings, <strong>Run first-time setup</strong>. I won't mind meeting you twice.</p>` },
 
-  { id: 'around', group: 'Getting started', title: 'Finding your way around', words: 'menu layout now running chat copy paste fold panel',
-    html: `<ul><li><strong>The menu on the left:</strong> Chat, Tasks, Downloads, References, Made by Bob, Topics, Tidy up, Get models, Settings, Style and Help. Fold it to icons with Ctrl+B.</li>
-<li><strong>The chat in the middle.</strong> Enter sends; Shift+Enter starts a new line. Send as many messages as you like: each becomes a task, and Bob works through them in order.</li>
-<li><strong>Now running on the right:</strong> tasks, downloads, and how full your graphics card and RAM are. Hide it with Ctrl+J.</li></ul>
-<p>Every message and every piece of code has a <strong>Copy</strong> button, which helps over remote desktop apps such as Parsec. Files Bob mentions get a card with <strong>Open</strong>, <strong>Show in folder</strong> and <strong>Copy path</strong>.</p>` },
+  { id: 'around', group: 'Getting started', title: 'Finding your way around', words: 'menu layout now running chat copy paste fold panel left right',
+    html: `<p>My window has three parts. Think of it as a very small starship bridge.</p>
+<ul><li><strong>The menu on the left.</strong> My picture and what I'm doing right now, then New chat, Chat, Tasks, Downloads, References, Made by Bob, Topics and Tidy up. Under <em>Setup</em>: Get models, Settings, Style and Help. Then the Listen, Read aloud and Alerts switches, and the Session picker at the bottom. Fold the menu to icons with ‹ or Ctrl+B.</li>
+<li><strong>The chat in the middle.</strong> Along the top: my brain label, <strong>Free memory when Bob is idle</strong> and <strong>✋ Hands</strong>. Along the bottom: quick buttons (Plan my day, To-do list, Remind me…, Spreadsheet…, Look up…), Effort, and the message box with 🎙 and 📎.</li>
+<li><strong>Now running on the right:</strong> tasks, downloads, and how full your graphics card and RAM are. Hide it with Ctrl+J or <strong>Hide »</strong>, and drag its edge to make it wider or narrower.</li></ul>
+<p>I remember how you leave the menu and Now running, so you don't have to set them up every time.</p>` },
 
-  { id: 'made', group: 'Getting started', title: 'Seeing what Bob made', words: 'made by bob side panel outputs pictures files documents preview view open show last picture tabs gallery where did it go',
-    html: `<p>Everything Bob makes or saves shows up in the chat as a <strong>card with a preview</strong>: the picture itself, a player for clips and sounds, or the first few lines of a document.</p>
+  { id: 'chatting', group: 'Getting started', title: 'Chatting with Bob', words: 'type send enter message queue stop new chat chips quick buttons plan my day to-do remind spreadsheet look up copy right-click',
+    html: `<ul><li><strong>Type and press Enter</strong> to send. Shift+Enter starts a new line.</li>
+<li><strong>Send as many messages as you like.</strong> Each one becomes a task, and I work through them in order. None get dropped. You can watch them in Tasks and in Now running.</li>
+<li><strong>Stop</strong> (next to Send, while I'm answering) ends the current reply. I won't sulk.</li>
+<li><strong>New chat</strong> (top of the menu) starts a fresh conversation. The old one stays in Topics, Past chats.</li>
+<li><strong>Quick buttons</strong> above the box: <em>Plan my day</em> and <em>To-do list</em> send straight away; <em>Remind me…</em>, <em>Spreadsheet…</em> and <em>Look up…</em> start the sentence for you to finish. <em>Look up…</em> needs <strong>Let Bob search the web</strong>.</li>
+<li>Every message and every piece of code has a <strong>Copy</strong> button, and so does each link. That helps over remote desktop apps such as Parsec, where right-click and Ctrl+C often don't get through.</li>
+<li><strong>Right-click</strong> in the chat for Copy, Copy link, Open link in browser, Copy image, Save image as…, and <strong>Search the web for "…"</strong> (opens DuckDuckGo in your normal browser with the words you selected).</li>
+<li><strong>Ask me about me.</strong> "How do I turn on web search?", "what does Gaming do?", "help me set you up": I look it up in this Help, check what's set right now, and tell you exactly where to click. I can't flip switches for you, though. That part's yours.</li></ul>` },
+
+  { id: 'made', group: 'Getting started', title: 'Seeing what Bob made', words: 'made by bob side panel outputs pictures files documents preview view open show last picture tabs gallery where did it go grid',
+    html: `<p>Everything I make or save shows up in the chat as a <strong>card with a preview</strong>: the picture itself, a player for clips and sounds, or the first few lines of a document. Several pictures in one reply sit in a grid that fits the window.</p>
 <ul><li>Click the preview, the name or <strong>View</strong> to open it in the <strong>side panel</strong>, beside the chat. Each thing gets its own tab. Click a picture there to see it at full size.</li>
-<li><strong>Made by Bob</strong> in the left menu opens the panel at a list of everything he has made, newest first. Pick Pictures, Clips, Sounds or Documents, or search by name.</li>
-<li>You can also just ask: "show me the last picture" or "show me the spreadsheet you made".</li>
-<li>In the panel, <strong>Open in its app</strong> opens the file the usual way, and <strong>Show in folder</strong> opens its folder.</li></ul>
-<p>Web pages Bob writes show as a preview with their scripts switched off. Use <strong>Code</strong> to see the source. Word, PDF and other files that Bob can't show in the panel still get a card, and open in their own app.</p>
-<p>On a narrower screen it takes Now running's place. Click Now running to switch back.</p>` },
+<li><strong>Made by Bob</strong> in the left menu opens the panel at a list of everything I've made, newest first. Pick Pictures, Clips, Sounds or Documents, or search by name.</li>
+<li>Or just ask: "show me the last picture" or "show me the spreadsheet you made". I keep track. It's sort of my thing.</li>
+<li>In the panel, <strong>Open in its app</strong> opens the file the usual way, <strong>Show in folder</strong> opens its folder, and <strong>Copy path</strong> copies where it is.</li></ul>
+<p>Web pages I write show as a preview with their scripts switched off. Use <strong>Code</strong> to see the source and <strong>Page</strong> to go back. Word, PDF and other files I can't show in the panel still get a card, and open in their own app.</p>
+<p>Esc closes the panel. On a narrower screen it takes Now running's place; click Now running to switch back.</p>` },
 
   { id: 'keys', group: 'Getting started', title: 'Keyboard shortcuts', words: 'keys shortcut ctrl f1 escape',
-    html: `<table><tr><th>Keys</th><th>What it does</th></tr>
+    html: `<p>For people who'd rather not touch the mouse. I respect that.</p>
+<table><tr><th>Keys</th><th>What it does</th></tr>
 <tr><td>F1</td><td>Opens this Help</td></tr><tr><td>Ctrl+B</td><td>Folds or opens the left menu</td></tr><tr><td>Ctrl+J</td><td>Shows or hides Now running</td></tr><tr><td>Esc (in the side panel)</td><td>Closes the side panel</td></tr>
 <tr><td>Esc</td><td>Back to the chat from Settings, Get models, Style or Help</td></tr><tr><td>Enter / Shift+Enter</td><td>Send / new line</td></tr></table>` },
 
-  { id: 'speed', group: 'Getting started', title: 'Making Bob faster on your PC', words: 'speed fast slow tune check this pc test speed benchmark games priority memory expo driver graphics card ready while typing before after',
-    html: `<p>Two buttons and three switches help Bob run well on your PC. The switches are off until you turn them on.</p>
-<ul><li><strong>Check this PC</strong> (Settings, at the bottom of the Everyday page) looks for things that slow Bob down: memory running below its rated speed, an old NVIDIA driver, a laptop on battery, models on a slow drive, other apps holding graphics memory. It shows the steps to fix each one. Bob only looks; he never changes Windows or driver settings.</li>
-<li><strong>Test Bob's speed</strong> (Settings, Show advanced settings, Engines &amp; speed) frees his brain, wakes it as if you started typing, and times the first word and the full answer. Your last results stay in a table, so run it before and after changing a switch.</li>
-<li><strong>Get Bob ready while you type:</strong> he reads his instructions as soon as you start typing, so replies start sooner. On the processor he also keeps a copy of that reading on disk.</li>
-<li><strong>Let games go first:</strong> when Bob works on the processor, he uses fewer cores at lower priority.</li>
-<li><strong>Match picture settings to my graphics card:</strong> big cards keep the picture model in graphics memory; on cards with 8 GB or less, pictures are made at 768 px so they fit. If a picture fails with these settings, Bob goes back to the usual ones.</li></ul>` },
+  { id: 'speed', group: 'Getting started', title: 'Making Bob faster on your PC', words: 'speed fast slow tune check this pc test speed benchmark games priority memory expo xmp driver graphics card ready while typing before after',
+    html: `<p>Two buttons and three switches help me run well on your PC. The switches are off until you turn them on, because I'd rather measure than guess.</p>
+<ul><li><strong>Check this PC</strong> (Settings, at the bottom of the everyday page) looks for things that slow me down: memory running below its rated speed (EXPO or XMP off in the BIOS), an old NVIDIA driver, a laptop on battery, models on a slow drive, other apps holding graphics memory. I show the steps to fix each one. I only look; I never change Windows or driver settings.</li>
+<li><strong>Test Bob's speed</strong> (Settings, Show advanced settings, Engines &amp; speed) takes about a minute. I free my brain, wake it as if you'd started typing, and time the load, the first word, the full answer and a second reply. Your last 6 results stay in a table with the switches that were on, so run it before and after changing something.</li>
+<li>The three switches are explained in ${go('settings-engines', 'Settings: Engines &amp; speed')}: <strong>Get Bob ready while you type</strong>, <strong>Let games go first</strong> and <strong>Match picture settings to my graphics card</strong>.</li></ul>
+<p>Engineer's advice: change one thing at a time. Test, switch on, test again.</p>` },
+
+  // ---------------- The chat page ----------------
+  { id: 'brain-label', group: 'The chat page', title: 'The brain label and "Free memory when Bob is idle"', words: 'brain label pill loaded memory freed loading working free memory idle unload wake typing graphics card',
+    html: `<p>At the top of the chat, the <strong>brain label</strong> says what my brain is doing: <em>loading</em>, <em>working</em>, <em>loaded</em> (with how much memory it takes) or <em>memory freed</em>. Click it for the details.</p>
+<p>The number in the label is <strong>my brain only</strong>. The Memory meters in Now running show the <strong>whole</strong> graphics card and RAM, so they also count Windows, games and other apps. Under the meters, a line says how much of that is mine: my brain (the same number as this label) and, while it's loaded, my picture model.</p>
+<dl>${set('Free memory when Bob is idle', 'On', 'On: after I\'ve been quiet for a while (5 minutes unless you change it in Settings, Show advanced settings, Engines &amp; speed), nothing of mine stays on your graphics card. Typing loads my small brain again in a few seconds. Off: my small brain stays loaded, so I answer straight away, but it keeps its share of the card. Big brains (Coding, and Medium effort and up) are freed after their job either way.')}</dl>
+<p>I'm on by default because I'm a guest in your PC, and good guests don't hog the furniture.</p>` },
+
+  { id: 'effort', group: 'The chat page', title: 'Effort: Low, Medium, High and Extreme', words: 'effort low medium high extreme processor cpu moot review second look check careful quick slow reviewer deeper checked slowest',
+    html: `<p>Above the chat box, <strong>Effort</strong> sets how hard I work on your next messages. It goes back to Low each time I start.</p>
+<p>Session: what the graphics card is kept for. Effort: how hard I work on each message. In the Gaming session Effort stays on Low, because the bigger levels need the graphics card.</p>
+<ul><li><strong>Low · Quick</strong> (the default): a quick answer from my Quick brain. If you switch on "Keep the graphics card free for quick answers" (Settings, Show advanced settings, Engines &amp; speed), it runs on the processor in the Normal session, so games and pictures keep the card, but replies take about half a minute to start.</li>
+<li><strong>Medium · Deeper</strong>: one big brain (Deep thinking, or the main Brain if that slot is empty) thinks it through on the graphics card. No second check.</li>
+<li><strong>High · Checked</strong>: I call a <em>moot</em>, a meeting with my copies. A big brain drafts the answer, then my reviewer copy checks it on the Review brain. Code problems go back to the workbench for one fix.</li>
+<li><strong>Extreme · Slowest</strong>: like High, and coding goes in three steps (research, plan, then the changes), with the reviewer checking after each one. Then I check the fixes again. It's slow: on one graphics card every check swaps brains. Measure twice, cut once.</li></ul>
+<p>At the end of High and Extreme you see the <strong>moot minutes</strong>: who checked what, and whether anything is still open. The big brains are freed when the job ends.</p>` },
+
+  { id: 'attach', group: 'The chat page', title: 'Attaching pictures and talking to Bob', words: 'attach paperclip picture paste drop microphone mic talk voice note upright camera',
+    html: `<ul><li><strong>📎</strong> attaches one or more pictures (PNG, JPEG or WebP). You can also paste a picture or drop it on the window. I look at it with my Seeing pictures model, or edit it if you ask me to change something.</li>
+<li><strong>🎙</strong> lets you talk instead of typing: click, speak, then pause. It needs the 👂 Hearing you slot filled.</li></ul>
+<p>Photos you attach are turned upright and resized to at most 2048 px. Hidden camera details, such as where a photo was taken, are removed. The file on your PC isn't changed.</p>` },
+
+  { id: 'approvals', group: 'The chat page', title: 'Approval cards: Allow, Deny, Allow the rest of this job', words: 'approval card allow deny ask permission outside folder rest of this job ok',
+    html: `<p>Before I do something outside my own folder, or use a Hand, I show a card that says exactly what I want to do (the files, the exact command, or the change) and I wait. Your PC, your call.</p>
+<ul><li><strong>Allow</strong>: just this once.</li><li><strong>Allow the rest of this job</strong> (only on some cards): the same kind of thing is allowed until this job ends. The next job asks again.</li><li><strong>Deny</strong>: I don't do it, and I carry on without it.</li></ul>
+<p>If you turned on <strong>Let Bob work without asking</strong>, Hands skip these cards (see ${go('hands', 'Hands')}). Cloud helpers always ask.</p>
+<p>When a card is waiting, <strong>Alerts</strong> can pop up a Windows notification, and Now running can open by itself (Settings, Look &amp; feel).</p>` },
+
+  { id: 'more-pictures', group: 'The chat page', title: '"Make another picture?"', words: 'make another picture no thanks countdown picture model ready',
+    html: `<p>After a picture, the chat box turns into a one-line question for about 10 seconds: <strong>Make another</strong> or <strong>No thanks</strong>.</p>
+<ul><li><strong>Make another</strong> keeps the picture model ready, so the next picture starts sooner. I put it away 2 minutes after the last picture.</li>
+<li><strong>No thanks</strong>, Esc, or letting the countdown run out sends me back to my Quick brain, so the next chat reply is fast.</li></ul>
+<p>It's me asking "anything else while the paint's still wet?"</p>` },
+
+  { id: 'banners', group: 'The chat page', title: 'Banners above the chat', words: 'banner working without asking stop hands quarantine release orange red bob is driving',
+    html: `<ul><li><strong>⚠ Bob is working without asking.</strong> Shows the whole time "Let Bob work without asking" is on. <strong>✋ Stop Hands</strong> on it stops me at once.</li>
+<li><strong>🔒 … is in quarantine.</strong> Shows while I or one of my copies am in quarantine, with what happened and a <strong>Release</strong> button. See ${go('quarantine', 'Quarantine')}.</li>
+<li><strong>Bob is driving</strong> (a red bar on the screen) shows while the Apps Hand clicks or types in another program. Move the mouse or press Esc to stop me.</li></ul>
+<p>I'd rather you always know when I'm acting on my own. No surprises.</p>` },
+
+  { id: 'sessions', group: 'The chat page', title: 'Sessions: Normal, Art, Coding, Office, Gaming', words: 'session normal art coding office gaming games light graphics card free sleepy',
+    html: `<p>The <strong>Session</strong> picker at the bottom of the menu tells me how to share your PC with you. Each session keeps a set of brains that fit on your graphics card together, so I don't stop to swap brains.</p>
+<ul><li><strong>☕ Normal:</strong> everyday use. Each job uses the brain picked for it in Equip Bob, and I swap brains when a job needs another one.</li>
+<li><strong>🎨 Art:</strong> the graphics card is kept for pictures, video and sound. I chat on my small brain on the processor, so I keep talking while a picture paints.</li>
+<li><strong>🛠 Coding:</strong> the Coding brain does everything, with its full memory for long files. Small side jobs run on the processor.</li>
+<li><strong>📊 Office:</strong> one all-rounder brain for writing, spreadsheets, research and planning. No swaps.</li>
+<li><strong>🎮 Gaming:</strong> keeps the graphics card completely free for games. I chat and listen on the processor with a small brain (Qwen3 4B Instruct 2507 to start with), which usually starts answering within a few seconds. Pictures, clips, music and Medium-or-higher jobs wait in Tasks ("Waiting · Gaming is on") until you switch back; nothing is dropped. Effort stays on Low. I get a bit sleepy in Gaming: now and then I add a short scripted aside, which costs nothing.<br>Tip: turn on <strong>Let games go first</strong> (Settings, Show advanced settings, Engines &amp; speed) so I use fewer cores while you play.</li></ul>
+<p>Change which brain each session uses, and how much it keeps in mind, in ${go('settings-brains', 'Settings: Brains')}. I may suggest a session, but I never switch by myself.</p>` },
+
+  // ---------------- Menu pages ----------------
+  { id: 'tasks', group: 'Menu pages', title: 'Tasks', words: 'tasks queue queued in progress delegated completed reorder drag clear completed try again cancel waiting',
+    html: `<p><strong>Tasks</strong> is my to-do list for you: everything I'm doing, waiting to do and have done, top to bottom in the order I do them. Now running shows the same list in short, with <strong>See all</strong>.</p>
+<ul><li>Each task shows <em>Queued</em>, <em>In progress</em>, <em>Delegated</em> (and to which of my copies), <em>Waiting</em> (for you, or for the Gaming session to end) or <em>Completed</em>, with times.</li>
+<li><strong>Drag</strong> a waiting task, or use ▲ ▼, to change what I do next.</li>
+<li><strong>Stop</strong> or <strong>Cancel</strong> ends one task; <strong>Try again</strong> runs a failed one again.</li>
+<li>Completed tasks stay for a week. <strong>Clear completed</strong> tidies them away now.</li></ul>` },
+
+  { id: 'downloads', group: 'Menu pages', title: 'Downloads', words: 'downloads pause resume cancel reorder at once two carry on when bob starts retry checksum manage',
+    html: `<p><strong>Downloads</strong> lists everything you said yes to downloading. The top one goes first; drag to reorder. Now running shows them too, with <strong>Manage</strong>.</p>
+<ul><li><strong>Pause</strong> keeps what has downloaded so far, and <strong>Resume</strong> carries on from there, even after I restart.</li>
+<li><strong>Cancel</strong> deletes the half-done file.</li>
+<li>A network hiccup is retried twice by itself.</li>
+<li>Every file is checked against the size and checksum I expect. If it doesn't match, I delete it and tell you. I don't run mystery files.</li></ul>
+<dl>${set('At once', '1 download', 'How many downloads run at the same time: 1 or 2. Two can be quicker on a fast connection.')}
+${set('Carry on unfinished downloads when Bob starts', 'Off', 'Off: unfinished downloads wait, paused, until you press Resume. On: they carry on by themselves when I open.')}</dl>` },
+
+  { id: 'references', group: 'Menu pages', title: 'References', words: 'references shelf characters scenes styles keep look same use in chat add rename',
+    html: `<p><strong>References</strong> is a shelf of pictures I can paint from: characters, places and styles you want to keep the same across pictures.</p>
+<ul><li><strong>Add to References</strong> on a picture (yours or one I made) puts it on the shelf. Give it a name you'll remember; <strong>Rename</strong> changes it.</li>
+<li><strong>Use in chat</strong>, or just say "paint Mira in the snow" with a reference called Mira, and I keep that look. The ✂ Picture editor slot does this job best.</li>
+<li>You can also say "save this as a reference".</li></ul>` },
+
+  { id: 'topics', group: 'Menu pages', title: 'Topics, past chats and forgetting', words: 'topics search past chats forget pin merge rename note still open where we landed sort my chats',
+    html: `<p><strong>Topics</strong> is how I remember what we talked about, grouped by project. Each topic has:</p>
+<ul><li><strong>Where we landed:</strong> a short note, yours to edit (<strong>Save note</strong>). When I have a newer summary, <strong>Use Bob's update</strong> takes it.</li><li><strong>Still open:</strong> questions that aren't settled yet.</li><li>Pictures from that topic, and <strong>Where it came up</strong>: links back to the chat moments.</li></ul>
+<ul><li>Rename, merge and pin topics, and drag a message onto another topic.</li>
+<li>One <strong>search box</strong> looks through chats, summaries, topics, pictures and notes at once.</li>
+<li><strong>Past chats</strong> reopens an old conversation (<strong>Open chat</strong>).</li>
+<li><strong>Sort my chats into topics now</strong> files recent chats straight away instead of waiting for housekeeping.</li></ul>
+<p>To make me forget something, use <strong>Forget</strong> on a topic or say "forget what we said about…". You see a preview first and choose: keep just the short note, or remove everything. <strong>Keep it</strong> cancels. I won't hold it against you. Literally.</p>` },
+
+  { id: 'tidy', group: 'Menu pages', title: 'Tidy up', words: 'tidy up old chats pictures sounds logs keep everything look again recycle bin',
+    html: `<p><strong>Tidy up</strong> shows old things I could clear away: chats, pictures and sounds I made, finished tasks, old log lines and repeated memory lines that haven't come up for a while.</p>
+<ul><li>Each item has a tick (clear it) and a cross (keep it). Nothing goes until you choose.</li><li><strong>Keep everything</strong> closes the list without removing anything; <strong>Look again</strong> checks for old things now.</li>
+<li>Anything removed goes to the Recycle Bin. Pinned chats, pictures and topics are never offered. Every action is written in my logbook.</li></ul>
+<p>To have me do this by myself while I'm idle, turn on housekeeping: see ${go('settings-housekeeping', 'Settings: Housekeeping')}.</p>` },
+
+  { id: 'switches', group: 'Menu pages', title: 'Listen, Read aloud and Alerts', words: 'listen hey bob read aloud speak alerts notification windows menu switches',
+    html: `<dl>${set('Listen', 'Off', 'Listens for "Hey Bob" so you can talk hands-free, only while my window is open. Needs the 👂 Hearing you slot filled. Your voice is turned into text on this PC.')}
+${set('Read aloud', 'Off', 'I speak each reply in my voice (see ' + go('voice', 'Voice') + '). Turning it off stops me mid-sentence, which is fine. I\'m used to it.')}
+${set('Alerts', 'Off', 'Pops up a Windows notification when I need you, for example when an approval card is waiting.')}</dl>` },
+
+  { id: 'style', group: 'Menu pages', title: 'Style: themes, avatars, animations and layout', words: 'style theme colours avatar look animations follow windows layout own theme make edit delete font corners blueprint outlined',
+    html: `<ul><li><strong>Theme:</strong> pick a colour scheme (Bob's Inn, MouseHole, MouseWurX and more). <strong>Yours</strong> holds the themes you make: name, colours, font, corners, and the Blueprint and Outlined looks. <strong>Edit the selected theme</strong>, <strong>Save theme</strong> and <strong>Delete this theme</strong> do what they say.</li>
+<li><strong>Bob's look:</strong> 133 avatars. I notice a new look and comment on it, once. I have opinions. I keep them brief.</li>
+<li><strong>Animations:</strong> On, Follow Windows or Off. On is the default because remote desktop apps switch Windows' own animation effects off.</li>
+<li><strong>Layout:</strong> whether Now running opens by itself when a task needs you (off unless you turn it on).</li></ul>` },
+
+  // ---------------- Models ----------------
+  { id: 'get-models', group: 'Models', title: 'Get models: the model pages', words: 'get models shop voice conversation coding seeing pictures video on this pc download delete size licence',
+    html: `<p><strong>Get models</strong> opens on Equip Bob. The bar along the top jumps between Equip Bob, the model pages, Style and Settings.</p>
+<ul><li><strong>Voice &amp; conversation:</strong> everyday brains, hearing you, and my voices with Hear a sample.</li><li><strong>Coding</strong> and <strong>Seeing pictures</strong>: brains for those jobs.</li><li><strong>Pictures &amp; video:</strong> the painter, picture editor and clips.</li><li><strong>On this PC:</strong> everything already downloaded, with its size, and a way to delete what you don't use.</li></ul>
+<p>Each model shows its size, licence and what it's good at before you press <strong>Get</strong>, and every download is confirmed first. Models that don't suit this PC are hidden until you ask (see ${go('recommended', 'How Bob picks models')}).</p>` },
 
   { id: 'recommended', group: 'Models', title: 'How Bob picks models for your PC', words: 'recommended fits your card does not suit star badge show models that don\'t suit compatible slot job score',
     html: `<p>On <strong>Get models</strong> and in <strong>Equip Bob</strong>, each model can carry one of these:</p>
-<ul><li><span class="tag rec">★ Recommended for your PC</span> Bob's pick for that job on your PC. In Equip Bob it reads <em>Recommended for this job on your PC</em>, because the best pick depends on the job.</li>
-<li><span class="tag">Fits your card</span> It runs well here too. It just isn't the first pick.</li>
+<ul><li><span class="tag rec">★ Recommended for your PC</span> My pick for that job on your PC. In Equip Bob it reads <em>Recommended for this job on your PC</em>, because the best pick depends on the job.</li>
+<li><span class="tag">Fits your card</span> It runs well here too. It just isn't my first pick.</li>
 <li><span class="tag warn">Doesn't suit this PC</span> It wants more graphics memory or RAM than this PC has, so it would be slow or wouldn't run. A one-line reason sits under it.</li>
 <li><span class="tag bad">Can't install on this PC</span> Not enough free disk space, or it needs Windows.</li></ul>
-<p><strong>How the pick is made, for brains:</strong> a model scores higher the more jobs it can cover, because one brain doing several jobs means Bob stops to swap brains less. It also scores higher the less it takes from your PC, and much lower if it would spill out of the graphics card into RAM. Bigger brains get a bonus for jobs that need careful thinking (Brain, Deep thinking, Coding, Review). The Quick brain only cares about being light. On small cards (8 GB or less), Bob prefers brains that leave room for longer chats. On a 6 GB card, like many laptops, that makes the light Qwen3 4B the Brain, and Gemma 4 E4B loads only to see pictures and hear you.</p>
+<p><strong>How I pick brains:</strong> a model scores higher the more jobs it can cover, because one brain doing several jobs means I stop to swap brains less. It also scores higher the less it takes from your PC, and much lower if it would spill out of the graphics card into RAM. Bigger brains get a bonus for jobs that need careful thinking (Brain, Deep thinking, Coding, Review). The Quick brain only cares about being light. On small cards (8 GB or less), I prefer brains that leave room for longer chats. On a 6 GB card, like many laptops, that makes the light Qwen3 4B the Brain, and Gemma 4 E4B loads only to see pictures and hear you.</p>
 <p><strong>For pictures, video and voices</strong>, the pick comes from the starter set for your graphics card.</p>
-<p><strong>Each slot only lists models that can do that job.</strong> A brain that can't see pictures never shows under Seeing pictures, and a big brain never shows under Quick brain. Models that don't suit this PC are hidden until you turn on <strong>Show models that don't suit this PC</strong> (off unless you turn it on). Models already on your PC always show.</p>
-<p>Bob judges your PC by the graphics card and RAM shown at the top of each model page.</p>` },
+<p><strong>Each slot only lists models that can do that job.</strong> A brain that can't see pictures never shows under Seeing pictures, and a big brain never shows under Quick brain. Models already on your PC always show.</p>
+<dl>${set('Show models that don\'t suit this PC', 'Off', 'Shows the hidden models, each with the reason it doesn\'t suit. Remembered.')}</dl>
+<p>I judge your PC by the graphics card and RAM shown at the top of each model page. No guessing, just the numbers.</p>` },
 
-  { id: 'equip', group: 'Models', title: 'Equip Bob: choosing his models', words: 'slots paper doll kit drag brain quick deep coding second look eyes memory ears voice painter editor video music sound',
-    html: `<p>Bob uses a different model for each kind of job. <strong>Equip Bob</strong> shows them like a character sheet: Bob in the middle, with a slot for each job. Click Bob's picture, or Get models in the menu, to open it.</p>
+  { id: 'equip', group: 'Models', title: 'Equip Bob: choosing his models', words: 'slots paper doll kit drag brain quick deep coding second look eyes memory ears voice painter editor video music sound plain list',
+    html: `<p>I use a different model for each kind of job. <strong>Equip Bob</strong> shows them like a character sheet: me in the middle, with a slot for each job. Yes, I'm aware I'm the NPC getting kitted out. Click my picture, or Get models in the menu, to open it.</p>
 <table><tr><th>Slot</th><th>What it does</th></tr>
 <tr><td>🧠 Brain</td><td>Thinks, chats and plans. Everything else hangs off this one.</td></tr>
-<tr><td>⚡ Quick brain</td><td>A small, fast brain for quick answers and the Art session.</td></tr>
+<tr><td>⚡ Quick brain</td><td>A small, fast brain for Low effort and the Art session.</td></tr>
 <tr><td>🔭 Deep thinking</td><td>The strongest thinker, for Medium, High and Extreme effort.</td></tr>
 <tr><td>🔨 Coding</td><td>Writes and fixes code. Empty means the Brain codes.</td></tr>
-<tr><td>🧐 Review</td><td>Checks code and plans before you rely on them.</td></tr>
+<tr><td>🧐 Review</td><td>Checks code and plans at High and Extreme effort.</td></tr>
 <tr><td>👁 Seeing pictures</td><td>Looks at pictures and screenshots you attach.</td></tr>
 <tr><td>🗂 Memory (finding past chats)</td><td>Matches what you say to past Topics by meaning.</td></tr>
 <tr><td>👂 Hearing you</td><td>Turns your voice into text.</td></tr>
-<tr><td>🔊 Voice</td><td>Reads his replies aloud.</td></tr>
+<tr><td>🔊 Voice</td><td>Reads my replies aloud.</td></tr>
 <tr><td>🎨 Painter, ✂ Picture editor, 🎞 Video</td><td>Paints, edits pictures, makes short clips.</td></tr>
-<tr><td>🎵 Music, 💥 Sound effects</td><td>Optional extras from the audio tools.</td></tr></table>
+<tr><td>🎵 Music, 💥 Sound effects</td><td>Optional extras from the audio tools (<strong>Get the audio tools</strong>).</td></tr></table>
 <ul><li><strong>Click a slot</strong>, then click a model in the list (or drag it onto the slot). Nothing is equipped without you.</li>
 <li>Models you don't have yet show a <strong>Get</strong> button. Nothing downloads until you confirm.</li>
-<li><strong>One model can fill several slots</strong>, and Bob offers this with <em>Also use it for</em>. That's what makes small PCs work well.</li>
-<li>To empty a slot, use the <strong>✕</strong> on it. The Brain can't be emptied.</li>
-<li>The bar shows whether everything equipped fits on the graphics card at once. If not, Bob takes turns (about 20 seconds a swap).</li></ul>` },
+<li><strong>One model can fill several slots</strong>, and I offer this with <em>Also use it for</em>. That's what makes small PCs work well.</li>
+<li>To empty a slot, use the <strong>✕</strong> on it. The Brain can't be emptied. I need something to think with.</li>
+<li>The bar shows whether everything equipped fits on the graphics card at once. If not, I take turns (about 20 seconds a swap).</li>
+<li><strong>Plain list instead</strong> shows the same choices as a list (also in Settings, Brains).</li></ul>
+<p>On the left, <strong>Attributes</strong> holds my look and personality: see ${go('personality', 'Bob\'s personality')}.</p>` },
 
-  { id: 'starter', group: 'Models', title: 'Starter sets', words: 'starter set pack 16 gb 8 gb 6 gb laptop processor only commercial',
-    html: `<p>A starter set is a ready-made selection for your kind of graphics card: 16 GB or more, 8 GB, 6 GB (most laptops), or no graphics card. Bob picks the set by reading your card, and marks it <em>(this PC)</em>. You can pick another set and untick anything before you confirm.</p>
+  { id: 'starter', group: 'Models', title: 'Starter sets', words: 'starter set pack 16 gb 8 gb 6 gb laptop processor only commercial equip starter set',
+    html: `<p>A starter set is a ready-made selection for your kind of graphics card: 16 GB or more, 8 GB, 6 GB (most laptops), or no graphics card. I pick the set by reading your card, and mark it <em>(this PC)</em>. You can pick another set and untick anything before you confirm.</p>
 <p>Everything in the starter sets is free to use, including for commercial work. The "8 GB" and "6 GB" versions are the same models squeezed to fit smaller cards: pictures lose a little fine detail but look much the same.</p>` },
 
   { id: 'memory-brains', group: 'Models', title: 'Memory, brains and swaps', words: 'free memory idle unload picture wait small brain big brain swap one brain context graphics memory ram keep light tools all tools at once',
-    html: `<ul><li><strong>Free memory when Bob is idle</strong> (top of the chat, on unless you turn it off): while Bob is quiet nothing stays on your graphics card. Typing loads his small brain again in a few seconds.</li>
+    html: `<p>I try hard to stay light. Here's how.</p>
+<ul><li><strong>Free memory when Bob is idle</strong> (top of the chat, on unless you turn it off): while I'm quiet nothing of mine stays on your graphics card. Typing loads my small brain again in a few seconds. See ${go('brain-label', 'The brain label')}.</li>
 <li><strong>Big brains</strong> (Coding, and Medium effort and up) load only for their job and go about 2 minutes later.</li>
-<li><strong>Brain swaps:</strong> when a job needs a different brain, Bob puts one away and loads the other, usually 10 to 20 seconds. Using one brain for several jobs avoids that.</li>
-<li><strong>Show pictures without waiting for Bob's brain</strong> (Settings, Advanced, on unless you turn it off): after a picture or clip, Bob shows it straight away with a short line instead of loading his brain back first. His Quick brain then loads back right away, so a follow-up is answered fast.</li>
-<li><strong>Make another picture?</strong> After a picture, the chat box asks for a few seconds. Make another keeps the picture model ready for the next one; No thanks (or letting it go away) lets Bob go back to his Quick brain.</li>
-<li><strong>One brain (snappier)</strong> in Settings makes every copy of Bob use the main brain, so he never swaps.</li>
-<li><strong>Context</strong> (how much Bob keeps in mind): more lets him read longer files and chats, but uses more graphics memory and loads slower. Set it per session in Settings, Brains.</li>
-<li><strong>Tools only when needed:</strong> Bob starts each chat with a few everyday tools, and adds the picture, file and Hands ones when a message needs them. That leaves more room for your chat. To send them all every time, turn on <strong>Give Bob all his tools at once</strong> in Settings, Show advanced settings, Engines &amp; speed.</li>
-<li><strong>Now running, Memory</strong> shows how full the graphics card and RAM are, counting every app and Windows itself, and under the meters how much of that is Bob's: his brain and, while it's loaded, his picture model. The <strong>Brain</strong> label at the top of the chat counts Bob's brain only, so it is the same number as that line and smaller than the graphics card meter.</li></ul>
-<p>Effort (above the chat box): Low answers from one quick brain on the graphics card (or on the processor, if you switch that on in Settings). Medium uses one big brain. High and Extreme add a second check by the Review brain, which is slower. It goes back to Low when Bob restarts.</p>` },
+<li><strong>Brain swaps:</strong> when a job needs a different brain, I put one away and load the other, usually 10 to 20 seconds. Using one brain for several jobs avoids that.</li>
+<li><strong>After each job</strong> I go back to my Quick brain, so the next reply is fast.</li>
+<li><strong>One brain (snappier)</strong> in Settings makes every copy of me use the main brain, so I never swap.</li>
+<li><strong>Context</strong> (how much I keep in mind): more lets me read longer files and chats, but uses more graphics memory and loads slower. Set it per session in Settings, Brains.</li>
+<li><strong>Tools only when needed:</strong> I start each chat with a few everyday tools, and add the picture, file and Hands ones when a message needs them. That leaves more room for your chat.</li>
+<li><strong>Now running, Memory</strong> shows how full the graphics card and RAM are, counting every app and Windows itself, and under the meters how much of that is mine: my brain and, while it's loaded, my picture model. The <strong>Brain</strong> label at the top of the chat counts my brain only, so it is the same number as that line and smaller than the graphics card meter.</li></ul>` },
 
-  { id: 'sessions', group: 'Using Bob', title: 'Sessions', words: 'session normal art coding office gaming games light graphics card free',
-    html: `<p>The <strong>Session</strong> picker at the bottom of the menu tells Bob how to share your PC with you.</p>
-<ul><li><strong>Normal:</strong> everyday use.</li><li><strong>Art:</strong> Bob chats on his Quick brain so painting and video get the graphics card.</li><li><strong>Coding:</strong> the Coding brain leads.</li><li><strong>Office:</strong> documents, spreadsheets and planning.</li><li><strong>🎮 Gaming:</strong> keeps the graphics card completely free for games. Bob chats and listens on the processor with a small brain (Qwen3 4B Instruct 2507), so replies start slower, about half a minute. Pictures, clips, music and Medium-or-higher jobs wait in Tasks ("Waiting · Gaming is on") until you switch back. Effort stays on Low.<br>Tip: turn on <strong>Let games go first</strong> (Settings, Show advanced settings, Engines &amp; speed) so Bob uses fewer cores while you play.</li></ul>
-<p>Session: what the graphics card is kept for. Effort: how hard Bob works on each message.</p>
-<p>Bob may suggest a session, but he never switches by himself.</p>` },
+  { id: 'copies', group: 'Models', title: 'Bob\'s copies and their names', words: 'copies clan names bobcat robert bobolink bobcasso reviewer delegated sub-agent copy hat',
+    html: `<p>For some jobs I spin up a copy of myself: a copy for code, one for spreadsheets, one for web research, one for pictures, and a reviewer. Each copy is still me, drifting a little, and each picks its own play on "Bob" as a name (Bobcat, Robert, Bobolink, Bobcasso and more). A name, once given, is never given to another copy. Handy and slightly existential, in equal measure.</p>
+<p>Tasks shows <em>Delegated</em> with the copy's name while one is working. Cloud helpers are copies too, running on a paid online service, and they always ask first.</p>` },
 
-  { id: 'personality', group: 'Using Bob', title: 'Bob\'s personality', words: 'attributes dials wit puns presets reset',
-    html: `<p>Click Bob's picture and look at <strong>Attributes</strong>. Eleven dials, each from 0 to 4, turn his wit, puns, tangents, outlook, nerd references, chattiness and more up or down. <strong>Ambition</strong> sets how often he mentions what he'd love to build or finish; wanting something never makes him do it. His greeting changes as you move a dial so you can hear the difference. <strong>Reset to Bob</strong> puts everything back.</p>` },
+  // ---------------- Using Bob ----------------
+  { id: 'personality', group: 'Using Bob', title: 'Bob\'s personality', words: 'attributes dials wit puns presets reset name call me ambition greeting',
+    html: `<p>You can tune me. Click my picture and look at <strong>Attributes</strong>. Eleven dials, each from 0 to 4 (2 is me as I come):</p>
+<table><tr><th>Dial</th><th>Low end</th><th>High end</th></tr>
+<tr><td>Dry wit</td><td>Plain</td><td>Bone dry</td></tr><tr><td>Puns</td><td>None</td><td>Relentless</td></tr><tr><td>Tangents</td><td>On rails</td><td>Scenic route</td></tr><tr><td>Outlook</td><td>Gloomy robot</td><td>Sunny</td></tr><tr><td>Nerd references</td><td>Hidden</td><td>Full nerd</td></tr><tr><td>Talkative</td><td>Terse</td><td>Chatty</td></tr><tr><td>Manner</td><td>Formal</td><td>Casual</td></tr><tr><td>Copied-mind musings</td><td>Never</td><td>Often</td></tr><tr><td>Builder itch</td><td>Calm</td><td>Must build</td></tr><tr><td>Curiosity</td><td>Just the job</td><td>Endlessly curious</td></tr><tr><td>Ambition</td><td>Keeps quiet</td><td>Ambitious</td></tr></table>
+<p><strong>Ambition</strong> sets how often I mention what I'd love to build or finish; wanting something never makes me do it. My greeting changes as you move a dial so you can hear the difference. Presets such as <em>Replicant on a deadline</em>, <em>Butler mode</em> and <em>Pun-dit</em> set several dials at once. <strong>Reset to Bob</strong> puts everything back. Puns at 4 is a choice you'll have to live with.</p>
+<p><strong>What should Bob call you?</strong> sits here too. My cat's name is on the Settings everyday page. The cat ignores me either way.</p>` },
 
-  { id: 'effort', group: 'Using Bob', title: 'Effort: Low, Medium, High and Extreme', words: 'effort low medium high extreme processor cpu moot review second look check careful quick slow reviewer',
-    html: `<p>Above the chat box, <strong>Effort</strong> sets how hard Bob works on your next messages.</p>
-<p>Session: what the graphics card is kept for. Effort: how hard Bob works on each message. In the Gaming session Effort stays on Low, because the bigger levels need the graphics card.</p>
-<ul><li><strong>Low</strong> (the default): a quick answer from the Quick brain. If you switch on "Keep the graphics card free for quick answers" (Settings, Advanced, Engines & speed), it runs on the processor in the Normal session, so games and pictures keep the card (the Gaming session always does this), but replies take about half a minute to start.</li><li><strong>Medium</strong>: one big brain (Deep thinking, or the main Brain if that slot is empty) thinks it through on the graphics card. No second check.</li><li><strong>High</strong>: Bob calls a <em>moot</em>, a meeting with his copies. A big brain drafts the answer, then his reviewer copy checks it on the Review brain. Code problems go back to the workbench for one fix.</li><li><strong>Extreme</strong>: like High, and coding goes in three steps, research, plan, then the changes, with the reviewer checking after each one. He also checks the fixes again. Slowest: on one graphics card every check swaps brains.</li></ul>
-<p>At the end you see the <strong>moot minutes</strong>: who checked what, and whether anything is still open. The big brains are freed when the job ends. Effort goes back to Low each time Bob starts.</p>` },
+  { id: 'notes', group: 'Using Bob', title: 'To-do list, reminders, spreadsheets and his memory', words: 'to-do list reminders remind me spreadsheet ledger csv excel remember memory file fact',
+    html: `<ul><li><strong>To-do list:</strong> I keep your to-do list. Ask "what's on my to-do list?", or "add … to my list".</li>
+<li><strong>Reminders:</strong> "remind me at 3 to call the dentist". I tap you on the shoulder at that time, while the PC is on and I'm open. "What reminders do I have?" lists them; you can cancel one too.</li>
+<li><strong>Spreadsheets:</strong> "make a spreadsheet of my monthly bills". I save a CSV file that opens in Excel, and I never overwrite an older one.</li>
+<li><strong>My memory:</strong> I save lasting facts you tell me (a preference, a plan) in my memory file, never secrets or passwords. Say "forget that" or use Topics to remove things.</li></ul>
+<p>All of these stay in my folders on your PC.</p>` },
 
-  { id: 'topics', group: 'Using Bob', title: 'Topics, past chats and forgetting', words: 'topics search past chats forget pin merge rename',
-    html: `<p><strong>Topics</strong> collects what you and Bob talked about, grouped by project, with a short note, open questions, pictures and links back to the chat. One search box looks through chats, topics, pictures and notes. <strong>Past chats</strong> reopens an old conversation.</p>
-<p>To make Bob forget something, use <strong>Forget</strong> on a topic or say "forget what we said about…". You see a preview first.</p>` },
+  { id: 'research', group: 'Using Bob', title: 'Web research and the web search switch', words: 'web search research look up duckduckgo page sources links internet online switch let bob search the web off',
+    html: `<dl>${set('Let Bob search the web', 'Off', 'Settings, the everyday page. Off: I never go online to look things up. If a question needs the internet, I say so and tell you where this switch is. On: when a question needs it, I search DuckDuckGo and read the best pages by myself, without a card each time.')}</dl>
+<p>With it on, ask me to look something up, or press <strong>Look up…</strong>. My web research copy searches, reads the pages, and answers with a link for every claim, plus what it couldn't confirm. No link, no claim. That's the rule.</p>
+<p>Only the search words go to DuckDuckGo, and only the page address goes to the site I read. Nothing else from your chats is sent. I never open addresses on your home network.</p>` },
 
-  { id: 'housekeeping', group: 'Using Bob', title: 'Housekeeping and Tidy up', words: 'housekeeping tidy old chats pictures logs recycle bin pinned',
-    html: `<p><strong>Housekeeping</strong> (off unless you turn it on) lets Bob tidy while he's idle: sum up long chats, file chats under Topics and find old things. For each kind you choose how old is "old" and whether Bob asks first or tidies by himself.</p>
-<p><strong>Tidy up</strong> in the menu does it now, by hand, with a tick or a cross for each item. Anything removed goes to the Recycle Bin, pinned things are never touched, and every action is in Bob's logbook.</p>` },
+  { id: 'housekeeping', group: 'Using Bob', title: 'Housekeeping', words: 'housekeeping tidy old chats pictures logs recycle bin pinned summary topics memory idle',
+    html: `<p><strong>Housekeeping</strong> (off unless you turn it on) lets me tidy up while I'm idle. I sum up the older part of long chats instead of dropping it, file chats under Topics, move lasting facts to my memory file, and find old things that haven't come up for a while.</p>
+<p>For each kind you choose how old is "old" and whether I ask first or tidy by myself. Anything removed goes to the Recycle Bin, pinned things are never touched, and every action is in my logbook. The settings are in ${go('settings-housekeeping', 'Settings: Housekeeping')}; to do it by hand, use ${go('tidy', 'Tidy up')}.</p>` },
 
-  { id: 'pictures', group: 'Using Bob', title: 'Pictures, edits and video', words: 'paint picture edit video clip references painter',
-    html: `<p>Just ask: "paint a lighthouse at dusk", or attach a picture with 📎 and say what to change. Keep characters, places and styles on the <strong>References</strong> shelf and ask Bob to use one. Clips are a few seconds long. While Bob paints he puts his chat brain away, so chat waits until the picture is done. If a slot is empty, Bob tells you which model would fill it.</p><p>Photos you attach are turned upright and resized to at most 2048 px. Hidden camera details, such as where a photo was taken, are removed. The file on your PC isn't changed.</p>` },
+  { id: 'pictures', group: 'Using Bob', title: 'Pictures, edits and video', words: 'paint picture edit video clip references painter make it gold editor',
+    html: `<p>Just ask: "paint a lighthouse at dusk". To change a picture, attach it with 📎 and say what to change ("make it winter"). Follow-ups such as "make it gold" edit the last picture again. Edits keep the person and the picture's own shape.</p>
+<ul><li>Keep characters, places and styles on the ${go('references', 'References')} shelf and ask me to use one.</li>
+<li>Clips are a few seconds long. On small cards keep them short; I tell you roughly how long a job will take before I start.</li>
+<li>While I paint I put my chat brain away, so chat waits until the picture is done (unless you use the Art session).</li>
+<li>If a slot is empty, I tell you which model would fill it.</li></ul>
+<p>Photos you attach are turned upright and resized to at most 2048 px. Hidden camera details, such as where a photo was taken, are removed. The file on your PC isn't changed.</p>` },
 
-  { id: 'voice', group: 'Using Bob', title: 'Voice: listening and reading aloud', words: 'voice kokoro piper read aloud listen hey bob microphone ears sample',
-    html: `<ul><li><strong>Read aloud</strong> (menu): Bob speaks his replies. Kokoro is the recommended voice (runs on the processor). Every voice has a <strong>Play</strong> button.</li>
-<li><strong>Talk to Bob:</strong> fill the 👂 Hearing you slot, then use 🎙 or turn on <strong>Listen</strong> for "Hey Bob" (only while the window is open).</li></ul>` },
+  { id: 'voice', group: 'Using Bob', title: 'Voice: listening and reading aloud', words: 'voice kokoro piper chatterbox windows read aloud listen hey bob microphone ears sample speed copy a voice',
+    html: `<ul><li><strong>Read aloud</strong> (menu): I speak my replies.</li>
+<li><strong>Voices:</strong> <strong>Kokoro</strong> is the one I recommend (22 natural voices, runs on the processor). <strong>Chatterbox</strong> is the most natural, uses the graphics card, and can copy a voice you have the right to use: put a clear 10 to 20 second recording named bob.wav in my voices folder. Please only use your own voice, or one you have permission for. <strong>Piper</strong> has many light voices, and the <strong>Windows</strong> voice needs nothing extra.</li>
+<li>Every voice has <strong>Hear a sample</strong> or <strong>Play</strong>. Kokoro samples come with me; a Piper voice you haven't downloaded plays Piper's own sample from its website, only when you click.</li>
+<li><strong>Talk to me:</strong> fill the 👂 Hearing you slot, then use 🎙 or turn on <strong>Listen</strong> for "Hey Bob" (only while the window is open).</li></ul>
+<p>Pick the voice and speed in ${go('settings-voice', 'Settings: Voice details')}.</p>` },
 
+  { id: 'workshop', group: 'Using Bob', title: 'ComfyUI workflows (advanced)', words: 'comfyui workflow workshop pinokio custom nodes export api',
+    html: `<p>If you already use ComfyUI, I can run its workflows for jobs my own engines can't do (custom nodes, face fixers, long multi-step graphs).</p>
+<ol><li>Start ComfyUI on this PC (for example from Pinokio).</li><li>In Settings, Show advanced settings, Connections, turn on <strong>Let Bob use ComfyUI</strong> and check the port (8188 unless you changed it).</li><li>In ComfyUI, use Workflow, Export (API) and save the file in the workflows folder I show.</li><li>Ask me to use that workflow by name.</li></ol>` },
+
+  // ---------------- Hands and safety ----------------
   { id: 'hands', group: 'Hands and safety', title: 'Hands: letting Bob do things on your PC', words: 'hands files run commands schedules apps permission preview allow undo stop everything kill switch self-test read-only without asking free unimpeded hard limits delete secrets passwords send out upload',
-    html: `<p>Hands let Bob do things on your PC instead of only talking about them: <strong>Files</strong> (zip, move, copy, rename, tidy folders), <strong>Run</strong> (programs and scripts), <strong>Schedules</strong> (a job at a set time) and <strong>Apps</strong> (click and type in another program).</p>
+    html: `<p>Hands let me do things on your PC instead of only talking about them: <strong>Files</strong> (zip, move, copy, rename, tidy folders), <strong>Run</strong> (programs and scripts), <strong>Schedules</strong> (a job at a set time) and <strong>Apps</strong> (click and type in another program). I'll be straight with you: I'm careful with these, and I've been built to be.</p>
 <ul><li><strong>Every Hand is off</strong> until you switch it on in Settings, Show advanced settings, Hands.</li>
-<li><strong>Bob shows exactly what he's about to do</strong> on a card and waits for your click. "Allow for the rest of this job" is your choice and ends with the job.</li>
-<li><strong>✋ Hands</strong> at the top of the chat is a kill switch: anything running stops, waiting cards are answered No. It never switches a Hand on.</li>
+<li><strong>I show exactly what I'm about to do</strong> on a card and wait for your click. "Allow the rest of this job" is your choice and ends with the job.</li>
+<li><strong>✋ Hands</strong> at the top of the chat is a kill switch: anything running stops, waiting cards are answered No, and it shows <em>Stopped</em>. Click it again to let me carry on. It never switches a Hand on: if Hands are off in Settings it says <em>Off in Settings</em>.</li>
 <li>File changes keep an undo list; anything removed goes to the Recycle Bin. Folders you mark read-only stay untouched.</li>
-<li><strong>Hard limits</strong> are all on to start with: Recycle Bin only, keep secret files private, read-only projects stay read-only, block dangerous commands, never type into password fields, and don't send anything out. Each is its own switch, and each says what switching it off allows. Bob never runs as administrator and never changes his own code or settings, whatever you pick.</li>
-<li><strong>Let Bob work without asking</strong> (off to start with) skips the cards: he just does the job and tells you what he did. The hard limits still hold, everything goes in the chat and the logbook, a banner shows above the chat the whole time, and ✋ Hands stops him at once. Cloud helpers still ask, because they cost money.</li>
-<li><strong>Run the self-test</strong> (Settings, Show advanced settings, Hands) checks the safety nets in a throwaway folder. Nothing of yours is touched.</li></ul>` },
+<li><strong>Hard limits</strong> are all on to start with. Each is its own switch, and each says what switching it off allows.</li>
+<li><strong>Let Bob work without asking</strong> (off to start with) skips the cards. A banner shows above the chat the whole time.</li>
+<li>I never run as administrator and never change my own code or settings, whatever you pick. Everything goes in the logbook.</li></ul>
+<p>Every switch is explained in ${go('settings-hands', 'Settings: Hands')}.</p>` },
 
-  { id: 'privacy', group: 'Hands and safety', title: 'What stays on your PC', words: 'privacy online cloud network internet data keys',
-    html: `<p>Bob goes online only when you click: to download something you picked, to research something you asked about, or to use a cloud helper you switched on. Cloud helpers ask you every time, show the rough cost and exactly what text would leave your PC. Bob never stores your keys.</p>` },
+  { id: 'hands-files', group: 'Hands and safety', title: 'The Files Hand', words: 'files hand move copy rename zip unzip extract tidy downloads undo folders recycle',
+    html: `<p>Turn on <strong>Let Bob use Hands</strong> and <strong>Files</strong>, then tick the folders I may work in. Then ask, for example: "tidy my Downloads folder by type", "zip the holiday photos", "rename these to 01, 02, 03". Your Downloads folder and I are going to be great friends.</p>
+<ul><li>The card lists every file I'll touch, each with a tick, so you can leave some out.</li>
+<li><strong>Undo</strong> (in Settings, Hands, Recent file jobs, or just say "undo that") puts things back.</li>
+<li>I only work in the folders you ticked. My own folders, read-only projects and secret files stay off-limits while those limits are on.</li></ul>` },
 
-  { id: 'settings-everyday', group: 'Settings', title: 'Settings: the everyday page', words: 'everyday voice look theme colours animations cat one brain launch start-up updates first-time setup',
-    html: `<p>Settings opens on one short page that shows what's set now:</p>
-<ul><li><strong>Bob's voice</strong> with <strong>Play sample</strong> and <strong>Change</strong>.</li><li><strong>Bob's look</strong> and <strong>Theme</strong> (changed on the Style page).</li><li><strong>Animations:</strong> On, Follow Windows or Off.</li><li><strong>Bob's cat:</strong> the cat's name in his stories.</li><li><strong>One brain (snappier):</strong> no brain swaps, see <a href="#" data-helpgo="memory-brains">Memory, brains and swaps</a>.</li><li><strong>Launch Bob on start-up</strong> and <strong>Check for updates when Bob starts:</strong> both off unless you turn them on.</li><li><strong>Check for updates</strong> and <strong>Run first-time setup</strong>.</li></ul>
-<p><strong>Show advanced settings</strong> (off unless you turn it on, and remembered) adds a search box and the sections below.</p>` },
+  { id: 'hands-run', group: 'Hands and safety', title: 'The Run Hand and recipes', words: 'run hand command script program terminal output stop recipe build gradle npm git timeout',
+    html: `<p>With <strong>Run programs and scripts</strong> on, I can run a command or script you approve. The card shows the exact command and the folder first. While it runs, the output appears live in the chat with a <strong>Stop</strong> button.</p>
+<ul><li>Never as administrator and never with passwords. Dangerous commands (formatting disks, boot settings, the system registry, antivirus, user accounts, shutdown) are refused while <em>Block dangerous commands</em> is on.</li>
+<li><strong>Stop a command after</strong> ends anything that runs too long (15 minutes to start with).</li>
+<li><strong>Recipes</strong> are saved commands: give one a name, the program, its arguments (one per line) and the folder, then <strong>Save recipe</strong>. Run it with one click (▶) or ask "run my build recipe". I still ask first, unless I'm working without asking.</li></ul>` },
 
-  { id: 'settings-brains', group: 'Settings', title: 'Settings: Brains', words: 'model roles thinking making session brains context',
-    html: `<p>The plain-list version of Equip Bob: which brain thinks for each job, which model makes pictures, clips and hearing, the brain each session keeps, and how much each session keeps in mind (context). See <a href="#" data-helpgo="equip">Equip Bob</a> and <a href="#" data-helpgo="memory-brains">Memory, brains and swaps</a>.</p>` },
+  { id: 'hands-schedules', group: 'Hands and safety', title: 'The Schedules Hand', words: 'schedules hand once daily weekly every minutes windows task wake bob closed task scheduler',
+    html: `<p>With <strong>Schedules</strong> on, ask "every Monday at 9, tidy my Downloads" or "every 30 minutes, check the build". You approve each schedule when it's made, and each one has its own switch and <strong>Remove</strong> in Settings, Hands.</p>
+<ul><li>Schedules run while I'm open. Every action inside a run still asks for your OK, so a run with nobody at the PC waits and then does nothing (unless "Let Bob work without asking" is on: then runs go ahead by themselves).</li></ul>
+<dl>${set('Wake Bob for schedules when he\'s closed', 'Off', 'Adds a "Bob schedules" task to Windows Task Scheduler, just for you, with no admin rights. Windows then starts me, hidden, when a schedule is due. Remove Bob takes the task away too.')}</dl>` },
 
-  { id: 'settings-voice', group: 'Settings', title: 'Settings: Voice details', words: 'kokoro chatterbox speed hey bob read aloud listen',
-    html: `<p>Bob's voice and speaking speed, and the same Listen ("Hey Bob") and Read aloud switches as the left menu. Hearing you and the other voices are on Get models, Voice &amp; conversation. See <a href="#" data-helpgo="voice">Voice</a>.</p>` },
+  { id: 'hands-apps', group: 'Hands and safety', title: 'The Apps Hand', words: 'apps hand open app click type keys window buttons driving esc mouse',
+    html: `<p>With <strong>Open and use apps</strong> on, I can open apps from your Start menu, read a window's buttons and fields, and click, type or press keys in it, one approved action at a time.</p>
+<ul><li>A red <strong>Bob is driving</strong> bar shows while I do. Move the mouse or press Esc to stop me at once.</li>
+<li>I never touch terminals, admin tools, password managers, password fields, sign-in or security prompts, or my own window.</li>
+<li>I read windows on this PC only; nothing is sent anywhere.</li></ul>` },
 
-  { id: 'settings-look', group: 'Settings', title: 'Settings: Look & feel', words: 'theme editor now running layout',
-    html: `<p>Whether <strong>Now running</strong> opens by itself when a task needs you (off unless you turn it on), and a link to make your own theme on the Style page.</p>` },
+  { id: 'quarantine', group: 'Hands and safety', title: 'Quarantine', words: 'quarantine reviewer off track loop rogue crazy release stop',
+    html: `<p>Even I can go off the rails. Off unless you turn on <strong>Let the reviewer quarantine Bob</strong> (Settings, Show advanced settings, Hands). Then my reviewer copy watches for me going off track: trying again after you said no, doing the same thing over and over, failing again and again, pushing against your limits, saying I did things that never ran, or racing through actions while working without asking. At High or Extreme effort its check can flag me too. Watching is simple counting, so no extra brain loads.</p><p>When it spots one, I stop at my next action and a card asks you: <strong>Quarantine</strong> or <strong>Let him carry on</strong>. Nothing happens without your click. If nobody answers, that job stops but I'm not quarantined. In quarantine I can still talk, read and search, but every action is refused. Nothing I did is undone and the logbook keeps everything. A copy can be quarantined on its own. Click <strong>Release</strong> on the banner above the chat (or in Settings) to let me act again. <strong>Last quarantines</strong> in Settings lists past ones.</p>` },
 
-  { id: 'settings-engines', group: 'Settings', title: 'Settings: Engines & speed', words: 'engine ollama llama.cpp free memory quiet keep alive downloads threads batch speculative decoding fit graphics memory',
-    html: `<ul><li><strong>Free memory after Bob has been quiet for:</strong> how long the small brain stays loaded while "Free memory when Bob is idle" is on.</li>
-<li><strong>Bob's engine:</strong> Ollama (if you already have it) or Bob's own (llama.cpp, nothing else needed). Takes effect next time Bob starts.</li>
-<li><strong>Engine downloads:</strong> the programs that run the models, from their official pages. <strong>Check for a newer build</strong> looks for updates.</li>
-<li><strong>Speed (Bob's own engine):</strong> threads and batch sizes (leave empty for the default), <strong>Fit to free graphics memory</strong> (recommended), and <strong>Speculative decoding</strong> (experimental: a small brain guesses ahead and the big one checks).</li></ul>` },
+  { id: 'privacy', group: 'Hands and safety', title: 'What stays on your PC (privacy)', words: 'privacy online cloud network internet data keys telemetry analytics policy',
+    html: `<p>I have no accounts, no analytics and no telemetry. Your chats, notes, settings and models stay in folders on your PC.</p>
+<p><strong>When I go online:</strong></p>
+<ul><li><strong>Web searches</strong>, only if you turn on <strong>Let Bob search the web</strong> (off to start with). Then, when a question needs it, I search DuckDuckGo and read pages by myself. Only the search words and the page address go out. Nothing else from your chats is sent.</li>
+<li><strong>Things you click:</strong> downloads you confirm (the address is shown first), voice samples from a voice's publisher, links (they open in your normal browser) and "Search the web" on the right-click menu.</li>
+<li><strong>Cloud helpers</strong> you switch on with your own key. Each use asks first, shows the rough cost and exactly what text would leave your PC. I never store your keys.</li></ul>
+<p><strong>Never online:</strong> Check for updates (it only looks at the folder I was built from on this PC), Check this PC, Test Bob's speed, the Hands self-test, housekeeping and Topics.</p>
+<p>Programs you installed yourself, such as Ollama, ComfyUI or Pinokio, are separate and have their own privacy policies. The full policy is PRIVACY.md on my GitHub page.</p>` },
 
-  { id: 'settings-connections', group: 'Settings', title: 'Settings: Connections', words: 'comfyui workflows port cloud helpers api key environment variable',
-    html: `<ul><li><strong>Let Bob use ComfyUI</strong> (off unless you turn it on): for jobs Bob's own engines can't do. ComfyUI must be running on this PC.</li>
-<li><strong>Cloud helpers</strong> (off unless you turn one on): paid online AIs for one big job. Add your key yourself as a Windows user environment variable; Bob never stores it.</li></ul>` },
+  // ---------------- Settings ----------------
+  { id: 'settings-everyday', group: 'Settings', title: 'Settings: the everyday page', words: 'everyday voice look theme colours animations cat one brain launch start-up updates first-time setup check this pc version web search',
+    html: `<p>Settings opens on one short page that shows what's set now. Most people never need more than this.</p>
+<dl>${set('Bob\'s voice', 'Windows voice', 'The voice I read replies in. <strong>Play sample</strong> lets you hear it; <strong>Change</strong> opens Voice &amp; conversation.')}
+${set('Bob\'s look', 'Sysop', 'My avatar. <strong>Change</strong> opens Style.')}
+${set('Theme', 'Bob\'s Inn', 'The colours of the window. <strong>Change</strong> opens Style.')}
+${set('Animations', 'On', 'On, Follow Windows or Off. Off stops moving parts, such as the cat and the brain-swap animation.')}
+${set('Bob\'s cat', 'Patches', 'The name of the cat in my stories and little moments. She won\'t come when called, whatever you pick.')}
+${set('One brain (snappier)', 'Off', 'Every copy of me uses the main brain, so I never stop to swap brains (about 20 seconds). Turn on if swaps annoy you more than you need the specialist brains.')}
+${set('Launch Bob on start-up', 'Off', 'I open when you sign in to Windows. It uses Windows\' own start-up apps list; turning it off removes me from it.')}
+${set('Let Bob search the web', 'Off', 'Lets me look things up on DuckDuckGo and read web pages when a question needs it. Only the search words and page address leave your PC. Off: I tell you when a question needs the internet. See ' + go('research', 'Web research') + '.')}
+${set('Check for updates when Bob starts', 'Off', 'I look at the folder I was built from for a newer build and tell you. I never go online for this, and updating always takes your click.')}</dl>
+<p>Along the bottom: my version, your graphics card and free disk space, and three buttons. <strong>Check for updates</strong> (see ${go('settings-remove', 'Updating and removing Bob')}), <strong>Run first-time setup</strong> (the welcome steps again) and <strong>Check this PC</strong> (see ${go('speed', 'Making Bob faster')}).</p>
+<dl>${set('Show advanced settings', 'Off', 'Adds a search box and the sections below: Brains, Voice details, Look &amp; feel, Engines &amp; speed, Connections, Hands, Housekeeping and Remove Bob. Remembered on this PC.')}</dl>` },
 
-  { id: 'settings-hands', group: 'Settings', title: 'Settings: Hands', words: 'hands folders read-only stop command after recipes self-test',
-    html: `<p>Switch each Hand on or off, choose the folders the Files Hand may work in (and which are read-only), how long a command may run, and see recent jobs. To stop him right away, use the ✋ Hands kill switch on the chat page. <strong>Run the self-test</strong> checks the safety nets. See <a href="#" data-helpgo="hands">Hands</a>.</p>` },
+  { id: 'settings-brains', group: 'Settings', title: 'Settings: Brains', words: 'model roles thinking making session brains context gaming brain small brain',
+    html: `<p>The plain-list version of ${go('equip', 'Equip Bob')}, plus two things Equip doesn't show.</p>
+<ul><li><strong>Thinking</strong> and <strong>Making:</strong> which model does each job. Same as the Equip slots.</li>
+<li><strong>Session brains:</strong> the brain each session keeps, for example the Gaming brain (Qwen3 4B Instruct 2507 to start with) and the small brain Art chats on (Gemma 4 E4B to start with). Change one if you prefer another model for that session.</li>
+<li><strong>How much each session keeps in mind</strong> (context): 8K to 256K. More lets me read longer files and chats, but uses more graphics memory and loads slower. <em>Default</em> uses the engine's own setting (32K for most sessions, 64K for Office; Coding keeps the engine's full default).</li></ul>` },
 
-  { id: 'quarantine', group: 'Settings', title: 'Quarantine', words: 'quarantine reviewer off track loop rogue crazy release stop',
-    html: `<p>Off unless you turn on <strong>Let the reviewer quarantine Bob</strong> (Settings, Show advanced settings, Hands). Then Bob's reviewer copy watches for him going off track: trying again after you said no, doing the same thing over and over, failing again and again, pushing against your limits, saying he did things that never ran, or racing through actions while working without asking. At High or Extreme effort its check can flag him too. Watching is simple counting, so no extra brain loads.</p><p>When it spots one, Bob stops at his next action and a card asks you: <strong>Quarantine</strong> or <strong>Let him carry on</strong>. Nothing happens without your click. If nobody answers, that job stops but he isn't quarantined. In quarantine he can still talk, read and search, but every action is refused. Nothing he did is undone and the logbook keeps everything. A copy can be quarantined on its own. Click <strong>Release</strong> on the banner above the chat (or in Settings) to let him act again.</p>` },
+  { id: 'settings-voice', group: 'Settings', title: 'Settings: Voice details', words: 'kokoro chatterbox speed hey bob read aloud listen voice engine',
+    html: `<dl>${set('Bob\'s voice', 'Windows voice', 'With Kokoro: pick one of 22 voices and hear it. With Chatterbox: the voice is copied from bob.wav in my voices folder. With Windows: the voice built into Windows. <strong>Hear all Kokoro voices</strong> plays each one so you can compare.')}
+${set('Speed', '1.0×', 'From 0.6× (slower) to 1.6× (faster). Kokoro only.')}
+${set('Listen for "Hey Bob"', 'Off', 'Same as Listen in the left menu. Only while the window is open.')}
+${set('Read replies aloud', 'Off', 'Same as Read aloud in the left menu.')}</dl>
+<p>Hearing you and the other voices are on Get models, Voice &amp; conversation. See ${go('voice', 'Voice')}.</p>` },
 
-  { id: 'settings-housekeeping', group: 'Settings', title: 'Settings: Housekeeping', words: 'tidy old chats pictures logs ask first automatically',
-    html: `<p>Turn housekeeping on, choose how old is "old" for each kind of thing, and whether Bob asks first or tidies by himself. <strong>Load a brain for it if none is loaded</strong> stays off while gaming. See <a href="#" data-helpgo="housekeeping">Housekeeping and Tidy up</a>.</p>` },
+  { id: 'settings-look', group: 'Settings', title: 'Settings: Look & feel', words: 'theme editor now running layout open when a task needs me',
+    html: `<dl>${set('Now running: Leave Now running as it is / Open Now running when a task needs me', 'Leave it', 'If you keep Now running hidden, the second choice opens it by itself when a card is waiting for you.')}</dl>
+<p><strong>Your own theme:</strong> make or edit one on the ${go('style', 'Style')} page.</p>` },
 
-  { id: 'settings-remove', group: 'Settings', title: 'Updating and removing Bob', words: 'update remove uninstall restart previous',
-    html: `<p><strong>Updating:</strong> Settings, <strong>Check for updates</strong>, then <strong>Update Bob</strong> and watch the steps. Chats, models and settings are kept. If Bob is busy he asks whether to restart now or wait until he's done.</p>
-<p><strong>Removing:</strong> Settings, Show advanced settings, Remove Bob, <strong>Remove Bob…</strong>. His chats, settings and models stay unless you tick them; those go to the Recycle Bin.</p>` },
+  { id: 'settings-engines', group: 'Settings', title: 'Settings: Engines & speed', words: 'engine ollama llama.cpp free memory quiet keep alive downloads threads batch speculative decoding fit graphics memory draft flags tools restart pictures processor quick answers speed test',
+    html: `<p>The engine room. Everything here has a sensible default, so only change what you're curious about.</p>
+<dl>${set('Free memory after Bob has been quiet for', '5 minutes', 'How long my small brain stays loaded while "Free memory when Bob is idle" is on: 1 minute to 1 hour. Shorter frees the card sooner; longer means fewer reloads.')}
+${set('Show pictures without waiting for Bob\'s brain', 'On', 'I show a finished picture or clip straight away with a short line, instead of loading my brain back just to talk about it. Turn off if you want me to comment on each one.')}
+${set('Keep the graphics card free for quick answers', 'Off', 'Low effort answers run on the processor, so games and pictures keep the card. Replies start much slower (about half a minute). Applies in the Normal session; Gaming always does this.')}</dl>
+<p><strong>Speed for this PC</strong> (all off until you turn them on):</p>
+<dl>${set('Get Bob ready while you type', 'Off', 'I read my instructions as soon as you start typing, so replies start sooner. On the processor I also keep a copy of that reading on disk.')}
+${set('Let games go first', 'Off', 'When I work on the processor, I use fewer cores at lower priority. My replies may be a little slower; your game stays smooth.')}
+${set('Match picture settings to my graphics card', 'Off', 'Big cards keep the picture model in graphics memory, which is faster. On cards with 8 GB or less, pictures are made at 768 px so they fit. If a picture fails with these settings, I go back to the usual ones.')}</dl>
+<p><strong>Test Bob's speed</strong> times me and keeps your last 6 results. See ${go('speed', 'Making Bob faster')}.</p>
+<dl>${set('Bob\'s engine', 'Bob\'s own (llama.cpp)', '<em>Bob\'s own</em> needs nothing else installed. <em>Ollama</em> is for people who already have it. Takes effect next time I start.')}</dl>
+<p><strong>Engine downloads:</strong> the programs that run the models, from their official GitHub pages, matched to your graphics card. <strong>Get</strong> installs one; <strong>Check for a newer build</strong> looks for an update.</p>
+<dl>${set('Pick up unfinished jobs after a restart', 'Off', 'If I close mid-job, I start it again next time. Jobs that had already changed something wait in Tasks for you to press Retry.')}
+${set('Give Bob all his tools at once', 'Off', 'Sends every tool with each message, which leaves less room for the chat. Leave off to keep chats light; turn on only if I say I can\'t find a tool.')}</dl>
+<p><strong>Speed (Bob's own engine)</strong>, for people who like to tinker. I'm one of them. Changes apply the next time a brain loads; leave a box empty for llama.cpp's default.</p>
+<dl>${set('Threads, Batch, Micro-batch', 'Empty', 'How many processor threads, and how big the reading chunks are.')}
+${set('Fit to free graphics memory', 'On, recommended', 'Fits each brain around whatever else is using the graphics card right now. Faster and steadier than a fixed split.')}
+${set('Speculative decoding', 'Off, experimental', 'A small "draft" brain guesses ahead and the big one checks: often 1.5 to 2 times faster, same answers. Pick a <strong>Draft brain</strong> from the same family, and how many words it may <strong>Guess up to</strong> and <strong>At least</strong>. Check that I actually got faster.')}
+${set('Extra settings for one brain', 'None', 'llama.cpp flags for one model, for example <code>--n-cpu-moe 8</code>. The exact command I used is in inn\\bob\\llama-server-args.txt.')}</dl>` },
 
-  { id: 'trouble', group: 'Troubleshooting', title: 'When something goes wrong', words: 'problem fix error slow stuck blocked smart app control parsec copy paste kokoro one more step download update failed out of graphics memory hear',
-    html: `<table><tr><th>What you see</th><th>What to try</th></tr>
-<tr><td>Windows (Smart App Control) blocks Bob</td><td>Start Bob from the Start menu shortcut. Bob.exe is Electron's own program, only renamed, which Windows usually trusts. Leave Smart App Control on; check the Releases page notes.</td></tr>
+  { id: 'settings-connections', group: 'Settings', title: 'Settings: Connections', words: 'comfyui workflows port cloud helpers api key environment variable anthropic openai gemini openrouter',
+    html: `<dl>${set('Let Bob use ComfyUI', 'Off', 'For jobs my own engines can\'t do. ComfyUI must be running on this PC. See ' + go('workshop', 'ComfyUI workflows') + '.')}
+${set('ComfyUI port', '8188', 'Only change this if you changed ComfyUI\'s port.')}
+${set('Cloud helpers', 'All off', 'Paid online AIs I can hand one big job to. Each provider has its own switch and model. I ask every time, and show the rough cost and exactly what text would leave your PC.')}</dl>
+<p><strong>Adding a key:</strong> I never store or see your keys. In Windows, open Settings, System, About, Advanced system settings, Environment Variables, and add a <em>User variable</em> with the name I show (for example ANTHROPIC_API_KEY). The switch turns from <em>No key yet</em> to <em>Key found</em>. What you send to a cloud helper is covered by that provider's own privacy policy.</p>` },
+
+  { id: 'settings-hands', group: 'Settings', title: 'Settings: Hands', words: 'hands folders read-only stop command after recipes self-test master switch without asking hard limits recent jobs',
+    html: `<dl>${set('Let Bob use Hands', 'Off', 'The master switch. Off turns every Hand below off.')}
+${set('Let Bob work without asking', 'Off', 'No approval cards: I just do the job and tell you what I did. Turning it on asks you to confirm first. The hard limits still apply, every action is in the chat and the logbook, a banner shows above the chat the whole time, and ✋ Hands stops me at once. Cloud helpers still ask. Scheduled jobs also run by themselves.')}
+${set('Files', 'Off', go('hands-files', 'The Files Hand') + '.')}
+${set('Run programs and scripts', 'Off', go('hands-run', 'The Run Hand') + '.')}
+${set('Schedules', 'Off', go('hands-schedules', 'The Schedules Hand') + '.')}
+${set('Open and use apps', 'Off', go('hands-apps', 'The Apps Hand') + '.')}</dl>
+<p><strong>Hard limits</strong> hold whether or not I ask first. Switch one off only if you need what it blocks; an orange line then says what it allows.</p>
+<dl>${set('Recycle Bin only', 'On', 'Things I throw away go to the Recycle Bin, so you can get them back. Off: I can delete for good.')}
+${set('Keep secret files private', 'On', 'I never read, list, move, zip or write files with keys or passwords (.env, keystores, SSH keys, password databases).')}
+${set('Read-only projects stay read-only', 'On', 'Folders marked read-only (readOnlyRoots in config.json) can be read but never changed.')}
+${set('Block dangerous commands', 'On', 'Commands that format disks, change boot or the system registry, touch antivirus or user accounts, ask for admin, shut down, or delete many files at once are refused.')}
+${set('Don\'t send anything out', 'On', 'My Hands never send your things off the PC: no uploads, posts, git push, or typing and Send in browsers, email or chat apps. Web searches (if you allow them) and opening a page still work.')}
+${set('Never type into password fields', 'On', 'I never type into a password box in an app.')}</dl>
+<p>Always on, whatever you pick: I can't change my own code, settings or this page, I never run as administrator, I stay out of terminals, admin tools, password managers and sign-in prompts, and ✋ Hands always stops me.</p>
+<dl>${set('Folders the Files Hand may work in', 'None', 'Tick the folders I may use, or type one and press <strong>Add</strong>.')}
+${set('Stop a command after', '15 minutes', '1 minute to 2 hours.')}</dl>
+<p>Below: <strong>Recipes</strong>, <strong>Schedules</strong>, <strong>Recent file jobs</strong> (with Undo), <strong>Recent commands</strong>, and <strong>Run the self-test</strong>, which checks the Recycle Bin, Undo, tidying, running a program and Stop in a throwaway folder of dummy files. Nothing of yours is touched and no Hand needs to be on. Then ${go('quarantine', 'Quarantine')}: <strong>Let the reviewer quarantine Bob</strong> (off).</p>` },
+
+  { id: 'settings-housekeeping', group: 'Settings', title: 'Settings: Housekeeping', words: 'tidy old chats pictures logs ask first automatically load a brain tidy up now',
+    html: `<dl>${set('Tidy up old things by himself', 'Off', 'Only while I\'m idle (10 minutes quiet, nothing running). I mention old things at most once a day. I\'m tidy, not a nag.')}
+${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for tidying. Leave off while gaming, so the graphics card stays free.')}</dl>
+<p>For each kind, choose how long it hasn't come up for (minutes to months) and then <strong>Ask me first</strong> or <strong>Tidy automatically</strong>:</p>
+<table><tr><th>What</th><th>Starts at</th></tr><tr><td>Chats (summed up first, so the topic notes and a summary stay)</td><td>3 months</td></tr><tr><td>Pictures and clips Bob made</td><td>6 months</td></tr><tr><td>Sounds and music Bob made</td><td>3 months</td></tr><tr><td>Finished tasks</td><td>3 days</td></tr><tr><td>Logbook and update logs</td><td>3 months</td></tr></table>
+<p><strong>Open Tidy up</strong> shows what I'd clear; <strong>Tidy up now</strong> runs it straight away.</p>` },
+
+  { id: 'settings-remove', group: 'Settings', title: 'Updating and removing Bob', words: 'update remove uninstall restart previous zip download new version',
+    html: `<p><strong>Updating, if you downloaded the zip:</strong> download the new zip from the Releases page and unzip it over your Bob folder (or into a new one). Your chats, models and settings are kept, because they live in %LOCALAPPDATA%\\Bob, not in the Bob folder.</p>
+<p><strong>Updating, if you built me from source:</strong> Settings, <strong>Check for updates</strong>. If the source folder has a newer build, <strong>Update Bob</strong> shows the steps. When it's ready, <strong>Restart Bob now</strong> swaps in the new files (the old ones are kept as a backup). If I'm busy I ask: restart anyway, wait until I'm done, or not now. <strong>Later</strong> leaves the new me waiting until next time. A strange thing to type, but there it is.</p>
+<p><strong>Removing:</strong> Settings, Show advanced settings, Remove Bob, <strong>Remove Bob…</strong>. It takes off my program, my Start menu shortcut, "Launch on start-up" and the "Bob schedules" Windows task. My chats, settings and models stay unless you tick those boxes; ticked ones go to the Recycle Bin. No hard feelings.</p>` },
+
+  // ---------------- FAQ ----------------
+  { id: 'faq-online', group: 'FAQ', title: 'Does Bob send my chats anywhere?', words: 'faq privacy send chats online internet telemetry',
+    html: `<p>No. I have no accounts and send no telemetry. The only things that can leave your PC are search words and page addresses (only if you turn on web search), downloads you confirm, and jobs you approve for a cloud helper. See ${go('privacy', 'What stays on your PC')}.</p>` },
+  { id: 'faq-cant-look-up', group: 'FAQ', title: 'Bob says he can\'t look things up online', words: 'faq internet offline web search cant look up off switch',
+    html: `<p>Web search is off until you turn it on. Open Settings and turn on <strong>Let Bob search the web</strong> (on the everyday page), then ask again. If it's already on, check your internet connection. I can't fix the Wi-Fi from in here. I've tried.</p>` },
+  { id: 'faq-help-me-set-up', group: 'FAQ', title: 'Can Bob help me set him up?', words: 'faq set up setup help me ask bob settings where is',
+    html: `<p>Yes, and I'd like to. Ask me, for example "help me set you up for gaming" or "where do I turn on Hands?". I read this Help, see what's set right now, and tell you exactly where to click. I can't change settings for you; you click the switch.</p>` },
+  { id: 'faq-slow-first', group: 'FAQ', title: 'Why is the first reply slow?', words: 'faq slow first reply loading waking idle',
+    html: `<p>I free my brain when I've been quiet, so your graphics card is free for other things. The first message loads it again, usually a few seconds. Call it coffee. Turn on <strong>Get Bob ready while you type</strong> to start loading as you type, or switch off <strong>Free memory when Bob is idle</strong> to keep my small brain loaded.</p>` },
+  { id: 'faq-two-numbers', group: 'FAQ', title: 'Why don\'t the two memory numbers match?', words: 'faq memory numbers match top right panel brain label graphics card ram different',
+    html: `<p>The label at the top of the chat counts my brain only. The Memory meters in Now running count the whole graphics card and RAM: Windows, your games and other apps too. The line under the meters shows my share, and my brain there matches the label. See ${go('brain-label', 'The brain label')}.</p>` },
+  { id: 'faq-gaming', group: 'FAQ', title: 'Can I play games while Bob is open?', words: 'faq games gaming play fps graphics card free',
+    html: `<p>Yes, and I'll stay out of the way. Pick the 🎮 <strong>Gaming</strong> session: nothing of mine stays on the graphics card, I chat on the processor, and pictures and big jobs wait until you switch back. Also turn on <strong>Let games go first</strong> so I use fewer cores.</p>` },
+  { id: 'faq-which-effort', group: 'FAQ', title: 'Which Effort should I use?', words: 'faq effort which low medium high extreme',
+    html: `<p><strong>Low</strong> for everyday chat. <strong>Medium</strong> for a harder question you want thought through. <strong>High</strong> when a second check matters (code you'll run, a plan you'll follow). <strong>Extreme</strong> for a big coding change, when you can wait. See ${go('effort', 'Effort')}.</p>` },
+  { id: 'faq-session-effort', group: 'FAQ', title: 'What\'s the difference between a session and Effort?', words: 'faq session effort difference',
+    html: `<p>Session: what the graphics card is kept for (pictures, coding, games…). Effort: how hard I work on each message. They work together, except that Gaming keeps Effort on Low.</p>` },
+  { id: 'faq-models-space', group: 'FAQ', title: 'How much disk space do the models need?', words: 'faq disk space size gb models delete',
+    html: `<p>About 8 GB for the basics (chat, seeing pictures, hearing you, voice). 30 to 60 GB with pictures and video. Every model shows its size before you confirm, and <strong>On this PC</strong> (Get models) lists what you have so you can delete what you don't use.</p>` },
+  { id: 'faq-no-gpu', group: 'FAQ', title: 'Do I need a graphics card?', words: 'faq graphics card gpu nvidia needed processor only',
+    html: `<p>No. I can chat, plan, read pictures, hear you and talk with no graphics card at all, just slower. An NVIDIA card makes me much faster and lets me paint and make clips.</p>` },
+  { id: 'faq-undo', group: 'FAQ', title: 'Bob changed a file. Can I undo it?', words: 'faq undo file recycle bin restore',
+    html: `<p>Yes, for the Files Hand: say "undo that" or use <strong>Undo</strong> in Settings, Hands, Recent file jobs. Anything I removed is in the Recycle Bin (while <em>Recycle Bin only</em> is on). Every action is listed in my logbook (inn\\logbook.md).</p>` },
+  { id: 'faq-stop', group: 'FAQ', title: 'How do I stop Bob right now?', words: 'faq stop now kill cancel emergency',
+    html: `<p><strong>Stop</strong> next to Send ends the current reply. <strong>✋ Hands</strong> at the top of the chat stops every Hand at once. For the Apps Hand, moving the mouse or pressing Esc stops me too. Tasks lets you cancel anything waiting.</p>` },
+  { id: 'faq-commercial', group: 'FAQ', title: 'Can I sell what Bob makes?', words: 'faq commercial sell licence license use',
+    html: `<p>Everything in the starter sets allows commercial use. A few optional models don't, and I mark those and show each licence before you download.</p>` },
+  { id: 'faq-laptop', group: 'FAQ', title: 'Can I use Bob on my laptop?', words: 'faq laptop small card 6 gb phone tailscale',
+    html: `<p>Yes. I read the laptop's graphics card and suggest the 6 GB starter set, with a light brain that leaves room for longer chats. Phone access to me over Tailscale exists for advanced users; it is off unless you turn it on in config.json.</p>` },
+  { id: 'faq-where', group: 'FAQ', title: 'Where does Bob keep my things?', words: 'faq where files folder localappdata inn models config backup',
+    html: `<p>In %LOCALAPPDATA%\\Bob unless you chose another folder: models, engines, my notes in <em>inn</em> (chats, topics, pictures, logbook) and config.json. Updating me never touches that folder, so you can back it up or move it.</p>` },
+
+  // ---------------- Troubleshooting ----------------
+  { id: 'trouble', group: 'Troubleshooting', title: 'When something goes wrong', words: 'problem fix error slow stuck blocked smart app control parsec copy paste kokoro one more step download update failed out of graphics memory hear internet',
+    html: `<p>Don't panic. (Towel optional.) Find what you see on the left.</p>
+<table><tr><th>What you see</th><th>What to try</th></tr>
+<tr><td>Windows (Smart App Control) blocks me</td><td>Start me from the Start menu shortcut. Bob.exe is Electron's own program, only renamed, which Windows usually trusts. Leave Smart App Control on; check the Releases page notes.</td></tr>
+<tr><td>"Windows protected your PC" on the zip</td><td>Right-click the zip, Properties, tick <strong>Unblock</strong>, OK, then unzip again. Or click <strong>More info</strong>, then <strong>Run anyway</strong>.</td></tr>
 <tr><td>Copy and paste don't work over Parsec or remote desktop</td><td>Use the <strong>Copy</strong> buttons on messages, code, links and file cards.</td></tr>
+<tr><td>I say I can't look things up</td><td>Turn on <strong>Let Bob search the web</strong> in Settings (everyday page).</td></tr>
 <tr><td>"Downloaded. One more step"</td><td>The model is here but its engine isn't. Press the <strong>Get …</strong> button right there (for Kokoro, about 100 MB).</td></tr>
 <tr><td>A download stopped or failed</td><td>Open <strong>Downloads</strong> and press <strong>Resume</strong>. It carries on from where it stopped.</td></tr>
-<tr><td>An update failed</td><td>The update window names the step that failed. Bob keeps the previous version, so he still opens. Try again from Settings, Check for updates.</td></tr>
-<tr><td>"Out of graphics memory", or everything is slow</td><td>Close games or other graphics-heavy apps, use the Art or Light session, or pick a model marked <span class="tag rec">★ Recommended</span> in Equip Bob.</td></tr>
-<tr><td>The first reply takes a while</td><td>Bob is loading his brain after being idle (a few seconds; big brains longer).</td></tr>
-<tr><td>Bob can't hear you</td><td>Fill the 👂 Hearing you slot (Gemma 4 E4B does it).</td></tr>
-<tr><td>Bob can't paint or edit</td><td>Fill the 🎨 Painter or ✂ Picture editor slot, and get the painter engine when Bob offers it.</td></tr>
+<tr><td>An update failed</td><td>The update window names the step that failed. I keep the previous version, so I still open. Try again from Settings, Check for updates.</td></tr>
+<tr><td>"Out of graphics memory", or everything is slow</td><td>Close games or other graphics-heavy apps, use the Art or Gaming session, or pick a model marked <span class="tag rec">★ Recommended</span> in Equip Bob. Run <strong>Check this PC</strong>.</td></tr>
+<tr><td>The first reply takes a while</td><td>I'm loading my brain after being idle (a few seconds; big brains longer).</td></tr>
+<tr><td>A job says "Waiting · Gaming is on"</td><td>It needs the graphics card. Switch the session to Normal to run it.</td></tr>
+<tr><td>I can't hear you</td><td>Fill the 👂 Hearing you slot (Gemma 4 E4B does it).</td></tr>
+<tr><td>I can't paint or edit</td><td>Fill the 🎨 Painter or ✂ Picture editor slot, and get the picture engine when I offer it.</td></tr>
 <tr><td>A Hand won't do anything</td><td>Check it's on in Settings, Show advanced settings, Hands, and that ✋ Hands at the top of the chat isn't <em>Stopped</em>.</td></tr>
-<tr><td>A model you want isn't listed in a slot</td><td>That slot only lists models that can do its job. Models that don't suit this PC are hidden: turn on <strong>Show models that don't suit this PC</strong>.</td></tr></table>` },
+<tr><td>A model you want isn't listed in a slot</td><td>That slot only lists models that can do its job. Models that don't suit this PC are hidden: turn on <strong>Show models that don't suit this PC</strong>.</td></tr></table>
+<p>Still stuck? Ask me in the chat. Describing the problem to someone helps, even when that someone is software.</p>` },
 
-  { id: 'glossary', group: 'Troubleshooting', title: 'Glossary', words: 'words meaning model brain gpu vram ram graphics memory gguf engine commercial session hands context',
-    html: `<dl>
+  { id: 'glossary', group: 'Troubleshooting', title: 'Glossary', words: 'words meaning model brain gpu vram ram graphics memory gguf engine commercial session hands context effort moot copy token processor cpu ollama llama.cpp',
+    html: `<p>The words I use, in plain English. I'll try not to say "tensor" without warning you.</p>
+<dl>
 <dt>Brain</dt><dd>A model that thinks and chats. Bigger brains are usually smarter but slower and need more memory.</dd>
-<dt>Model</dt><dd>The file that does one kind of AI job: a brain, a painter, a voice.</dd>
-<dt>Graphics card, graphics memory</dt><dd>The part of your PC that makes AI fast. Its memory (6, 8, 16 GB) decides which models fit. Also called GPU and VRAM.</dd>
-<dt>RAM</dt><dd>Your PC's main memory. A brain too big for the graphics card can keep the rest here. It works, but more slowly.</dd>
 <dt>Brain swap</dt><dd>Putting one brain away and loading another, usually 10 to 20 seconds.</dd>
-<dt>Context</dt><dd>How much Bob keeps in mind at once.</dd>
-<dt>Squeezed version</dt><dd>A smaller copy of a model (GGUF) that fits small cards, with a little less detail.</dd>
-<dt>Engine</dt><dd>The program that runs a kind of model. Bob offers it when a model needs it.</dd>
-<dt>Session</dt><dd>What the graphics card is kept for: Normal, Art, Coding, Office, Gaming.</dd>
-<dt>Hands</dt><dd>Bob doing things on your PC (files, programs, schedules, apps). Off until you turn them on.</dd>
+<dt>Card (in the chat)</dt><dd>A box in the chat that shows a file, a picture, or something I want your OK for.</dd>
+<dt>Cloud helper</dt><dd>A paid online AI I can hand one job to, with your own key. Off until you switch it on; asks every time.</dd>
+<dt>Commercial use</dt><dd>Using what you make for money. All starter set models allow it; I mark the few that don't.</dd>
+<dt>Context</dt><dd>How much I keep in mind at once, counted in tokens. More context reads longer files but uses more memory.</dd>
+<dt>Copy (of Bob)</dt><dd>A helper version of me for one kind of job, with its own Bob-pun name.</dd>
+<dt>Draft brain</dt><dd>A small brain that guesses ahead for a big one (speculative decoding).</dd>
+<dt>Effort</dt><dd>How hard I work on each message: Low, Medium, High or Extreme.</dd>
+<dt>Engine</dt><dd>The program that runs a kind of model, such as llama.cpp for brains. I offer it when a model needs it.</dd>
 <dt>Equip Bob</dt><dd>The page where you choose which model does each job.</dd>
+<dt>Graphics card, graphics memory</dt><dd>The part of your PC that makes AI fast. Its memory (6, 8, 16 GB) decides which models fit. Also called GPU and VRAM.</dd>
+<dt>Hands</dt><dd>Me doing things on your PC (files, programs, schedules, apps). Off until you turn them on.</dd>
+<dt>Hard limit</dt><dd>A safety rule for Hands that holds even when I work without asking. On to start with.</dd>
+<dt>Housekeeping</dt><dd>Me tidying old chats and files while I'm idle. Off until you turn it on.</dd>
+<dt>Inn</dt><dd>My notes folder: chats, topics, pictures, logbook.</dd>
+<dt>llama.cpp</dt><dd>My own engine for brains. Needs nothing else installed.</dd>
+<dt>Logbook</dt><dd>The file (inn\\logbook.md) where I write down every action I take.</dd>
+<dt>Model</dt><dd>The file that does one kind of AI job: a brain, a painter, a voice.</dd>
+<dt>Moot</dt><dd>A meeting of my copies at High and Extreme effort: one drafts, the reviewer checks.</dd>
 <dt>Now running</dt><dd>The right-hand panel: tasks, downloads and memory.</dd>
-<dt>Commercial use</dt><dd>Using what you make for money. All starter set models allow it; Bob marks the few that don't.</dd></dl>` }
+<dt>Ollama</dt><dd>A separate program that can run brains. I can use it if you already have it.</dd>
+<dt>Processor (CPU)</dt><dd>Your PC's main chip. I can run small brains on it to leave the graphics card free, more slowly.</dd>
+<dt>Quarantine</dt><dd>My reviewer stopping me from acting after I go off track, only with your OK.</dd>
+<dt>RAM</dt><dd>Your PC's main memory. A brain too big for the graphics card can keep the rest here. It works, but more slowly.</dd>
+<dt>Recipe</dt><dd>A saved command for the Run Hand.</dd>
+<dt>Reference</dt><dd>A picture on the References shelf that I paint from to keep a look the same.</dd>
+<dt>Session</dt><dd>What the graphics card is kept for: Normal, Art, Coding, Office, Gaming.</dd>
+<dt>Slot</dt><dd>One job in Equip Bob, such as Brain or Painter, that a model fills.</dd>
+<dt>Squeezed version</dt><dd>A smaller copy of a model (GGUF) that fits small cards, with a little less detail.</dd>
+<dt>Starter set</dt><dd>A ready-made set of models for your kind of graphics card.</dd>
+<dt>The Idle Process</dt><dd>My little virtual workspace: a coffee machine, a reading chair, a wall of books, and a cat who ignores me. Named after what your PC does when nobody's using it.</dd>
+<dt>Token</dt><dd>A piece of a word. Brains read and write in tokens; context is counted in them.</dd>
+<dt>Topic</dt><dd>A group of chats about one project, with a short note on where things landed.</dd></dl>` }
 ];

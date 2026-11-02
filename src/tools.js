@@ -8,6 +8,7 @@ import { cloudHelpers, askCloud } from './cloud.js';
 import { copyName } from './clan.js';
 import { limitOn, readOnlyRoots } from './hands-settings.js';
 import { listWorkflows, workshopDir } from './workshop.js';
+import { bobHelp } from './self-help.js';
 
 const MAX_READ = 20000;
 const BLOCKED_EXT = new Set(['.exe', '.msi', '.bat', '.cmd', '.ps1', '.vbs', '.js', '.jse', '.wsf', '.scr', '.lnk', '.reg', '.dll', '.com']);
@@ -239,6 +240,15 @@ export function buildTools(cfg) {
       return `Saved ${file} (${rows} lines including the header). Double-click it to open in Excel.`;
     },
     summary: ({ name }) => `ledger: ${name}`
+  };
+
+  // Bob knows his own settings and features (self-help.js): the same Help text as the window, plus what's set now.
+  t.bob_help = {
+    schema: fn('bob_help', "Look up how you (Bob) work: your settings, switches, pages and features, where each one is, and what is set right now. Use it whenever {{USER}} asks about setting you up, changing a setting, or what a feature does, and give the exact place to click.", {
+      topic: str('What to look up, in plain words, for example "web search switch" or "gaming session".')
+    }),
+    async run({ topic }) { return bobHelp(cfg, String(topic || '')); },
+    summary: ({ topic }) => `Help: ${topic || 'settings'}`
   };
 
   t.web_search = {

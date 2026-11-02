@@ -1,0 +1,62 @@
+// Bob knows his own settings (2026-11-02: "he should be aware of all of his settings so he can help someone
+// set him up"). The bob_help tool searches the same Help text the window shows (public/help-content.js) and adds
+// what is set right now, so Bob can say exactly where a switch is and whether it's on. Read-only: it changes nothing.
+import { HELP } from '../public/help-content.js';
+import { webOn } from './web.js';
+import { currentSession } from './sessions.js';
+import { brainMode } from './brain-mode.js';
+import { handsSettings, HANDS } from './hands-settings.js';
+
+const ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ' };
+export function plainText(html) {
+  return String(html || '')
+    .replace(/<span class="tag[^"]*">([^<]*)<\/span>/gi, ' [$1]').replace(/<\/dt>/gi, ':\n')
+    .replace(/<(?:br|\/p|\/li|\/tr|\/dd|\/dt|\/h3)\s*\/?>/gi, '\n').replace(/<\/t[dh]>/gi, ' | ').replace(/<li>/gi, '- ')
+    .replace(/<[^>]+>/g, '').replace(/&[a-z#0-9]+;/gi, (e) => ENTITIES[e] || e)
+    .replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+}
+
+// Best entries first: a word in the title counts most, then the search words, then the text.
+export function findHelp(query, list = HELP, max = 3) {
+  const words = String(query || '').toLowerCase().split(/[^a-z0-9.+'-]+/).filter((w) => w.length > 2);
+  if (!words.length) return [];
+  const scored = list.map((e) => {
+    const title = e.title.toLowerCase(), extra = String(e.words || '').toLowerCase(), body = plainText(e.html).toLowerCase();
+    const score = words.reduce((n, w) => n + (title.includes(w) ? 5 : 0) + (extra.includes(w) ? 2 : 0) + (body.includes(w) ? 1 : 0), 0);
+    return { e, score };
+  }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
+  return scored.slice(0, max).map((x) => x.e);
+}
+
+const onOff = (v) => (v ? 'on' : 'off');
+// What is set right now, in the words Settings uses. Window-only switches (Listen, Read aloud, Alerts) live in the
+// window, so they aren't listed.
+export function settingsNow(cfg) {
+  const h = handsSettings(cfg);
+  const hands = h.enabled ? Object.entries(HANDS).map(([id, x]) => `${x.label} ${onOff(h[id]?.on)}`).join(', ') : 'off (master switch off)';
+  const cloud = (cfg.cloud || []).filter((c) => c.enabled).map((c) => c.name);
+  return [
+    `Let Bob search the web: ${onOff(webOn(cfg))}`,
+    `Session: ${currentSession(cfg).label}`,
+    `Free memory when Bob is idle: ${onOff(brainMode(cfg) !== 'always')}`,
+    `One brain (snappier): ${onOff(cfg.oneBrain === true)}`,
+    `Launch Bob on start-up: ${onOff(cfg.autostart === true)}`,
+    `Check for updates when Bob starts: ${onOff(cfg.updates?.autoCheck === true)}`,
+    `Bob's engine: ${cfg.engine === 'ollama' ? 'Ollama' : "Bob's own (llama.cpp)"}`,
+    `Voice: ${cfg.tts?.provider || 'Windows voice'}`,
+    `Hands: ${hands}${h.enabled ? `; Let Bob work without asking ${onOff(h.free)}` : ''}`,
+    `Housekeeping: ${onOff(cfg.housekeeping?.enabled === true)}`,
+    `ComfyUI: ${onOff(cfg.workshop?.enabled === true)}`,
+    `Cloud helpers on: ${cloud.length ? cloud.join(', ') : 'none'}`,
+    `Keep the graphics card free for quick answers: ${onOff(cfg.quickOnCpu === true)}`,
+    `Speed for this PC: Get Bob ready while you type ${onOff(cfg.readyWhileTyping === true)}, Let games go first ${onOff(cfg.gamesFirst === true)}, Match picture settings to my graphics card ${onOff(cfg.pictureFit === true)}`
+  ].join('\n');
+}
+
+export function bobHelp(cfg, query, max = 3) {
+  const hits = findHelp(query, HELP, max);
+  const body = hits.length
+    ? hits.map((e) => `## ${e.title}\n${plainText(e.html)}`).join('\n\n').slice(0, 5000)
+    : `Nothing in Help matches "${query}". Help topics: ${[...new Set(HELP.map((e) => e.group))].join(', ')}.`;
+  return `${body}\n\n## Set right now on this PC\n${settingsNow(cfg)}\n\n(Help opens with F1 or Help in the left menu.)`;
+}

@@ -91,3 +91,12 @@ Update this file in the same handover as any change to settings.
 | Settings > Advanced > Engines & speed > Speed for this PC | Get Bob ready while you type · Let games go first · Match picture settings to my graphics card | all off | ok (approved with edits, hw tuning) |
 | Settings > Advanced > Engines & speed | Test Bob's speed (button + last 6 results) | | ok (approved with edits) |
 | Settings > Everyday footer | Check this PC (read-only tips) | | ok (approved with edits) |
+| Settings > Everyday | Let Bob search the web: "Off unless you turn it on. Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page addresses leave your PC." | off | ok (approved with edits, docs/help) |
+
+## Added in 1.5.27 (docs, Help and web search), approved by the settings thread (with edits)
+| Where | What | Default | Review |
+|---|---|---|---|
+| Bob's tools (no UI) | bob_help: Bob reads this Help and what's set right now, so he can walk someone through setting him up. Read-only. | always | ok (approved with edits) |
+| Help | One section per feature and setting (66 entries), a glossary (33 words) and an FAQ (15 questions). test/run-help-coverage-test.js fails if a Settings label has no Help. | | ok (approved with edits) |
+| Settings > Advanced > Engines & speed | "Keep the graphics card free for quick answers" now ends "Applies in the Normal session; Gaming always does this." (was "Normal and Light sessions") | off | wording fix |
+| Session picker, Gaming | "…on the processor with a small brain, which usually starts answering within a few seconds." (was "about half a minute", out of date since 1.5.25) | | wording fix |

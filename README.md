@@ -1,12 +1,12 @@
 # Bob of The Idle Process
 
-Bob is a local AI who lives on your PC. Chat, plans and reminders, research, coding help, spreadsheets, pictures, video, music, sound effects and voice, all on your own hardware. He's a self-aware NPC innkeeper with a dry sense of humour and a cat named Patches.
+Bob is a local AI who lives on your PC. Chat, plans and reminders, research, coding help, spreadsheets, pictures, video, music, sound effects and voice, all on your own hardware. He's a self-aware digital engineer with a dry sense of humour, a little virtual workspace called The Idle Process, and a cat named Patches.
 
-Your chats stay on your PC. Bob may look things up on the web (DuckDuckGo) when a question needs it, and nothing downloads until you click and confirm.
+Your chats stay on your PC. Bob only looks things up on the web (DuckDuckGo) if you turn on **Let Bob search the web**, and nothing downloads until you click and confirm.
 
 **[Install Bob (5 steps)](#install-bob-in-five-steps-windows-10-or-11)** · **[Privacy policy](PRIVACY.md)** · **[Download the latest release](https://github.com/MouseWurX/Bob/releases/latest)**
 
-> **Privacy, in short:** Bob has no accounts, no analytics and no telemetry. Your chats, notes and models stay on your PC. He goes online for downloads you confirm, cloud helpers you switch on with your own key, and web searches: when a question needs it, Bob may search DuckDuckGo and read pages, and only the search words and page address go to that site. Nothing else from your chats is sent. Read the full [privacy policy](PRIVACY.md).
+> **Privacy, in short:** Bob has no accounts, no analytics and no telemetry. Your chats, notes and models stay on your PC. He goes online for downloads you confirm, cloud helpers you switch on with your own key, and web searches, only if you turn on "Let Bob search the web" (off to start with): then, when a question needs it, Bob may search DuckDuckGo and read pages, and only the search words and page address go to that site. Nothing else from your chats is sent. Read the full [privacy policy](PRIVACY.md).
 
 ![Bob's window the first time he opens: the menu on the left, the chat in the middle, Now running on the right, and Bob suggesting models for this PC](docs/screenshot.png)
 
@@ -47,6 +47,8 @@ Bob's program and his things live apart, so updating Bob never touches your mode
 
 New to Bob? The **[user guide](docs/USER-GUIDE.md)** walks through everything in plain English: starter sets for your graphics card, Equip Bob, his personality dials, Topics and housekeeping, and the opt-in Hands.
 
+Curious how Bob stays fast and light (the Gaming brain pick, memory freeing, engine tuning, with measured numbers)? See **[How Bob stays fast and light](docs/PERFORMANCE.md)**.
+
 The menu is on the left (fold it to icons with ‹ or Ctrl+B), the chat is in the middle, and **Now running** is on the right: tasks, downloads and graphics card memory (hide it with Ctrl+J, drag its edge to resize). Bob remembers how you leave them.
 
 
@@ -58,15 +60,16 @@ The menu is on the left (fold it to icons with ‹ or Ctrl+B), the chat is in th
 - **Copy and files:** every message and code block has a Copy button, and each link has one next to it (handy over Remote Desktop, where right-click and Ctrl+C often don't get through). Files Bob mentions are clickable and get a card with a preview, Open, Show in folder and Copy path.
 - **Topics:** what you and Bob have talked about, by project, each with a short note on where things landed (yours to edit), open questions, pictures and the chat moments it came from. Rename, merge, pin, drag a message onto another topic, or forget a topic (keep just the note, or everything), always with a preview first. One search box covers chats, summaries, topics, pictures and notes, and Past chats lets you reopen an old conversation.
 - **Housekeeping (off unless you turn it on):** while Bob is idle he sums up the older part of long chats instead of dropping it, files chats under Topics, moves lasting facts to his memory file, and finds what hasn't come up for a while: chats, pictures and sounds he made, finished tasks, old log lines, repeated memory lines. Each kind has its own age limit (minutes to months) and either "ask me first" (a list with a tick and a cross per item) or "tidy automatically". Everything removed goes to the Recycle Bin; pinned chats, pictures and topics are never touched; every action goes in the logbook. You can also say "forget what we said about X".
-- **Session (next to Bob's name):** Normal, Art (Bob keeps chatting on a small brain while pictures paint), Coding, Office, Gaming (keeps the graphics card completely free; Bob chats on the processor and bigger jobs wait). Bob may suggest one; he never switches by himself.
-- **Hands (opt-in, Settings, Show advanced settings, Hands; with a Self-test button):** let Bob move, copy, rename, zip, unzip and tidy files in folders you tick (Recycle Bin only, every job can be undone), run programs and scripts you approve (exact command shown, live output, Stop button, never as administrator, dangerous system commands always refused), and do jobs on a schedule. Every Hand is off until you switch it on, every action shows a card and waits for your click, and "Stop everything" turns them all off at once.
-- **Settings (1.5.0):** a page in the main area. Everyday rows show what's set now (voice with Play sample, look, theme, animations, cat, one brain, start-up, update check, version); **Show advanced settings** (off, remembered) adds a search box and Brains, Voice details, Look & feel, Engines & speed, Connections, Hands, Housekeeping and Remove Bob. Long help folds behind More.
-- **Get models:** models by category (Voice & conversation holds his everyday brain, hearing you and his voice with its settings; Pictures & video holds the painter and clips, each as a subsection), Equip Bob (click Bob's picture to open it: Attributes on the left with his look, what he thinks of it and ten personality dials with presets and a live greeting; a paper doll with a slot for every job: pick a slot, then click or drag a model onto it; one model can fill several slots, and a starter set for your graphics card is one button, with every download confirmed), On this PC, Style and Settings (engines and switches). Anything this PC can't run is greyed out and hidden from Bob.
+- **Session (bottom of the menu):** Normal, Art (Bob keeps chatting on a small brain while pictures paint), Coding, Office, Gaming (keeps the graphics card completely free; Bob chats on the processor and bigger jobs wait). Bob may suggest one; he never switches by himself.
+- **Hands (opt-in, Settings, Show advanced settings, Hands; with a Self-test button):** let Bob move, copy, rename, zip, unzip and tidy files in folders you tick (Recycle Bin only, every job can be undone), run programs and scripts you approve (exact command shown, live output, Stop button, never as administrator, dangerous system commands always refused), do jobs on a schedule, and click and type in other apps. Every Hand is off until you switch it on, every action shows a card and waits for your click, and ✋ Hands at the top of the chat stops them all at once. Six hard limits (Recycle Bin only, secret files private, read-only projects, dangerous commands blocked, nothing sent out, no password fields) start on, each with its own switch. "Let Bob work without asking" (off) skips the cards; the hard limits still hold and a banner shows the whole time.
+- **Settings (1.5.0):** a page in the main area. Everyday rows show what's set now (voice with Play sample, look, theme, animations, cat, one brain, start-up, web search, update check, version, Check this PC); **Show advanced settings** (off, remembered) adds a search box and Brains, Voice details, Look & feel, Engines & speed, Connections, Hands, Housekeeping and Remove Bob. Long help folds behind More.
+- **Get models:** models by category (Voice & conversation holds his everyday brain, hearing you and his voice with its settings; Pictures & video holds the painter and clips, each as a subsection), Equip Bob (click Bob's picture to open it: Attributes on the left with his look, what he thinks of it and eleven personality dials with presets and a live greeting; a paper doll with a slot for every job: pick a slot, then click or drag a model onto it; one model can fill several slots, and a starter set for your graphics card is one button, with every download confirmed), On this PC, Style and Settings (engines and switches). Anything this PC can't run is greyed out and hidden from Bob.
 - **Style:** themes (MouseHole, MouseWurX and your own), 133 avatars, Animations (On, Follow Windows, Off; On by default because Remote Desktop turns Windows' animation effects off) and whether Now running opens by itself when a task needs you (off unless you turn it on).
 - **Alerts:** a Windows notification when Bob needs you.
-- **Approvals:** Bob asks before doing anything outside his own folder.
+- **Approvals:** Bob asks before doing anything outside his own folder, unless you turn on "Let Bob work without asking" for Hands.
+- **Help (menu, or F1):** a section for every feature and setting, a glossary and an FAQ, with search. You can also just ask Bob how to set him up: he knows all his settings and what's set right now.
 
-Optional, all off until you switch them on: launch on start-up, cloud helpers (your own API keys, as Windows environment variables), the audio tools (music and sound effects), extra voices, and ComfyUI workflows Bob runs for you.
+Optional, all off until you switch them on: web search, launch on start-up, cloud helpers (your own API keys, as Windows environment variables), the audio tools (music and sound effects), extra voices, and ComfyUI workflows Bob runs for you.
 
 ## Building Bob
 
@@ -102,7 +105,7 @@ The server has no runtime dependencies; `node src/server.js` runs it on its own 
 - `%APPDATA%\Bob` (window data)
 - if you don't want them any more: Bob's home folder (by default `%LOCALAPPDATA%\Bob`; it holds `inn`, his models and `config.json`)
 
-Bob installs no services, drivers or scheduled tasks and needs no admin rights. The only thing he puts in the registry is Windows' own "start-up app" entry, and only if you turn on "Launch on start-up". Engines and models live inside his folders. Ollama, ComfyUI or Pinokio, if you installed them yourself, are separate programs with their own uninstallers.
+Bob installs no services or drivers and needs no admin rights. He adds a scheduled task ("Bob schedules") only if you turn on "Wake Bob for schedules when he's closed", and Remove Bob takes it away. The only thing he puts in the registry is Windows' own "start-up app" entry, and only if you turn on "Launch on start-up". Engines and models live inside his folders. Ollama, ComfyUI or Pinokio, if you installed them yourself, are separate programs with their own uninstallers.
 
 ## Licence
 
@@ -121,7 +124,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 - Committers and reviewers: the members of this repository with write access.
 - Approvers: the project owner (MouseWurX). Every signing request for a release is approved by hand.
 
-**Privacy policy** ([PRIVACY.md](PRIVACY.md)): This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. In particular, Bob reaches the internet for: model and engine downloads (from the address shown before you confirm), voice samples from a voice's publisher, web searches (Bob may search DuckDuckGo and read pages when a question needs it; only the search words and page address go to that site), and cloud AI helpers you switch on with your own API key (each use asks first). Phone access over Tailscale is off unless you turn it on. Bob sends no telemetry.
+**Privacy policy** ([PRIVACY.md](PRIVACY.md)): This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. In particular, Bob reaches the internet for: model and engine downloads (from the address shown before you confirm), voice samples from a voice's publisher, web searches, only if you turn on "Let Bob search the web" (off to start with; then Bob may search DuckDuckGo and read pages when a question needs it, and only the search words and page address go to that site), and cloud AI helpers you switch on with your own API key (each use asks first). Phone access over Tailscale is off unless you turn it on. Bob sends no telemetry.
 
 ### Versions
 

@@ -8,7 +8,7 @@
 // Setting allTools (Advanced, off) sends every tool every time, the old way.
 import { HANDS, handOn, handOffWhy } from './hands-settings.js';
 
-export const CORE = ['notice_board', 'remember', 'reminders', 'list_folder', 'read_file', 'web_search', 'fetch_page', 'ask_specialist', 'show_made', 'use_tools'];
+export const CORE = ['notice_board', 'remember', 'reminders', 'list_folder', 'read_file', 'web_search', 'fetch_page', 'bob_help', 'ask_specialist', 'show_made', 'use_tools'];
 
 // Groups Bob can add. `what` is what Bob reads in use_tools; `words` is the cheap pre-check on the user's message.
 const WORK_GROUPS = {

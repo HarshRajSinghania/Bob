@@ -37,6 +37,7 @@ import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUs
 import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff } from './handoff.js';
 import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
+import { WEB_TOOLS, WEB_OFF, webOn, webPrompt } from './web.js';
 
 const MAX_STEPS = 8;
 
@@ -571,6 +572,7 @@ export class Brain {
   async runToolNow(name, args, ctx, tool) {
     if (!tool) return { text: `Error: there is no tool called ${name}.` };
     if (!this.usable(name)) {
+      if (WEB_TOOLS.includes(name) && !webOn(this.cfg)) return { text: WEB_OFF };
       const hand = Object.entries(HANDS).find(([, h]) => h.tools.includes(name))?.[0];
       return { text: hand ? handOffWhy(this.cfg, hand) : `Error: ${name} can't be used on this PC right now.` };
     }
@@ -713,6 +715,7 @@ export class Brain {
     // The Hands line only when a Hand group is added (or for hats and "all tools at once"); otherwise use_tools lists them.
     if (!loaded || allToolsOn(this.cfg) || Object.keys(HANDS).some((h) => loaded.has(h))) prompt += handsPrompt(this.cfg);
     if (loaded) prompt += realPcPrompt(this.cfg) + toolboxPrompt(this, loaded);
+    prompt += webPrompt(this.cfg);
     // "Show me a picture of X" once got no answer at all (2026-11-02): say plainly that make_image is the way.
     if ((!loaded || allToolsOn(this.cfg) || loaded.has('pictures')) && this.usable('make_image')) prompt += `\n\nWhen ${this.cfg.userName || 'the user'} asks to see, show, make, draw or paint a picture, call make_image yourself straight away with a good prompt. To change a picture (one attached, or one you made: reference "last"), call make_image with it as the reference and a short instruction saying only what to change, like "Replace the hard hat with a silver tiara", not a description of a whole new picture.`;
     if (helpers.length) prompt += `\n\nCloud copies of you that ${this.cfg.userName || 'the user'} switched on (use ask_cloud only for jobs too big for you, or when asked; each use is approved and costs money): ${helpers.map((h) => `${h.id} = ${copyName(this.cfg, 'cloud:' + h.id, 'cloud helper')}, running on ${h.name} ${h.model}`).join('; ')}.`;
@@ -726,7 +729,7 @@ export class Brain {
   offTools() {
     let can = {};
     try { can = capabilities(this.cfg); } catch {}
-    return new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud', ...toolsOff(this.cfg)].filter(Boolean));
+    return new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud', ...(webOn(this.cfg) ? [] : WEB_TOOLS), ...toolsOff(this.cfg)].filter(Boolean));
   }
   usable(name, off = this.offTools()) { return Boolean(this.tools[name]) && !off.has(name); }
 
@@ -1246,6 +1249,8 @@ export class Brain {
     if (!HATS[hat]) throw new Error(`Unknown hat ${hat}.`);
     const heldCopy = copyHeld(this.cfg, hat);
     if (heldCopy) { this.log('quarantine', `didn't send ${hat}: in quarantine`); ctx.emit?.({ type: 'announce', text: heldCopy.split('. ')[0] + '.' }); return heldCopy; }
+    // The scouting copy only has web tools: with web search off there's nothing for it to do, so say where the switch is.
+    if (hat === 'scout' && !webOn(this.cfg)) return WEB_OFF;
     // Extreme effort: coding goes research -> check -> plan -> check -> do it (moot.js).
     if (hat === 'tinker' && !ctx.phased && cleanEffort(ctx.job?.effort) === 'extreme') return phasedWork(this, hat, task, ctx);
     // "One brain" mode: every hat runs on the main model, so there's no brain swap (about 20 s each) mid-chat.

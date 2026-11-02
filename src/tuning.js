@@ -23,10 +23,14 @@ export const startFile = (model, ctx) => `${String(model).replace(/[^\w.-]+/g, '
 export const promptHash = (messages, tools) => crypto.createHash('sha1').update(JSON.stringify([messages, tools || []])).digest('hex').slice(0, 16);
 
 // The other saved readings of the same brain (another context size) are replaced, so there is one file per brain.
+// 1.5.27: and only the newest MAX_STARTS brains keep one (each is about 0.5 GB for a 4K-token chat).
+export const MAX_STARTS = 2;
 export function tidyStarts(dir, model, keep) {
   const stem = String(model).replace(/[^\w.-]+/g, '_') + '-';
   try {
     for (const f of fs.readdirSync(dir)) if (f.startsWith(stem) && f !== keep && f !== keep.replace(/\.bin$/, '.json') && /^\d+\.(bin|json)$/.test(f.slice(stem.length))) fs.rmSync(path.join(dir, f), { force: true });
+    const bins = fs.readdirSync(dir).filter((f) => f.endsWith('.bin')).map((f) => ({ f, t: fs.statSync(path.join(dir, f)).mtimeMs })).sort((a, b) => b.t - a.t);
+    for (const { f } of bins.slice(MAX_STARTS)) if (f !== keep) for (const x of [f, f.replace(/\.bin$/, '.json')]) fs.rmSync(path.join(dir, x), { force: true });
   } catch {}
 }
 

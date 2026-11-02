@@ -6,17 +6,18 @@ Bob is a helper who lives on your own PC. He chats, plans, researches, writes an
 
 Two promises run through everything Bob does:
 
-- **Nothing leaves your PC unless you say so.** Bob only goes online when you click: to download something you picked, to research something you asked about, or to use a cloud helper you switched on yourself.
+- **Nothing leaves your PC unless you say so.** Bob only goes online to download something you picked, to search the web if you turned on **Let Bob search the web**, or to use a cloud helper you switched on yourself.
 - **Nothing extra is switched on until you switch it on.** Anything optional starts off. Bob may suggest something, but you decide.
 
 ---
 
 ## 1. Getting started
 
-1. Download Bob's zip from the Releases page, unzip it anywhere you like, and double-click **Bob.exe**.
+1. Download Bob's zip from the Releases page. Right-click it, choose Properties, tick **Unblock**, then unzip it somewhere you'll keep and double-click **Bob.exe**.
 2. Bob opens in his own window. The first time, he looks at your graphics card and suggests a **starter set**: the models that suit your PC.
 3. Click **Equip starter set**, look over the list, and confirm. Every download shows a progress bar, its size, its speed and how long is left.
-4. When the downloads finish, say hello.
+4. If you want Bob to look things up online, turn on **Let Bob search the web** in Settings. It's off until you do.
+5. When the downloads finish, say hello. You can ask Bob himself how to set anything up: he knows all his settings and what's set right now.
 
 You can close Bob while things download. Unfinished downloads wait, paused, and carry on when you press Resume.
 
@@ -33,9 +34,11 @@ You can close Bob while things download. Unfinished downloads wait, paused, and 
 
 Bob's window has three parts:
 
-- **The menu on the left.** Chat, Tasks, Topics, References, Get models, Style, Settings, Help, and so on. Fold it down to icons with the ‹ button (or Ctrl+B).
+- **The menu on the left.** New chat, Chat, Tasks, Downloads, References, Made by Bob, Topics, Tidy up, then Get models, Settings, Style and **Help** (or press F1), the Listen, Read aloud and Alerts switches, and the Session picker at the bottom. Fold it down to icons with the ‹ button (or Ctrl+B).
 - **The chat in the middle.** Type and press Enter. Shift+Enter starts a new line.
-- **Now running on the right.** What Bob is doing, what's downloading, and how full your graphics card is. Hide it with Ctrl+J.
+- **Now running on the right.** What Bob is doing, what's downloading, and how full your graphics card and RAM are. Hide it with Ctrl+J.
+
+At the top of the chat, the brain label shows how much memory **Bob's brain** takes. The Memory meters in Now running show the **whole** graphics card and RAM (Windows, games, other apps and Bob's picture model too), so the meters are bigger. The line under the meters shows Bob's share, and his brain there matches the label.
 
 Handy things in the chat:
 
@@ -50,7 +53,7 @@ Handy things in the chat:
 These open as a page in the middle of the window, in place of the chat. **← Back to chat** (or Esc, or Chat in the menu) takes you back. A bar along the top of the page, which stays put while you scroll, jumps between Equip Bob, the model pages, Style and Settings, so clicking Bob's picture gets you everywhere too.
 
 - **Get models:** Equip Bob, the model shops (Voice & conversation, Coding, Seeing pictures, Pictures & video) and **On this PC**.
-- **Settings** starts as one short page showing what's set now: Bob's voice (with **Play sample** and **Change**), his look, the colours, animations, the cat's name, one brain, launch on start-up and checking for updates (both off unless you turn them on), and the version, graphics card and disk space, with **Check for updates** and **Run first-time setup**.
+- **Settings** starts as one short page showing what's set now: Bob's voice (with **Play sample** and **Change**), his look, the colours, animations, the cat's name, one brain, launch on start-up, **Let Bob search the web** and checking for updates (all three off unless you turn them on), and the version, graphics card and disk space, with **Check for updates**, **Run first-time setup** and **Check this PC**.
 - **Show advanced settings** (off unless you turn it on, and remembered) adds a search box and the rest: Brains (model roles, session brains, context), Voice details, Look & feel, Engines & speed, Connections (ComfyUI, cloud helpers), Hands, Housekeeping and Remove Bob. Longer explanations fold behind **More**.
 
 ---
@@ -72,8 +75,8 @@ Bob uses different AI **models** for different jobs, the way a person might use 
 | Slot | What it does |
 |---|---|
 | 🧠 Brain | Thinks, chats and plans. Everything else hangs off this one. |
-| ⚡ Quick brain | A small, fast brain for when the graphics card is busy (painting, or you're gaming). |
-| 🔭 Deep thinking | The strongest thinker, for hard problems. Optional. |
+| ⚡ Quick brain | A small, fast brain for Low effort and the Art session. |
+| 🔭 Deep thinking | The strongest thinker, for Medium, High and Extreme effort. Optional. |
 | 🔨 Coding | Writes and fixes code. If it's empty, the Brain codes. |
 | 🧐 Review | Checks code and plans before you rely on them. Optional. |
 | 👁 Seeing pictures | Looks at pictures and screenshots you attach. |
@@ -164,17 +167,28 @@ Bob also knows what he looks like. Change his look under **Style** and he'll com
 
 ## 5. Sessions: matching Bob to what you're doing
 
-Next to Bob's name is the **session** picker. A session tells Bob how to share your PC with you.
+At the bottom of the menu is the **session** picker. A session tells Bob how to share your PC with you.
 
 - **Normal:** everyday use.
 - **Art:** Bob keeps chatting on his Quick brain so the big graphics work (painting, video) gets the card.
 - **Coding:** the Coding brain leads.
 - **Office:** documents, spreadsheets and planning.
-- **Gaming:** keeps the graphics card completely free for games. Bob chats and listens on the processor (replies start slower, about half a minute). Pictures and big jobs wait until you switch back, and Effort stays on Low. Tip: turn on **Let games go first** (Settings, Show advanced settings, Engines & speed) so Bob uses fewer cores while you play.
+- **Gaming:** keeps the graphics card completely free for games. Bob chats and listens on the processor with a small brain (Qwen3 4B Instruct 2507 to start with), which usually starts answering within a few seconds. Now and then he adds a short, sleepy scripted aside. Pictures and big jobs wait until you switch back, and Effort stays on Low. Tip: turn on **Let games go first** (Settings, Show advanced settings, Engines & speed) so Bob uses fewer cores while you play.
 
 Session: what the graphics card is kept for. Effort: how hard Bob works on each message.
 
 Bob may suggest a session, but he never switches by himself.
+
+### Effort
+
+Above the chat box, **Effort** sets how hard Bob works on your next messages. It goes back to Low each time Bob starts.
+
+- **Low (Quick):** a fast answer from the Quick brain.
+- **Medium (Deeper):** one big brain thinks it through. No second check.
+- **High (Checked):** a big brain drafts, then Bob's reviewer copy checks it. Code problems go back for one fix.
+- **Extreme (Slowest):** like High, and coding goes research, plan, then changes, with a check after each step.
+
+High and Extreme end with **moot minutes**: who checked what, and what's still open.
 
 ---
 
@@ -228,7 +242,7 @@ If a slot is empty, Bob tells you which model would fill it.
 
 ## 8. Hands: letting Bob do things on your PC (opt-in)
 
-Hands are Bob's way of doing things for you on your PC rather than just talking about them. They arrive step by step in newer versions:
+Hands are Bob's way of doing things for you on your PC rather than just talking about them:
 
 - **Files:** zip and unzip, move, copy, rename, and tidy folders like Downloads.
 - **Run:** run a program, command or script you've approved.
@@ -242,11 +256,15 @@ Hands are built to be careful:
 - **Bob shows you exactly what he's about to do** (a preview card) and waits for your click.
 - "**Allow for the rest of this job**" is something you have to choose, and it ends when the job ends.
 - File changes keep an **undo** list, and anything removed goes to the Recycle Bin.
-- Some things are **never allowed**, even if you approve: nothing that needs administrator rights, and nothing on Bob's list of destructive commands.
+- **Hard limits**, all on to start with, each with its own switch: Recycle Bin only, keep secret files private, read-only projects stay read-only, block dangerous commands, don't send anything out, never type into password fields.
+- **Let Bob work without asking** (off unless you turn it on) skips the cards. The hard limits still hold, a banner shows above the chat the whole time, and ✋ Hands stops him at once. Cloud helpers still ask.
+- Some things are **never allowed**, whatever you pick: nothing that needs administrator rights, and Bob can't change his own code or settings.
 - Folders you mark **read-only** stay untouched.
 - Everything is written in the logbook.
 
 Even without Hands, Bob **asks before doing anything outside his own folder**.
+
+**Quarantine** (off unless you turn on "Let the reviewer quarantine Bob"): if Bob goes off track, his reviewer stops him and asks you whether to quarantine him. In quarantine he can talk but not act until you click **Release**.
 
 **Self-test:** Settings → Show advanced settings → Hands → **Run the self-test** checks, in a throwaway folder of dummy files, that the Recycle Bin and Undo, tidying, running a program and Stop all work on your PC. It shows a pass or fail list in plain words and removes the folder afterwards. No Hand needs to be on, and nothing of yours is touched.
 
@@ -261,21 +279,24 @@ Even without Hands, Bob **asks before doing anything outside his own folder**.
 
 ## 10. Optional extras (all off until you turn them on)
 
+- **Let Bob search the web**: Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page address leave your PC. Off: he tells you when a question needs the internet and where this switch is.
 - **Launch on start-up**: Bob opens when Windows starts.
 - **Cloud helpers**: hand a very big job to a paid online AI, using your own key. Bob asks you each time, because it costs money and sends that job off your PC.
 - **Music and sound effects**: extra downloads for the audio tools.
 - **Extra voices.**
 - **Advanced workshop**: if you use ComfyUI, Bob can run its workflows for you.
-- **Phone access** over a private network.
+- **Phone access** over Tailscale (advanced: set in config.json).
 - **Check for updates when Bob starts.** Updating always waits for your click.
 
 ---
 
 ## 11. Updating and removing Bob
 
-**Updating:** Settings → **Check for updates**. If there is one, click **Update Bob** and watch the steps. Your chats, models and settings are kept. If Bob is busy, he asks whether to restart now, wait until he's finished, or leave it for later.
+**Updating, if you downloaded the zip:** download the new zip from the Releases page and unzip it over your Bob folder. Your chats, models and settings are kept, because they live in `%LOCALAPPDATA%\Bob`.
 
-**Removing:** Settings → Show advanced settings → Remove Bob → **Remove Bob…**. Bob's program is removed. Two boxes, unticked unless you tick them, also remove his chats and settings and the models he downloaded. Those go to the Recycle Bin.
+**Updating, if you built Bob from source:** Settings → **Check for updates**. If there is one, click **Update Bob** and watch the steps. If Bob is busy, he asks whether to restart now, wait until he's finished, or leave it for later.
+
+**Removing:** Settings → Show advanced settings → Remove Bob → **Remove Bob…**. Bob's program, his shortcut, "Launch on start-up" and the "Bob schedules" task are removed. Two boxes, unticked unless you tick them, also remove his chats and settings and the models he downloaded. Those go to the Recycle Bin.
 
 ---
 
@@ -284,7 +305,9 @@ Even without Hands, Bob **asks before doing anything outside his own folder**.
 | What you see | What to try |
 |---|---|
 | A download stopped | Press **Resume** in Now running. It carries on from where it stopped. |
-| Pictures or video are very slow | Normal on small cards. Use the **Art** session, keep clips short, or use smaller picture sizes. |
+| Pictures or video are very slow | Normal on small cards. Use the **Art** session, keep clips short, or turn on **Match picture settings to my graphics card**. Run **Check this PC**. |
+| Bob says he can't look things up | Turn on **Let Bob search the web** in Settings. |
+| The memory numbers at the top and on the right differ | The top counts Bob's brain only; the meters on the right count the whole graphics card and RAM. The line under them shows Bob's share. |
 | "Out of graphics memory" | Close games or other graphics-heavy apps, or pick the smaller (6 GB) version of the model in Equip Bob. |
 | Bob can't hear you | Fill the 👂 Hearing you slot (Gemma 4 E4B does it). |
 | Bob can't paint or edit | Fill the 🎨 Painter or ✂ Picture editor slot, and get the painter engine when Bob offers it. |
@@ -293,6 +316,9 @@ Even without Hands, Bob **asks before doing anything outside his own folder**.
 ---
 
 ## Glossary
+
+The full glossary and an FAQ are in Help inside Bob (left menu, or F1).
+
 
 - **Model:** the "brain file" that does one kind of AI job. Bigger models are usually smarter but slower and need more memory.
 - **Graphics card (GPU) and graphics memory (VRAM):** the part of your PC that makes AI fast. The amount of graphics memory (6 GB, 8 GB, 16 GB) decides which models fit.

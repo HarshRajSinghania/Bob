@@ -129,5 +129,18 @@ try {
 const html = fs.readFileSync(path.join(here, '..', 'public', 'cellar.js'), 'utf8');
 check(/Get Bob ready while you type/.test(html) && /Let games go first/.test(html) && /Match picture settings to my graphics card/.test(html) && /Test Bob's speed/.test(html) && /Check this PC/.test(html) && /<th>Load<\/th>/.test(html) && /<th>Second reply<\/th>/.test(html), 'the settings page has the switches and both buttons');
 
+
+// 1.5.27: saved chat starts are kept for the newest 2 brains only.
+{
+  const { tidyStarts, MAX_STARTS } = await import('../src/tuning.js');
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-starts-'));
+  const put = (n, age) => { for (const e of ['bin', 'json']) { const f = path.join(d, `${n}.${e}`); fs.writeFileSync(f, 'x'); const t = new Date(Date.now() - age * 1000); fs.utimesSync(f, t, t); } };
+  put('a-8192', 30); put('b-8192', 20); put('c-8192', 10); put('c-4096', 40);
+  tidyStarts(d, 'c', 'c-8192.bin');
+  const left = fs.readdirSync(d).sort().join();
+  check(MAX_STARTS === 2 && left === 'b-8192.bin,b-8192.json,c-8192.bin,c-8192.json', 'saved chat starts: one per brain, newest 2 brains only (' + left + ')');
+  fs.rmSync(d, { recursive: true, force: true });
+}
+
 console.log(failures ? `\n${failures} failed` : '\nAll tuning tests passed');
 process.exit(failures ? 1 : 0);
