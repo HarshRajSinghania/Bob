@@ -51,3 +51,9 @@ Update this file in the same handover as any change to settings.
 ## Not yet reviewed
 - 1.5.3 chat page: ✋ Hands kill switch (On / Stopped / Off in Settings; only stops, never switches on) and the Memory section (Graphics card + RAM meters, Brain: friendly name).
 - Wake on input / Always on toggle and the memory label on the chat page (thread "Keep Bob light when idle"). Waiting for its handover.
+
+## Added in 1.5.4 (recommended models + Help)
+| Page | Setting | Default | Review |
+|---|---|---|---|
+| Get models / Equip Bob | Show models that don't suit this PC | off (remembered) | Approved with edits: use the pill switch style |
+| Help (menu, F1) | Search Help | | ok |

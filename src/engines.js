@@ -19,7 +19,7 @@ export const ENGINES = [
     runtime: () => /^cudart-.*-x64\.zip$/
   },
   {
-    id: 'whispercpp', name: 'whisper.cpp', what: 'Ears: turns your voice into text without Ollama.', repo: 'ggml-org/whisper.cpp', dir: 'whisper.cpp', exe: 'whisper-cli.exe',
+    id: 'whispercpp', name: 'whisper.cpp', what: 'Hearing you: turns your voice into text without Ollama.', repo: 'ggml-org/whisper.cpp', dir: 'whisper.cpp', exe: 'whisper-cli.exe',
     // Bob listens on the processor (-ng), so the plain CPU build is enough and the smallest; CUDA builds are a fallback.
     // Newer CUDA zips are named whisper-bin-win-cuda-12.4-x64.zip, older ones whisper-cublas-12.4.0-bin-x64.zip.
     nvidia: [], other: [/^whisper-bin-x64\.zip$/, /^whisper-blas-bin-x64\.zip$/, /^whisper-(?:cublas-(\d+)[\d.]*-bin|bin-win-cuda-(\d+)[\d.]*)-x64\.zip$/],

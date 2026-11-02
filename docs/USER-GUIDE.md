@@ -33,7 +33,7 @@ You can close Bob while things download. Unfinished downloads wait, paused, and 
 
 Bob's window has three parts:
 
-- **The menu on the left.** Chat, Tasks, Topics, References, Get models, Style, Settings, and so on. Fold it down to icons with the ‹ button (or Ctrl+B).
+- **The menu on the left.** Chat, Tasks, Topics, References, Get models, Style, Settings, Help, and so on. Fold it down to icons with the ‹ button (or Ctrl+B).
 - **The chat in the middle.** Type and press Enter. Shift+Enter starts a new line.
 - **Now running on the right.** What Bob is doing, what's downloading, and how full your graphics card is. Hide it with Ctrl+J.
 
@@ -68,10 +68,10 @@ Bob uses different AI **models** for different jobs, the way a person might use 
 | ⚡ Quick brain | A small, fast brain for when the graphics card is busy (painting, or you're gaming). |
 | 🔭 Deep thinking | The strongest thinker, for hard problems. Optional. |
 | 🔨 Coding | Writes and fixes code. If it's empty, the Brain codes. |
-| 🧐 Second look | Checks code and plans before you rely on them. Optional. |
-| 👁 Eyes | Looks at pictures and screenshots you attach. |
-| 🗂 Memory | Helps Topics and search find things by meaning, not just exact words. |
-| 👂 Ears | Turns your voice into text. |
+| 🧐 Review | Checks code and plans before you rely on them. Optional. |
+| 👁 Seeing pictures | Looks at pictures and screenshots you attach. |
+| 🗂 Memory (finding past chats) | Helps Topics and search find things by meaning, not just exact words. |
+| 👂 Hearing you | Turns your voice into text. |
 | 🔊 Voice | Reads his replies aloud. |
 | 🎨 Painter | Paints new pictures. |
 | ✂ Picture editor | Changes a picture you give him, or keeps a character looking the same across pictures. |
@@ -82,12 +82,20 @@ Bob uses different AI **models** for different jobs, the way a person might use 
 
 - **Click a slot**, then click a model in the list to put it there. You can also **drag** a model onto a slot.
 - Models already on your PC are ready to go. Models you don't have yet show a **Get** button. Nothing downloads until you confirm.
-- **One model can fill several slots.** For example, Gemma 4 E4B can be the Brain, the Quick brain, the Eyes and the Ears all at once. Bob offers this with "Also use it for…". That's the trick that makes small PCs work well.
+- **One model can fill several slots.** For example, Gemma 4 E4B can be the Brain, the Quick brain, Seeing pictures and Hearing you all at once. Bob offers this with "Also use it for…". That's the trick that makes small PCs work well.
 - To empty a slot, use the **✕** on it. The Brain can't be emptied, because Bob needs something to think with.
 - The bar along the bottom shows whether everything fits on your graphics card at the same time. If it doesn't, that's fine: Bob takes turns, putting one model away while another works.
 - Prefer a plain list? There's a button for that at the top.
 
-Anything your PC can't run is greyed out, and Bob won't try to use it.
+Each slot only lists models that can do its job: a brain that can't see pictures never shows under Seeing pictures, and a big brain never shows under Quick brain.
+
+### Recommended, Fits your card, Doesn't suit this PC
+
+- **★ Recommended for this job on your PC:** Bob's pick for that slot. For brains, a model scores higher the more jobs it covers (fewer brain swaps) and the less graphics memory it takes, and much lower if it would spill into RAM. Bigger brains get a bonus for jobs that need careful thinking. For pictures, video and voices, the pick comes from the starter set for your card.
+- **Fits your card:** runs well here too, just not the first pick.
+- **Doesn't suit this PC:** needs more graphics memory or RAM than you have. These are hidden until you turn on **Show models that don't suit this PC** (off unless you turn it on), and each says why.
+
+The same picks show on every Get models page, under **Bob's picks for this PC**. There's more in Help (left menu, or F1).
 
 ### Starter sets
 
@@ -99,9 +107,9 @@ Everything in the starter sets is free to use, **including for commercial work**
 
 | Job | Model | Download |
 |---|---|---|
-| Brain, Quick brain, Eyes, Ears | Gemma 4 E4B | about 6.6 GB |
+| Brain, Quick brain, Seeing pictures, Hearing you | Gemma 4 E4B | about 6.6 GB |
 | Voice | Kokoro (22 natural English voices) | about 0.4 GB |
-| Memory | Nomic Embed Text | about 0.3 GB |
+| Memory (finding past chats) | Nomic Embed Text | about 0.3 GB |
 
 With just these, Bob can chat, plan, research the web, read pictures, hear you and talk back.
 
@@ -238,7 +246,7 @@ Even without Hands, Bob **asks before doing anything outside his own folder**.
 ## 9. Voice
 
 - **Read aloud:** Bob can speak his replies. Kokoro is the recommended voice (22 voices, runs on the processor). Every voice has a **Play** button with a short sample (the same line in each voice) that works before you download anything.
-- **Talk to Bob:** with the Ears slot filled, use 🎙 or say "Hey Bob" hands-free (if you turn that on).
+- **Talk to Bob:** with the Hearing you slot filled, use 🎙 or say "Hey Bob" hands-free (if you turn that on).
 
 ---
 
@@ -269,7 +277,7 @@ Even without Hands, Bob **asks before doing anything outside his own folder**.
 | A download stopped | Press **Resume** in Now running. It carries on from where it stopped. |
 | Pictures or video are very slow | Normal on small cards. Use the **Art** session, keep clips short, or use smaller picture sizes. |
 | "Out of graphics memory" | Close games or other graphics-heavy apps, or pick the smaller (6 GB) version of the model in Equip Bob. |
-| Bob can't hear you | Fill the 👂 Ears slot (Gemma 4 E4B does it). |
+| Bob can't hear you | Fill the 👂 Hearing you slot (Gemma 4 E4B does it). |
 | Bob can't paint or edit | Fill the 🎨 Painter or ✂ Picture editor slot, and get the painter engine when Bob offers it. |
 | Windows blocks Bob | Bob.exe is the official Electron program renamed, which Windows usually trusts. If it's blocked anyway, see the Releases page notes. |
 

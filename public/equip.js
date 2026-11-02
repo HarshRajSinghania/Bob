@@ -2,6 +2,8 @@
 // are his kit. Pick a slot, then click a model in the kit (or drag it onto the slot) to equip it. Only kit that
 // fits a slot goes in it. Empty slots say what Bob can't do yet, with a Get button for a recommended model.
 // Nothing is ever equipped by itself. Pure HTML builders; cellar.js handles the clicks.
+import { packFor, canDo, suit, pickFor } from './fit.js';
+export { packFor };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const gb = (n) => (n == null ? '' : n >= 1 ? `${(+n).toFixed(n >= 10 ? 0 : 1)} GB` : `${Math.round(n * 1000)} MB`);
 
@@ -10,12 +12,12 @@ const gb = (n) => (n == null ? '' : n >= 1 ? `${(+n).toFixed(n >= 10 ? 0 : 1)} G
 export const SLOTS = [
   { id: 'bob', name: 'Brain', icon: '🧠', side: 'L', how: 'job', kind: 'llm', cats: ['chat', 'coding'], does: 'Thinks, chats and plans. Everything else hangs off this.', empty: "No brain: Bob can't think or chat" },
   { id: 'small', name: 'Quick brain', icon: '⚡', side: 'L', how: 'brain', kind: 'llm', cats: ['chat'], does: 'A small, fast brain for the Art and Light / gaming sessions, so games and the painter keep the card.', empty: 'No quick brain: Art and Light sessions have nothing small to run' },
-  { id: 'deep', name: 'Deep thinking', icon: '🔭', side: 'L', how: 'brain', kind: 'llm', cats: ['chat', 'coding'], does: 'The strongest thinker, for the Deep thought session.', empty: 'Uses the second-look or main brain' },
+  { id: 'deep', name: 'Deep thinking', icon: '🔭', side: 'L', how: 'brain', kind: 'llm', cats: ['chat', 'coding'], does: 'The strongest thinker, for the Deep thought session.', empty: 'Uses the Review or main brain' },
   { id: 'tinker', name: 'Coding', icon: '🔨', side: 'L', how: 'job', kind: 'llm', cats: ['coding', 'chat'], does: 'Writes and fixes code.', empty: 'No coding brain: the main brain codes', off: true },
-  { id: 'reviewer', name: 'Second look', icon: '🧐', side: 'L', how: 'job', kind: 'llm', cats: ['chat', 'coding'], does: 'Checks code and plans carefully before you rely on them.', empty: 'No second look: the main brain checks its own work', off: true },
-  { id: 'eyes', name: 'Eyes', icon: '👁', side: 'L', how: 'job', kind: 'llm', cats: ['vision'], does: 'Looks at pictures and screenshots you attach.', empty: "No eyes: the main brain must see pictures itself, or Bob can't", off: true },
-  { id: 'embed', name: 'Memory', icon: '🗂', side: 'L', how: 'embed', kind: 'embed', cats: ['embed'], does: 'Matches what you say to past Topics by meaning, not just words.', empty: 'Topics are matched by words (works, a bit less clever)' },
-  { id: 'voice', name: 'Ears', icon: '👂', side: 'R', how: 'job', kind: 'voice', cats: ['voice'], does: 'Turns your voice into text (🎙 and "Hey Bob").', empty: "No ears: Bob can't hear you" },
+  { id: 'reviewer', name: 'Review', icon: '🧐', side: 'L', how: 'job', kind: 'llm', cats: ['chat', 'coding'], does: 'Checks code and plans carefully before you rely on them.', empty: 'Empty: the main brain checks its own work', off: true },
+  { id: 'eyes', name: 'Seeing pictures', icon: '👁', side: 'L', how: 'job', kind: 'llm', cats: ['vision'], does: 'Looks at pictures and screenshots you attach.', empty: "Empty: the main brain must see pictures itself, or Bob can't", off: true },
+  { id: 'embed', name: 'Memory (finding past chats)', icon: '🗂', side: 'L', how: 'embed', kind: 'embed', cats: ['embed'], does: 'Matches what you say to past Topics by meaning, not just words.', empty: 'Topics are matched by words (works, a bit less clever)' },
+  { id: 'voice', name: 'Hearing you', icon: '👂', side: 'R', how: 'job', kind: 'voice', cats: ['voice'], does: 'Turns your voice into text (🎙 and "Hey Bob").', empty: "Empty: Bob can't hear you" },
   { id: 'speech', name: 'Voice', icon: '🔊', side: 'R', how: 'job', kind: 'speech', cats: ['speech'], does: 'Reads his replies aloud.', empty: 'Uses the Windows voice', off: 'windows' },
   { id: 'image', name: 'Painter', icon: '🎨', side: 'R', how: 'job', kind: 'images', cats: ['images'], does: 'Paints new pictures.', empty: "No painter: Bob can't make pictures" },
   { id: 'edit', name: 'Picture editor', icon: '✂', side: 'R', how: 'job', kind: 'edit', cats: ['images'], editOnly: true, does: 'Edits a picture, or keeps a character looking the same.', empty: "No editor: Bob can paint new pictures but can't edit them" },
@@ -43,13 +45,31 @@ export function equipped(slot, { roles, brains, embed }) {
   return roles?.current?.[slot.id] || '';
 }
 
-// Kit that fits a slot: what's on this PC (from Model roles), and catalog models not downloaded yet.
+// Kit for a slot: what's on this PC (from Model roles), and catalog models not downloaded yet. Only models that
+// can do the slot's job are listed: a brain that can't see never shows under Seeing pictures, a big brain never under Quick brain.
 export function kitFor(slot, { roles, models }) {
-  const have = (roles?.options?.[slot.kind] || []).map((o) => ({ ...o, entry: entryOf(models, o.value), installed: true }));
+  const able = (entry, o) => slot.kind !== 'llm' || canDo(slot.id, { entry, name: o?.value, caps: o?.caps });
+  const have = (roles?.options?.[slot.kind] || []).map((o) => ({ ...o, entry: entryOf(models, o.value), installed: true })).filter((k) => able(k.entry, k));
   const haveIds = new Set(have.map((h) => h.entry?.id).filter(Boolean));
-  const shop = models.filter((m) => slot.cats.includes(m.category) && Boolean(m.use?.painter?.sdcpp?.edit) === Boolean(slot.editOnly) && m.status?.state !== 'installed' && !m.gated && !haveIds.has(m.id))
+  const shop = models.filter((m) => slot.cats.includes(m.category) && Boolean(m.use?.painter?.sdcpp?.edit) === Boolean(slot.editOnly) && m.status?.state !== 'installed' && !m.gated && !haveIds.has(m.id) && able(m))
     .map((m) => ({ value: m.id, label: m.name, entry: m, installed: false }));
   return [...have, ...shop];
+}
+
+// Can this slot take this value (a model on this PC)? For dragging and "Also use it for".
+export function slotTakes(slot, value, { roles, models }) {
+  if (!slot || slot.kind !== 'llm') return true;
+  const o = (roles?.options?.llm || []).find((x) => x.value === value);
+  return canDo(slot.id, { entry: entryOf(models, value), name: value, caps: o?.caps });
+}
+
+// How each kit item stands for this slot on this PC: Bob's pick for the job, fits the card, or doesn't suit (with why).
+export function kitFit(k, slot, ctx) {
+  const e = k.entry;
+  if (!e) return { rec: false, level: 'unknown' };
+  const s = suit(e, { vramGB: ctx.vramGB, ramGB: ctx.ramGB, freeGB: ctx.freeGB }, ctx.platform);
+  const pick = pickFor(slot.id, ctx.models || [], ctx);
+  return { ...s, rec: pick?.id === e.id, recWhy: pick?.id === e.id ? pick.why : '' };
 }
 
 const stats = (e, fallback = '') => {
@@ -72,26 +92,40 @@ function slotHtml(slot, ctx) {
     </button>${canOff ? `<button type="button" class="mini unequip" data-unequip="${esc(slot.id)}" title="Take it off" aria-label="Take ${esc(name)} off ${esc(slot.name)}">✕</button>` : ''}</div>`;
 }
 
+const REC_TAG = '<span class="tag rec">★ Recommended for this job on your PC</span>';
+const FIT_TAG = '<span class="tag">Fits your card</span>';
+function fitTags(f) {
+  if (f.level === 'unknown') return '<span class="muted fit-why">Not in Bob\'s list, so he can\'t say how well it runs here.</span>';
+  const tags = `${f.rec ? `${REC_TAG}<span class="muted fit-why">${esc(f.recWhy)}</span>` : ''}${f.fits && !f.rec ? FIT_TAG : ''}${f.level !== 'ok' && !f.rec ? `<span class="tag warn">${f.level === 'blocked' ? 'Can\'t install on this PC' : 'Doesn\'t suit this PC'}</span>` : ''}`;
+  return `${tags}${f.why ? `<span class="muted fit-why">${esc(f.why)}</span>` : ''}`;
+}
+
 function kitHtml(slot, ctx) {
   if (!slot) return '<p class="muted">Pick a slot around Bob to see what fits it.</p>';
-  const kit = kitFor(slot, ctx);
   const cur = equipped(slot, ctx);
-  const vram = ctx.vramGB;
-  const items = kit.map((k) => {
+  // Bob's pick first, then what fits, then the rest. What's equipped stays where it is in that order.
+  const rank = (f) => (f.rec ? 0 : f.level === 'ok' ? 1 : f.level === 'unknown' ? 2 : 3);
+  const all = kitFor(slot, ctx).map((k) => ({ k, f: kitFit(k, slot, ctx) })).sort((a, b) => rank(a.f) - rank(b.f));
+  // Downloads that won't run well here wait behind "Show models that don't suit this PC" (off unless you turn it on).
+  const hiddenOnes = all.filter(({ k, f }) => !k.installed && !f.rec && f.level !== 'ok');
+  const kit = ctx.showUnsuited ? all : all.filter((x) => !hiddenOnes.includes(x));
+  const items = kit.map(({ k, f }) => {
     const e = k.entry;
-    const heavy = vram && e?.vramGB > vram;
     const tip = stats(e, k.installed ? 'On this PC' : '');
     if (!k.installed) {
-      return `<li class="kit shop model" title="${esc(tip)}"><span class="kit-name">${esc(k.label)}</span><span class="muted">${esc(tip)}</span>${heavy ? '<span class="tag warn">more than your card</span>' : ''}
+      return `<li class="kit shop model${f.level !== 'ok' && !f.rec ? ' dim' : ''}" title="${esc(tip)}"><span class="kit-name">${esc(k.label)}</span><span class="muted">${esc(tip)}</span>${fitTags(f)}
         <button type="button" class="get" data-get="${esc(k.value)}">Get</button><div class="confirm" hidden></div></li>`;
     }
+    const heavy = f.level === 'slow' || f.level === 'no';
     return `<li class="kit${k.value === cur ? ' worn' : ''}${heavy ? ' heavy' : ''}" draggable="true" data-equip="${esc(k.value)}" data-kind="${esc(slot.kind)}" title="${esc(tip)}">
-      <button type="button" class="kit-btn" data-equip="${esc(k.value)}" ${k.value === cur ? 'aria-current="true"' : ''}><span class="kit-name">${esc(k.label)}</span><span class="muted">${esc(tip)}</span>${heavy ? '<span class="tag warn">not recommended for your card</span>' : ''}${k.value === cur ? '<span class="tag good">equipped</span>' : ''}</button></li>`;
+      <button type="button" class="kit-btn" data-equip="${esc(k.value)}" ${k.value === cur ? 'aria-current="true"' : ''}><span class="kit-name">${esc(k.label)}</span><span class="muted">${esc(tip)}</span>${fitTags(f)}${k.value === cur ? '<span class="tag good">equipped</span>' : ''}</button></li>`;
   }).join('');
+  const more = hiddenOnes.length
+    ? `<p class="muted unsuited-note">${ctx.showUnsuited ? 'Showing models that don\'t suit this PC.' : `${hiddenOnes.length} more for this job ${hiddenOnes.length === 1 ? 'doesn\'t' : 'don\'t'} suit this PC.`} <button type="button" class="link" data-unsuited>${ctx.showUnsuited ? 'Hide them' : 'Show them'}</button></p>` : '';
   const engine = slot.engine && !(ctx.roles?.options?.[slot.kind] || []).length
     ? `<div class="model engine-step"><p>${esc(slot.name)} comes with the audio tools.</p><button class="get" data-engine="${esc(slot.engine)}">Get the audio tools</button><div class="confirm" hidden></div></div>` : '';
-  const embedTip = slot.how === 'embed' && !kit.length ? '<p class="muted">Nothing here yet. An embedding model such as nomic-embed-text in Ollama shows up here once it is on this PC.</p>' : '';
-  return `<h3>${slot.icon} ${esc(slot.name)}</h3><p class="muted">${esc(slot.does)}</p>${engine}${embedTip}<ol class="kit-list">${items || (engine || embedTip ? '' : '<li class="muted">Nothing fits this slot yet.</li>')}</ol>`;
+  const embedTip = slot.how === 'embed' && !all.length ? '<p class="muted">Nothing here yet. An embedding model such as nomic-embed-text in Ollama shows up here once it is on this PC.</p>' : '';
+  return `<h3>${slot.icon} ${esc(slot.name)}</h3><p class="muted">${esc(slot.does)}</p>${engine}${embedTip}<ol class="kit-list">${items || (engine || embedTip ? '' : '<li class="muted">Nothing that does this job runs well on this PC yet.</li>')}</ol>${more}`;
 }
 
 // Everything equipped against the card: they don't all have to be loaded at once (Bob swaps), but it shows what fits together.
@@ -102,12 +136,13 @@ function weightHtml(ctx) {
   const card = ctx.vramGB;
   if (!card) return `<p class="muted">Equipped: about ${gb(total)} of graphics memory in all.</p>`;
   const pct = Math.min(100, Math.round((total / card) * 100));
-  return `<div class="weight-bar" title="Everything equipped, if it were all loaded at once"><div class="meter${total > card ? ' over' : ''}"><i style="width:${pct}%"></i></div>
-    <span>${gb(total)} equipped · your card holds ${gb(card)}. ${total > card ? 'Not all at once: Bob loads what each job needs and swaps the rest (about 20 seconds a swap).' : 'All of it fits at once.'}</span></div>`;
+  // Over the card in total is normal (Bob swaps); red only when one equipped model can't fit on the card at all.
+  const tooBig = [...seen.values()].find((e) => e.vramGB > card);
+  return `<div class="weight-bar" title="Everything equipped, if it were all loaded at once"><div class="meter${tooBig ? ' over' : ''}"><i style="width:${pct}%"></i></div>
+    <span>${tooBig ? `${esc(tooBig.name)} alone needs more than your ${gb(card)} card, so it runs slowly.` : total > card ? `${gb(total)} equipped in total. Your card holds ${gb(card)}, so Bob loads what each job needs (about 20 seconds a swap).` : `${gb(total)} equipped in total. Your card holds ${gb(card)}, so all of it fits at once.`}</span></div>`;
 }
 
 // ---- Starter sets: a few models picked for the graphics card, as one button. Every download is still confirmed. ----
-export const packFor = (packs, vramGB) => packs.find((p) => (vramGB || 0) >= p.minVramGB) || packs.at(-1);
 
 // What a slot should hold for a catalog entry, once it's on this PC (the Ollama name, the catalog id, or
 // "ollama:<name>" for ears). '' while it isn't there yet.
@@ -175,7 +210,7 @@ export function starterHtml(ctx) {
 export function equipHtml(ctx) {
   const sel = allSlots().find((s) => s.id === ctx.selected);
   const col = (side) => SLOTS.filter((s) => s.side === side).map((s) => slotHtml(s, ctx)).join('');
-  return `<div class="equip-top"><p class="muted">Pick a slot, then click a model in the kit (or drag it onto the slot). Only what fits a slot goes in it. Nothing is equipped without you.</p>
+  return `<div class="equip-top"><p class="muted">Pick a slot, then click a model in the kit (or drag it onto the slot). Each slot only lists models that can do its job. Nothing is equipped without you. <button type="button" class="mini help-link" data-help="recommended" aria-label="Help: how Bob picks models">? How Bob picks</button></p>
       <button type="button" class="link" data-eqview="list">Plain list instead</button></div>
     ${starterHtml(ctx)}
     ${weightHtml(ctx)}

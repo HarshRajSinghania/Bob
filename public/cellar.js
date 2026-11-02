@@ -3,7 +3,8 @@ import { setLook } from './bob-sprite.js';
 import { progressHtml, animateWorkers } from './progress.js';
 import { createStylePage } from './style-page.js';
 import { createSampler, sampleButton, sampleHint } from './voice-samples.js';
-import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks, starterPlan, slotValue } from './equip.js';
+import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks, starterPlan, slotValue, slotTakes } from './equip.js';
+import { suit as fitSuit, picksOf, unsuited, jobNames, SLOT_NAMES } from './fit.js';
 import { drawBob } from './bob-sprite.js';
 import { handsSettingsHtml, mountHandsSettings } from './hands.js';
 import { findTheme } from './themes.js';
@@ -32,16 +33,14 @@ export function createCellar() {
     flash: (msg) => { const p = document.createElement('p'); p.className = 'have'; p.textContent = msg; $('cellar-body').prepend(p); setTimeout(() => p.remove(), 4000); }
   });
 
-  // How well a model suits this PC: ok, slow (more than the card's memory), no (far too big), blocked (can't at all).
-  function suit(m) {
-    if (hw?.freeGB != null && m.status.state !== 'installed' && m.sizeGB > hw.freeGB) return { level: 'blocked', why: `Needs ${gb(m.sizeGB)} of disk space; ${hw.freeGB} GB free.` };
-    if (m.needs && settings?.platform && settings.platform !== 'win32') return { level: 'blocked', why: `${m.needs} only runs on Windows here.` };
-    const v = hw?.vramGB;
-    if (!v || !m.vramGB) return { level: 'ok' };
-    if (m.vramGB <= v) return { level: 'ok', tag: '<span class="tag good">Fits your card</span>' };
-    if (m.vramGB <= v * 1.5) return { level: 'slow', why: `Wants ${m.vramGB} GB of graphics memory; your card has ${v} GB. It will run, but slowly.` };
-    return { level: 'no', why: `Wants ${m.vramGB} GB of graphics memory; your card has ${v} GB. It probably won't run well.` };
-  }
+  // How well a model suits this PC (public/fit.js): ok, slow, no or blocked, each with a plain reason.
+  const hwNow = () => ({ vramGB: hw?.vramGB, ramGB: hw?.ramGB, freeGB: hw?.freeGB });
+  const suit = (m) => fitSuit(m, hwNow(), settings?.platform);
+  // Bob's pick for each job on this PC, and whether models that don't suit it are shown (off unless you turn it on).
+  const pickCtx = () => ({ ...hwNow(), packs: data?.packs || [], platform: settings?.platform });
+  const picks = (m) => picksOf(m, data.models, pickCtx());
+  let showUnsuited = (() => { try { return localStorage.getItem('bob-show-unsuited') === '1'; } catch { return false; } })();
+  const setShowUnsuited = (on) => { showUnsuited = on; try { localStorage.setItem('bob-show-unsuited', on ? '1' : '0'); } catch {} };
 
   // Jobs Bob can already do another way: the model is an optional upgrade, not something missing.
   function covered(m) {
@@ -75,7 +74,8 @@ export function createCellar() {
     const part = s.state === 'partial' ? ' (some files are already here)' : '';
     const fit = suit(m);
     if (fit.level === 'blocked') return `<div class="muted">Can't install on this PC: ${esc(fit.why)}</div>`;
-    if (fit.level !== 'ok') return `<div class="muted">${esc(fit.why)}</div><button class="link" data-anyway="${esc(m.id)}">Ignore recommendation and install anyway</button>`;
+    if (fit.level !== 'ok' && picks(m).length) return `<div class="muted">${esc(fit.why)}</div><button class="get" data-get="${esc(m.id)}">Download ${gb(m.sizeGB)}${part}</button>`;
+    if (fit.level !== 'ok') return `<div class="muted">${esc(fit.why)}</div><button class="link" data-anyway="${esc(m.id)}">Download anyway</button>`;
     return `<button class="get" data-get="${esc(m.id)}">Download ${gb(m.sizeGB)}${part}</button>`;
   }
 
@@ -92,13 +92,21 @@ export function createCellar() {
     const lic = m.commercial ? esc(m.license) : `${esc(m.license)} · personal use only`;
     const eng = m.needs && (data.engines || []).find((e) => e.name === m.needs);
     const needs = m.needs ? (eng && !eng.installed ? `<span class="tag warn">needs ${esc(m.needs)}: get it in Settings</span>` : `<span class="tag">uses ${esc(m.needs)}</span>`) : '';
-    const pick = { best: 'Top pick', small: 'Light', tiny: 'Tiny', optional: 'Optional' }[m.pick] || '';
+    // Size hints only; "Recommended" (below) is what says which model to pick on this PC.
+    const pick = { small: 'Light', tiny: 'Tiny', optional: 'Optional' }[m.pick] || '';
     const fit = suit(m);
-    const badge = covered(m) ? '<span class="tag good">Faster replies after voice notes</span>' : fit.level === 'ok' ? (fit.tag || '') : fit.level === 'blocked' ? '<span class="tag bad">Not available on this PC</span>' : '<span class="tag warn">Not recommended</span>';
-    const dim = fit.level !== 'ok' && m.status.state !== 'installed' ? ' dim' : '';
+    const mine = picks(m);
+    // Three separate things: Bob's pick for a job on this PC (★), fits the card (quiet), or doesn't suit (with why).
+    const badge = covered(m) ? '<span class="tag good">Faster replies after voice notes</span>'
+      : mine.length ? `<span class="tag rec">★ Recommended for your PC: ${esc(mine.map((id) => SLOT_NAMES[id]).join(', '))}</span>`
+      : fit.level === 'ok' ? (fit.fits ? '<span class="tag">Fits your card</span>' : '')
+      : fit.level === 'blocked' ? '<span class="tag bad">Can\'t install on this PC</span>' : '<span class="tag warn">Doesn\'t suit this PC</span>';
+    const dim = fit.level !== 'ok' && !mine.length && m.status.state !== 'installed' ? ' dim' : '';
+    const jobs = jobNames(m);
     return `<article class="model${dim}" id="m-${esc(m.id)}">
       <header><strong>${esc(m.name)}</strong>${pick ? `<span class="tag">${pick}</span>` : ''}</header>
       <p>${esc(m.what)}</p>
+      ${jobs.length ? `<p class="muted jobs-line">Can do: ${esc(jobs.join(', '))}</p>` : ''}
       <div class="facts"><span>${gb(m.sizeGB)} download</span>${m.vramGB ? `<span>wants ${m.vramGB} GB graphics memory</span>` : '<span>runs on the processor</span>'}<span>${lic}</span>${badge}${needs}</div>
       ${m.category === 'speech' ? cardSample(m) : ''}
       <div class="act">${action(m)}</div>
@@ -123,13 +131,40 @@ export function createCellar() {
   const groupOf = (id) => GROUPS.find((g) => g.parts.includes(id));
   let jumpTo = '';
   function setTab(id) { const g = groupOf(id); tab = g ? g.id : id; jumpTo = g ? id : ''; }
+  // A category's models: Bob's picks first, then what fits, then the rest. Downloads that don't suit this PC
+  // wait behind "Show models that don't suit this PC".
+  function modelList(id) {
+    const rank = (m) => (picks(m).length ? 0 : suit(m).level === 'ok' ? 1 : 2);
+    const all = data.models.filter((m) => m.category === id).sort((a, b) => rank(a) - rank(b));
+    const hide = all.filter((m) => unsuited(m, picks(m), suit(m)) && !live.has(m.id));
+    const shown = showUnsuited ? all : all.filter((m) => !hide.includes(m));
+    const note = hide.length ? `<p class="muted unsuited-note">${showUnsuited ? `Showing ${hide.length} that ${hide.length === 1 ? 'doesn\'t' : 'don\'t'} suit this PC.` : `${hide.length} more ${hide.length === 1 ? 'doesn\'t' : 'don\'t'} suit this PC.`} <button type="button" class="link" data-unsuited>${showUnsuited ? 'Hide them' : 'Show them'}</button></p>` : '';
+    return shown.map(card).join('') + note;
+  }
   function catBody(id) {
     const cat = data.categories.find((c) => c.id === id);
-    return `${data.models.filter((m) => m.category === id).map(card).join('')}${extrasHtml(id)}`.trim() || `<p class="muted">Nothing in ${esc(cat?.label || id)} yet.</p>`;
+    return `${modelList(id)}${extrasHtml(id)}`.trim() || `<p class="muted">Nothing in ${esc(cat?.label || id)} yet.</p>`;
+  }
+  // Bob's picks for every job on this PC, one line per model ("Gemma 4 26B: Brain, Deep thinking, Coding").
+  function picksSummary() {
+    const rows = data.models.map((m) => [m, picks(m)]).filter(([, p]) => p.length);
+    if (!rows.length) return '';
+    return `<details class="fit-sum"><summary>Bob's picks for this PC (${rows.length} models)</summary><ul class="fit-picks">${rows.map(([m, p]) => `<li><button type="button" class="link" data-gomodel="${esc(m.id)}" data-gocat="${esc(m.category)}">${esc(m.name)}</button>: ${esc(p.map((id) => SLOT_NAMES[id]).join(', '))}${m.status.state === 'installed' ? ' <span class="muted">(on this PC)</span>' : ''}</li>`).join('')}</ul></details>`;
+  }
+  // An ON/OFF pill switch like Read aloud and Alerts: the whole row is the button.
+  const pillSwitch = (key, on, label, hint) => `<button type="button" class="pill-switch" role="switch" aria-checked="${on}" data-${key}><span class="ps-text"><strong>${esc(label)}</strong>${hint ? `<br><span class="muted">${esc(hint)}</span>` : ''}</span><span class="st">${on ? 'On' : 'Off'}</span></button>`;
+  // Top of every model page: what Bob judged this PC by, what the badges mean, and the switch.
+  function fitBanner() {
+    // Same detection as Now running and the Settings footer; a size set by hand in Bob's settings says so.
+    const card = hw?.gpu ? `${esc(hw.gpu.name)} (${hw.gpu.vramGB} GB graphics memory)` : hw?.vramGB ? `a ${hw.vramGB} GB graphics card (set in Bob's settings; not detected right now)` : 'no graphics card found';
+    return `<div class="fit-banner"><p><strong>Picked for this PC:</strong> ${card}${hw?.ramGB ? `, ${hw.ramGB} GB RAM` : ''}. <button type="button" class="mini help-link" data-help="recommended" aria-label="Help: how Bob picks models">? How Bob picks</button></p>
+      ${picksSummary()}
+      <p class="muted"><span class="tag rec">★ Recommended</span>: Bob's pick for that job on your PC. <span class="tag">Fits your card</span>: also runs well here, just not the first pick.</p>
+      ${pillSwitch('unsuitedsw', showUnsuited, 'Show models that don\'t suit this PC', 'Off unless you turn it on. Each one says why it doesn\'t suit.')}</div>`;
   }
   function groupHtml(g) {
     const parts = g.parts.filter((id) => data.categories.some((c) => c.id === id));
-    return `<p class="muted">${esc(g.what)}</p>
+    return `${fitBanner()}<p class="muted">${esc(g.what)}</p>
       <nav class="subnav" aria-label="Sections">${parts.map((id) => `<button type="button" data-jump="${id}">${esc(SUB_LABEL[id] || id)}</button>`).join('')}</nav>
       ${parts.map((id) => { const cat = data.categories.find((c) => c.id === id); return `<section class="subsection" id="sub-${id}"><h3>${cat.icon || ''} ${esc(SUB_LABEL[id] || cat.label)}</h3><p class="muted">${esc(cat.what)}</p>${id === 'speech' ? `<div class="settings voice-settings">${voiceHtml()}</div>` : ''}${catBody(id)}</section>`; }).join('')}`;
   }
@@ -148,7 +183,7 @@ export function createCellar() {
     else if (GROUPS.some((g) => g.id === tab)) body = groupHtml(GROUPS.find((g) => g.id === tab));
     else {
       const cat = data.categories.find((c) => c.id === tab);
-      body = `<p class="muted">${esc(cat?.what)}</p>${data.models.filter((m) => m.category === tab).map(card).join('')}${extrasHtml()}`;
+      body = `${fitBanner()}<p class="muted">${esc(cat?.what)}</p>${modelList(tab)}${extrasHtml()}`;
     }
     return `${bar}<div class="pane">${body}</div>`;
   }
@@ -336,14 +371,17 @@ export function createCellar() {
     ['remove', '🗑 Remove Bob', 'uninstall remove', () => `<div class="remove-bob">${more('Takes off Bob\'s program, his Start menu shortcut and "Launch on start-up". His chats, settings and models stay unless you tick them. Nothing else in the inn folder or in Windows is touched.')}<button data-removebob>Remove Bob…</button><div class="remove-confirm" hidden></div></div>`]
   ];
 
+  // "?" next to a heading opens Help at that entry (public/help.js).
+  const helpLink = (id, label, text = '? Help') => `<button type="button" class="mini help-link" data-help="${esc(id)}" aria-label="Help: ${esc(String(label).replace(/^\W+/, ''))}">${esc(text)}</button>`;
   function settingsHtml() {
     return `<section class="settings">
+      <p class="settings-help">${helpLink('settings-everyday', 'Everyday settings', '? Help with these settings')}</p>
       ${everydayHtml()}
       <label class="switch adv-toggle"><input type="checkbox" data-advanced ${advanced ? 'checked' : ''}><span><strong>Show advanced settings</strong><br><span class="muted">Brains, voice details, engines and speed, connections, Hands, housekeeping.</span></span></label>
       ${advanced ? `<div class="advanced">
         <input type="search" data-ssearch placeholder="Search settings" aria-label="Search settings" value="${esc(settingsQuery)}">
         <nav class="subnav" aria-label="Advanced sections">${ADV.map(([id, label]) => `<button type="button" data-jump="adv-${id}">${esc(label)}</button>`).join('')}</nav>
-        ${ADV.map(([id, label, words, body]) => `<section class="subsection adv-sec" id="sub-adv-${id}" data-words="${esc(words)}"><h3>${esc(label)}</h3>${body()}</section>`).join('')}
+        ${ADV.map(([id, label, words, body]) => `<section class="subsection adv-sec" id="sub-adv-${id}" data-words="${esc(words)}"><h3>${esc(label)} ${helpLink('settings-' + id, label)}</h3>${body()}</section>`).join('')}
         <p class="muted adv-none" hidden>No settings match that.</p>
       </div>` : ''}
     </section>`;
@@ -416,7 +454,7 @@ export function createCellar() {
   // ---- Equip Bob ----
   let eqSelected = 'bob', eqView = (() => { try { return localStorage.getItem('bob-equip-view') || 'doll'; } catch { return 'doll'; } })();
   function eqCtx() {
-    return { roles, models: data?.models || [], brains: settings?.sessionBrains || {}, embed: roles?.current?.embed || '', selected: eqSelected, vramGB: hw?.vramGB || hw?.gpu?.vramGB || null,
+    return { roles, models: data?.models || [], brains: settings?.sessionBrains || {}, embed: roles?.current?.embed || '', selected: eqSelected, vramGB: hw?.vramGB || hw?.gpu?.vramGB || null, ramGB: hw?.ramGB || null, freeGB: hw?.freeGB ?? null, platform: settings?.platform, showUnsuited,
       packs: data?.packs || [], packId: starterPack, picks: starterPicks, engines: data?.engines || [], starterOpen,
       attributes: settings ? attributesHtml({ personality: settings.personality, look: settings.look, lookText: settings.lookText, lookComments: settings.lookComments, user: settings.userName, callMe: settings.callMe, windowsName: settings.windowsName }) : '' };
   }
@@ -469,12 +507,9 @@ export function createCellar() {
   }
   // One model, several slots: offer the other slots it can fill. Empty ones are ticked; occupied ones aren't.
   async function offerMore(slot, value) {
-    let caps = [];
-    try { caps = (await api('/api/models/caps?name=' + encodeURIComponent(value))).caps || []; } catch {}
-    const e = entryOf(data.models, value);
-    const sees = caps.includes('vision') || e?.category === 'vision';
     const ctx = eqCtx();
-    const fits = allSlots().filter((s) => s.id !== slot.id && s.kind === 'llm' && s.how !== 'embed' && (s.id !== 'eyes' || sees) && equipped(s, ctx) !== value);
+    // Only the jobs this model can do (public/fit.js canDo: Bob's list, or what the engine says it can do).
+    const fits = allSlots().filter((s) => s.id !== slot.id && s.kind === 'llm' && s.how !== 'embed' && slotTakes(s, value, ctx) && equipped(s, ctx) !== value);
     const hears = (roles.options.voice || []).find((o) => o.value === `ollama:${value}`);
     if (hears && roles.current.voice !== hears.value) fits.push({ ...allSlots().find((s) => s.id === 'voice'), value: hears.value });
     if (!fits.length) return;
@@ -501,6 +536,11 @@ export function createCellar() {
     try {
       if ((tab === 'style' || (tab === 'settings' && (b.dataset.motion || b.dataset.nowneed))) && mode === 'shop' && await stylePage.onClick(b, settings)) return;
       if (b.dataset.sampleEngine) { sampler.play(b); return; }
+      if (b.dataset.gomodel) { setTab(b.dataset.gocat); jumpTo = ''; draw(); dlg.querySelector('#m-' + CSS.escape(b.dataset.gomodel))?.scrollIntoView({ block: 'center' }); return; }
+      if ('unsuitedsw' in b.dataset) { setShowUnsuited(!showUnsuited); draw(); return; }
+      if ('lookcomments' in b.dataset) { const on = b.getAttribute('aria-checked') !== 'true'; const r = await api('/api/settings', { lookComments: on }); settings.lookComments = r.lookComments; b.setAttribute('aria-checked', String(r.lookComments)); b.querySelector('.st').textContent = r.lookComments ? 'On' : 'Off'; return; }
+      if ('unsuited' in b.dataset) { setShowUnsuited(!showUnsuited); draw(); return; }
+      if (b.dataset.help) { window.dispatchEvent(new CustomEvent('bob-help', { detail: b.dataset.help })); return; }
       if (b.dataset.userole) {
         const r = await api('/api/models/role', { job: b.dataset.userole, value: b.dataset.value });
         roles.current[b.dataset.userole] = b.dataset.value;
@@ -613,20 +653,21 @@ export function createCellar() {
     } catch (err) { alertIn(b, err.message); }
   });
 
-  // Drag a model from the kit onto a slot. Only slots of the same kind light up and take it.
+  // Drag a model from the kit onto a slot. Only slots that can do that job light up and take it.
   let dragKit = null;
+  const takes = (sl) => dragKit && sl.dataset.kind === dragKit.kind && slotTakes(allSlots().find((x) => x.id === sl.dataset.slot), dragKit.value, eqCtx());
   dlg.addEventListener('dragstart', (e) => {
     const li = e.target.closest?.('li.kit[draggable]');
     if (!li) return;
     dragKit = { value: li.dataset.equip, kind: li.dataset.kind };
     e.dataTransfer.effectAllowed = 'copy';
     try { e.dataTransfer.setData('text/plain', dragKit.value); } catch {}
-    for (const sl of dlg.querySelectorAll('.slot')) sl.classList.toggle('can-drop', sl.dataset.kind === dragKit.kind);
+    for (const sl of dlg.querySelectorAll('.slot')) sl.classList.toggle('can-drop', takes(sl));
   });
   dlg.addEventListener('dragend', () => { dragKit = null; for (const sl of dlg.querySelectorAll('.slot')) sl.classList.remove('can-drop', 'drop-here'); });
   dlg.addEventListener('dragover', (e) => {
     const sl = e.target.closest?.('.slot');
-    if (!sl || !dragKit || sl.dataset.kind !== dragKit.kind) return;
+    if (!sl || !takes(sl)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     sl.classList.add('drop-here');
@@ -634,7 +675,7 @@ export function createCellar() {
   dlg.addEventListener('dragleave', (e) => { e.target.closest?.('.slot')?.classList.remove('drop-here'); });
   dlg.addEventListener('drop', async (e) => {
     const sl = e.target.closest?.('.slot');
-    if (!sl || !dragKit || sl.dataset.kind !== dragKit.kind) return;
+    if (!sl || !takes(sl)) return;
     e.preventDefault();
     const kit = dragKit; dragKit = null;
     try { await equip(sl.dataset.slot, kit.value); } catch (err) { alertIn(sl, err.message); }
@@ -660,7 +701,6 @@ export function createCellar() {
       if (el.dataset.dial) { const p = dialValues(); const r = await api('/api/settings', { personality: p }); settings.personality = r.personality; showDials(r.personality); return; }
       if ('preset' in el.dataset) { const ps = PRESETS.find((x) => x.id === el.value); if (!ps) return; const r = await api('/api/settings', { personality: ps.set }); settings.personality = r.personality; draw(); return; }
       if ('callme' in el.dataset) { const r = await api('/api/settings', { callMe: el.value }); settings.userName = r.userName; settings.callMe = r.callMe; el.value = r.callMe; showDials(dialValues()); flash(el, `Saved. Bob calls you ${r.userName}.`); return; }
-      if ('lookcomments' in el.dataset) { const r = await api('/api/settings', { lookComments: el.checked }); settings.lookComments = r.lookComments; flash(el, 'Saved.'); return; }
       if ('starterpack' in el.dataset) { starterPack = el.value; starterPicks = null; draw(); return; }
       if (el.dataset.starterpick) { const p = new Set(currentPicks()); el.checked ? p.add(el.dataset.starterpick) : p.delete(el.dataset.starterpick); starterPicks = p; draw(); return; }
       if (el.dataset.tts) { const v = el.dataset.tts === 'speed' ? Number(el.value) : el.value; const r = await api('/api/settings', { tts: { [el.dataset.tts]: v } }); settings.tts = { ...settings.tts, ...r.tts }; if (el.dataset.tts === 'voice') { const sb = el.closest('.row')?.querySelector('[data-sample-engine="kokoro"]'); if (sb) sb.dataset.sampleVoice = el.value; } flash(el, 'Saved. Press ▶ Hear a sample to hear it.'); return; }

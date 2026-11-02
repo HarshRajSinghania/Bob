@@ -118,7 +118,7 @@ body.still .mic.on { animation: none; }
 .cellar::backdrop { background: var(--backdrop); }
 .cellar-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); z-index: 1; }
 .cellar-head h2 { margin: 0; font-size: 18px; }
-#cellar-body, #tasks-body, #downloads-body, #topics-body, #tidy-body { padding: 12px 14px 16px; }
+#cellar-body, #tasks-body, #downloads-body, #topics-body, #tidy-body, #help-body { padding: 12px 14px 16px; }
 .cellar button { font: inherit; padding: 7px 12px; border-radius: calc(var(--r) * 1); border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
 .cellar button:hover { border-color: var(--accent); }
 .cellar button.get { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
@@ -647,3 +647,37 @@ details.more > summary:hover { color: var(--accent); }
 .brain-switch.hands-btn[data-on="true"] .st { background: var(--good); color: #10200f; }
 .brain-switch.hands-btn[data-state="stopped"] .st { background: var(--bad); color: var(--on-accent); }
 .brain-switch.hands-btn[data-state="settings-off"] { opacity: .75; }
+
+/* Recommended models and Help (1.5.4) */
+.tag.rec { background: var(--good-bg); color: var(--text); border: 1px solid var(--good); font-weight: 700; }
+.fit-why { display: block; font-size: 12px; margin-top: 2px; }
+.fit-banner { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
+.fit-banner p { margin: 4px 0; }
+.unsuited-note { margin: 8px 0; }
+.jobs-line { margin: 2px 0 6px; font-size: 13px; }
+.help-link { min-width: 32px; min-height: 32px; font-weight: 700; padding: 2px 8px; margin-left: 6px; vertical-align: middle; }
+.help { display: flex; flex-direction: column; gap: 10px; }
+.help-search { width: 100%; max-width: 32em; padding: 8px 10px; font-size: 15px; position: sticky; top: 0; z-index: 2; background: var(--panel); box-shadow: 0 0 0 8px var(--panel); }
+.help-cols { display: grid; grid-template-columns: minmax(170px, 230px) 1fr; gap: 18px; align-items: start; }
+.help-toc { position: sticky; top: 52px; font-size: 14px; max-height: 80vh; overflow: auto; }
+.help-toc ul { list-style: none; margin: 0; padding: 0; }
+.help-toc ul ul { margin: 2px 0 10px; }
+.help-toc a { display: inline-block; padding: 4px 0; min-height: 24px; color: var(--accent); }
+.help-entry { border-bottom: 1px solid var(--line); padding: 4px 0 12px; scroll-margin-top: 8px; transition: background .4s; }
+.help-entry.flash { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.help-entry table { border-collapse: collapse; margin: 6px 0; }
+.help-entry th, .help-entry td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.help-entry dt { font-weight: 700; margin-top: 6px; }
+.help-entry dd { margin: 0 0 4px 0; }
+.help-entry a { color: var(--accent); }
+#help { width: min(1000px, 96vw); }
+@media (max-width: 700px) { .help-cols { grid-template-columns: 1fr; } .help-toc { position: static; } }
+.fit-picks { margin: 4px 0; padding-left: 18px; font-size: 14px; }
+.fit-picks li { margin: 2px 0; }
+.pill-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 40px; padding: 6px 12px; margin: 6px 0; font: inherit; text-align: left; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: var(--r); cursor: pointer; }
+.pill-switch .ps-text strong { color: var(--text); }
+.pill-switch .st { flex: none; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: var(--line); color: var(--muted); }
+.pill-switch[aria-checked="true"] { color: var(--text); }
+.pill-switch[aria-checked="true"] .st { background: var(--accent); color: var(--on-accent); }
+.pill-switch:hover, .pill-switch:focus-visible { border-color: var(--accent); }
+@media (forced-colors: active) { .pill-switch .st { border: 1px solid CanvasText; } }

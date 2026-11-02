@@ -12,6 +12,7 @@ import { createLayout } from './layout.js';
 import { esc, render, renderRich, fileCard } from './rich.js';
 import { createTopics } from './topics.js';
 import { createTidy } from './tidy.js';
+import { createHelp } from './help.js';
 import { handsApproval, onHandsEvent } from './hands.js';
 import { createBrainBar } from './brain-bar.js';
 import { createHandsSwitch } from './hands-switch.js';
@@ -230,6 +231,8 @@ const topicsPage = createTopics({ api, openChat: (id, msgId) => openChat(id, msg
 const tidyPage = createTidy({ api, onCount: (n) => countBadge($('tidyBtn'), n) });
 $('topicsBtn').onclick = () => topicsPage.open();
 $('tidyBtn').onclick = () => tidyPage.open();
+const helpPage = createHelp();
+$('helpBtn').onclick = () => helpPage.open();
 window.addEventListener('bob-tidy', () => tidyPage.open());
 // "Ask Bob what he thinks" (Equip Bob, Attributes): puts the question in the chat and sends it.
 window.addEventListener('bob-ask', (e) => { const t = String(e.detail || '').slice(0, 300); if (!t) return; $('input').value = t; $('composer').requestSubmit(); });

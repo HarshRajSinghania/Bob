@@ -49,7 +49,8 @@ const ctx = { roles, models, brains: { small: 'gemma4:e4b' }, embed: '', selecte
   check('helper brains can be taken off; the main brain can\'t', /data-unequip="reviewer"/.test(html) && !/data-unequip="bob"/.test(html));
   check('the Windows voice is not something to take off', !/data-unequip="speech"/.test(html));
   check('a plain list is one click away', /data-eqview="list"/.test(html));
-  check('the weight bar says when not everything fits at once', /Not all at once|All of it fits/.test(equipHtml({ ...ctx, vramGB: 4 })) && /class="meter over"/.test(equipHtml({ ...ctx, vramGB: 4 })));
+  check('the weight bar says when not everything fits at once', /alone needs more than your 4\.0 GB card/.test(equipHtml({ ...ctx, vramGB: 4 })) && /class="meter over"/.test(equipHtml({ ...ctx, vramGB: 4 })));
+  check('over the card in total is normal: neutral bar, plain words', /so Bob loads what each job needs/.test(equipHtml({ ...ctx, vramGB: 7, models: ctx.models.map((m) => (m.id === 'z-image-turbo' ? { ...m, vramGB: 5 } : m)) })) && !/class="meter over"/.test(equipHtml({ ...ctx, vramGB: 7, models: ctx.models.map((m) => (m.id === 'z-image-turbo' ? { ...m, vramGB: 5 } : m)) })));
   check('nothing nasty gets through a model name', !/<script/.test(equipHtml({ ...ctx, roles: { ...roles, current: { ...roles.current, bob: '<script>x</script>' } } })));
 }
 

@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { appDir, saveSettings } from './config.js';
@@ -208,7 +209,8 @@ export class ModelShop {
     try { const s = fs.statfsSync(this.cfg.agentDir); freeGB = Math.round((s.bavail * s.bsize) / 1e9); } catch {}
     const vram = gpu?.vramGB ?? this.cfg.gpuVramGB ?? 0;
     const pack = this.catalog.packs.find((p) => vram >= p.minVramGB) || this.catalog.packs.at(-1);
-    return { gpu, freeGB, vramGB: vram || null, suggestedPack: pack.id };
+    const ramGB = Math.round(os.totalmem() / 1024 ** 3) || null; // for brains that spill out of the graphics card into RAM
+    return { gpu, freeGB, vramGB: vram || null, ramGB, suggestedPack: pack.id };
   }
 
   // ---- The download manager ----
@@ -537,6 +539,15 @@ export class ModelShop {
     return latestEngine(this.cfg, id, /nvidia|geforce|rtx/i.test(hw.gpu?.name || ''));
   }
 
+  async capsOf(name) {
+    this.capsCache ||= new Map();
+    if (this.capsCache.has(name)) return this.capsCache.get(name);
+    let caps = [];
+    try { if (this.engine?.show) caps = (await Promise.race([this.engine.show(name), new Promise((_, no) => setTimeout(no, 3000).unref?.())]))?.capabilities || []; } catch {}
+    if (caps.length) this.capsCache.set(name, caps); // an empty answer (engine asleep) is asked again next time
+    return caps;
+  }
+
   async roles() {
     const ollama = await this.ollamaNames();
     const names = new Set([...(ollama || []), ...this.ollamaManifests()]);
@@ -544,6 +555,9 @@ export class ModelShop {
       const m = this.catalog.models.find((x) => x.ollama === n);
       return { value: n, label: m ? `${m.name} (${n})` : n };
     });
+    // Brains not in Bob's list: ask the engine what each can do (vision, tools...), so Equip Bob only offers
+    // them for jobs they can do. Asked once per name.
+    await Promise.all(llms.filter((o) => !this.catalog.models.some((x) => x.ollama === o.value)).map(async (o) => { o.caps = await this.capsOf(o.value); }));
     const opts = { images: [], edit: [], video: [], voice: [], speech: [{ value: 'windows', label: 'Windows voices (built in)' }], music: [], sfx: [] };
     const aw = audioReady(this.cfg);
     if (aw.music) opts.music.push({ value: 'ace-step', label: 'ACE-Step (audio tools)' });

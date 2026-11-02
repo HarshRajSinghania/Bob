@@ -157,7 +157,7 @@ export function attributesHtml({ personality, look, lookText, lookComments = tru
       <div><strong>Look:</strong> ${esc(lookText || '')}<br><span class="take">"${esc(bobTake(look))}"</span></div>
     </div>
     <div class="row wrap"><button type="button" class="mini" data-tab="style">Change look</button><button type="button" class="mini" data-askbob="What do you think of how you look right now?">Ask Bob what he thinks</button></div>
-    <label class="switch small"><input type="checkbox" data-lookcomments ${lookComments ? 'checked' : ''}><span>He comments once when you change his look</span></label>
+    <button type="button" class="pill-switch" role="switch" aria-checked="${Boolean(lookComments)}" data-lookcomments><span class="ps-text">He comments once when you change his look</span><span class="st">${lookComments ? 'On' : 'Off'}</span></button>
     <h4>Personality</h4>
     ${DIALS.map((d) => `<label class="dial"><span class="dial-name">${esc(d.name)}</span>
       <input type="range" min="0" max="4" step="1" value="${p[d.id]}" data-dial="${d.id}" aria-label="${esc(d.name)}: ${esc(d.left)} to ${esc(d.right)}">
