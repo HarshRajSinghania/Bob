@@ -154,7 +154,11 @@ const server = http.createServer(async (req, res) => {
       const waiting = brain.queue.filter((j) => j.state === 'waiting').length;
       const quietFor = Math.round((Date.now() - brain.lastActivity) / 1000);
       const busy = brain.turns.size > 0, downloading = Boolean(shop.job);
-      return send(res, 200, { idle: !busy && !waiting && !downloading && quietFor >= 120, busy, waiting, downloading, quietForSeconds: quietFor });
+      // Models still sitting in memory (a quiet Bob can still be holding the graphics card), for anything that
+      // wants the card to itself, like a benchmark. Doesn't change "idle"; it's extra information.
+      let loaded = [];
+      try { loaded = (await Promise.race([brain.engine.loaded(), new Promise((r) => setTimeout(() => r([]), 2500))])).map((m) => ({ name: m.name, vramGB: m.vram ? Math.round(m.vram / 1e8) / 10 : null })); } catch {}
+      return send(res, 200, { idle: !busy && !waiting && !downloading && quietFor >= 120, busy, waiting, downloading, quietForSeconds: quietFor, loaded, engine: cfg.engine });
     }
     if (req.method === 'GET' && p === '/api/engines/latest') {
       try { return send(res, 200, await shop.engineLatest(String(url.searchParams.get('id') || ''))); }

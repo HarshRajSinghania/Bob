@@ -106,8 +106,8 @@ export class Brain {
 
   history(id) {
     return this.session(id)
-      .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content)
-      .map((m) => ({ role: m.role, content: m.role === 'user' && m.text != null ? m.text : m.content, pics: (m.refs || []).map((id) => this.refs.find(id)).filter(Boolean).map((r) => ({ name: r.name, url: `/refs/${r.file}` })) }));
+      .filter((m) => (m.role === 'user' || m.role === 'assistant') && (m.content || m.media?.length))
+      .map((m) => ({ role: m.role, content: m.role === 'user' && m.text != null ? m.text : (m.content || ''), ...(m.media?.length ? { media: m.media } : {}), pics: (m.refs || []).map((id) => this.refs.find(id)).filter(Boolean).map((r) => ({ name: r.name, url: `/refs/${r.file}` })) }));
   }
 
   // Makes sure a model is in memory, telling the user first if it means a wait.
@@ -422,8 +422,23 @@ export class Brain {
     const shared = this.session(sessionId);
     const msgs = shared.slice();
     const base = msgs.length;
-    try { return await this.runOn(msgs, text, emit, signal, pics, job); }
-    finally { shared.push(...msgs.slice(base)); }
+    // Pictures, clips and sounds Bob makes are kept with his reply, so they're still in the chat after a
+    // reload, a restart or a missed live event (they used to exist only as a live event).
+    const media = [];
+    const keep = (ev) => {
+      if (['image', 'video', 'audio'].includes(ev.type) && typeof ev.url === 'string' && ev.url.startsWith('/images/')) media.push({ type: ev.type, url: ev.url, name: path.basename(decodeURIComponent(ev.url.slice(8))) });
+      return emit(ev);
+    };
+    try { return await this.runOn(msgs, text, keep, signal, pics, job); }
+    finally {
+      if (media.length) {
+        const added = msgs.slice(base);
+        let reply = [...added].reverse().find((m) => m.role === 'assistant' && !m.tool_calls);
+        if (!reply) { reply = { role: 'assistant', content: '' }; msgs.push(reply); }
+        reply.media = [...(reply.media || []), ...media].slice(0, 24);
+      }
+      shared.push(...msgs.slice(base));
+    }
   }
 
   async runOn(msgs, text, emit, signal, pics, job = null) {

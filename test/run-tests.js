@@ -256,6 +256,7 @@ try {
     await post('/api/activity', {});
     const after = await (await fetch(base + '/api/idle')).json();
     check(before.quietForSeconds >= 1 && after.quietForSeconds === 0 && after.idle === false, 'clicking or typing in Bob\'s window counts as activity, so an update waits');
+    check(Array.isArray(after.loaded) && after.engine === 'ollama', 'the idle check lists the models still loaded');
   }
 } catch (e) {
   console.error(e);

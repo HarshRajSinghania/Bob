@@ -399,7 +399,18 @@ function onEvent(ev) {
 function connect() {
   const es = new EventSource('/api/events');
   es.onmessage = (m) => { try { onEvent(JSON.parse(m.data)); } catch (e) { console.error(e); } };
-  es.onerror = () => { statusEl.textContent = 'Bob\'s brain isn\'t answering. Retrying...'; statusEl.className = 'status waiting'; };
+  let dropped = false;
+  es.onerror = () => { dropped = true; statusEl.textContent = 'Bob\'s brain isn\'t answering. Retrying...'; statusEl.className = 'status waiting'; };
+  // Back after a gap: anything Bob made meanwhile is in his saved replies, so show what this window missed.
+  es.onopen = () => { if (dropped) { dropped = false; catchUpMedia(); } };
+}
+async function catchUpMedia() {
+  try {
+    const h = await (await fetch('/api/history?session=' + encodeURIComponent(sessionId))).json();
+    const seen = new Set([...log.querySelectorAll('img[src], video[src], audio[src]')].map((el) => el.getAttribute('src')));
+    const missed = h.slice(-6).filter((m) => m.role === 'assistant').flatMap((m) => m.media || []).filter((m) => !seen.has(m.url));
+    if (missed.length) { add('msg bob', mediaHtml(missed)); scrollDown(); }
+  } catch {}
 }
 
 // ---------- Sending ----------
@@ -495,6 +506,16 @@ document.addEventListener('drop', (e) => {
   e.preventDefault();
   attachFiles(e.dataTransfer?.files || []);
 });
+// What Bob made in a reply (saved with it, so it's back after a reload): pictures, clips and sounds.
+function mediaHtml(media) {
+  if (!media?.length) return '';
+  return media.map((m) => {
+    const url = esc(m.url), name = esc(m.name || '');
+    if (m.type === 'video') return `<video src="${url}" controls loop muted aria-label="Clip Bob made" title="${name}"></video>`;
+    if (m.type === 'audio') return `<audio src="${url}" controls preload="none" aria-label="Sound Bob made" title="${name}" style="display:block;width:100%;margin-top:6px"></audio>`;
+    return `<img src="${url}" alt="Picture Bob painted" title="${name}">`;
+  }).join('');
+}
 function picsHtml(pics) {
   return pics?.length ? `<div class="pics">${pics.map((p) => `<img src="${esc(p.url)}" alt="${esc(p.name)}" title="${esc(p.name)}">`).join('')}</div>` : '';
 }
@@ -580,7 +601,7 @@ window.addEventListener('bob-caps', applyCaps);
 async function start() {
   try {
     const h = await (await fetch('/api/history?session=' + encodeURIComponent(sessionId))).json();
-    for (const m of h.slice(-20)) add(m.role === 'user' ? 'msg you' : 'msg bob', m.role === 'user' ? esc(m.content) + picsHtml(m.pics) : render(m.content));
+    for (const m of h.slice(-20)) add(m.role === 'user' ? 'msg you' : 'msg bob', m.role === 'user' ? esc(m.content) + picsHtml(m.pics) : render(m.content) + mediaHtml(m.media));
   } catch {}
   let cat = 'Patches';
   try { cat = (await (await fetch('/api/settings')).json()).catName || cat; } catch {}
