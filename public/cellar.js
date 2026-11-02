@@ -45,6 +45,16 @@ export function createCellar() {
     return '';
   }
 
+  // A model whose files are here but whose engine isn't: say so plainly, with the Get button right there.
+  const ENGINE_SIZE = { kokoro: 'about 100 MB', chatterbox: 'about 4 GB to set up', piper: 'about 25 MB', audio: 'about 6 GB', llamacpp: 'about 20 to 600 MB', sdcpp: 'about 20 to 600 MB', whispercpp: 'about 20 to 600 MB' };
+  const engineById = (id) => (data?.engines || []).find((e) => e.id === id);
+  function engineStep(eng, what = 'Downloaded') {
+    if (!eng || eng.installed) return '';
+    if (live.has('engine:' + eng.id)) return `<div class="engine-step">${progress(live.get('engine:' + eng.id))}</div>`;
+    if (settings?.platform && settings.platform !== 'win32') return `<p class="muted">${esc(what)}. ${esc(eng.name)} only runs on Windows.</p>`;
+    return `<div class="model engine-step"><p><strong>${esc(what)}. One more step:</strong> get the ${esc(eng.name)} engine${ENGINE_SIZE[eng.id] ? ` (${ENGINE_SIZE[eng.id]})` : ''}, which runs it.</p><button class="get" data-engine="${esc(eng.id)}">Get ${esc(eng.name)}</button><div class="confirm" hidden></div></div>`;
+  }
+
   function action(m) {
     const s = m.status;
     if (live.has(m.id)) return progress(live.get(m.id));
@@ -52,7 +62,8 @@ export function createCellar() {
     if (waiting) return `<div class="muted">${waiting.state === 'queued' ? 'Waiting its turn in Downloads.' : waiting.state === 'paused' ? 'Paused in Downloads.' : 'Failed: see Downloads.'}</div><button data-opendl>Open Downloads</button>`;
     if (s.state === 'installed') {
       const where = s.where.length ? `On this PC (${esc(s.where.join(', '))})` : 'On this PC';
-      return `<div class="have">✓ ${where}</div>${m.use ? `<button data-use="${esc(m.id)}">Use this</button>` : ''}`;
+      const eng = m.needs && (data.engines || []).find((e) => e.name === m.needs);
+      return `<div class="have">✓ ${where}</div>${m.use ? `<button data-use="${esc(m.id)}">Use this</button>` : ''}${engineStep(eng)}`;
     }
     if (!s.canDownload) return `<div class="muted">Needs Ollama running to download.</div>`;
     const part = s.state === 'partial' ? ' (some files are already here)' : '';
@@ -150,15 +161,15 @@ export function createCellar() {
     if (!list.length) return '';
     const cur = settings.tts?.voice;
     return `<details class="voices"><summary>Hear all ${list.length} Kokoro voices</summary>
-      ${list[0].installed ? '' : '<p class="muted">Kokoro isn\'t on this PC yet, so only the voices that come with Bob can play. The rest play after Kokoro is in.</p>'}
-      <ul class="voice-grid">${list.map((v) => `<li class="sample-row"><span>${esc(v.label)}${canUse && v.voice === cur ? ' <span class="tag good">Bob\'s voice</span>' : ''}</span>${v.have === 'none' ? '<span class="muted">after Kokoro is in</span>' : hear('kokoro', v.voice, 'Play')}${canUse && v.voice !== cur ? `<button type="button" class="link" data-usevoice="${esc(v.voice)}">Use</button>` : ''}</li>`).join('')}</ul></details>`;
+      ${list[0].installed ? '' : list[0].filesHere ? engineStep(engineById('kokoro'), 'Voices downloaded') + '<p class="muted">Until then only the voices that come with Bob can play.</p>' : '<p class="muted">Kokoro isn\'t set up yet: it needs the voice pack (Speech tab) and the Kokoro engine (Settings, Engines). Until then only the voices that come with Bob can play.</p>'}
+      <ul class="voice-grid">${list.map((v) => `<li class="sample-row"><span>${esc(v.label)}${canUse && v.voice === cur ? ' <span class="tag good">Bob\'s voice</span>' : ''}</span>${v.have === 'none' ? `<span class="muted">${v.filesHere ? 'after the Kokoro engine' : 'needs Kokoro'}</span>` : hear('kokoro', v.voice, 'Play')}${canUse && v.voice !== cur ? `<button type="button" class="link" data-usevoice="${esc(v.voice)}">Use</button>` : ''}</li>`).join('')}</ul></details>`;
   }
 
   function voiceHtml() {
     const t = settings.tts || {};
     if (t.provider === 'kokoro') return `<div class="row"><label class="pick"><strong>Bob's voice (Kokoro)</strong><select data-tts="voice">${(settings.kokoroVoices || []).map(([id, label]) => `<option value="${esc(id)}" ${id === t.voice ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select></label><span class="sample-row">${hear('kokoro', t.voice || 'am_michael')}</span>
-      <label class="pick"><strong>Speed: <b data-speedlabel>${(t.speed || 1).toFixed(1)}×</b></strong><input type="range" min="0.6" max="1.6" step="0.1" data-tts="speed" value="${t.speed || 1}"></label></div>${kokoroGrid(true)}`;
-    if (t.provider === 'chatterbox') return `<div><strong>Bob's voice (Chatterbox)</strong><p class="muted">To copy a voice, put a clear 10 to 20 second recording named bob.wav in ${esc(t.voicesFolder)}. Only use a voice you have the right to use (your own, or one you have permission for).</p>${voiceOf('chatterbox', 'bob')?.installed ? `<p class="sample-row">${hear('chatterbox', 'bob')}</p>` : ''}</div>`;
+      <label class="pick"><strong>Speed: <b data-speedlabel>${(t.speed || 1).toFixed(1)}×</b></strong><input type="range" min="0.6" max="1.6" step="0.1" data-tts="speed" value="${t.speed || 1}"></label></div>${engineStep(engineById('kokoro'), voiceOf('kokoro', t.voice || 'am_michael')?.filesHere ? 'Voices downloaded' : 'Kokoro is picked as Bob\'s voice')}${kokoroGrid(true)}`;
+    if (t.provider === 'chatterbox') return `<div><strong>Bob's voice (Chatterbox)</strong><p class="muted">To copy a voice, put a clear 10 to 20 second recording named bob.wav in ${esc(t.voicesFolder)}. Only use a voice you have the right to use (your own, or one you have permission for).</p>${voiceOf('chatterbox', 'bob')?.installed ? `<p class="sample-row">${hear('chatterbox', 'bob')}</p>` : engineStep(engineById('chatterbox'), 'Chatterbox is picked as Bob\'s voice')}</div>`;
     return `<div><strong>Bob's voice (Windows)</strong><p class="sample-row">${sampleButton('windows', 'default', 'Hear a sample', 'The voice built into Windows.')}</p></div>`;
   }
 

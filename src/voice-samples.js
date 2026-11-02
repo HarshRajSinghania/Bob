@@ -44,7 +44,7 @@ export function voiceList(cfg, shop) {
   const kok = speech.find((m) => m.use?.tts?.provider === 'kokoro');
   const kLoc = kok ? shop.locate(kok) : {};
   const kokOn = ready.kokoro && Boolean(kLoc.model && kLoc.voices);
-  for (const [id, label] of KOKORO_VOICES) out.push({ engine: 'kokoro', voice: id, label, installed: kokOn, model: kLoc.model, voices: kLoc.voices, page: KOKORO_VOICES_PAGE, source: "Kokoro's voice list" });
+  for (const [id, label] of KOKORO_VOICES) out.push({ engine: 'kokoro', voice: id, label, installed: kokOn, filesHere: Boolean(kLoc.model && kLoc.voices), model: kLoc.model, voices: kLoc.voices, page: KOKORO_VOICES_PAGE, source: "Kokoro's voice list" });
   for (const m of speech.filter((x) => x.use?.tts?.provider === 'piper')) {
     const loc = shop.locate(m);
     out.push({ engine: 'piper', voice: m.id.replace(/^piper-/, ''), label: m.name, catalogId: m.id, installed: fs.existsSync(piperExe(cfg)) && Boolean(loc.model && loc.config), model: loc.model, config: loc.config, official: piperOfficial(m), page: PIPER_SAMPLES_PAGE, source: "Piper's sample page (rhasspy.github.io)" });
@@ -72,7 +72,7 @@ function sampleState(cfg, v) {
 }
 
 // What the window shows in the list (no file paths).
-export const publicView = (list) => list.map(({ engine, voice, label, installed, have, official, page, source, catalogId }) => ({ engine, voice, label, installed, have, official: official || '', page: page || '', source: source || '', catalogId }));
+export const publicView = (list) => list.map(({ engine, voice, label, installed, filesHere, have, official, page, source, catalogId }) => ({ engine, voice, label, installed, filesHere: Boolean(filesHere), have, official: official || '', page: page || '', source: source || '', catalogId }));
 
 const making = new Map();
 // Returns { file } to play, or { online, page, source } for the browser to load on the click, or { none }.

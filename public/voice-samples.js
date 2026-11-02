@@ -11,6 +11,7 @@ export function sampleButton(engine, voice, label = 'Hear a sample', hint = '') 
 // What a sample button's hint says before it's clicked.
 export function sampleHint(v) {
   if (!v) return '';
+  if (!v.installed && v.filesHere && v.have !== 'saved' && v.have !== 'bundled') return `Voices downloaded. One more step: get the Kokoro engine (Settings), then this plays.${v.have === 'online' ? ` Until then: the official sample from ${v.source}.` : ''}`;
   return { saved: 'Plays at once (made on this PC before).', bundled: 'Plays at once (comes with Bob).', make: 'Bob makes it with the voice on this PC: a few seconds the first time.', online: `Not on this PC yet: plays the official sample from ${v.source}.`, none: 'No sample until this voice is on the PC.' }[v.have] || '';
 }
 

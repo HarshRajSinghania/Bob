@@ -49,8 +49,17 @@ list = voiceList(cfg, shop);
 check('a clip shipped with Bob plays even without Kokoro', by('kokoro', 'bm_george').have === 'bundled' && (await sampleFor(cfg, shop, 'kokoro', 'bm_george')).from === 'bundled');
 
 // Kokoro installed: made with the chosen voice, two clicks at once make it once.
-audio.voicePython.kokoro = process.execPath;
+// 1.1.1: the voice pack is downloaded but the Kokoro engine isn't: say "one more step", not "after Kokoro is in".
 have.set('kokoro-v1', { model: kModel, voices: kVoices });
+{
+  const { sampleHint } = await import('../public/voice-samples.js');
+  const v = publicView(voiceList(cfg, shop)).find((x) => x.engine === 'kokoro' && x.voice === 'af_heart');
+  check('voices downloaded without the engine are reported as such', v.filesHere === true && v.installed === false);
+  check('the hint says to get the Kokoro engine', /One more step: get the Kokoro engine/.test(sampleHint(v)));
+  const ui = fs.readFileSync('public/cellar.js', 'utf8');
+  check('settings show a Get button for the missing engine where the voices are', /function engineStep/.test(ui) && /engineStep\(engineById\('kokoro'\), 'Voices downloaded'\)/.test(ui) && /engineStep\(engineById\('chatterbox'\)/.test(ui) && /data-engine="\$\{esc\(eng\.id\)\}"/.test(ui) && !/after Kokoro is in/.test(ui));
+}
+audio.voicePython.kokoro = process.execPath;
 const [a, b] = await Promise.all([sampleFor(cfg, shop, 'kokoro', 'af_heart'), sampleFor(cfg, shop, 'kokoro', 'af_heart')]);
 const k = JSON.parse(fs.readFileSync(a.file).toString('utf8', 16));
 check('Kokoro makes the sample in the voice that was clicked', k.engine === 'kokoro' && k.voice === 'af_heart' && a.file === b.file);

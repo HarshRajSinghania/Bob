@@ -458,3 +458,7 @@ button.danger { background: #a8432f; color: #fff; border-color: #a8432f; }
 .row.wrap { flex-wrap: wrap; }
 .msg.flash { outline: 2px solid var(--accent); }
 .mini { font-size: 12px; padding: 1px 7px; }
+
+/* "One more step" engine prompt (1.1.1) */
+.model.engine-step { border: 1px dashed var(--accent); border-radius: var(--r); padding: 6px 8px; margin-top: 6px; background: transparent; }
+.model.engine-step p { margin: 0 0 6px; }
