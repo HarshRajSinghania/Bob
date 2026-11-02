@@ -31,7 +31,7 @@ import { scheduleTools } from './hands-schedules.js';
 import { toolsOff, HANDS, handOn, handOffWhy, freeOn } from './hands-settings.js';
 import { gate as qGate, after as qAfter, maybeAsk as qAsk, noteStrike, copyHeld } from './quarantine.js';
 import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUseTools, STICKY_TURNS, toolboxPrompt, saysCant } from './toolbox.js';
-import { Gate, Ledger, safeToResume, interruptedNote, withRetry } from './handoff.js';
+import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff } from './handoff.js';
 import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
 
@@ -166,6 +166,8 @@ export class Brain {
       if (loaded) { this.engine.touch?.(model, { cpu, ctx })?.catch?.(() => {}); return false; }
       this.setState('waking', 'Waking up...', model);
       this.broadcast({ type: 'brain' });
+      // Same manners as the gate: the picture engine (kept loaded after a picture) makes room first, unless both fit.
+      if (!cpu && this.painter?.yieldFor) await this.painter.yieldFor(model, { bytes: this.gate.brainBytes(model, { ctx }) }).catch(() => {});
       const took = await this.engine.preload(model, undefined, { cpu, ctx });
       this.log('model', `woke ${model} in ${took.toFixed(1)} s (${reason})`);
       return true;
@@ -811,6 +813,7 @@ export class Brain {
       .finally(() => {
         this.saveSession(sessionId);
         this.gate.done(controller.signal); // the graphics card goes to the next job waiting for it
+        if (job?.handoff) job.handoff = slimHandoff(job.handoff); // finished: keep what it did, drop the load-by-load steps
         this.turns.delete(lane);
         this.lastActivity = Date.now();
         emit({ type: 'done' });

@@ -88,10 +88,13 @@ const p5 = new PainterServer({ ...mk(), ollamaKeepAlive: '1m' }, opts);
 check('grace is min(2 minutes, idle setting)', p5.graceMs() === 60000 && new PainterServer({ ...mk(), ollamaKeepAlive: '30m' }, opts).graceMs() === 120000);
 
 // 6. Sharing the card with a brain (yieldFor).
-p = new PainterServer(mk(), { vramOf: async () => 0, freeVram: async () => 8 * 1024 ** 3 });
+p = new PainterServer(mk(), { vramOf: async () => 0, freeVram: async () => 8 * 1024 ** 3, freeRam: () => 16 * 1024 ** 3 });
 await p.ensureReady('image');
 check('a brain that fits leaves the painter loaded', (await p.yieldFor('gemma4:e4b', { bytes: 5 * 1024 ** 3 })).length === 0 && p.alive());
 check('a brain that does not fit makes it let go', (await p.yieldFor('qwen3-coder:30b', { bytes: 18 * 1024 ** 3 })).length === 1 && !p.alive());
+p = new PainterServer(mk(), { vramOf: async () => 0, freeVram: async () => 8 * 1024 ** 3, freeRam: () => 6 * 1024 ** 3 });
+await p.ensureReady('image');
+check('a brain that fits the card but not the free system memory makes it let go too (no RAM fight)', (await p.yieldFor('gemma4:e4b', { bytes: 5 * 1024 ** 3 })).length === 1 && !p.alive());
 p = new PainterServer(mk(), opts);
 await p.ensureReady('image');
 check('unknown size or no nvidia-smi: lets go (old behaviour)', (await p.yieldFor('gemma4:e4b')).length === 1 && !p.alive());

@@ -78,6 +78,13 @@ export class Ledger {
   persist() { if (this.job) { this.job.handoff = this.view(); try { this.save(); } catch {} } }
 }
 
+// A finished job keeps what it asked for, what it made and what it did (short), not every load step: the queue file
+// holds up to 200 jobs and is written on every step of the running one.
+export function slimHandoff(h) {
+  if (!h) return h;
+  return { expect: h.expect || null, outputs: (h.outputs || []).slice(-12).map(({ type, file, tool }) => ({ type, file, tool })), actions: (h.actions || []).slice(-12).map(({ name, ok, at }) => ({ name, ok, at })) };
+}
+
 // Tools that change something outside Bob's own chat (a restart must not redo these blindly).
 export const SIDE_EFFECT = /^(app_|open_app|edit_file|write_file|move_|copy_|rename_|delete_|recycle|zip|unzip|run_command|run_recipe|save_|schedule_|make_)/;
 // A job that was cut off by a restart can be picked up again on its own when nothing it did changed the PC.

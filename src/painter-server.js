@@ -18,6 +18,7 @@
 // Settings if that is shorter), then lets go. "Always on" never holds it. Its own setting override, for testing only:
 // painter.sdcpp.keepLoadedSeconds.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 import crypto from 'node:crypto';
@@ -30,6 +31,7 @@ export const CODES = ['painter_unavailable', 'painter_load_failed', 'painter_tim
 export const STATES = ['off', 'loading', 'ready', 'busy', 'error', 'unavailable'];
 const GiB = 1024 ** 3;
 const HEADROOM = 1 * GiB; // kept free on the card when the painter and a brain share it
+const RAM_HEADROOM = 4 * GiB; // and in system memory, for Windows and the apps you have open
 
 function fail(code, message, extra = {}) { return Object.assign(new Error(message), { code, ...extra }); }
 const sleep = (ms, signal) => new Promise((resolve) => {
@@ -78,6 +80,7 @@ export class PainterServer extends EventEmitter {
     this.fetch = opts.fetchImpl || ((...a) => fetch(...a));
     this.vramOf = opts.vramOf || vramOfPid;
     this.freeVram = opts.freeVram || freeVram;
+    this.freeRam = opts.freeRam || (() => os.freemem());
     this.now = opts.now || (() => Date.now());
     this.log = opts.log || (() => {});
     this.child = null;
@@ -323,7 +326,10 @@ export class PainterServer extends EventEmitter {
     while (this.jobs > 0) await sleep(200);
     if (Number(bytes) > 0) {
       const free = await this.freeVram();
-      if (free != null && free - HEADROOM >= bytes) { this.log('painter', `staying loaded: ${model} fits next to it`); return []; }
+      // Both have to fit: the card, and system memory too (the painter's weights wait in RAM with --offload-to-cpu,
+      // and a brain that doesn't fit the card spills into RAM). Otherwise the two fight and both slow right down.
+      const ram = Number(this.freeRam()) || 0;
+      if (free != null && free - HEADROOM >= bytes && ram - RAM_HEADROOM >= bytes) { this.log('painter', `staying loaded: ${model} fits next to it`); return []; }
     }
     return this.unload(`making room for ${model || 'a brain'}`);
   }
