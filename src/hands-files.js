@@ -10,10 +10,10 @@ import { insideAny, isInside, appDir } from './config.js';
 import { isSensitive } from './tools.js';
 import { recycle } from './recycle.js';
 import { collect, writeZip, unzip, readZipList } from './zip.js';
-import { handsSettings } from './hands-settings.js';
+import { handsSettings, readOnlyRoots, limitOn } from './hands-settings.js';
 
 const MAX_ROWS = 500;
-const ACTIONS = ['move', 'copy', 'rename', 'tidy', 'zip', 'unzip', 'recycle'];
+const ACTIONS = ['move', 'copy', 'rename', 'tidy', 'zip', 'unzip', 'recycle', 'delete'];
 
 // Where tidy sorts things. Anything else stays where it is.
 export const KINDS = {
@@ -31,7 +31,7 @@ const PARTIAL = /\.(crdownload|part|partial|download|tmp|opdownload)$/i;
 
 // The folders the Files Hand may work in: the ones the user ticked, minus anything read-only or Bob's own.
 export function handsRoots(cfg) {
-  const ro = [...(cfg.readOnlyRoots || []), appDir, cfg.dataDir].filter(Boolean);
+  const ro = [...readOnlyRoots(cfg), appDir, cfg.dataDir].filter(Boolean);
   return handsSettings(cfg).folders.filter((f) => !insideAny(ro, f));
 }
 
@@ -44,7 +44,7 @@ export function guardPath(cfg, p, { mustExist = true, what = 'that' } = {}) {
   const full = path.resolve(p);
   if (isSensitive(cfg, full)) throw new Error('That holds keys or passwords, so it stays off-limits to me.');
   if (cfg.settingsFile && path.resolve(cfg.settingsFile) === full) throw new Error("That's my own settings file, which I can't change.");
-  if (insideAny([...(cfg.readOnlyRoots || []), appDir, cfg.dataDir].filter(Boolean), full)) throw new Error(`${full} is read-only for me.`);
+  if (insideAny([...readOnlyRoots(cfg), appDir, cfg.dataDir].filter(Boolean), full)) throw new Error(`${full} is read-only for me.`);
   const roots = handsRoots(cfg);
   if (!insideAny(roots, full)) throw new Error(roots.length ? `I can only work with files in: ${roots.join('; ')}. You can tick more folders in Settings, Show advanced settings, Hands.` : 'No folders are ticked for the Files Hand yet. Tick some in Settings, Show advanced settings, Hands.');
   if (mustExist && !fs.existsSync(full)) throw new Error(`${what === 'that' ? full : what} doesn't exist.`);
@@ -186,6 +186,19 @@ export function planFiles(cfg, args = {}) {
     return { action, label: `Unzip ${path.basename(zipFile)} into ${to}`, rows };
   }
 
+  // delete for good: only when the user switched off the "Recycle Bin only" hard limit.
+  if (action === 'delete') {
+    if (limitOn(cfg, 'recycleOnly')) throw new Error('Deleting for good is off ("Recycle Bin only" is on in Settings, Hands). Use recycle instead: it goes to the Recycle Bin.');
+    const from = listArg(args.paths);
+    if (!from.length) throw new Error('Which files? Give their full paths.');
+    for (const f of from) {
+      const src = guardPath(cfg, f);
+      if (handsRoots(cfg).some((r) => path.resolve(r) === src)) { row({ op: 'delete', from: src, to: 'Gone for good', blocked: 'That is one of your ticked folders itself; I only delete things inside it.' }); continue; }
+      row({ op: 'delete', from: src, to: 'Gone for good', note: `${isDir(src) ? 'folder' : mb(sizeOf(src))}, can't be undone`, blocked: secretNote(src) });
+    }
+    return { action, label: `Delete ${from.length} item${from.length === 1 ? '' : 's'} for good (no Recycle Bin, no undo)`, rows };
+  }
+
   // recycle
   const from = listArg(args.paths);
   if (!from.length) throw new Error('Which files? Give their full paths.');
@@ -203,7 +216,7 @@ const mb = (b) => (b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b >= 1e6 ? `${(b / 
 export function planCard(plan) {
   const ok = plan.rows.filter((r) => !r.blocked).length;
   return {
-    text: `${plan.label}${plan.rows.length > 1 ? ` (${ok} of ${plan.rows.length} can go)` : ''}. Nothing is overwritten, and you can undo it.`,
+    text: `${plan.label}${plan.rows.length > 1 ? ` (${ok} of ${plan.rows.length} can go)` : ''}. ${plan.action === 'delete' ? 'This skips the Recycle Bin and can\'t be undone.' : 'Nothing is overwritten, and you can undo it.'}`,
     plan: plan.rows.map(({ id, op, from, to, note, blocked }) => ({ id, op, from, to, note, blocked }))
   };
 }
@@ -247,6 +260,12 @@ export function applyFiles(cfg, plan, picked = null) {
         mkdirs(path.dirname(r.to));
         unzip(r.from, r.to);
         job.steps.push({ op: 'create', path: r.to });
+      } else if (r.op === 'delete') {
+        if (limitOn(cfg, 'recycleOnly')) throw new Error('"Recycle Bin only" is on again, so nothing was deleted.');
+        const src = guardPath(cfg, r.from);
+        if (isDir(src) && secretsInside(cfg, src).length) throw new Error('That folder now holds secret files.');
+        fs.rmSync(src, { recursive: true, force: false });
+        job.steps.push({ op: 'deleted', from: src });
       } else if (r.op === 'recycle') {
         const src = guardPath(cfg, r.from);
         if (isDir(src) && secretsInside(cfg, src).length) throw new Error('That folder now holds secret files.');
@@ -314,6 +333,8 @@ export function undoJob(cfg, id) {
       } else if (s.op === 'recycle') {
         if (s.trashedTo && fs.existsSync(s.trashedTo) && !fs.existsSync(s.from)) { moveOne(s.trashedTo, s.from); done.push(`Put back: ${s.from}`); }
         else manual.push(s.from);
+      } else if (s.op === 'deleted') {
+        failed.push(`${s.from} was deleted for good, so it can't come back.`);
       }
     } catch (e) { failed.push(e.message); }
   }

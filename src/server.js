@@ -21,11 +21,12 @@ import { SESSIONS, currentSession, sessionBrains } from './sessions.js';
 import { plan as uninstallPlan, startUninstall } from './uninstall.js';
 import { voiceList, publicView, sampleFor, clearSamples } from './voice-samples.js';
 import { checkUpdate, startUpdate, updateStatus, requestRestart } from './update.js';
-import { describe as describeFile, openFile } from './files.js';
+import { describe as describeFile, openFile, peek as peekFile } from './files.js';
 import { refuseForeign } from './guard.js';
 import { search } from './search.js';
 import { hkSettings, cleanHousekeeping, KINDS, UNITS } from './housekeeping.js';
 import { handsRoute } from './hands-routes.js';
+import { quarantineRoute } from './quarantine-routes.js';
 import { schedulesRoute, startSchedules } from './hands-schedules.js';
 import { handsSettings } from './hands-settings.js';
 
@@ -61,17 +62,17 @@ const TYPES = {
   '.gif': 'image/gif', '.m4a': 'audio/mp4', '.mov': 'video/quicktime', '.pdf': 'application/pdf', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.csv': 'text/plain; charset=utf-8', '.log': 'text/plain; charset=utf-8'
 };
 
-function send(res, code, body, type = 'application/json') {
-  res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+function send(res, code, body, type = 'application/json', extra = {}) {
+  res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', ...extra });
   res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
-function serveFile(res, dir, rel) {
+function serveFile(res, dir, rel, extra = {}) {
   const file = path.resolve(dir, '.' + path.sep + rel);
   if (!file.startsWith(path.resolve(dir) + path.sep)) return send(res, 404, { error: 'not found' });
   fs.readFile(file, (err, buf) => {
     if (err) return send(res, 404, { error: 'not found' });
-    send(res, 200, buf, TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream');
+    send(res, 200, buf, TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream', extra);
   });
 }
 
@@ -200,7 +201,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && p === '/api/hardware') return send(res, 200, await shop.hardware());
     if (req.method === 'GET' && p === '/api/settings') {
-      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, lookText: lookText(cfg.look), personality: cleanPersonality(cfg.personality), lookComments: cfg.lookComments !== false, userName: cfg.userName || '', callMe: cfg.callMe || '', windowsName: cfg.windowsName || '', engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, allTools: cfg.allTools === true, downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: keepTime(cfg), brainMode: brainMode(cfg), tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg), hands: handsSettings(cfg)  });
+      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, lookText: lookText(cfg.look), personality: cleanPersonality(cfg.personality), lookComments: cfg.lookComments !== false, userName: cfg.userName || '', callMe: cfg.callMe || '', windowsName: cfg.windowsName || '', engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, allTools: cfg.allTools === true, resumeJobs: cfg.resumeJobs === true, quickOnCpu: cfg.quickOnCpu === true, downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: keepTime(cfg), brainMode: brainMode(cfg), tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg), hands: handsSettings(cfg)  });
     }
     if (req.method === 'POST' && p.startsWith('/api/models/') || req.method === 'POST' && p === '/api/settings') {
       if (!isLocal) return send(res, 403, { error: 'Downloads and settings can only be changed on the PC itself.' });
@@ -270,6 +271,8 @@ const server = http.createServer(async (req, res) => {
           if (typeof b.ollamaKeepAlive === 'string' || typeof b.brainMode === 'string') { out.brainMode = brainMode(cfg); out.ollamaKeepAlive = keepTime(cfg); }
           if (typeof b.oneBrain === 'boolean') { saveSettings(cfg, { oneBrain: b.oneBrain }); out.oneBrain = cfg.oneBrain === true; }
           if (typeof b.allTools === 'boolean') { saveSettings(cfg, { allTools: b.allTools }); out.allTools = cfg.allTools === true; }
+          if (typeof b.resumeJobs === 'boolean') { saveSettings(cfg, { resumeJobs: b.resumeJobs }); out.resumeJobs = cfg.resumeJobs === true; }
+          if (typeof b.quickOnCpu === 'boolean') { saveSettings(cfg, { quickOnCpu: b.quickOnCpu }); out.quickOnCpu = cfg.quickOnCpu === true; brain.applyBrainMode?.().catch?.(() => {}); }
           if (b.housekeeping && typeof b.housekeeping === 'object') {
             const cur = hkSettings(cfg), h = b.housekeeping, next = { ...cur };
             if ('enabled' in h) next.enabled = h.enabled === true;
@@ -296,6 +299,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/hands/schedules' && await schedulesRoute({ req, res, p, isLocal, brain, body, send })) return;
     if (p.startsWith('/api/hands') && await handsRoute({ req, res, p, isLocal, brain, cfg, body, send })) return;
+    if (p.startsWith('/api/quarantine') && await quarantineRoute({ req, res, p, isLocal, brain, cfg, body, send })) return;
     if (req.method === 'POST' && p === '/api/transcribe') {
       const chunks = [];
       let size = 0;
@@ -448,7 +452,20 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/file') {
       const d = describeFile(cfg, url.searchParams.get('path') || '');
       if (!d.ok || d.kind === 'folder' || (!isLocal && !d.path.startsWith(path.resolve(cfg.innDir) + path.sep))) return send(res, 404, { error: 'not found' });
-      return serveFile(res, path.dirname(d.path), path.basename(d.path));
+      // A page or picture Bob wrote is shown, never run: no scripts, no reaching Bob's own pages.
+      return serveFile(res, path.dirname(d.path), path.basename(d.path), { 'content-security-policy': 'sandbox; default-src \'none\'; img-src \'self\' data:; media-src \'self\'; style-src \'unsafe-inline\'' });
+    }
+    // The side panel: the start of a text file, and the list of everything Bob made.
+    if (req.method === 'GET' && p === '/api/file/peek') {
+      const d = describeFile(cfg, url.searchParams.get('path') || '');
+      if (!d.ok || (!isLocal && !d.path.startsWith(path.resolve(cfg.innDir) + path.sep))) return send(res, 404, { error: 'not found' });
+      const r = peekFile(cfg, d.path, url.searchParams.get('max'));
+      return r.ok ? send(res, 200, r) : send(res, 404, { error: 'not found' });
+    }
+    if (req.method === 'GET' && p === '/api/made') {
+      const list = brain.made.list({ kind: url.searchParams.get('kind') || '', q: url.searchParams.get('q') || '', limit: Math.min(200, Number(url.searchParams.get('limit')) || 60) });
+      const inn = path.resolve(cfg.innDir) + path.sep;
+      return send(res, 200, isLocal ? list : list.filter((x) => x.path.startsWith(inn)).map((x) => ({ ...x, path: undefined })));
     }
     if (req.method === 'POST' && (p === '/api/open' || p === '/api/clipboard')) {
       if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' });

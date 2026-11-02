@@ -101,8 +101,9 @@ export class LlamaCpp {
   }
 
   // ctx: the session's context size. A different size means restarting llama-server with it.
-  async isLoaded(model, { ctx } = {}) {
-    return this.current === model && (!ctx || this.currentCtx === ctx) && this.child && this.child.exitCode === null && (await this.health());
+  // cpu (1.5.12, Low effort on the processor): the same model on the card is a different load, and the other way round.
+  async isLoaded(model, { ctx, cpu = false } = {}) {
+    return this.current === model && (!ctx || this.currentCtx === ctx) && Boolean(this.currentCpu) === Boolean(cpu) && this.child && this.child.exitCode === null && (await this.health());
   }
 
   // --fit came in with newer llama.cpp builds; older ones would refuse to start with it.
@@ -120,14 +121,14 @@ export class LlamaCpp {
   }
 
   // Everything llama-server is started with, in one place so it can be tested.
-  buildArgs(model, { ctx } = {}) {
+  buildArgs(model, { ctx, cpu = false } = {}) {
     const lc = this.lc;
     const { gguf, mmproj, args: modelArgs } = this.resolve(model);
     const num = (v, flag) => (Number.isInteger(v) && v > 0 ? [flag, String(v)] : []);
     const args = [
       ...(lc.preArgs || []),
       '-m', gguf, '--host', '127.0.0.1', '--port', String(this.port),
-      '-c', String(ctx || lc.ctx || 131072), '-ngl', String(lc.gpuLayers ?? 999), '--jinja',
+      '-c', String(ctx || lc.ctx || 131072), '-ngl', cpu ? '0' : String(lc.gpuLayers ?? 999), '--jinja',
       ...(mmproj && lc.vision !== false ? ['--mmproj', mmproj] : []),
       ...(lc.args || ['-fa', 'on', '-ctk', 'q8_0', '-ctv', 'q8_0']),
       ...num(lc.threads, '-t'), ...num(lc.batch, '-b'), ...num(lc.ubatch, '-ub'),
@@ -138,10 +139,10 @@ export class LlamaCpp {
     // --fit: llama.cpp places layers to fit the card's free memory right now (other apps included), which
     // beat a fixed --n-cpu-moe on a 16 GB card. Used unless a placement is pinned by hand or fit is off.
     const pinned = args.some((a) => ['--n-cpu-moe', '-ncmoe', '--cpu-moe', '-ot', '--override-tensor', '--fit'].includes(a));
-    if (!pinned && this.fitOn()) args.push('--fit', 'on');
+    if (!pinned && !cpu && this.fitOn()) args.push('--fit', 'on');
     // Speculative decoding: a small "draft" model guesses ahead and the big one checks, often 1.5-2x faster.
     const d = lc.draft;
-    if (d?.model && d.model !== model && d.enabled !== false) {
+    if (d?.model && d.model !== model && d.enabled !== false && !cpu) {
       // A file path (a .gguf, or a draft blob inside Ollama's models folder) or an Ollama model name.
       const draft = path.isAbsolute(d.model) || /\.gguf$/i.test(d.model) ? d.model : this.resolve(d.model).gguf;
       args.push('-md', draft, ...num(d.max ?? 16, '--draft-max'), ...num(d.min ?? 1, '--draft-min'), '-ngld', String(d.ngld ?? 99));
@@ -178,14 +179,15 @@ export class LlamaCpp {
     this.child = null;
     this.current = null;
     this.currentCtx = null;
+    this.currentCpu = false;
     if (!c || c.exitCode !== null) return;
     await new Promise((r) => { c.once('exit', r); c.kill(); setTimeout(r, 5000); });
   }
 
-  async preload(model, signal, { ctx } = {}) {
+  async preload(model, signal, { ctx, cpu = false } = {}) {
     const t0 = Date.now();
     this.lastUse = this.now();
-    const args = this.buildArgs(model, { ctx });
+    const args = this.buildArgs(model, { ctx, cpu });
     await this.stopServer();
     // A llama-server left over from a crash would hold the port: stop it first.
     const pidFile = path.join(this.cfg.dataDir, 'llama-server.pid');
@@ -204,6 +206,7 @@ export class LlamaCpp {
     this.child = child;
     this.current = model;
     this.currentCtx = ctx || null;
+    this.currentCpu = Boolean(cpu);
     try { fs.writeFileSync(pidFile, String(child.pid)); } catch {}
     const deadline = Date.now() + (this.lc.loadTimeoutSeconds || 300) * 1000;
     const ready = (async () => {
@@ -262,11 +265,13 @@ export class LlamaCpp {
     try { return await this.chatOnce(opts); } finally { this.active--; this.lastUse = this.now(); }
   }
 
-  async chatOnce({ model, messages, tools, signal, onToken }) {
+  async chatOnce({ model, messages, tools, signal, onToken, think }) {
     const res = await fetch(this.url + '/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model, messages: LlamaCpp.toOpenAI(messages), tools: tools && tools.length ? tools : undefined, stream: true }),
+      body: JSON.stringify({ model, messages: LlamaCpp.toOpenAI(messages), tools: tools && tools.length ? tools : undefined, stream: true,
+        // 1.5.16: a quick reply asks the chat template to skip thinking (templates that don't know the switch ignore it).
+        ...(think === false ? { chat_template_kwargs: { enable_thinking: false } } : {}) }),
       signal
     });
     if (!res.ok) throw new Error(`llama-server returned ${res.status}: ${(await res.text()).slice(0, 300)}`);

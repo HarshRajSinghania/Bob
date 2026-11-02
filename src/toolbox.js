@@ -8,14 +8,14 @@
 // Setting allTools (Advanced, off) sends every tool every time, the old way.
 import { HANDS, handOn, handOffWhy } from './hands-settings.js';
 
-export const CORE = ['notice_board', 'remember', 'reminders', 'list_folder', 'read_file', 'web_search', 'fetch_page', 'ask_specialist', 'use_tools'];
+export const CORE = ['notice_board', 'remember', 'reminders', 'list_folder', 'read_file', 'web_search', 'fetch_page', 'ask_specialist', 'show_made', 'use_tools'];
 
 // Groups Bob can add. `what` is what Bob reads in use_tools; `words` is the cheap pre-check on the user's message.
 const WORK_GROUPS = {
   pictures: {
     what: 'make pictures, video clips, music and sound effects; save reference pictures; ComfyUI workflows', // narrowed to what this PC has, see groupsFor
     tools: ['make_image', 'make_video', 'save_reference', 'make_music', 'make_sound', 'workshop_list', 'workshop_run'],
-    words: /\b(pic|pics|picture|image|photo|draw|drawing|paint|painting|render|sketch|artwork|art|portrait|wallpaper|logo|icon|sprite|concept|illustrat\w*|video|clip|animat\w*|music|song|tune|melody|beat|chiptune|soundtrack|jingle|sound|sfx|workflow|comfy\w*|reference|character sheet)s?\b/i
+    words: /\b((?:picture|image|photo|pic)s? of|pic|pics|picture|image|photo|draw|drawing|paint|painting|render|sketch|artwork|art|portrait|wallpaper|logo|icon|sprite|concept|illustrat\w*|video|clip|animat\w*|music|song|tune|melody|beat|chiptune|soundtrack|jingle|sound|sfx|workflow|comfy\w*|reference|character sheet)s?\b/i
   },
   documents: {
     what: 'write or edit files, save spreadsheets, search inside files',
@@ -76,6 +76,9 @@ export function guessGroups(brain, text) {
   return Object.entries(groupsFor(brain)).filter(([, x]) => x.words.test(t)).map(([id]) => id);
 }
 
+// The chat chip when a group is added (clarity reviewer's words; Hands match their names in Settings).
+const CHIP = { pictures: 'Using his picture tools', documents: 'Using his document tools', files: 'Using his file tools', run: 'Using Hands: run programs', schedules: 'Using Hands: schedules', apps: 'Using Hands: apps', memory: 'Forgetting a topic', cloud: 'Using a cloud helper' };
+
 export const allToolsOn = (cfg) => cfg.allTools === true;
 
 // How many of the chat's next messages a used group stays for.
@@ -103,7 +106,7 @@ export function useToolsTool(brain) {
       ctx.loaded?.add(id);
       return `Added ${id}: ${groups[id].tools.join(', ')}. Call the one you need now.`;
     },
-    summary: ({ group }) => `tools: ${group}`
+    summary: ({ group }) => CHIP[String(group || '').toLowerCase().trim()] || 'Using more of his tools'
   };
 }
 
@@ -128,6 +131,8 @@ export function toolboxPrompt(brain, loaded) {
 }
 
 // "I can't do that" with no tool call: worth one more go with every tool (router test fix). Kept narrow.
+// An empty reply (no words, no tool call) counts too: the router test and a real "show me a picture" both hit it.
 export function saysCant(text) {
+  if (!String(text || '').trim()) return true;
   return /\b(?:I\s*(?:can(?:'|\u2019)?t|cannot|am not able to|'m not able to|am unable to|'m unable to)|I\s+don(?:'|\u2019)?t\s+have\s+(?:a|the|any)\s+(?:tool|way|ability|access))\b/i.test(String(text || ''));
 }

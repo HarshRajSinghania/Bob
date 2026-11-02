@@ -9,15 +9,17 @@ import { createShelf, uploadRef } from './shelf.js';
 import { summary, size } from './progress.js';
 import { createTasks, createDownloads, makeSortable, neighbour, taskRow } from './lists.js';
 import { createLayout } from './layout.js';
-import { esc, render, renderRich, fileCard } from './rich.js';
+import { esc, render, renderRich } from './rich.js';
 import { createTopics } from './topics.js';
 import { createTidy } from './tidy.js';
 import { createHelp } from './help.js';
 import { handsApproval, onHandsEvent } from './hands.js';
 import { createBrainBar } from './brain-bar.js';
 import { createHandsSwitch } from './hands-switch.js';
+import { quarantineCard, quarantineResult, createQuarantineBanner } from './quarantine.js';
 import { createEffort } from './effort.js';
 import { createCatAntics } from './cat-antics.js';
+import { createViewer, outCard, fillPeeks } from './viewer.js';
 
 const cellar = createCellar();
 const api = async (url, data) => {
@@ -34,8 +36,10 @@ const $ = (id) => document.getElementById(id);
 const log = $('log'), input = $('input'), sendBtn = $('send'), stopBtn = $('stop'), statusEl = $('status');
 const brainBar = createBrainBar({ post: (u, d) => post(u, d), note: (t, k) => note(t, k) });
 const handsSwitch = createHandsSwitch({ note: (t, k) => note(t, k) });
+const qBanner = createQuarantineBanner({ note: (t, k) => note(t, k) });
 const effort = createEffort();
 const catAntics = createCatAntics();
+const viewer = createViewer({ post: (u, d) => post(u, d), note: (t, k) => note(t, k) });
 const bobCanvas = $('bob'), bobCtx = bobCanvas.getContext('2d');
 bobCtx.imageSmoothingEnabled = false;
 
@@ -99,8 +103,21 @@ function ensureReply(ev) {
 }
 // 1.5.11: a reply's pictures, sounds and clips live in the same bubble as its words (as history shows them), so
 // the words arriving later never wipe them and an image-only bubble never collapses to an empty box.
-function drawReply(r) { r.el.innerHTML = render(r.text.replace(/^\s+/, '').replace(/\s+$/, '')) + mediaHtml(r.media); }
-function addMedia(ev, type) { const r = ensureReply(ev); r.media.push({ type, url: ev.url, name: ev.file || '' }); drawReply(r); scrollDown(); return r; }
+function drawReply(r) { r.el.innerHTML = render(r.text.replace(/^\s+/, '').replace(/\s+$/, '')) + mediaHtml(r.media); if (r.media.length) fillPeeks(r.el); }
+function addMedia(ev, type) {
+  const r = ensureReply(ev);
+  const item = { type, url: ev.url, name: decodeURIComponent(String(ev.url).split('/').pop() || '') };
+  r.media.push(item); drawReply(r); scrollDown();
+  viewer.made([{ ...item, kind: type }]); // the side panel shows it too, if it's open
+  return r;
+}
+// Files he saved (documents, spreadsheets, copies, zips) and things called up with show_made: cards in the same bubble.
+function addMade(ev) {
+  const r = ensureReply(ev);
+  const fresh = (ev.items || []).filter((x) => x?.url && !r.media.some((m) => m.url === x.url));
+  if (fresh.length) { r.media.push(...fresh.map((x) => ({ type: 'file', kind: x.kind, url: x.url, name: x.name, path: x.path }))); drawReply(r); scrollDown(); }
+  viewer.made(ev.items, { show: ev.show === true });
+}
 function endReply(ev) { replies.delete(ev?.turnId || '-'); }
 
 // ---------- Status, badge, notifications ----------
@@ -268,6 +285,8 @@ async function loadHistory(n = 20) {
     const h = await (await fetch('/api/history?session=' + encodeURIComponent(sessionId))).json();
     for (const m of h.slice(-n)) {
       if (m.forgotten) { if (m.role === 'user') note(m.content); continue; }
+      // A reply with no words and nothing made shows only its note, never an empty bubble.
+      if (m.role !== 'user' && !String(m.content || '').trim() && !m.media?.length) { if (m.correction) note(m.correction, 'error'); continue; }
       const el = decorate(add(m.role === 'user' ? 'msg you' : 'msg bob', m.role === 'user' ? esc(m.content) + picsHtml(m.pics) : render(m.content) + mediaHtml(m.media)), m.content, m.media);
       if (m.id) el.dataset.mid = m.id;
       if (m.correction) note(m.correction, 'error');
@@ -324,6 +343,8 @@ function onEvent(ev) {
   if (ev.type === 'status') return setStatus(ev);
   if (ev.sessionId && ev.sessionId !== sessionId && ev.type !== 'reminder') return;
   if (ev.type === 'hands') handsSwitch.update(ev.settings);
+  if (ev.type === 'quarantine') return qBanner.update(ev.active);
+  if (quarantineResult(ev)) return;
   if (onHandsEvent(ev, { add, scrollDown, note })) return;
   switch (ev.type) {
     case 'queue':
@@ -381,8 +402,11 @@ function onEvent(ev) {
     case 'image': { addMedia(ev, 'image'); ping('Bob finished a picture', ev.file || ''); break; }
     case 'audio': { addMedia(ev, 'audio'); ping('Bob finished a sound', ev.file || ''); break; }
     case 'video': { addMedia(ev, 'video'); ping('Bob finished a clip', ev.file || ''); break; }
+    case 'made': { addMade(ev); break; }
     case 'approval': {
       endReply(ev);
+      // The reviewer asks whether to quarantine Bob (quarantine.js, opt-in).
+      if (quarantineCard(ev, { add, answer: (q) => post('/api/approve', { id: ev.id, allow: q }) })) { ping('Bob\'s reviewer needs you', ev.text); layout.needsYou(); break; }
       // Hands cards: rows to tick (files) or the exact command (run).
       if (handsApproval(ev, { add, answer: (allow, rows) => post('/api/approve', { id: ev.id, allow, rows }) })) { ping('Bob needs your OK', ev.text); layout.needsYou(); break; }
       const diff = ev.diff ? `<pre class="diff"><code>${esc(ev.diff)}</code></pre>` : '';
@@ -430,7 +454,9 @@ function onEvent(ev) {
     case 'done': {
       const rep = replies.get(ev.turnId || '-');
       const finished = rep?.text;
-      if (rep) decorate(rep.el, finished || '');
+      // Never leave an empty Bob bubble (nothing said, nothing made).
+      if (rep && !String(finished || '').trim() && !rep.media?.length && !rep.el.querySelector('img, video, audio, .out-card')) rep.el.remove();
+      else if (rep) decorate(rep.el, finished || '');
       endReply(ev);
       running.delete(ev.turnId);
       setBusy(running.size > 0);
@@ -451,7 +477,7 @@ function connect() {
 async function catchUpMedia() {
   try {
     const h = await (await fetch('/api/history?session=' + encodeURIComponent(sessionId))).json();
-    const seen = new Set([...log.querySelectorAll('img[src], video[src], audio[src]')].map((el) => el.getAttribute('src')));
+    const seen = new Set([...log.querySelectorAll('img[src], video[src], audio[src]')].map((el) => el.getAttribute('src')).concat([...log.querySelectorAll('[data-view-url]')].map((el) => el.dataset.viewUrl)));
     const missed = h.slice(-6).filter((m) => m.role === 'assistant').flatMap((m) => m.media || []).filter((m) => !seen.has(m.url));
     if (missed.length) { add('msg bob', mediaHtml(missed)); scrollDown(); }
   } catch {}
@@ -480,7 +506,7 @@ function drawQueue(jobs) {
   countBadge($('tasksBtn'), open.length);
   for (const j of jobs) {
     const tag = jobBubbles.get(j.id)?.querySelector('.qtag');
-    if (tag) { const st = j.status || STATE_LABEL[j.state] || j.state; tag.textContent = (st === 'delegated' && j.delegatedTo ? `delegated to ${j.delegatedTo.copy}` : st) + (j.effort === 'high' ? ' · High effort' : j.effort === 'extreme' ? ' · Extreme effort' : ''); tag.className = `qtag ${j.state}`; }
+    if (tag) { const st = j.status || STATE_LABEL[j.state] || j.state; tag.textContent = (st === 'delegated' && j.delegatedTo ? `delegated to ${j.delegatedTo.copy}` : st) + (j.effort && j.effort !== 'low' ? ` · ${j.effort[0].toUpperCase()}${j.effort.slice(1)} effort` : ''); tag.className = `qtag ${j.state}`; }
   }
   const show = jobs.filter((j) => j.state === 'waiting' || j.state === 'working' || ((j.state === 'failed' || j.state === 'interrupted') && Date.now() - j.at < 3600e3));
   qbox.hidden = !show.length;
@@ -551,14 +577,10 @@ document.addEventListener('drop', (e) => {
   attachFiles(e.dataTransfer?.files || []);
 });
 // What Bob made in a reply (saved with it, so it's back after a reload): pictures, clips and sounds.
+// Each one is a card with a preview (a thumbnail, the player, or the first lines); a click opens the side panel.
 function mediaHtml(media) {
   if (!media?.length) return '';
-  return media.map((m) => {
-    const url = esc(m.url), name = esc(m.name || '');
-    if (m.type === 'video') return `<video src="${url}" controls loop muted aria-label="Clip Bob made" title="${name}"></video>`;
-    if (m.type === 'audio') return `<audio src="${url}" controls preload="none" aria-label="Sound Bob made" title="${name}" style="display:block;width:100%;margin-top:6px"></audio>`;
-    return `<img src="${url}" alt="Picture Bob painted" title="${name}">`;
-  }).join('');
+  return media.map((m) => outCard({ ...m, kind: m.kind || (m.type === 'file' ? 'file' : m.type) })).join('');
 }
 // ---------- Copy buttons and file cards (right-click and Ctrl+C often don't get through remote desktop) ----------
 const rawText = new WeakMap();
@@ -573,14 +595,16 @@ function decorate(el, text, media = []) {
   tools.className = 'msg-tools';
   tools.innerHTML = `<button type="button" class="mini" data-copy-msg title="Copy this message">Copy</button>${links ? `<button type="button" class="mini" data-copy-links title="Copy every link in this message">Copy link${links === 1 ? '' : 's'}</button>` : ''}`;
   el.appendChild(tools);
+  fillPeeks(el);
   const want = [...new Set([...files, ...made])];
   if (want.length && el.classList.contains('bob')) {
     api('/api/file/info', { paths: want }).then((list) => {
-      const shown = new Set([...el.querySelectorAll('img[src], audio[src], video[src]')].map((x) => x.getAttribute('src')));
+      const shown = new Set([...el.querySelectorAll('img[src], audio[src], video[src]')].map((x) => x.getAttribute('src')).concat([...el.querySelectorAll('[data-view-url]')].map((x) => x.dataset.viewUrl)));
       // A painted picture already in the message is the same file as /api/file?path=...; match by name too.
       const shownNames = new Set([...shown].filter((u) => u.startsWith('/images/')).map((u) => decodeURIComponent(u.slice(8))));
-      const html = list.filter((f) => f.ok).map((f) => fileCard(f, shownNames.has(f.name) ? new Set([f.url]) : shown)).join('');
-      if (html) { const box = document.createElement('div'); box.className = 'file-cards'; box.innerHTML = html; el.insertBefore(box, tools); }
+      // Every file he mentions gets the same card as things he made: a preview, and View opens the side panel.
+      const html = list.filter((f) => f.ok && !shown.has(f.url) && !shownNames.has(f.name)).map((f) => outCard({ ...f, kind: f.kind === 'text' ? 'document' : f.kind, mention: f.mention })).join('');
+      if (html) { const box = document.createElement('div'); box.className = 'file-cards'; box.innerHTML = html; el.insertBefore(box, tools); fillPeeks(box); }
       for (const a of el.querySelectorAll('a.file-link')) { const f = list.find((x) => x.mention === a.dataset.file); if (!f?.ok) a.classList.add('gone'), a.title = f?.missing ? 'Not there any more' : 'Outside the folders Bob may open'; }
     }).catch(() => {});
   }
@@ -619,6 +643,24 @@ log.addEventListener('click', async (e) => {
   }
 });
 
+// A picture Bob made whose file won't load: say where it is, with Show in folder, instead of a broken box.
+log.addEventListener('error', (e) => {
+  const img = e.target;
+  if (img?.tagName !== 'IMG' || !img.closest('.msg.bob') || img.dataset.failed) return;
+  const src = img.getAttribute('src') || '';
+  if (!src.startsWith('/images/')) return;
+  img.dataset.failed = '1';
+  const name = decodeURIComponent(src.slice(8).split('?')[0]);
+  const box = document.createElement('div');
+  box.className = 'file-card img-missing';
+  box.innerHTML = `<span>The picture didn't load. It's saved as ${esc(name)}.</span> <span class="file-tools"><button type="button" class="mini" data-reveal="${esc(src)}">Show in folder</button></span>`;
+  img.replaceWith(box);
+  // Copy path, the same as on file cards, once the server says where the file is.
+  api('/api/file/info', { paths: [src] }).then(([f]) => {
+    if (f?.path) box.querySelector('.file-tools').insertAdjacentHTML('beforeend', `<button type="button" class="mini" data-copy-path="${esc(f.path)}">Copy path</button>`);
+  }).catch(() => {});
+}, true);
+
 function picsHtml(pics) {
   return pics?.length ? `<div class="pics">${pics.map((p) => `<img src="${esc(p.url)}" alt="${esc(p.name)}" title="${esc(p.name)}">`).join('')}</div>` : '';
 }
@@ -640,7 +682,7 @@ $('composer').onsubmit = async (e) => {
   const tag = bubble.querySelector('.qtag');
   if (!r.ok) { tag.textContent = 'not sent'; tag.classList.add('bad'); note(r.data.error || 'Something went wrong.', 'error'); return; }
   jobBubbles.set(r.data.jobId, bubble);
-  tag.textContent = (r.data.ahead ? `queued, ${r.data.ahead} ahead` : 'queued') + (level === 'low' ? '' : ` · ${level === 'high' ? 'High' : 'Extreme'} effort`);
+  tag.textContent = (r.data.ahead ? `queued, ${r.data.ahead} ahead` : 'queued') + (level === 'low' ? '' : ` · ${level[0].toUpperCase()}${level.slice(1)} effort`);
   if (lastJobs.some((j) => j.id === r.data.jobId && j.state !== 'waiting')) drawQueue(lastJobs); // it may already have run
 };
 // Keep Bob light: typing wakes the small brain (Wake when I type), so it's ready by the time you press Send.

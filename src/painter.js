@@ -1,5 +1,7 @@
-// Bob's own painter: runs stable-diffusion.cpp's sd-cli.exe for pictures (Z-Image, Flux) and video (Wan).
-// No ComfyUI needed. Model file paths live in config.json under painter.sdcpp.
+// Bob's own painter: stable-diffusion.cpp for pictures (Z-Image, Flux) and video (Wan). No ComfyUI needed.
+// Model file paths live in config.json under painter.sdcpp.
+// Since 1.6 the usual route is sd-server, which keeps the picture model loaded between pictures (painter-server.js).
+// paint() below is the one-shot sd-cli route: the fallback when sd-server is missing, too old or won't start.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -10,7 +12,7 @@ const FLAG = {
   vae: '--vae', audioVae: '--audio-vae', llm: '--llm', embeddingsConnectors: '--embeddings-connectors', llmVision: '--llm_vision', t5xxl: '--t5xxl', clipL: '--clip_l', clipVision: '--clip_vision'
 };
 
-function modelArgs(spec) {
+export function modelArgs(spec) {
   const args = [];
   for (const [key, flag] of Object.entries(FLAG)) {
     if (!spec[key]) continue;
@@ -21,7 +23,32 @@ function modelArgs(spec) {
   return args;
 }
 
-const snap = (n, lo, hi, d) => Math.min(hi, Math.max(lo, Math.round((n || d) / 16) * 16));
+export const snap = (n, lo, hi, d) => Math.min(hi, Math.max(lo, Math.round((n || d) / 16) * 16));
+
+// Picture size and clip length, shared by both routes so a picture looks the same whichever one made it.
+export function sizeFor(kind, { width, height }) {
+  const video = kind === 'video';
+  return { W: snap(width, 256, video ? 1280 : 2048, video ? 832 : 1024), H: snap(height, 256, video ? 1280 : 2048, video ? 480 : 1024) };
+}
+export function framesFor(spec, seconds) {
+  const fps = spec.fps || 16, step = spec.frameStep || 4;
+  return Math.min(spec.maxFrames || 81, Math.max(17, Math.round(((seconds || 2) * fps) / step) * step + 1));
+}
+
+// A made file is only "made" if it is really there: not empty, and the right kind of file (PNG, WebM, WebP or AVI).
+export function checkOutput(file, kind) {
+  let buf;
+  try { const fd = fs.openSync(file, 'r'); buf = Buffer.alloc(16); const n = fs.readSync(fd, buf, 0, 16, 0); fs.closeSync(fd); buf = buf.subarray(0, n); }
+  catch { return { ok: false, why: 'the file is missing' }; }
+  if (!buf.length) return { ok: false, why: 'the file is empty' };
+  const png = buf.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'));
+  const webm = buf.subarray(0, 4).equals(Buffer.from('1a45dfa3', 'hex'));
+  const riff = buf.subarray(0, 4).toString('latin1') === 'RIFF';
+  const webp = riff && buf.subarray(8, 12).toString('latin1') === 'WEBP';
+  const avi = riff && buf.subarray(8, 11).toString('latin1') === 'AVI';
+  const ok = kind === 'video' ? webm || webp || avi : png || webp;
+  return ok ? { ok: true } : { ok: false, why: `it isn't a ${kind === 'video' ? 'video' : 'picture'} file` };
+}
 
 export function paintingAvailable(cfg, kind) {
   const s = cfg.painter?.sdcpp;
@@ -36,8 +63,7 @@ export function paint(cfg, kind, { prompt, negative, width, height, seconds, ima
   const spec = s[kind];
   const name = `${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID().slice(0, 8)}.${kind === 'video' ? (s.videoFormat || 'webm') : 'png'}`;
   const out = path.join(cfg.painterDir, name);
-  const W = snap(width, 256, kind === 'video' ? 1280 : 2048, kind === 'video' ? 832 : 1024);
-  const H = snap(height, 256, kind === 'video' ? 1280 : 2048, kind === 'video' ? 480 : 1024);
+  const { W, H } = sizeFor(kind, { width, height });
   const args = [
     ...(s.preArgs || []),
     ...(kind === 'video' ? ['-M', 'vid_gen'] : []),
@@ -51,9 +77,7 @@ export function paint(cfg, kind, { prompt, negative, width, height, seconds, ima
     '-o', out
   ];
   if (kind === 'video') {
-    const fps = spec.fps || 16, step = spec.frameStep || 4;
-    const frames = Math.min(spec.maxFrames || 81, Math.max(17, Math.round(((seconds || 2) * fps) / step) * step + 1));
-    args.push('--video-frames', String(frames));
+    args.push('--video-frames', String(framesFor(spec, seconds)));
     if (spec.fps) args.push('--fps', String(spec.fps));
     if (spec.flowShift !== 0) args.push('--flow-shift', String(spec.flowShift || 3.0));
     if (spec.sampler) args.push('--sampling-method', spec.sampler);
@@ -93,7 +117,9 @@ export function paint(cfg, kind, { prompt, negative, width, height, seconds, ima
       const made = fs.readdirSync(cfg.painterDir).filter((f) => f.startsWith(base)).map((f) => path.join(cfg.painterDir, f));
       if (code !== 0 || !made.length) return reject(new Error(`The painter failed (code ${code}). Last output: ${log.slice(-500)}`));
       const file = made.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
-      resolve({ file, name: path.basename(file) });
+      const check = checkOutput(file, kind);
+      if (!check.ok) return reject(new Error(`The painter finished but ${check.why}. Last output: ${log.slice(-300)}`));
+      resolve({ file, name: path.basename(file), via: 'cli', checked: true });
     });
   });
 }

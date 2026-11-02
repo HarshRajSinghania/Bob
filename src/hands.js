@@ -13,7 +13,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import os from 'node:os';
 import { insideAny, appDir } from './config.js';
-import { HANDS, handOn, handOffWhy, handsSettings, cleanHands } from './hands-settings.js';
+import { HANDS, LIMITS, handOn, handOffWhy, handsSettings, cleanHands, readOnlyRoots, freeOn, limitOn } from './hands-settings.js';
 import { planFiles, planCard, applyFiles, undoJob, loadJournal, handsRoots } from './hands-files.js';
 import { checkCommand, runCommand } from './hands-run.js';
 import { appsTools } from './hands-apps.js';
@@ -54,9 +54,9 @@ export function stopEverything(brain) {
   for (const r of running.values()) { r.controller.abort(); n++; }
   if (brain) {
     n += brain.denyHands?.() || 0;
-    const next = cleanHands({ ...handsSettings(brain.cfg), enabled: false });
+    const next = cleanHands({ ...handsSettings(brain.cfg), enabled: false, free: false }); // asks again next time
     brain.saveHands?.(next);
-    brain.log?.('hands', `STOP EVERYTHING pressed: stopped ${n} thing${n === 1 ? '' : 's'}, all Hands off`);
+    brain.log?.('hands', `STOP EVERYTHING pressed: stopped ${n} thing${n === 1 ? '' : 's'}, all Hands off, asking again`);
   }
   return n;
 }
@@ -127,8 +127,8 @@ export function handsTools(brain, opts = {}) {
   const t = {};
 
   t.file_hands = {
-    schema: fn('file_hands', "Work with files in the folders {{USER}} allowed: move, copy, rename (one or many), zip, unzip, tidy a folder into subfolders by kind (Pictures, Documents, Installers...), or recycle (to the Recycle Bin; never a hard delete). {{USER}} sees every file it would touch and ticks what goes. Nothing is overwritten and every job can be undone.", {
-      action: str('What to do', { enum: ['move', 'copy', 'rename', 'tidy', 'zip', 'unzip', 'recycle'] }),
+    schema: fn('file_hands', "Work with files in the folders {{USER}} allowed: move, copy, rename (one or many), zip, unzip, tidy a folder into subfolders by kind (Pictures, Documents, Installers...), or recycle (to the Recycle Bin). delete removes for good and only works if {{USER}} switched off the Recycle Bin only limit; use recycle unless told to delete for good. Nothing is overwritten and every job except delete can be undone.", {
+      action: str('What to do', { enum: ['move', 'copy', 'rename', 'tidy', 'zip', 'unzip', 'recycle', 'delete'] }),
       paths: list('Full paths of the files or folders (for tidy: the folder; for unzip: the zip).'),
       to: str('move/copy: destination folder. zip: the new zip file (optional). unzip: where to unpack (optional; default a new folder next to the zip).'),
       newName: str('rename one item: the new name.'),
@@ -151,6 +151,8 @@ export function handsTools(brain, opts = {}) {
       const plan = ctx?.handsPlan || planFiles(cfg, args);
       if (ctx) ctx.handsPlan = null;
       const res = applyFiles(cfg, plan, ctx?.picked ?? null);
+      // Copies, zips and unzipped folders are new things Bob made: they get a card in the chat (made.js).
+      if (ctx) ctx.made = res.done.filter((r) => ['copy', 'zip', 'unzip'].includes(r.op) && r.to).map((r) => r.to);
       if (res.job) log('hands', `files: ${plan.label}: ${res.done.length} done${res.failed.length ? `, ${res.failed.length} failed` : ''} (undo id ${res.job.id})`);
       ctx?.emit?.({ type: 'files-done', job: res.job ? { id: res.job.id, label: res.job.label } : null, done: res.done.length, failed: res.failed.map((f) => ({ from: f.from, why: f.why })) });
       const lines = [`${plan.label}: ${res.done.length} done.`];
@@ -243,18 +245,24 @@ export function handsPrompt(cfg) {
   const realLine = `\n\nNever say you did something on the PC (opened, typed, clicked, moved, ran) unless a tool result in this turn says it was done. Hands act on ${cfg.userName || 'the user'}'s real Windows PC: the apps, windows and files are real, not a simulation. When a Hand tool fails, tell ${cfg.userName || 'the user'} the error it gave you, in plain words, and never blame a simulation or a virtual OS. If an earlier try in this chat failed, call the tool again instead of repeating that result: you may have been updated since.`;
   if (!on.length) return realLine + offLine;
   const roots = handsRoots(cfg);
-  return `\n\nHands ${cfg.userName || 'the user'} switched on: ${on.map(([, h]) => h.label).join('; ')}.${handOn(cfg, 'files') ? ` Files: only in ${roots.join('; ') || '(no folders ticked yet)'}.` : ''}${handOn(cfg, 'apps') ? ' Apps: open with open_app, read the window with app_look, then do one step at a time with app_act using the names app_look gave you.' : ''} Every action shows a card and waits for a click, so describe the plan briefly and call the tool; don't ask in words first. If ${cfg.userName || 'the user'} says no, don't try another way round.${realLine}${offLine}`;
+  return `\n\nHands ${cfg.userName || 'the user'} switched on: ${on.map(([, h]) => h.label).join('; ')}.${handOn(cfg, 'files') ? ` Files: only in ${roots.join('; ') || '(no folders ticked yet)'}.` : ''}${handOn(cfg, 'apps') ? ' Apps: open with open_app, read the window with app_look, then do one step at a time with app_act using the names app_look gave you.' : ''} ${freeOn(cfg) ? ` ${cfg.userName || 'The user'} switched on "work without asking": there are no approval cards right now, so just do the job step by step with the tools and say what you did. Don't ask in words first either. The hard limits still apply: when a tool refuses, say why plainly and don't try a way round it.${limitsLine(cfg)}` : ` Every action shows a card and waits for a click, so describe the plan briefly and call the tool; don't ask in words first. If ${cfg.userName || 'the user'} says no, don't try another way round.`}${realLine}${offLine}`;
+}
+
+// Hard limits the user switched off, so Bob knows what he may now do (and that nothing else changed).
+function limitsLine(cfg) {
+  const off = Object.entries(LIMITS).filter(([k]) => !limitOn(cfg, k)).map(([, l]) => l.label);
+  return off.length ? ` Limits ${cfg.userName || 'the user'} switched off: ${off.join('; ')}.` : '';
 }
 
 // For the Settings page.
 // Folders offered as tick boxes: the usual ones in the user's home, plus the folders Bob may already read.
 export function folderCandidates(cfg) {
   const home = os.homedir();
-  const ro = [...(cfg.readOnlyRoots || []), appDir, cfg.dataDir, cfg.innDir].filter(Boolean);
+  const ro = [...readOnlyRoots(cfg), appDir, cfg.dataDir, cfg.innDir].filter(Boolean);
   const list = [...['Downloads', 'Desktop', 'Documents', 'Pictures', 'Videos', 'Music'].map((d) => path.join(home, d)), ...(cfg.readRoots || [])];
   return [...new Set(list)].filter((d) => { try { return fs.statSync(d).isDirectory() && !insideAny(ro, d); } catch { return false; } });
 }
 
 export function handsView(cfg) {
-  return { candidates: folderCandidates(cfg), settings: handsSettings(cfg), hands: Object.entries(HANDS).map(([id, h]) => ({ id, label: h.label, what: h.what })), roots: handsRoots(cfg), recipes: loadRecipes(cfg), journal: loadJournal(cfg).slice(-15).reverse().map((j) => ({ id: j.id, at: j.at, label: j.label, steps: j.steps.length, undone: Boolean(j.undone) })), runs: loadRuns(cfg).slice(-15).reverse(), running: runningNow() };
+  return { candidates: folderCandidates(cfg), settings: handsSettings(cfg), hands: Object.entries(HANDS).map(([id, h]) => ({ id, label: h.label, what: h.what })), limits: Object.entries(LIMITS).map(([id, l]) => ({ id, ...l })), readOnly: (cfg.readOnlyRoots || []).filter((f) => !(cfg.ownReadOnlyRoots || []).includes(f)), roots: handsRoots(cfg), recipes: loadRecipes(cfg), journal: loadJournal(cfg).slice(-15).reverse().map((j) => ({ id: j.id, at: j.at, label: j.label, steps: j.steps.length, undone: Boolean(j.undone) })), runs: loadRuns(cfg).slice(-15).reverse(), running: runningNow() };
 }

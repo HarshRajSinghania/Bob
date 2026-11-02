@@ -19,7 +19,7 @@ addModel('gemma4', '26b', 'aaa111');
 addModel('qwen3-coder', '30b', 'bbb222');
 
 // Tests start from the shipped example settings (the real config.json is never published or read here).
-const cfg = { ...JSON.parse(fs.readFileSync(path.join(here, '..', 'config.example.json'), 'utf8')), userName: 'Sam', engine: 'ollama', models: { bob: 'gemma4:26b', tinker: 'qwen3-coder:30b', ledger: 'gemma4:26b', scout: 'gemma4:26b', painter: 'gemma4:26b', reviewer: 'gemma4:26b' }, stt: { provider: 'ollama', model: 'gemma4:e4b' } };
+const cfg = { ...JSON.parse(fs.readFileSync(path.join(here, '..', 'config.example.json'), 'utf8')), userName: 'Sam', quickOnCpu: false, engine: 'ollama', models: { bob: 'gemma4:26b', tinker: 'qwen3-coder:30b', ledger: 'gemma4:26b', scout: 'gemma4:26b', painter: 'gemma4:26b', reviewer: 'gemma4:26b' }, stt: { provider: 'ollama', model: 'gemma4:e4b' } };
 cfg.engine = 'llamacpp';
 cfg.llamacpp = { ...cfg.llamacpp, exe: process.execPath, preArgs: [path.join(here, 'mock-llama-server.js')], ollamaModelsDir: models, port: 18091 };
 cfg.readRoots = []; cfg.readOnlyRoots = [];

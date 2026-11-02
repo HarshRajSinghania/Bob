@@ -1,12 +1,14 @@
 // Hands settings (no imports, so config.js can use it). Hands are the things Bob can do on the PC beyond chatting:
 // work with files, run commands, schedules, and open and use apps. Every Hand is OFF until the user turns it on,
-// there is one master switch over all of them, and nothing here can make Bob skip asking.
+// and there is one master switch over all of them. Bob asks before every action unless the user switches on
+// "Let Bob work without asking" (free, off by default). The hard limits (LIMITS) are each on by default and each
+// can be switched off by the user alone. Bob's own settings, code and the ✋ kill switch are never a limit he can lift.
 //
 // To add a Hand, add an entry to HANDS. Its switch, its line in Settings and its tool filtering all follow from it.
 export const HANDS = {
   files: {
     label: 'Files',
-    what: 'Move, copy and rename files, zip and unzip, and tidy a folder such as Downloads. Only in the folders you tick below. Nothing is ever deleted: things he throws away go to the Recycle Bin, and every job can be undone.',
+    what: 'Move, copy and rename files, zip and unzip, and tidy a folder such as Downloads. Only in the folders you tick below. Things he throws away go to the Recycle Bin (unless you switch off the "Recycle Bin only" limit), and every job can be undone.',
     tools: ['file_hands', 'undo_files']
   },
   run: {
@@ -16,7 +18,7 @@ export const HANDS = {
   },
   schedules: {
     label: 'Schedules',
-    what: 'Do a job by himself at set times (once, daily, weekly, or every so many minutes) while Bob is open. You approve each schedule, and every action inside a run still asks for your OK, so a run with nobody at the PC just waits and then does nothing. Waking Bob when he is closed is a separate switch.',
+    what: 'Do a job by himself at set times (once, daily, weekly, or every so many minutes) while Bob is open. You approve each schedule, and every action inside a run still asks for your OK, so a run with nobody at the PC just waits and then does nothing (unless "Let Bob work without asking" is on: then runs go ahead by themselves). Waking Bob when he is closed is a separate switch.',
     tools: ['schedule_job', 'list_schedules', 'change_schedule']
   },
   apps: {
@@ -26,14 +28,28 @@ export const HANDS = {
   }
 };
 
+// The hard limits. Each is ON unless the user switches it off in Settings (only on the PC itself).
+// off: one plain line on what switching it off allows, shown as a warning next to the switch.
+export const LIMITS = {
+  recycleOnly: { label: 'Recycle Bin only', on: 'Things Bob throws away go to the Recycle Bin, so you can get them back.', off: 'Bob can delete files for good with the Files Hand. They skip the Recycle Bin and can\'t be undone.' },
+  secrets: { label: 'Keep secret files private', on: 'Bob never reads, lists, moves, zips or writes files with keys or passwords (.env, keystores, SSH keys, password databases).', off: 'Bob can read, move and change files with keys and passwords, and run commands that touch them.' },
+  readOnly: { label: 'Read-only projects stay read-only', on: 'Folders you marked read-only in config.json can be read but never changed.', off: 'Bob can change files in projects you marked read-only. His own code and settings stay locked.' },
+  commands: { label: 'Block dangerous commands', on: 'Commands that format disks, change boot or the system registry, touch antivirus or user accounts, ask for admin, shut down, or delete many files at once are refused.', off: 'Bob can run any command, including ones that wipe disks, change the registry or shut down the PC.' },
+  sendOut: { label: "Don't send anything out", on: 'Bob\'s Hands never send your things off the PC: no uploads, posts, git push, or typing and Send in browsers, email or chat apps.', more: 'Web searches and opening a page still work (the search words and the address go to that site). Cloud helpers have their own switch.', off: 'Bob can upload files, post to websites, push code and type or send in browsers, email and chat apps.' },
+  passwords: { label: 'Never type into password fields', on: 'Bob never types into a password box in an app.', off: 'Bob can type into password boxes in apps (he still can\'t read what is in them).' }
+};
+
 const isAbs = (p) => typeof p === 'string' && p.length < 400 && !p.includes('\0') && (/^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('/'));
 
 // The settings, cleaned. enabled = the master switch (Settings). held = the chat-page kill switch: it can only stop
 // Hands that Settings has on, never switch anything on. Each Hand has { on }. folders = where the Files hand may work.
 export function cleanHands(v = {}) {
-  const out = { enabled: v.enabled === true, held: v.held === true };
+  // free = "Let Bob work without asking". Off unless the user turns it on.
+  const out = { enabled: v.enabled === true, held: v.held === true, free: v.free === true };
   for (const id of Object.keys(HANDS)) out[id] = { on: v[id]?.on === true };
   out.folders = [...new Set([].concat(v.folders || []).filter(isAbs))].slice(0, 30);
+  out.limits = {};
+  for (const k of Object.keys(LIMITS)) out.limits[k] = v.limits?.[k] !== false;
   out.timeoutMin = [1, 5, 15, 30, 60, 120].includes(Number(v.timeoutMin)) ? Number(v.timeoutMin) : 15;
   return out;
 }
@@ -44,6 +60,20 @@ export function handOn(cfg, id) {
   const h = handsSettings(cfg);
   return h.enabled && !h.held && h[id]?.on === true;
 }
+// Is Bob working without asking right now? Needs the master switch, the free switch, and the ✋ switch not stopped.
+export function freeOn(cfg) {
+  const h = handsSettings(cfg);
+  return h.enabled && h.free && !h.held;
+}
+// Is this hard limit in force? On unless the user switched it off.
+export const limitOn = (cfg, k) => handsSettings(cfg).limits[k] !== false;
+// The read-only folders right now: Bob's own (always) plus the user's read-only projects (unless that limit is off).
+// cfg.ownReadOnlyRoots is set by config.js; without it (older callers, tests) every read-only folder stays read-only.
+export function readOnlyRoots(cfg) {
+  if (!cfg.ownReadOnlyRoots || limitOn(cfg, 'readOnly')) return cfg.readOnlyRoots || [];
+  return cfg.ownReadOnlyRoots;
+}
+
 // Why a Hand can't be used, in words for Bob to pass on.
 export function handOffWhy(cfg, id) {
   const who = cfg.userName || 'The user', h = handsSettings(cfg);

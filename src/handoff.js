@@ -1,0 +1,276 @@
+// Handoffs between Bob's brains and engines (1.5.12). The system keeps track, not the model:
+//  - the card lease: one job owns the graphics card at a time. Anything else that needs it waits in line
+//    (shown as "Waiting for ..."), it is never dropped and never pulled out from under a running job.
+//  - the gate: an action that needs a brain, the painter or an empty card asks the gate first. The gate holds it
+//    until that engine really says ready (a live check, not a remembered flag), loads it if needed, checks again,
+//    retries a failed load (2 s, then 5 s), and falls back to the main brain when another brain won't load.
+//  - the ledger: what this job asked for, every load, tool and output, saved with the job in the queue file, so
+//    the end of the turn (and a restart) can see what really happened.
+// No model calls in here.
+import fs from 'node:fs';
+import { sameModel } from './brain-mode.js';
+import { describe } from './verify.js';
+
+const sleep = (ms, signal) => new Promise((resolve, reject) => {
+  if (!ms) return resolve();
+  const t = setTimeout(() => { signal?.removeEventListener?.('abort', stop); resolve(); }, ms);
+  const stop = () => { clearTimeout(t); reject(new Error('Stopped.')); };
+  signal?.addEventListener?.('abort', stop, { once: true });
+});
+
+// ---------- The card lease ----------
+// Re-entrant per owner (a turn's abort signal): one turn can swap brain -> painter -> brain without queuing behind
+// itself. Owners wait first come, first served.
+export class CardLease {
+  constructor() { this.holder = null; this.label = ''; this.line = []; }
+  get waiting() { return this.line.length; }
+  async acquire(owner, label = '', { signal, onWait } = {}) {
+    if (!owner) throw new Error('A card lease needs an owner.');
+    if (this.holder === owner) { this.label = label || this.label; return; }
+    if (!this.holder && !this.line.length) { this.holder = owner; this.label = label; return; }
+    onWait?.(this.label);
+    await new Promise((resolve, reject) => {
+      const entry = { owner, label, resolve };
+      this.line.push(entry);
+      signal?.addEventListener?.('abort', () => {
+        const i = this.line.indexOf(entry);
+        if (i >= 0) { this.line.splice(i, 1); reject(new Error('Stopped.')); }
+      }, { once: true });
+    });
+  }
+  release(owner) {
+    if (this.holder !== owner) { this.line = this.line.filter((e) => e.owner !== owner); return false; }
+    const next = this.line.shift();
+    this.holder = next ? next.owner : null;
+    this.label = next ? next.label : '';
+    next?.resolve();
+    return true;
+  }
+}
+
+// ---------- The ledger ----------
+const clip = (x, n = 200) => String(x ?? '').replace(/\s+/g, ' ').slice(0, n);
+export class Ledger {
+  constructor({ job = null, expect = null, save = () => {} } = {}) {
+    this.job = job; this.expect = expect; this.save = save;
+    this.steps = []; this.outputs = []; this.actions = []; this.nudged = 0; this.reply = '';
+    this.persist();
+  }
+  step(kind, info = {}) {
+    const st = { kind, ...Object.fromEntries(Object.entries(info).map(([k, v]) => [k, typeof v === 'string' ? clip(v) : v])), state: 'running', at: Date.now() };
+    this.steps.push(st);
+    if (this.steps.length > 60) this.steps.splice(0, this.steps.length - 60);
+    this.persist();
+    const end = (state, extra) => { st.state = state; st.doneAt = Date.now(); Object.assign(st, extra); this.persist(); return st; };
+    return { info: st, done: (proof) => end('done', proof ? { proof: clip(proof) } : {}), fail: (e) => end('failed', { error: clip(e?.message || e) }) };
+  }
+  // tool: the tool that was running when the output appeared (verify.js matches outputs to actions by it).
+  output(o, tool = null) { this.outputs.push({ type: o.type, file: o.file || null, url: o.url || null, tool, at: Date.now() }); this.persist(); }
+  // at: when the tool started.
+  // extra: what verify.js found (why, files, info, declined), so the end-of-turn check can use it.
+  action(name, args, ok, text, at = Date.now(), extra = {}) {
+    const keep = Object.fromEntries(Object.entries(extra || {}).filter(([k, v]) => ['why', 'files', 'info', 'declined', 'partly'].includes(k) && v != null));
+    this.actions.push({ name, args: clip(typeof args === 'string' ? args : JSON.stringify(args || {}), 300), ok, text: clip(text, 300), at, ...keep });
+    this.persist();
+  }
+  // The part that's saved with the job (queue file): small, and enough for a restart to see what was done.
+  view() { return { expect: this.expect, steps: this.steps.slice(-30), outputs: this.outputs.slice(-24), actions: this.actions.slice(-40) }; }
+  persist() { if (this.job) { this.job.handoff = this.view(); try { this.save(); } catch {} } }
+}
+
+// Tools that change something outside Bob's own chat (a restart must not redo these blindly).
+export const SIDE_EFFECT = /^(app_|open_app|edit_file|write_file|move_|copy_|rename_|delete_|recycle|zip|unzip|run_command|run_recipe|save_|schedule_|make_)/;
+// A job that was cut off by a restart can be picked up again on its own when nothing it did changed the PC.
+export function safeToResume(job) {
+  const done = job?.handoff?.actions || [];
+  return !done.some((a) => a.ok && SIDE_EFFECT.test(a.name));
+}
+export function interruptedNote(job) {
+  const args = (x) => { try { return JSON.parse(x || '{}'); } catch { return {}; } };
+  const plain = (a) => { try { return describe(a.name, args(a.args)).replace(/^\w/, (c) => c.toLowerCase()); } catch { return a.name; } };
+  const done = (job?.handoff?.actions || []).filter((a) => a.ok && SIDE_EFFECT.test(a.name)).map(plain);
+  const made = (job?.handoff?.outputs || []).length;
+  const parts = [done.length && `it had started ${[...new Set(done)].slice(0, 3).join(', ')}`, made && `made ${made} file${made === 1 ? '' : 's'}`].filter(Boolean);
+  return `Bob was closed while this was running${parts.length ? ` (${parts.join('; ')})` : ''}. Retry runs it from the start.`;
+}
+
+// ---------- The gate ----------
+// Errors that a second try won't fix: go straight to the fallback (or the user).
+const NO_RETRY = /can't find the model files|has no model file|Couldn't start llama-server|Stopped\./i;
+
+export class Gate {
+  constructor(brain, { delays = [2000, 5000], freeWaitMs = 15000 } = {}) {
+    this.brain = brain;
+    this.lease = new CardLease();
+    this.delays = delays;      // waits before the 2nd and 3rd load attempts
+    this.freeWaitMs = freeWaitMs;
+    this.loading = null;       // { what, since } while something is being loaded
+    this.ledgers = new WeakMap(); // turn signal -> ledger
+    this.ready = {};           // last real check per engine, for the status panel
+  }
+
+  get engine() { return this.brain.engine; }
+  get painter() { return this.brain.painter || null; }
+
+  // For the status panel and /api/handoff: who has the card, what's loading, how many wait.
+  flags() {
+    const p = this.painter?.status?.();
+    return { card: this.lease.holder ? (this.lease.label || 'busy') : 'free', loading: this.loading?.what || null, waiting: this.lease.waiting, painter: p ? p.state : null, ready: { ...this.ready } };
+  }
+
+  track(signal, ledger) { if (signal && ledger) this.ledgers.set(signal, ledger); }
+  ledgerOf(signal) { return (signal && this.ledgers.get(signal)) || null; }
+
+  // A turn ended: its card goes to the next one waiting.
+  done(signal) { if (signal) this.lease.release(signal); }
+
+  async hold(signal, label, emit) {
+    if (!signal) return; // housekeeping and other ownerless callers never queue
+    await this.lease.acquire(signal, label, {
+      signal,
+      onWait: (who) => {
+        const text = `Waiting for ${who || 'the job before this one'} to finish with the graphics card.`;
+        emit?.({ type: 'announce', text });
+        this.brain.setState?.('waiting', text);
+        this.brain.log?.('handoff', text);
+      }
+    });
+  }
+
+  // need({ id: 'brain', model, opts }, { signal, emit, who, announce }) -> the model that's loaded (it can be a fallback).
+  // need({ id: 'painter', kind }) and need({ id: 'card' }) -> the names that were let go to make room.
+  async need(dep, { signal, emit = () => {}, who = 'bob', announce } = {}) {
+    if (dep.id === 'brain') return this.needBrain(dep, { signal, emit, who, announce });
+    if (dep.id === 'painter' || dep.id === 'card') return this.needCard(dep, { signal, emit });
+    throw new Error(`Unknown dependency ${dep.id}.`);
+  }
+
+  async needBrain({ model, opts = {} }, { signal, emit, who, announce }) {
+    const ledger = this.ledgerOf(signal);
+    // A brain on the processor doesn't need the card; everything else holds the lease until the turn ends.
+    if (!opts.cpu) await this.hold(signal, `the ${this.label(model, who).replace(/ \(.*$/, '')}`, emit);
+    const tryLoad = async (m, o) => {
+      let last = null;
+      for (let attempt = 0; attempt <= this.delays.length; attempt++) {
+        if (signal?.aborted) throw new Error('Stopped.');
+        if (await this.isReady(m, o)) { this.ready.brain = m; return true; }
+        if (attempt) {
+          const st = ledger?.step('retry', { what: m, attempt: attempt + 1 });
+          this.brain.log?.('handoff', `loading ${m} again (try ${attempt + 1}): ${last?.message || 'not ready after loading'}`);
+          await this.engine.unload?.(m).catch?.(() => {});
+          await sleep(this.delays[attempt - 1], signal);
+          st?.done();
+        }
+        // The painter lets go first (it may still hold the card from the last picture), unless both fit.
+        if (this.painter?.yieldFor && !o.cpu) await this.painter.yieldFor(m, { bytes: this.brainBytes(m, o) }).catch(() => {});
+        const st = ledger?.step('load', { what: m, attempt: attempt + 1 });
+        this.loading = { what: m, since: Date.now() };
+        try {
+          await announce?.(m, attempt);
+          await this.engine.preload(m, signal, o);
+          // Ready means a live check says so, not that preload returned.
+          if (await this.isReady(m, o)) { st?.done('ready'); this.ready.brain = m; return true; }
+          last = new Error(`${m} said it loaded but isn't answering.`);
+          st?.fail(last);
+        } catch (e) {
+          st?.fail(e);
+          if (signal?.aborted) throw new Error('Stopped.');
+          last = e;
+          if (NO_RETRY.test(e.message)) break;
+        } finally { this.loading = null; }
+      }
+      this.ready.brain = null;
+      throw last || new Error(`${m} wouldn't load.`);
+    };
+    try {
+      await tryLoad(model, opts);
+      return model;
+    } catch (e) {
+      if (/^Stopped\.$/.test(e.message) || signal?.aborted) throw e;
+      // Another brain won't load: the main brain does the job instead, and says so.
+      const main = this.brain.fallbackBrain?.();
+      if (!main?.model || sameModel(main.model, model)) throw e;
+      const st = ledger?.step('fallback', { from: model, to: main.model, why: e.message });
+      this.brain.log?.('handoff', `${model} wouldn't load (${e.message}); using ${main.model} instead`);
+      emit({ type: 'announce', text: `The ${this.label(model, who)} wouldn't load, so my ${this.label(main.model, 'bob')} is taking this one.` });
+      const o = { cpu: main.cpu, ctx: main.ctx };
+      if (!o.cpu) await this.hold(signal, `the ${this.label(main.model, 'bob').replace(/ \(.*$/, '')}`, emit);
+      await tryLoad(main.model, o).catch((e2) => { st?.fail(e2); throw e2; });
+      st?.done();
+      return main.model;
+    }
+  }
+
+  // Roughly what a brain needs on the card (its file plus room for the chat), so the painter can stay loaded
+  // beside a small one. Unknown -> undefined, and the painter lets go (the safe way).
+  brainBytes(model, opts = {}) {
+    try {
+      const f = this.engine.resolve?.(model)?.gguf;
+      if (!f) return undefined;
+      const size = fs.statSync(f).size;
+      return Math.round(size * 1.1 + Math.min(opts.ctx || 32768, 131072) * 60 * 1024);
+    } catch { return undefined; }
+  }
+
+  // "Coding brain (Qwen3 Coder 30B)": the brain names the user knows from Equip (brain.js), never a model id.
+  label(model, who) { try { return this.brain.brainLabel?.(model, who) || `${model} brain`; } catch { return `${model} brain`; } }
+
+  async isReady(model, opts) {
+    try { return Boolean(await this.engine.isLoaded(model, opts)); } catch { return false; }
+  }
+
+  // The painter (or Maestro, ComfyUI, the audio workshop) gets the card to itself. Brains are let go and the gate
+  // waits until the engine really reports them gone before the painter starts.
+  async needCard({ id, kind }, { signal, emit }) {
+    const ledger = this.ledgerOf(signal);
+    await this.hold(signal, id === 'painter' ? 'the picture engine' : 'the workshop', emit);
+    const st = ledger?.step('load', { what: id === 'painter' ? `painter (${kind || 'image'})` : 'empty graphics card' });
+    try {
+      const gone = (await this.brain.clearGpu()) || [];
+      await this.waitFree(signal);
+      if (id === 'painter' && this.painter?.ensureReady) {
+        const ps = this.painter.status?.();
+        if (ps?.state !== 'unavailable') {
+          this.loading = { what: 'painter', since: Date.now() };
+          try { await this.painter.ensureReady(kind || 'image', { signal }); this.ready.painter = kind || 'image'; }
+          catch (e) {
+            // The painter's own one-shot route (sd-cli) still works: paint() falls back to it. Only a stop ends here.
+            if (e.code === 'stopped' || signal?.aborted) throw e;
+            this.brain.log?.('handoff', `picture engine not ready (${e.code || e.message}); painting the one-shot way`);
+          } finally { this.loading = null; }
+        }
+      }
+      this.brain.state.model = null;
+      st?.done(gone.length ? `let go of ${gone.join(', ')}` : 'card was free');
+      return gone;
+    } catch (e) { st?.fail(e); throw e; }
+  }
+
+  // After an unload, Bob's own GPU brains must really be gone before something else takes the card.
+  async waitFree(signal) {
+    const until = Date.now() + this.freeWaitMs;
+    while (Date.now() < until) {
+      let loaded = [];
+      try { loaded = await this.engine.loaded(); } catch { return; }
+      const onCard = loaded.filter((m) => m.vram > 0 || m.split === undefined);
+      if (!onCard.length) return;
+      await sleep(250, signal);
+    }
+    this.brain.log?.('handoff', 'a brain was still on the graphics card after unloading; going ahead');
+  }
+}
+
+// Runs fn, and once more after a short wait if it fails for a reason a retry can fix.
+export async function withRetry(fn, { tries = 2, wait = 3000, signal, onRetry, retryable = () => true } = {}) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    if (signal?.aborted) throw new Error('Stopped.');
+    try { return await fn(i); } catch (e) {
+      last = e;
+      if (signal?.aborted || e.code === 'stopped' || /^Stopped\.$/.test(e.message) || !retryable(e) || i === tries - 1) throw e;
+      onRetry?.(e, i);
+      await sleep(wait, signal);
+    }
+  }
+  throw last;
+}

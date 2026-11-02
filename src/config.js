@@ -47,7 +47,10 @@ export function loadConfig() {
   cfg.readRoots = [...new Set([cfg.innDir, ...(cfg.readRoots || [])])];
   // Bob's own code, the backups, and his settings/data folder (inn\bob: settings.json, reminders, file backups)
   // are never writable through his file tools, so he can't flip settings such as autostart himself.
-  cfg.readOnlyRoots = [...new Set([...(cfg.readOnlyRoots || []), appDir, path.join(cfg.agentDir, 'backup'), cfg.dataDir])];
+  // ownReadOnlyRoots stay read-only always; the user's own read-only projects can be opened up with the
+  // "Read-only projects stay read-only" hard limit in Settings, Hands (hands-settings.js readOnlyRoots).
+  cfg.ownReadOnlyRoots = [appDir, path.join(cfg.agentDir, 'backup'), cfg.dataDir];
+  cfg.readOnlyRoots = [...new Set([...(cfg.readOnlyRoots || []), ...cfg.ownReadOnlyRoots])];
   // The name Bob falls back to: the one in config.json, else the Windows user name.
   cfg.windowsName = cfg.userName || (os.userInfo().username || 'friend').replace(/^./, (c) => c.toUpperCase());
   cfg.userName = cfg.windowsName;
@@ -97,7 +100,7 @@ export const VERSION = (() => {
   } catch { return { release: '0.9', branch: '', build: 0, label: '0.9.0' }; }
 })();
 
-export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask', 'brainMode', 'allTools'];
+export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask', 'brainMode', 'allTools', 'quickOnCpu', 'quarantine', 'resumeJobs'];
 const LOCKED_LLAMACPP = ['exe', 'preArgs'];
 
 function deepMerge(into, from) {
@@ -122,9 +125,12 @@ function clean(patch) {
   if ('ollamaKeepAlive' in out) out.ollamaKeepAlive = /^\d+[smh]$|^-1$/.test(String(out.ollamaKeepAlive)) ? String(out.ollamaKeepAlive) : undefined;
   if ('oneBrain' in out) out.oneBrain = out.oneBrain === true;
   if ('allTools' in out) out.allTools = out.allTools === true;
+  if ('resumeJobs' in out) out.resumeJobs = out.resumeJobs === true; // 1.5.16, off unless switched on
+  if ('quickOnCpu' in out) out.quickOnCpu = out.quickOnCpu === true;
   if ('updates' in out) out.updates = { autoCheck: out.updates?.autoCheck === true };
   if ('housekeeping' in out) out.housekeeping = cleanHousekeeping(out.housekeeping || {});
   if ('hands' in out) out.hands = cleanHands(out.hands || {});
+  if ('quarantine' in out) out.quarantine = { on: out.quarantine?.on === true };
   if ('downloads' in out) { const d = out.downloads || {}; out.downloads = { concurrent: Number(d.concurrent) === 2 ? 2 : 1, resumeOnStart: d.resumeOnStart === true }; }
   if ('session' in out) out.session = ['normal', 'art', 'coding', 'office', 'deep', 'light'].includes(out.session) ? out.session : 'normal';
   if ('sessionBrains' in out) {

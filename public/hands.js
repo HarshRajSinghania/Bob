@@ -1,8 +1,8 @@
 // Hands in the window: the approval cards with rows to tick or the exact command, live output with Stop,
-// the "Stop everything" button, and the Hands section in Settings. Big buttons on purpose (remote desktop).
+// and the Hands section in Settings. Big buttons on purpose (remote desktop).
 import { esc } from './rich.js';
 
-const OPS = { move: 'Move', copy: 'Copy', zip: 'Zip', unzip: 'Unzip', recycle: 'Recycle Bin' };
+const OPS = { move: 'Move', copy: 'Copy', zip: 'Zip', unzip: 'Unzip', recycle: 'Recycle Bin', delete: 'Delete for good' };
 const when = (t) => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const post = async (url, data) => {
   const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-bob': '1' }, body: JSON.stringify(data || {}) });
@@ -92,6 +92,8 @@ export function onHandsEvent(ev, { add, scrollDown, note }) {
     };
     return true;
   }
+  // Working without asking: no card, just a plain line of what he did (it's in the logbook too).
+  if (ev.type === 'auto-approved') { add('hands-done auto', `<span>Did without asking: ${esc(ev.text)}${ev.command && ev.command !== ev.text ? ` <code>${esc(ev.command)}</code>` : ''}</span>`); return true; }
   if (ev.type === 'apps-stopped') { add('hands-done', `<span>You ${esc(ev.why || 'took over')}, so Bob stopped using apps for this job.</span>`); return true; }
   if (ev.type === 'hands') { showStopAll(ev.settings?.enabled); return true; }
   return false;
@@ -123,16 +125,20 @@ export async function mountHandsSettings(box) {
     const s = v.settings;
     const folders = [...new Set([...(v.candidates || []), ...s.folders])];
     box.innerHTML = `<strong>Hands</strong> <span class="tag">off unless you turn them on</span>
-      <p class="muted">Hands let Bob do things on this PC, not just talk about them. Each one is off until you switch it on. Even then he shows you exactly what he'll do (every file, or the exact command) and waits for your click every time. "Allow the rest of this job" only covers the same kind of thing until that job ends. He never runs as administrator, never handles passwords, and never touches secret files, read-only projects or his own settings. Everything goes in the logbook.</p>
-      <button type="button" class="stop-all big" data-hstopall>✋ Stop everything</button>
-      <label class="switch"><input type="checkbox" data-hmaster ${s.enabled ? 'checked' : ''}><span><strong>Let Bob use Hands</strong><br><span class="muted">The master switch. Off = every Hand below is off.</span>${s.enabled && s.held ? '<br><span class="warn-text">Stopped right now with the Hands switch on the chat page. Click it there to carry on.</span>' : ''}</span></label>
+      <p class="muted">Hands let Bob do things on this PC, not just talk about them. Each one is off until you switch it on. Even then he shows you exactly what he'll do (every file, or the exact command) and waits for your click every time, unless you turn on "Let Bob work without asking" below. "Allow the rest of this job" only covers the same kind of thing until that job ends. The hard limits below are all on to start with. He never changes his own code or settings. Everything goes in the logbook.</p>
+      <label class="switch"><input type="checkbox" data-hmaster ${s.enabled ? 'checked' : ''}><span><strong>Let Bob use Hands</strong><br><span class="muted">The master switch. Off turns every Hand below off.</span>${s.enabled && s.held ? '<br><span class="warn-text">Stopped right now with the Hands switch on the chat page. Click it there to carry on.</span>' : ''}</span></label>
+      <div class="hands-free${s.free ? ' on' : ''}"><label class="switch${s.enabled ? '' : ' dim'}"><input type="checkbox" data-hfree ${s.free ? 'checked' : ''} ${s.enabled ? '' : 'disabled'}><span><strong>Let Bob work without asking</strong> <span class="tag">off unless you turn it on</span><br><span class="muted">No approval cards: he just does the job and tells you what he did. The hard limits below still apply, every action is still in the chat and the logbook, and the ✋ Hands button on the chat page stops him at once. Cloud helpers still ask, because they cost money. Scheduled jobs also run by themselves.</span>${s.free && s.enabled ? '<br><span class="warn-text">On: Bob is working without asking.</span>' : ''}</span></label></div>
       ${v.hands.map((h) => { const [first, ...rest] = String(h.what || '').split(/(?<=\.)\s+/); return `<label class="switch${s.enabled ? '' : ' dim'}"><input type="checkbox" data-hand="${esc(h.id)}" ${s[h.id]?.on ? 'checked' : ''} ${s.enabled ? '' : 'disabled'}><span><strong>${esc(h.label)}</strong><br><span class="muted">${esc(first)}</span></span></label>${rest.length ? `<details class="more"><summary>More</summary><p class="muted">${esc(rest.join(' '))}</p></details>` : ''}`; }).join('')}
+      <div class="hands-limits"><strong>Hard limits</strong> <span class="tag">all on to start with</span>
+        <p class="muted">These hold whether or not Bob asks first. Switch one off only if you need what it blocks.</p>
+        ${(v.limits || []).map((l) => `<label class="switch small"><input type="checkbox" data-hlimit="${esc(l.id)}" ${s.limits?.[l.id] !== false ? 'checked' : ''}><span><strong>${esc(l.label)}</strong><br><span class="muted">${esc(l.on)}</span>${l.more ? `<details class="more"><summary>More</summary><span class="muted">${esc(l.more)}</span></details>` : ''}${s.limits?.[l.id] === false ? `<br><span class="warn-text">Off: ${esc(l.off)}</span>` : ''}${l.id === 'readOnly' ? `<br><span class="muted">Read-only right now: ${v.readOnly?.length ? esc(v.readOnly.join('; ')) : 'none (add folders to "readOnlyRoots" in config.json)'}</span>` : ''}</span></label>`).join('')}
+        <p class="muted">Always on, whatever you pick: Bob can't change his own code, settings or this page, never runs as administrator, stays out of terminals, admin tools, password managers and sign-in prompts, and the ✋ Hands button always stops him.</p></div>
       <div class="hands-folders"><strong>Folders the Files Hand may work in</strong>
         ${folders.length ? folders.map((f) => `<label class="switch small"><input type="checkbox" data-hfolder="${esc(f)}" ${s.folders.includes(f) ? 'checked' : ''}><span>${esc(f)}</span></label>`).join('') : '<p class="muted">No folders yet.</p>'}
         <div class="row"><input type="text" data-hnewfolder placeholder="Add a folder: C:\\Users\\you\\Pictures" aria-label="Add a folder" style="flex:1"><button type="button" data-haddfolder>Add</button></div>
-        <p class="muted">Read-only projects, Bob's own folders and files with keys or passwords stay off-limits even inside these.</p></div>
+        <p class="muted">Bob's own folders stay off-limits even inside these, and so do read-only projects and files with keys or passwords while those hard limits are on.</p></div>
       <label class="pick"><strong>Stop a command after</strong><select data-htimeout>${[1, 5, 15, 30, 60, 120].map((m) => `<option value="${m}" ${m === s.timeoutMin ? 'selected' : ''}>${m < 60 ? `${m} minute${m === 1 ? '' : 's'}` : `${m / 60} hour${m === 60 ? '' : 's'}`}</option>`).join('')}</select></label>
-      <div class="hands-recipes"><strong>Recipes</strong> <span class="muted">Saved commands you can run in one click, or ask Bob for by name ("run my build recipe"). He still asks before each run.</span>
+      <div class="hands-recipes"><strong>Recipes</strong> <span class="muted">Saved commands you can run in one click, or ask Bob for by name ("run my build recipe"). He still asks before each run, unless he's working without asking.</span>
         ${v.recipes.length ? `<ul>${v.recipes.map((r) => `<li><button type="button" class="big" data-hrun="${esc(r.name)}" ${s.enabled && s.run?.on ? '' : 'disabled'}>▶ ${esc(r.name)}</button> <code>${esc([r.cmd, ...(r.args || [])].join(' '))}</code> <span class="muted">in ${esc(r.cwd)}</span> <button type="button" class="link" data-hdelrecipe="${esc(r.name)}">Remove</button></li>`).join('')}</ul>` : ''}
         <details><summary>Add a recipe</summary><div class="hands-newrecipe">
           <label class="pick"><span>Name</span><input data-hr="name" placeholder="Build my app"></label>
@@ -151,6 +157,19 @@ export async function mountHandsSettings(box) {
         ${selftest ? `<ul class="selftest">${selftest.results.map((r) => `<li>${r.ok ? '✅' : '❌'} <strong>${esc(r.name)}</strong>: ${esc(r.says)}</li>`).join('')}</ul><p class="muted">${selftest.passed} of ${selftest.total} passed.${selftest.cleaned ? ' The throwaway folder is gone.' : ` Couldn't remove ${esc(selftest.folder)}.`}</p>` : ''}</div>
       <p class="muted hands-out" role="status"></p>`;
   };
+  // Turning on "work without asking" asks first, in the page (no browser dialog). Turning it off never asks.
+  const askFree = () => {
+    const row = box.querySelector('.hands-free');
+    if (!row || row.querySelector('.free-confirm')) return;
+    const c = document.createElement('div');
+    c.className = 'free-confirm';
+    c.setAttribute('role', 'alertdialog');
+    c.setAttribute('aria-label', 'Turn on Let Bob work without asking?');
+    c.innerHTML = `<p><strong>Let Bob work without asking?</strong> He'll move files, run commands and use apps without showing you a card first. Scheduled jobs will also run by themselves. Hard limits still apply, and ✋ Hands stops him at any time.</p>
+      <div class="row"><button type="button" class="big warn" data-hfreeyes>Turn it on</button><button type="button" class="big" data-hfreeno>Cancel</button></div>`;
+    row.appendChild(c);
+    c.querySelector('[data-hfreeno]').focus();
+  };
   const say = (t) => { const o = box.querySelector('.hands-out'); if (o) o.textContent = t; };
   const set = async (patch, msg) => { v = await post('/api/hands/settings', patch); draw(); say(msg || 'Saved.'); showStopAll(v.settings.enabled); };
   let sched = null, selftest = null;
@@ -163,6 +182,9 @@ export async function mountHandsSettings(box) {
     e.stopPropagation();
     try {
       if ('hmaster' in el.dataset) return await set({ enabled: el.checked }, el.checked ? 'Hands on. Now switch on the ones you want; he still asks every time.' : 'All Hands off.');
+      if ('hfree' in el.dataset && el.checked) { el.checked = false; return askFree(); }
+      if ('hfree' in el.dataset) return await set({ free: el.checked }, el.checked ? 'On. Bob works without asking now. The hard limits still apply, and ✋ Hands on the chat page stops him.' : 'Off. Bob asks before every action again.');
+      if (el.dataset.hlimit) { const l = (v.limits || []).find((x) => x.id === el.dataset.hlimit); return await set({ limits: { [el.dataset.hlimit]: el.checked } }, el.checked ? `"${l?.label}" is back on.` : `"${l?.label}" is off. ${l?.off || ''}`); }
       if (el.dataset.hand) return await set({ [el.dataset.hand]: { on: el.checked } }, el.checked ? 'On. Bob still asks before every action.' : 'Off.');
       if (el.dataset.hfolder) { const f = el.dataset.hfolder; return await set({ folders: el.checked ? [...v.settings.folders, f] : v.settings.folders.filter((x) => x !== f) }); }
       if ('htimeout' in el.dataset) return await set({ timeoutMin: Number(el.value) });
@@ -175,6 +197,8 @@ export async function mountHandsSettings(box) {
     if (!b) return;
     e.stopPropagation();
     try {
+      if ('hfreeyes' in b.dataset) return await set({ free: true }, 'On. Bob works without asking now. The hard limits still apply, and ✋ Hands on the chat page stops him.');
+      if ('hfreeno' in b.dataset) { b.closest('.free-confirm')?.remove(); return say('Left off. Bob still asks before every action.'); }
       if ('hstopall' in b.dataset) { const r = await post('/api/hands/stop-all'); v = r; draw(); say(`Stopped ${r.stopped} thing${r.stopped === 1 ? '' : 's'}. All Hands are off.`); showStopAll(false); return; }
       if ('haddfolder' in b.dataset) {
         const f = box.querySelector('[data-hnewfolder]').value.trim();

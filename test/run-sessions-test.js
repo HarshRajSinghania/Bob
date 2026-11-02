@@ -24,7 +24,10 @@ check('Art: chat on the small brain, on the processor', (() => { const m = model
 check('Coding: the coder does every hat', modelFor(cfg({ session: 'coding' }), 'ledger').model === 'qwen3-coder:30b');
 check('Office: the ledger brain does every hat', modelFor(cfg({ session: 'office' }), 'tinker').model === 'gemma4:26b');
 check('Deep thought: reviewer brain, thinking high', (() => { const m = modelFor(cfg({ session: 'deep' }), 'bob'); return m.model === 'gpt-oss:20b' && m.think === 'high'; })());
-check('Light: small brain, on the card', (() => { const m = modelFor(cfg({ session: 'light' }), 'bob'); return m.model === 'gemma4:e4b' && !m.cpu; })());
+check('Light: small brain on the card by default (the processor switch is off unless turned on)', (() => { const m = modelFor(cfg({ session: 'light' }), 'bob'); return m.model === 'gemma4:e4b' && !m.cpu; })());
+check('Light with "Keep the graphics card free" on: chat on the processor', (() => { const m = modelFor(cfg({ session: 'light', quickOnCpu: true }), 'bob'); return m.model === 'gemma4:e4b' && m.cpu; })());
+check('Normal with it on: chat on the Quick brain on the processor; hats keep their own brains on the card', (() => { const m = modelFor(cfg({ quickOnCpu: true }), 'bob'); const t = modelFor(cfg({ quickOnCpu: true }), 'tinker'); return m.model === 'gemma4:e4b' && m.cpu && t.model === 'qwen3-coder:30b' && !t.cpu; })());
+check('Normal by default: the main Brain on the card, as before 1.5.14', (() => { const m = modelFor(cfg(), 'bob'); return m.model === 'gemma4:26b' && !m.cpu; })());
 check('session brains can be changed', sessionBrains(cfg({ sessionBrains: { small: 'qwen2.5-coder:7b' } })).small === 'qwen2.5-coder:7b');
 check('Art: pictures get their own lane', laneOf(cfg({ session: 'art' }), { kind: 'picture' }) === 'art' && laneOf(cfg({ session: 'art' }), { kind: 'chat' }) === 'talk');
 check('Normal: one lane for everything', laneOf(cfg(), { kind: 'picture' }) === 'talk');
@@ -75,6 +78,7 @@ check('llama.cpp: threads, batch and micro-batch', at('-t') === '8' && at('-b') 
 check('llama.cpp: speculative decoding with the draft brain', at('-md') === small && at('--draft-max') === '16' && at('--draft-min') === '2' && at('-ngld') === '99');
 check('llama.cpp: per-model flags', a.includes('--n-cpu-moe') && at('--n-cpu-moe') === '8');
 check('llama.cpp: the draft brain gets no draft of its own', !lc.buildArgs('small').includes('-md'));
+{ const c = lc.buildArgs('big', { cpu: true }); check('llama.cpp on the processor: no layers on the card, no --fit, no draft brain', c[c.indexOf('-ngl') + 1] === '0' && !c.includes('--fit') && !c.includes('-md')); }
 check('llama.cpp: settings changed later apply to the next load', (lcfg.llamacpp.threads = 4, at && lc.buildArgs('big')[lc.buildArgs('big').indexOf('-t') + 1] === '4'));
 const m = mergeSettings({ llamacpp: { exe: 'C:\\llama\\llama-server.exe' } }, { llamacpp: { exe: 'C:\\evil.exe', threads: -3, batch: 2048, modelArgs: { big: ['--n-cpu-moe', '8', '--log-file', 'C:\\Windows\\x.txt'] }, draft: { model: 'small', max: 999 } }, sessionCtx: { deep: 131072, art: 12345 } });
 check('speed settings: the program path can\'t be changed', m.llamacpp.exe === 'C:\\llama\\llama-server.exe');

@@ -9,6 +9,7 @@ export class Ollama {
     this.timesFile = path.join(cfg.dataDir, 'load-times.json');
     try { this.loadTimes = JSON.parse(fs.readFileSync(this.timesFile, 'utf8')); } catch { this.loadTimes = {}; }
     this.sizes = {};
+    this.thinkers = new Map(); // model -> whether it thinks (Ollama's "thinking" capability), asked once
   }
 
   async json(p, body, signal) {
@@ -122,6 +123,19 @@ export class Ollama {
   // A model's details; "capabilities" lists completion, vision, audio, tools, thinking (newer Ollama).
   async show(model) { return this.json('/api/show', { model }); }
 
+  // 1.5.16: whether a model thinks before answering (gemma4, qwen3...). Asked once per model; unknown counts as no.
+  async canThink(model) {
+    if (!this.thinkers.has(model)) this.thinkers.set(model, this.show(model).then((r) => (r?.capabilities || []).includes('thinking')).catch(() => false));
+    return this.thinkers.get(model);
+  }
+
+  // What to send as "think". false (a quick reply) turns thinking off, but only for models that think; gpt-oss can't
+  // switch it off, so it gets its lowest level. A level ('high') still goes only to gpt-oss, as before.
+  async thinkField(model, think) {
+    if (think === false) return /gpt-oss/.test(model) ? 'low' : (await this.canThink(model)) ? false : undefined;
+    return think && /gpt-oss/.test(model) ? think : undefined;
+  }
+
   // Embeddings for topic matching (housekeeping). Never downloads: a model that isn't on this PC is an error,
   // and the housekeeper then matches topics by name and words instead.
   async embed(model, input) {
@@ -132,12 +146,13 @@ export class Ollama {
 
   // Streams a chat. Calls onToken(text) for visible text. Returns the final assistant message.
   async chat({ model, messages, tools, signal, onToken, cpu = false, think, ctx }) {
+    const thinkSend = await this.thinkField(model, think);
     const res = await fetch(this.url + '/api/chat', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ model, messages, tools: tools && tools.length ? tools : undefined, stream: true, keep_alive: this.keepAlive(model), options: this.opts(cpu, ctx),
         // Deep thought: gpt-oss takes a reasoning level; other models don't all understand "think", so it's only sent to gpt-oss.
-        think: think && /gpt-oss/.test(model) ? think : undefined }),
+        think: thinkSend }),
       signal
     });
     if (!res.ok) throw new Error(`Ollama chat returned ${res.status}: ${(await res.text()).slice(0, 300)}`);

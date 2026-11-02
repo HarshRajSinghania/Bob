@@ -76,6 +76,28 @@ const size = (step) => JSON.stringify(step.tools).length;
   check('a normal answer is not retried', fine.length === 1);
 }
 
+// ---------- Empty replies and "show me a picture" (2026-11-02) ----------
+{
+  const steps = await turn('can you show me a picture of a beautiful sunrise?', [{ role: 'assistant', content: '' }], 'e1');
+  check('an empty reply gets one more go, with every group', steps.length === 2 && names(steps[1]).includes('write_file') && names(steps[1]).includes('file_hands'), steps.map((x) => names(x).length).join('/'));
+  const evs = []; seen.length = 0; script = [{ role: 'assistant', content: '' }, { role: 'assistant', content: '  ' }];
+  const msgs = [];
+  await brain.runOn(msgs, 'hmm', (e) => evs.push(e), new AbortController().signal, [], null, 'e2');
+  check('empty twice: a plain app note, and no empty Bob words kept', evs.some((e) => e.type === 'correction' && /didn't answer/.test(e.text)) && !msgs.some((m) => m.role === 'assistant' && !m.content && !m.correction), JSON.stringify(evs));
+  check('...and it only retries once', seen.length === 2);
+  saveSettings(cfg, { allTools: true });
+  const all = await turn('hmm', [{ role: 'assistant', content: '' }], 'e3');
+  check('an empty reply is retried even with all tools on', all.length === 2);
+  saveSettings(cfg, { allTools: false });
+  for (const say of ['can you show me a picture of a beautiful sunrise?', 'make me a picture of a fox', 'draw a castle', 'paint the sea', 'a photo of a cat please', 'image of a robot']) check(`"${say}" adds the picture tools`, guessGroups({ usable: () => true, cfg }, say).includes('pictures'));
+  const off = brain.offTools; brain.offTools = () => new Set();
+  const [p] = await turn('show me a picture of a sunrise', [], 'e4');
+  check('with a picture model, "show me a picture" sends make_image and says to call it straight away', names(p).includes('make_image') && /call make_image yourself straight away/.test(p.sys));
+  brain.offTools = off;
+  const [q] = await turn('hello', [], 'e5');
+  check('...and that line stays out when pictures aren\'t needed', !/call make_image yourself/.test(q.sys));
+}
+
 // ---------- Sticky groups ----------
 {
   await turn('ok', [call('use_tools', { group: 'documents' })], 'chat');
@@ -89,7 +111,7 @@ const size = (step) => JSON.stringify(step.tools).length;
 
 // ---------- The old way, as a setting ----------
 {
-  check('"Give Bob all his tools at once" is off by default', cfg.allTools === undefined);
+  check('"Give Bob all his tools at once" is off by default', cfg.allTools !== true);
   saveSettings(cfg, { allTools: 'yes' });
   check('junk can\'t switch it on', cfg.allTools === false);
   saveSettings(cfg, { allTools: true });

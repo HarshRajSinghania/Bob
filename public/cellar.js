@@ -7,6 +7,7 @@ import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks,
 import { suit as fitSuit, picksOf, unsuited, jobNames, SLOT_NAMES } from './fit.js';
 import { drawBob } from './bob-sprite.js';
 import { handsSettingsHtml, mountHandsSettings } from './hands.js';
+import { quarantineSettingsHtml, mountQuarantineSettings } from './quarantine.js';
 import { findTheme } from './themes.js';
 import { attributesHtml, cleanPersonality, greeting, PRESETS, DEFAULTS, isDefault } from './personality.js';
 
@@ -322,12 +323,14 @@ export function createCellar() {
     return `<label class="pick${held ? ' dim' : ''}"><strong>Free memory after Bob has been quiet for</strong>
         <select data-set="keepAlive" aria-label="Free memory after Bob has been quiet for">${kaOpts.some(([v]) => v === ka) ? '' : `<option value="${esc(ka)}" selected>${esc(ka)}</option>`}${kaOpts.map(([v, label]) => `<option value="${v}" ${v === ka ? 'selected' : ''}>${label}</option>`).join('')}</select>
         <span class="muted">${held ? 'Not used right now: "Free memory when Bob is idle" on the chat page is off, so his small brain stays loaded.' : 'Used while "Free memory when Bob is idle" on the chat page is on.'} Big brains (Coding, Deep thought) are freed after 2 minutes, or sooner if you pick less.</span></label>
+      ${sswitch('quickOnCpu', settings.quickOnCpu === true, 'Keep the graphics card free for quick answers', 'Low effort answers run on the processor, so games and pictures keep the card. Replies start much slower (about half a minute). Applies in the Normal and Light sessions.')}
       <label class="pick"><strong>Bob's engine</strong>
         <select data-set="engine"><option value="ollama" ${settings.engine === 'ollama' ? 'selected' : ''}>Ollama (if you already have it)</option><option value="llamacpp" ${settings.engine === 'llamacpp' ? 'selected' : ''}>Bob's own (llama.cpp, nothing else needed)</option></select>
         <span class="muted">Takes effect next time Bob starts.</span></label>
       <div><strong>Engine downloads</strong>${more('The programs that run the models, from their official GitHub pages, matched to your graphics card.')}
         ${(data.engines || []).map((e) => `<article class="model" id="m-engine:${esc(e.id)}"><header><strong>${esc(e.name)}</strong></header><p>${esc(e.what)}</p>
           <div class="act">${live.has('engine:' + e.id) ? progress(live.get('engine:' + e.id)) : e.installed ? `<div class="have">✓ Installed${e.version ? ` (${esc(e.version)})` : ''}</div>${e.pinned || settings.platform !== 'win32' ? '' : `<button data-checkengine="${esc(e.id)}">Check for a newer build</button>`}` : settings.platform !== 'win32' ? '<div class="muted">Windows only</div>' : `<button class="get" data-engine="${esc(e.id)}">Get ${esc(e.name)}</button>`}</div><div class="confirm" hidden></div></article>`).join('')}</div>
+      ${sswitch('resumeJobs', settings.resumeJobs, 'Pick up unfinished jobs after a restart', 'If Bob closes mid-job, he starts it again next time. Jobs that had already changed something wait in Tasks for you to press Retry.')}
       ${sswitch('allTools', settings.allTools, 'Give Bob all his tools at once', 'Sends every tool with each message, which leaves less room for the chat. Leave off to keep chats light.')}
       ${speedHtml()}`;
   }
@@ -367,7 +370,7 @@ export function createCellar() {
     ['look', '🎨 Look & feel', 'theme editor now running layout', () => lookExtrasHtml()],
     ['engines', '⚙ Engines & speed', 'unload idle keep alive graphics memory vram engine ollama llama.cpp downloads fit memory speculative decoding draft flags threads batch', () => enginesHtml()],
     ['connections', '🔌 Connections', 'comfyui workflows port cloud helpers api', () => connectionsHtml()],
-    ['hands', '✋ Hands', 'files run commands schedules apps permission', () => handsSettingsHtml()],
+    ['hands', '✋ Hands', 'files run commands schedules apps permission quarantine reviewer', () => handsSettingsHtml() + quarantineSettingsHtml()],
     ['housekeeping', '🧹 Housekeeping', 'tidy old chats pictures logs', () => housekeepingHtml()],
     ['remove', '🗑 Remove Bob', 'uninstall remove', () => `<div class="remove-bob">${more('Takes off Bob\'s program, his Start menu shortcut and "Launch on start-up". His chats, settings and models stay unless you tick them. Nothing else in the inn folder or in Windows is touched.')}<button data-removebob>Remove Bob…</button><div class="remove-confirm" hidden></div></div>`]
   ];
@@ -432,6 +435,7 @@ export function createCellar() {
     if (mini) { const c = mini.getContext('2d'); c.imageSmoothingEnabled = false; try { drawBob(c, 64, {}, settings?.look); } catch {} }
     dlg.classList.toggle('wide', mode === 'shop' && tab === 'roles' && eqView !== 'list');
     mountHandsSettings(dlg.querySelector('.hands-box')); // loads its own data; does nothing off the Settings tab
+    mountQuarantineSettings(dlg.querySelector('.q-box'));
     const page = mode === 'welcome' ? 'Welcome' : tab === 'settings' ? 'Settings' : tab === 'style' ? 'Style' : 'Get models';
     $('cellar-title').textContent = page;
     for (const [id, on] of [['cellarBtn', page === 'Get models'], ['settingsBtn', page === 'Settings'], ['styleBtn', page === 'Style'], ['chatBtn', false]]) $(id)?.classList.toggle('on', on);
@@ -725,6 +729,8 @@ export function createCellar() {
       }
       if (el.dataset.sctx) { const v = el.value ? Number(el.value) : null; const r = await api('/api/settings', { sessionCtx: { [el.dataset.sctx]: v } }); settings.sessionCtx = r.sessionCtx; flash(el, 'Saved. Applies when the brain next loads.'); return; }
       if (el.dataset.sbrain) { const r = await api('/api/settings', { sessionBrains: { [el.dataset.sbrain]: el.value } }); settings.sessionBrains = r.sessionBrains; flash(el, 'Saved.'); return; }
+      if (el.dataset.set === 'quickOnCpu') { const r = await api('/api/settings', { quickOnCpu: el.checked }); settings.quickOnCpu = r.quickOnCpu; el.checked = r.quickOnCpu; return; }
+      if (el.dataset.set === 'resumeJobs') { const r = await api('/api/settings', { resumeJobs: el.checked }); settings.resumeJobs = r.resumeJobs; el.checked = r.resumeJobs; return; }
       if (el.dataset.set === 'allTools') { const r = await api('/api/settings', { allTools: el.checked }); settings.allTools = r.allTools; el.checked = r.allTools; return; }
       if (el.dataset.set === 'oneBrain') { const r = await api('/api/settings', { oneBrain: el.checked }); settings.oneBrain = r.oneBrain; el.checked = r.oneBrain; return; }
       if (el.dataset.set === 'catName') { const r = await api('/api/settings', { catName: el.value }); settings.catName = r.catName; el.value = r.catName; return; }

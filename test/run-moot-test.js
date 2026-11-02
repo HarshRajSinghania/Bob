@@ -1,5 +1,5 @@
 // 1.5.7 Effort and the moot: Low is today's Bob; High drafts on the big brain and the reviewer checks it once;
-// Extreme adds a checkpoint after each code change and checks fixes again. Plus the coding habit, drives, the cat.
+// Extreme (1.5.12) codes in phases (research, plan, do it) with a check after each, and checks fixes again. Medium: one big brain. Plus the coding habit, drives, the cat.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -16,7 +16,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-moot-'));
 const agentDir = path.join(tmp, 'Agent'), innDir = path.join(agentDir, 'inn'), dataDir = path.join(innDir, 'bob');
 fs.mkdirSync(dataDir, { recursive: true });
 const cfg = { agentDir, innDir, dataDir, settingsFile: path.join(dataDir, 'settings.json'), readRoots: [innDir], readOnlyRoots: [], recycleBin: false, userName: 'Sam',
-  models: { bob: 'main:latest', tinker: 'coder:latest', reviewer: 'qwen3.8:27b' }, sessionBrains: { deep: 'deep:latest' }, engine: 'ollama', ollamaUrl: 'http://127.0.0.1:1' };
+  models: { bob: 'main:latest', tinker: 'coder:latest', reviewer: 'qwen3.8:27b' }, sessionBrains: { deep: 'deep:latest', small: 'quick:latest' }, quickOnCpu: true, engine: 'ollama', ollamaUrl: 'http://127.0.0.1:1' };
 const brain = new Brain(cfg, () => {});
 clearInterval(brain.reminderTimer);
 const loads = [];
@@ -29,9 +29,9 @@ brain.runTool = async (name, args, ctx) => (name === 'edit_file' ? { text: 'Chan
 const calls = [];
 let scripts = { desk: [], tinker: [], reviewer: [] };
 const who = (sys) => (/second-look copy/.test(sys) ? 'reviewer' : /workbench copy/.test(sys) ? 'tinker' : 'desk');
-brain.engine = { chat: async ({ model, messages }) => {
+brain.engine = { chat: async ({ model, messages, cpu, think }) => {
   const w = who(messages[0].content);
-  calls.push({ w, model, sys: messages[0].content, last: messages.at(-1).content });
+  calls.push({ w, model, cpu: Boolean(cpu), think, sys: messages[0].content, last: messages.at(-1).content });
   return scripts[w].shift() || { role: 'assistant', content: w === 'reviewer' ? 'Looks right. Nothing to fix.' : 'done' };
 }, unloadAll: async () => {} };
 const call = (name, args = {}) => ({ role: 'assistant', content: '', tool_calls: [{ function: { name, arguments: args } }] });
@@ -50,11 +50,30 @@ async function turn(text, effort, s) {
 // ---------- Low ----------
 {
   const r = await turn('write me a paragraph about cats', 'low', { desk: [say(LONG)] });
-  check('Low: one brain, the usual chat brain, no reviewer', r.calls.length === 1 && r.calls[0].model === 'main:latest' && !r.calls.some((c) => c.w === 'reviewer'), r.calls.map((c) => c.model).join());
+  check('Low: one brain, the Quick brain on the processor, no reviewer', r.calls.length === 1 && r.calls[0].model === 'quick:latest' && r.calls[0].cpu && !r.calls.some((c) => c.w === 'reviewer'), r.calls.map((c) => c.model + (c.cpu ? '/cpu' : '')).join());
+  cfg.quickOnCpu = false;
+  const g = await turn('write me a paragraph about cats', 'low', { desk: [say(LONG)] });
+  check('Low with "Low effort runs on the processor" off: the main Brain on the graphics card, as before', g.calls[0].model === 'main:latest' && !g.calls[0].cpu, g.calls[0].model);
+  cfg.quickOnCpu = true;
   check('Low: no effort note in the prompt, no moot', !/Effort is/.test(r.calls[0].sys) && !r.events.some((e) => e.type === 'announce' && /moot/.test(e.text)));
   check('unknown effort values are Low', cleanEffort('turbo') === 'low' && cleanEffort(undefined) === 'low' && effortPrompt('low') === '');
   const j = brain.enqueue('x', 'hi', [], 'nonsense'); brain.cancelJob(j.jobId);
   check('the queue stores a clean effort', brain.queue.find((q) => q.id === j.jobId).effort === 'low' && brain.queueView?.() !== null);
+}
+
+// ---------- Medium ----------
+{
+  const r = await turn('write me a paragraph about cats', 'medium', { desk: [say(LONG)] });
+  check('Medium: one big brain (Deep thinking) on the graphics card, thinking normally', r.calls.length === 1 && r.calls[0].model === 'deep:latest' && !r.calls[0].cpu && r.calls[0].think === undefined, JSON.stringify(r.calls.map((c) => [c.model, c.cpu, c.think])));
+  check('Medium: no moot, no reviewer, a short effort note', !r.calls.some((c) => c.w === 'reviewer') && !r.events.some((e) => e.type === 'announce' && /moot/.test(e.text)) && /Effort is Medium/.test(r.calls[0].sys) && effortPrompt('medium').length < 250);
+  check('Medium is a real level', cleanEffort('medium') === 'medium');
+  cfg.session = 'light';
+  const c = await turn('fix a.js', 'medium', { desk: [call('ask_specialist', { hat: 'tinker', task: 'fix it' })], tinker: [say('Done, not run.')] });
+  const t = c.calls.find((x) => x.w === 'tinker');
+  check('Medium beats the Light session: coding still goes to the Coding brain on the card', t && t.model === 'coder:latest' && !t.cpu, t && t.model);
+  const l = await turn('hello there', 'low', { desk: [say('Hi.')] });
+  check('Low in the Light session: the Quick brain on the processor', l.calls[0].model === 'quick:latest' && l.calls[0].cpu, l.calls[0].model);
+  delete cfg.session;
 }
 
 // ---------- High, prose ----------
@@ -94,19 +113,21 @@ async function turn(text, effort, s) {
   check('High code: the minutes say the fixes weren\'t checked again', /fixes made; .* hasn't checked them again/.test(r.tokens), r.tokens.slice(-200));
 }
 
-// ---------- Extreme, code ----------
+// ---------- Extreme, code: research -> check -> plan -> check -> do it -> check ----------
 {
   const r = await turn('fix the off-by-one in a.js', 'extreme', {
     desk: [call('ask_specialist', { hat: 'tinker', task: 'fix it' })],
-    tinker: [{ ...call('edit_file', { path: 'a.js', find: 'i <= n', replace: 'i < n' }), content: 'Plan: fix the loop.' }, say('Changed a.js.'), say('Fixed.')],
-    reviewer: [say('Looks right. The loop bound is fixed.'), say('Needs fixes:\n- Add a test.'), say('Looks right. Test added.')]
+    tinker: [say('Found it: a.js line 4 loops one too far.'), say('1. Change i <= n to i < n in a.js\n2. Add a test'), { ...call('edit_file', { path: 'a.js', find: 'i <= n', replace: 'i < n' }), content: 'Doing step 1.' }, say('Changed a.js.'), say('Fixed.')],
+    reviewer: [say('Looks right. Right file.'), say('Needs fixes:\n- Also handle n = 0.'), say('Needs fixes:\n- Add a test.'), say('Looks right. Test added.')]
   });
   const order = r.calls.map((c) => c.w).join(',');
-  check('Extreme: a checkpoint right after the change, inside the workbench job', /^desk,tinker,reviewer,tinker/.test(order) && /Checkpoint, /.test(r.tokens), order);
-  check('Extreme: the workbench reads the checkpoint before carrying on', r.calls.filter((c) => c.w === 'tinker')[1]?.last.includes('Checkpoint from'));
-  check('Extreme: the workbench brain is brought back after the checkpoint', r.loads.filter((m) => m === 'coder:latest').length >= 2, r.loads.join());
+  check('Extreme: research, check, plan, check, then the changes, then the final check', /^desk,tinker,reviewer,tinker,reviewer,tinker,tinker,reviewer/.test(order), order);
+  const t = r.calls.filter((c) => c.w === 'tinker');
+  check('Extreme: research is read-only, the plan comes before any edit', /Phase 1 of 3, research/.test(t[0].last) && /Phase 2 of 3, plan/.test(t[1].last) && /Phase 3 of 3, do it/.test(t[2].last));
+  check('Extreme: each phase gets the reviewer\'s notes on the one before', t[1].last.includes('Right file') && t[2].last.includes('handle n = 0'));
+  check('Extreme: no check after every single edit any more', r.calls.filter((c) => c.w === 'reviewer').length === 4 && !/Checkpoint/.test(r.tokens), order);
   check('Extreme: final check, fix, then a second check', /reviewer,tinker,reviewer$/.test(order), order);
-  check('Extreme: the minutes end "checked, nothing open"', /Moot minutes:.*checked a change: fine.*Result: checked, nothing open\./.test(r.tokens), r.tokens.slice(-300));
+  check('Extreme: the minutes list the research and plan checks and end "checked, nothing open"', /Moot minutes:.*checked the research: fine.*checked the plan: needs fixes.*Result: checked, nothing open\./.test(r.tokens), r.tokens.slice(-400));
 }
 
 // ---------- Small parts ----------

@@ -58,6 +58,7 @@ Update this file in the same handover as any change to settings.
 | Get models / Equip Bob | Show models that don't suit this PC | off (remembered) | Approved with edits: use the pill switch style |
 | Help (menu, F1) | Search Help | | ok |
 | Settings > Advanced > Engines & speed | Give Bob all his tools at once: "Sends every tool with each message, which leaves less room for the chat. Leave off to keep chats light." | off | ok (approved with edits, slim tools) |
+| Settings > Advanced > Engines & speed | Pick up unfinished jobs after a restart: "If Bob closes mid-job, he starts it again next time. Jobs that had already changed something wait in Tasks for you to press Retry." | off | ok (approved with edits, handoffs) |
 
 ## Added in 1.5.7 (careful work, Effort, drives, the cat) — approved with edits by the design thread
 | Page | Setting | Default | Review |
@@ -66,3 +67,13 @@ Update this file in the same handover as any change to settings.
 | Personality (Attributes) | Ambition dial: Keeps quiet to Ambitious | middle (2) | ok (with edits) |
 | Now running > Tasks (empty) | A small cat moment under "Nothing running" (changes every 10 minutes, no setting, no brain) | always | ok (with edits) |
 | Sidebar, by Bob's picture | The cat does a short antic every 1½-3 minutes while Bob is idle, with a one-line moment under his status (no brain, no setting) | always | added after review |
+| Settings > Advanced > Hands | Let Bob work without asking (confirm when turning on; banner + orange ✋ pill while on) | off | ok (approved with edits, free hands) |
+| Settings > Advanced > Hands > Hard limits | Recycle Bin only · Keep secret files private · Read-only projects stay read-only · Block dangerous commands · Don't send anything out · Never type into password fields (orange "Off:" line when off) | all on | ok (approved with edits) |
+
+## Added in 1.5.12 (Medium effort, Low on the processor) — approved with edits by the design thread
+| Page | Setting | Default | Review |
+|---|---|---|---|
+| Chat page, Effort | Medium / "Deeper": one big brain on the graphics card, no second check | Low stays the default | ok (approved with edits) |
+| Settings > Advanced > Engines & speed (next to "Free memory after Bob has been quiet for") | Keep the graphics card free for quick answers: "Low effort answers run on the processor, so games and pictures keep the card. Replies start much slower (about half a minute). Applies in the Normal and Light sessions." | off (1.5.15: about 31 s to the first word on the processor vs 4 s on the card) | ok (approved; moved to Advanced) |
+| Settings > Advanced > Hands > Quarantine | Let the reviewer quarantine Bob ("If Bob or one of his copies goes off track, <reviewer> (his reviewer) stops him and asks you whether to quarantine him. Nothing happens without your click." + More) | off | ok (approved with edits, quarantine) |
+| Chat page | 🔒 quarantine banner (only while someone is in quarantine): what happened + Release <name> | hidden | ok (approved with edits, quarantine) |

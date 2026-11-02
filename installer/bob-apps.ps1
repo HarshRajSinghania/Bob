@@ -460,7 +460,8 @@ namespace BobApps {
     }
 
     // expect: the label the user approved on the card. If the window now resolves to something else, nothing is done.
-    public static string Act(long hwnd, string action, string type, string name, string id, int nth, string text, string keys, string expect) {
+    // allowPassword: only when the user switched off "Never type into password fields" in Settings, Hands.
+    public static string Act(long hwnd, string action, string type, string name, string id, int nth, string text, string keys, string expect, bool allowPassword) {
       if (stopped) throw new Exception("Stopped: you took back control.");
       if (!driving) throw new Exception("Bob isn't driving right now.");
       IntPtr h = Window(hwnd);
@@ -487,7 +488,7 @@ namespace BobApps {
           return "clicked " + label;
         }
         if (action == "type") {
-          if (e.Current.IsPassword) throw new Exception("Bob never types into password fields.");
+          if (e.Current.IsPassword && !allowPassword) throw new Exception("Bob never types into password fields.");
           // A plain field takes the text directly (in place of what was there).
           if (e.Current.ControlType == ControlType.Edit && e.TryGetCurrentPattern(ValuePattern.Pattern, out p) && !((ValuePattern)p).Current.IsReadOnly) {
             try { ((ValuePattern)p).SetValue(text); return Checked(e, text, "typed into " + label + " (in place of what was there)" + Swapped()); }
@@ -503,7 +504,7 @@ namespace BobApps {
           return Checked(e, text, "typed into " + label + " (added at the end)" + Swapped());
         }
         if (action == "keys") {
-          if (e.Current.IsPassword) throw new Exception("Bob never types into password fields.");
+          if (e.Current.IsPassword && !allowPassword) throw new Exception("Bob never types into password fields.");
           if (keys.IndexOf("{ESC}", StringComparison.OrdinalIgnoreCase) >= 0) Quiet(400);
           try { e.SetFocus(); } catch { }
           SendKeys.SendWait(keys);
@@ -560,7 +561,7 @@ while (-not $quit) {
       }
       'act' {
         $t = $m.target
-        $r.did = [BobApps.Driver]::Act([long]$m.hwnd, [string]$m.action, [string]$t.type, [string]$t.name, [string]$t.id, [int]$t.nth, [string]$m.text, [string]$m.keys, [string]$m.expect)
+        $r.did = [BobApps.Driver]::Act([long]$m.hwnd, [string]$m.action, [string]$t.type, [string]$t.name, [string]$t.id, [int]$t.nth, [string]$m.text, [string]$m.keys, [string]$m.expect, [bool]$m.allowPassword)
       }
       'quit' { [BobApps.Driver]::Drive($false); $quit = $true }
       default { throw "Unknown request: $($m.op)" }

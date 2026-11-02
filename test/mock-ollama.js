@@ -3,6 +3,7 @@ import http from 'node:http';
 
 export function startMockOllama(port) {
   const loaded = new Set();
+  const onCpu = new Set(); // models loaded with num_gpu 0 (on the processor): no graphics memory, like real Ollama
   const calls = [];
   const server = http.createServer(async (req, res) => {
     let body = '';
@@ -11,7 +12,7 @@ export function startMockOllama(port) {
     calls.push({ path: req.url, body: j });
     const send = (o) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
 
-    if (req.url === '/api/ps') return send({ models: [...loaded].map((name) => ({ name, model: name, size: 1e9, size_vram: 1e9 })) });
+    if (req.url === '/api/ps') return send({ models: [...loaded].map((name) => ({ name, model: name, size: 1e9, size_vram: onCpu.has(name) ? 0 : 1e9 })) });
     // Only the coder can see in this fake: tests check pictures go only to brains with vision.
     if (req.url === '/api/show') return send({ capabilities: j.model === 'qwen3-coder:30b' ? ['completion', 'tools', 'vision'] : ['completion', 'tools'], model_info: { 'gemma4.context_length': 131072 } });
     if (req.url === '/api/tags') return send({ models: [{ name: 'gemma4:26b', size: 18e9 }, { name: 'qwen3-coder:30b', size: 19e9 }] });
@@ -20,6 +21,7 @@ export function startMockOllama(port) {
       await new Promise((r) => setTimeout(r, 1200));
       loaded.clear();
       loaded.add(j.model);
+      if (j.options?.num_gpu === 0) onCpu.add(j.model); else onCpu.delete(j.model);
       return send({ done: true });
     }
     if (req.url === '/api/chat' && j.stream === false) {
@@ -29,6 +31,7 @@ export function startMockOllama(port) {
     if (req.url === '/api/chat') {
       loaded.clear();
       loaded.add(j.model);
+      if (j.options?.num_gpu === 0) onCpu.add(j.model); else onCpu.delete(j.model);
       res.writeHead(200, { 'content-type': 'application/x-ndjson' });
       const line = (o) => res.write(JSON.stringify(o) + '\n');
       const msgs = j.messages;

@@ -31,7 +31,7 @@ check('Curiosity high ends ask easy questions about the user\'s own projects, ne
 // In a real turn: the reply is flagged, the user sees the app's note, and Bob gets one go to answer from real things.
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-talk-'));
 const dataDir = path.join(tmp, 'inn', 'bob'); fs.mkdirSync(dataDir, { recursive: true });
-const brain = new Brain({ agentDir: tmp, innDir: path.join(tmp, 'inn'), dataDir, settingsFile: path.join(dataDir, 'settings.json'), readRoots: [], readOnlyRoots: [], userName: 'Sam', models: { bob: 'small:latest' }, engine: 'ollama', ollamaUrl: 'http://127.0.0.1:1' }, () => {});
+const brain = new Brain({ agentDir: tmp, innDir: path.join(tmp, 'inn'), dataDir, settingsFile: path.join(dataDir, 'settings.json'), readRoots: [], readOnlyRoots: [], userName: 'Sam', quickOnCpu: false, models: { bob: 'small:latest' }, engine: 'ollama', ollamaUrl: 'http://127.0.0.1:1' }, () => {});
 clearInterval(brain.reminderTimer);
 brain.ensureModel = async () => {}; brain.fitCtx = async () => 8192; brain.recall = async () => '';
 const seen = []; const script = [{ role: 'assistant', content: REPORTED }, { role: 'assistant', content: 'All quiet. Patches is asleep on the rack. What are we working on?' }];

@@ -45,7 +45,7 @@ const inn = path.join(tmp, 'inn');
 const cfg = {
   agentDir: tmp, innDir: inn, dataDir: path.join(inn, 'bob'), painterDir: path.join(inn, 'painter'), archiveDir: path.join(inn, 'archive'),
   logbook: path.join(inn, 'logbook.md'), memoryFile: path.join(inn, 'bob-memory.md'), noticeBoard: path.join(inn, 'notice-board.md'),
-  ollamaUrl: 'http://127.0.0.1:1', engine: 'ollama', models: { bob: 'small:4b', tinker: 'coder:30b', reviewer: 'thinker:20b' }, userName: 'Sam', timeZone: 'America/Edmonton',
+  ollamaUrl: 'http://127.0.0.1:1', quickOnCpu: false, engine: 'ollama', models: { bob: 'small:4b', tinker: 'coder:30b', reviewer: 'thinker:20b' }, userName: 'Sam', timeZone: 'America/Edmonton',
   readRoots: [inn], readOnlyRoots: [], recycleBin: false, housekeeping: { enabled: false }
 };
 for (const d of [cfg.dataDir, cfg.painterDir, cfg.archiveDir, path.join(inn, 'references')]) fs.mkdirSync(d, { recursive: true });

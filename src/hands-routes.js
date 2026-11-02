@@ -1,7 +1,8 @@
 // The Hands part of Bob's API. Changing settings, recipes and Undo only work on the PC itself; Stop works from
 // anywhere Bob's window is open (stopping is always allowed).
 //   GET  /api/hands            settings, the list of Hands, folders, recipes, recent file jobs and runs, what's running
-//   POST /api/hands/settings   { enabled?, files: { on }?, run: { on }?, folders?, timeoutMin? }
+//   POST /api/hands/settings   { enabled?, free?, limits: { <limit>: bool }?, files: { on }?, run: { on }?, folders?, timeoutMin? }
+//                              free = "Let Bob work without asking"; limits = the hard limits (hands-settings.js LIMITS)
 //   POST /api/hands/stop       { runId }  stop one running command
 //   POST /api/hands/stop-all   stop everything a Hand is doing, deny waiting Hand cards, all Hands off
 //   POST /api/hands/hold       { held } the chat-page kill switch: true stops (works from anywhere), false only on the PC
@@ -11,7 +12,7 @@
 //   POST /api/hands/selftest   run the self-test in a throwaway folder (the user's click; nothing of theirs is touched)
 //   POST /api/hands/run-recipe { name }  run a recipe now (the user's click is the approval; output goes to the chat)
 import { handsView, stopRun, stopEverything, holdHands, saveRecipe, removeRecipe, loadRecipes, runApproved } from './hands.js';
-import { handsSettings, cleanHands, HANDS, handOn } from './hands-settings.js';
+import { handsSettings, cleanHands, HANDS, LIMITS, handOn } from './hands-settings.js';
 import fs from 'node:fs';
 import { undoJob } from './hands-files.js';
 import { selfTest } from './hands-selftest.js';
@@ -31,13 +32,22 @@ export async function handsRoute({ req, p, isLocal, brain, cfg, body, send, res 
       const cur = handsSettings(cfg);
       const next = { ...cur };
       if ('enabled' in b) next.enabled = b.enabled === true;
+      if ('free' in b) next.free = b.free === true;
+      const limitNotes = [];
+      if (b.limits && typeof b.limits === 'object') {
+        next.limits = { ...cur.limits };
+        for (const k of Object.keys(LIMITS)) if (k in b.limits) {
+          next.limits[k] = b.limits[k] !== false;
+          if (next.limits[k] !== cur.limits[k]) limitNotes.push(next.limits[k] ? `hard limit "${LIMITS[k].label}" back on` : `hard limit "${LIMITS[k].label}" switched OFF: ${LIMITS[k].off}`);
+        }
+      }
       for (const id of Object.keys(HANDS)) if (b[id] && typeof b[id] === 'object' && 'on' in b[id]) next[id] = { on: b[id].on === true };
       if (Array.isArray(b.folders)) next.folders = b.folders.filter((f) => typeof f === 'string' && isDir(f)); // only folders that exist
       if ('timeoutMin' in b) next.timeoutMin = b.timeoutMin;
       const clean = cleanHands(next);
       brain.saveHands(clean);
-      const changed = Object.keys(b).map((k) => (typeof b[k] === 'object' && !Array.isArray(b[k]) ? `${k} ${b[k].on ? 'on' : 'off'}` : k === 'enabled' ? `Hands ${b.enabled ? 'on' : 'off'}` : k)).join(', ');
-      brain.log('hands', `settings: ${changed}`);
+      const changed = Object.keys(b).filter((k) => k !== 'limits').map((k) => (typeof b[k] === 'object' && !Array.isArray(b[k]) ? `${k} ${b[k].on ? 'on' : 'off'}` : k === 'enabled' ? `Hands ${b.enabled ? 'on' : 'off'}` : k === 'free' ? `work without asking ${b.free ? 'ON (no approval cards)' : 'off (asks again)'}` : k));
+      brain.log('hands', `settings: ${[...changed, ...limitNotes].join(', ')}`);
       send(res, 200, handsView(cfg));
       return true;
     }

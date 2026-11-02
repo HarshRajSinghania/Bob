@@ -40,7 +40,8 @@ Bob's window has three parts:
 Handy things in the chat:
 
 - Every message and every piece of code has a **Copy** button. This helps a lot over remote desktop apps, where right-click and Ctrl+C often don't work.
-- Links and files Bob mentions are **clickable**. A file gets a little card with a preview, **Open**, **Show in folder** and **Copy path**.
+- Links and files Bob mentions are **clickable**. Everything he makes or saves, and every file he mentions, gets a card with a preview (the picture, a player, or the first lines of a document).
+- Click a card, or **View**, to open it in the **side panel** beside the chat, in its own tab. **Made by Bob** in the left menu lists everything he has made, newest first, with Pictures / Clips / Sounds / Documents filters and a search box. You can also ask him: "show me the last picture". In the panel, **Open in its app**, **Show in folder** and **Copy path** do what they say. Web pages he writes are previewed with scripts off. Esc closes the panel. On a narrower screen the panel takes Now running's place; click Now running to switch back.
 - 📎 attaches a picture, and 🎙 lets you talk instead of typing.
 - You can send as many messages as you like. Each one becomes a task, and Bob works through them in order. None get lost.
 

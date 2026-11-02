@@ -1,12 +1,13 @@
-// 1.5.7: the Effort control above the chat box. Low (quick, the default), High (Bob calls a moot: a big brain drafts
+// 1.5.7: the Effort control above the chat box. Low (quick, the default), Medium (1.5.12: one big brain), High (Bob calls a moot: a big brain drafts
 // and his reviewer copy checks it), Extreme (the reviewer also checks each code change; slowest).
 // It goes back to Low each time Bob starts, so the big brains never load because of a choice made last week.
 const $ = (id) => document.getElementById(id);
 const KEY = 'bob-effort';
 export const HINTS = {
-  low: 'Quick answer from one brain. Nothing extra loads.',
+  low: 'Quick answer from the Quick brain. Nothing extra loads.',
+  medium: 'One big brain thinks it through on the graphics card. No second check. Takes a little longer.',
   high: 'A big brain drafts the answer, then the Review brain checks it. Slower. Big brains are freed afterwards.',
-  extreme: 'Like High, and the Review brain also checks each code change as it\'s made. Slowest: every check swaps brains (about 20 seconds each).'
+  extreme: 'Like High, and for code the Review brain also checks the research and the plan before anything changes. Slowest: every check swaps brains (about 20 seconds each).'
 };
 const LEVELS = Object.keys(HINTS);
 

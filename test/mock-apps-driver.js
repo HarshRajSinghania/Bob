@@ -27,7 +27,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     else windows.push({ hwnd: 200 + windows.length, title: 'Untitled - Notepad', process: 'notepad', pid: 5000 + windows.length });
   }
   else if (m.op === 'look') r.items = [{ type: 'Text', name: 'Untitled', id: 'ContentTextBlock', enabled: true }, { type: 'Document', name: 'Text editor', id: '15', enabled: true, password: false, typable: true, value: 'hello' }, { type: 'MenuItem', name: 'File', id: '', enabled: true }, { type: 'Button', name: 'Save', id: 'save', enabled: true }, { type: 'Edit', name: 'Password', id: 'pw', password: true }];
-  else if (m.op === 'picture') { fs.writeFileSync(m.file, 'PNG'); r.file = m.file; }
+  else if (m.op === 'picture') { fs.writeFileSync(m.file, Buffer.from('89504e470d0a1a0a', 'hex')); r.file = m.file; }
   else if (m.op === 'resolve') {
     const t = m.target || {};
     if (t.id === 'pw' || /password/i.test(t.name || '')) { r.label = 'Edit "Password" [id pw]'; r.password = true; }

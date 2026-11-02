@@ -6,6 +6,7 @@ import { isInside, insideAny, appDir } from './config.js';
 import { HATS } from './persona.js';
 import { cloudHelpers, askCloud } from './cloud.js';
 import { copyName } from './clan.js';
+import { limitOn, readOnlyRoots } from './hands-settings.js';
 import { listWorkflows, workshopDir } from './workshop.js';
 
 const MAX_READ = 20000;
@@ -14,11 +15,13 @@ const BLOCKED_EXT = new Set(['.exe', '.msi', '.bat', '.cmd', '.ps1', '.vbs', '.j
 // Secrets Bob must never list, read, search or write: signing keys, API keys, databases, his own config.
 const SECRET_NAME = /^(local\.properties|keystore\.properties|google-services\.json|credentials\.json|\.env(\..*)?|\.npmrc|\.git-credentials|id_(rsa|dsa|ecdsa|ed25519).*)$/i;
 const SECRET_EXT = new Set(['.jks', '.keystore', '.p12', '.pfx', '.pem', '.key', '.db', '.sqlite', '.sqlite3', '.kdbx']);
+// Bob's own config is always off-limits; the rest only while the "Keep secret files private" hard limit is on.
 export function isSensitive(cfg, file) {
-  const base = path.basename(file);
-  if (SECRET_NAME.test(base) || SECRET_EXT.has(path.extname(base).toLowerCase())) return true;
   const own = [path.join(appDir, 'config.json'), process.env.BOB_CONFIG].filter(Boolean);
   if (own.some((f) => isInside(f, file))) return true;
+  if (!limitOn(cfg, 'secrets')) return false;
+  const base = path.basename(file);
+  if (SECRET_NAME.test(base) || SECRET_EXT.has(path.extname(base).toLowerCase())) return true;
   if (cfg.agentDir && isInside(path.join(cfg.agentDir, 'open-webui-data'), file)) return true;
   return false;
 }
@@ -206,7 +209,7 @@ export function buildTools(cfg) {
       const file = resolveUserPath(p);
       if (isSensitive(cfg, file)) throw new Error(SECRET_MSG);
       if (BLOCKED_EXT.has(path.extname(file).toLowerCase()) && !projectOf(file)) throw new Error('I don\'t write program or script files that could be run.');
-      if (insideAny(cfg.readOnlyRoots, file)) throw new Error(`${file} is in a read-only project.`);
+      if (insideAny(readOnlyRoots(cfg), file)) throw new Error(`${file} is in a read-only project.`);
       if (!insideAny(cfg.readRoots, file)) throw new Error(`I'm not allowed to write in that folder. Allowed: ${cfg.readRoots.join('; ')}`);
       const exists = fs.existsSync(file);
       if (isInside(cfg.innDir, file) && !exists) return false;
@@ -431,7 +434,7 @@ export function buildTools(cfg) {
       const file = resolveUserPath(p);
       if (isSensitive(cfg, file)) throw new Error(SECRET_MSG);
       if (BLOCKED_EXT.has(path.extname(file).toLowerCase()) && !projectOf(file)) throw new Error('I don\'t edit program or script files outside a project.');
-      if (insideAny(cfg.readOnlyRoots, file)) throw new Error(`${file} is in a read-only project.`);
+      if (insideAny(readOnlyRoots(cfg), file)) throw new Error(`${file} is in a read-only project.`);
       if (!insideAny(cfg.readRoots, file)) throw new Error('I\'m not allowed to edit files there.');
       if (!fs.existsSync(file)) throw new Error('That file doesn\'t exist. Use write_file to create it.');
       const body = fs.readFileSync(file, 'utf8');
@@ -471,6 +474,7 @@ export function buildTools(cfg) {
         return text;
       },
       summary: ({ provider }) => `cloud helper: ${provider}`,
+      alwaysAsk: true, // costs money and leaves the PC, so it asks even when Bob works without asking
       endsTurn: true
     };
   }

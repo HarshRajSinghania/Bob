@@ -11,9 +11,10 @@ import { systemPrompt, HATS } from './persona.js';
 import { lookPrompt } from './look.js';
 import { personalityPrompt, cleanPersonality } from '../public/personality.js';
 import { catPrompt, catMoment } from '../public/patches.js';
-import { cleanEffort, careful, draftBrain, effortPrompt, mootOpening, runMoot, checkpoint } from './moot.js';
+import { cleanEffort, careful, bigThinker, draftBrain, hatBrain, effortPrompt, mootOpening, runMoot, phasedWork } from './moot.js';
 import { saveSettings } from './config.js';
 import { paint, paintingAvailable } from './painter.js';
+import { PainterServer } from './painter-server.js';
 import { maestroMake } from './maestro.js';
 import { capabilities } from './capabilities.js';
 import { cloudHelpers } from './cloud.js';
@@ -21,13 +22,17 @@ import { copyName } from './clan.js';
 import { RefShelf } from './refs.js';
 import { makeAudio } from './audio.js';
 import { runWorkflow } from './workshop.js';
-import { currentSession, modelFor, laneOf, suggestSession, SESSIONS } from './sessions.js';
+import { currentSession, modelFor, laneOf, suggestSession, SESSIONS, sessionBrains } from './sessions.js';
 import { stampMessages, keepOlder, readSummary } from './chats.js';
 import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
+import { Made, madePaths, showMadeTool } from './made.js';
 import { scheduleTools } from './hands-schedules.js';
-import { toolsOff, HANDS, handOn, handOffWhy } from './hands-settings.js';
+import { toolsOff, HANDS, handOn, handOffWhy, freeOn } from './hands-settings.js';
+import { gate as qGate, after as qAfter, maybeAsk as qAsk, noteStrike, copyHeld } from './quarantine.js';
 import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUseTools, STICKY_TURNS, toolboxPrompt, saysCant } from './toolbox.js';
+import { Gate, Ledger, safeToResume, interruptedNote, withRetry } from './handoff.js';
+import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
 
 const MAX_STEPS = 8;
@@ -67,7 +72,7 @@ const CLAIM_NUDGE = 'You just said you did something on the PC, but no tool did 
 export function realPcPrompt(cfg) {
   const who = cfg.userName || 'the user';
   const base = `You live on ${who}'s real Windows PC; the apps, windows and files are real, not a simulation (only your Idle Process workspace is make-believe). Never call the PC simulated or virtual.`;
-  if (handOn(cfg, 'apps')) return `\n\n${base} Being inside the PC is exactly why you can drive it: with the Apps hand on you really do take the wheel. When ${who} says drive, take control, take the wheel, use my screen or do it in <an app>, be keen and start at once by showing the first step's card: open_app, then app_look, then app_act (add them with use_tools apps if they aren't here). Nothing happens on the PC until ${who} clicks it. When the Apps hand is on, don't refuse to drive. If a step fails, tell ${who} exactly what failed and what to click, and never say a step worked unless its result says so.`;
+  if (handOn(cfg, 'apps')) return `\n\n${base} Being inside the PC is exactly why you can drive it: with the Apps hand on you really do take the wheel. When ${who} says drive, take control, take the wheel, use my screen or do it in <an app>, be keen and start at once${freeOn(cfg) ? ' (you work without asking right now, so go ahead and do each step; each one is logged)' : " by showing the first step's card"}: open_app, then app_look, then app_act (add them with use_tools apps if they aren't here).${freeOn(cfg) ? '' : ` Nothing happens on the PC until ${who} clicks it.`} When the Apps hand is on, don't refuse to drive. If a step fails, tell ${who} exactly what failed and what to click, and never say a step worked unless its result says so.`;
   return `\n\n${base} Driving apps (open, click, type in them) needs the Apps hand, which is off: ${handOffWhy(cfg, 'apps')} If asked to drive, say that and offer to start as soon as it's on.`;
 }
 // After a doing-tool fails: one other route, then stop (asked for 2026-11-02).
@@ -77,6 +82,8 @@ const DOING_TOOLS = new Set(['write_file', 'edit_file', 'save_spreadsheet']);
 const isLook = (name) => ['app_look', 'list_schedules'].includes(name);
 const callKey = (name, args) => { let a = args; if (typeof a === 'string') { try { a = JSON.parse(a); } catch {} } return `${name}|${JSON.stringify(a ?? {})}`; };
 const CANT_NUDGE = 'You now have every tool you can use on this PC. If one of them does what was asked, call it now. If none does, say so in one line; don\'t repeat yourself.';
+const EMPTY_NUDGE = 'Your last reply was empty. You now have every tool you can use on this PC. Do what was asked: call the right tool now (for a picture, make_image), or answer in words.';
+export const EMPTY_NOTE = 'Bob didn\'t answer that one. Send it again, or put it another way.';
 const MAX_HISTORY = 40;
 const APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -103,6 +110,11 @@ export class Brain {
     this.approvals = new Map();
     this.state = { state: 'idle', model: null, detail: '' };
     this.turns = new Map(); // lane -> running job. One lane normally; an Art session adds a picture lane.
+    // 1.5.12: handoffs between brains and engines go through the gate (handoff.js): one owner of the graphics card
+    // at a time, actions held until their engine is really ready, failed loads retried, then a fallback.
+    this.gate = new Gate(this);
+    // The picture engine kept loaded between pictures (sd-server); it falls back to one-shot sd-cli by itself.
+    this.painter = new PainterServer(cfg, { log: (k, m) => this.log(k, m) });
     this.suggested = null;
     this.lastActivity = Date.now(); // for /api/idle
     this.queue = this.loadQueue();
@@ -115,6 +127,8 @@ export class Brain {
     this.tools.forget_topic = forgetTopicTool(this);
     Object.assign(this.tools, handsTools(this), scheduleTools(this)); // Hands: off until the user turns them on (see hands-settings.js)
     this.tools.use_tools = useToolsTool(this); // the toolbox (toolbox.js): groups added only when a job needs them
+    this.made = new Made(cfg); // Made by Bob (made.js): everything he made, for the side panel and show_made
+    this.tools.show_made = showMadeTool(this);
     this.stickyGroups = new Map(); // chat id -> Map(group -> messages left)
     this.handApprovals = new Set(); // approvals waiting that came from a Hand, so Stop everything can deny them
     // Always on: load the small brain shortly after start-up. Wake when I type (the default) loads nothing.
@@ -209,7 +223,8 @@ export class Brain {
     return {
       mode: brainMode(this.cfg), holds: holdsChatBrain(this.cfg), bigSession: bigSession(this.cfg), session: currentSession(this.cfg).label,
       state, models, gb: Math.round(models.reduce((a, m) => a + m.gb, 0) * 10) / 10, ramGB: ramKnown ? Math.round(models.reduce((a, m) => a + (m.ramGB || 0), 0) * 10) / 10 : null,
-      chatBrain: chat.model || null, sleepAfter: sleepAfterText(this.cfg), bigGrace: msText(bigGraceMs(this.cfg)), wakeSeconds, engineOk
+      chatBrain: chat.model || null, sleepAfter: sleepAfterText(this.cfg), bigGrace: msText(bigGraceMs(this.cfg)), wakeSeconds, engineOk,
+      handoff: this.gate?.flags() || null // who has the graphics card, what's loading, how many wait (ready flags)
     };
   }
 
@@ -280,21 +295,65 @@ export class Brain {
       .map((m) => ({ role: m.role, id: m.id, at: m.at, ...(m.forgotten ? { forgotten: true } : {}), content: m.role === 'user' && m.text != null ? m.text : (m.content || ''), ...(m.media?.length ? { media: m.media } : {}), ...(m.correction ? { correction: m.correction } : {}), pics: (m.refs || []).map((id) => this.refs.find(id)).filter(Boolean).map((r) => ({ name: r.name, url: `/refs/${r.file}` })) }));
   }
 
-  // Makes sure a model is in memory, telling the user first if it means a wait.
+  // Makes sure a model is in memory, telling the user first if it means a wait. Goes through the gate: the action
+  // waits for the card, the brain is checked ready after loading, a failed load is tried again, and a brain that
+  // still won't load hands the job to the main brain. Returns the model that's really loaded (use that one).
   async ensureModel(model, emit, signal, who = 'bob', opts = {}) {
     if (this.waking) await this.waking.catch(() => {}); // typing already started loading it: don't load twice
     clearTimeout(this.graceTimer);
-    let loaded = false;
-    try { loaded = await this.engine.isLoaded(model, opts); } catch (e) { throw new Error(`I can't reach my engine, ${this.engineName} (${e.message}).`); }
-    if (loaded) { this.state.model = model; return; }
-    const secs = await this.engine.estimateLoad(model);
+    if (!signal) { try { await this.engine.isLoaded(model, opts); } catch (e) { throw new Error(`I can't reach my engine, ${this.engineName} (${e.message}).`); } }
     const name = BRAIN_NAMES[who] || who;
-    const text = `Switching to the ${name} brain (${model}). Back in about ${secs} seconds.`;
-    emit({ type: 'announce', text, seconds: secs });
-    this.setState('loading', text, model);
-    const took = await this.engine.preload(model, signal, opts);
-    this.log('model', `loaded ${model} in ${took.toFixed(1)} s`);
-    this.setState('thinking', '', model);
+    const used = await this.gate.need({ id: 'brain', model, opts }, {
+      signal, emit, who,
+      announce: async (m, attempt) => {
+        const secs = await this.engine.estimateLoad(m).catch(() => 15);
+        const text = attempt ? `That didn't load right. Trying the ${this.brainLabel(m, who)} again, about ${secs} seconds.` : `Switching to the ${name} brain (${m}). Back in about ${secs} seconds.`;
+        emit({ type: 'announce', text, seconds: secs });
+        this.setState('loading', text, m);
+      }
+    }).catch((e) => {
+      if (/^Stopped\.$/.test(e.message)) throw e;
+      if (/ECONNREFUSED|fetch failed|can't reach/i.test(e.message)) throw new Error(`I can't reach my engine, ${this.engineName} (${e.message}).`);
+      throw e;
+    });
+    this.state.model = used;
+    if (this.state.state === 'loading' || this.state.state === 'waiting') { this.log('model', `loaded ${used}`); this.setState('thinking', '', used); }
+    return used;
+  }
+
+  // How a brain is named to the user: its Equip slot and its catalog name, never a model id.
+  // "Coding brain (Qwen3 Coder 30B)", "Quick brain (Gemma 4 E4B)", "Brain (Gemma 4 26B)".
+  brainLabel(model, who = 'bob') {
+    const SLOT = { bob: 'Brain', small: 'Quick brain', deep: 'Deep thinking', tinker: 'Coding', reviewer: 'Review', eyes: 'Seeing pictures', ledger: 'Spreadsheets', scout: 'Research', painter: 'Prompt writer' };
+    let slot = who;
+    if (who === 'bob') slot = sameModel(model, this.cfg.models?.small) ? 'small' : sameModel(model, sessionBrains(this.cfg).deep) && !sameModel(model, this.cfg.models?.bob) ? 'deep' : 'bob';
+    const s = SLOT[slot] || 'Brain';
+    const phrase = /brain$/i.test(s) ? s : `${s} brain`;
+    if (!this.catalogNames) {
+      this.catalogNames = [];
+      try { this.catalogNames = JSON.parse(fs.readFileSync(this.cfg.catalogFile || new URL('../catalog.json', import.meta.url), 'utf8')).models.filter((x) => x.ollama && x.name).map((x) => [x.ollama, x.name]); } catch {}
+    }
+    const nice = this.catalogNames.find(([id]) => sameModel(id, model))?.[1] || String(model || '').replace(/:latest$/, '');
+    return `${phrase} (${nice})`;
+  }
+
+  // The brain a job falls back to when another brain won't load.
+  fallbackBrain() { return chatBrain(this.cfg); }
+
+  // A chat call that survives the engine dropping out mid-answer: the brain is loaded again and the call made once more.
+  async chatSafe(opts, { emit, who = 'bob' } = {}) {
+    try { return await this.engine.chat(opts); }
+    catch (e) {
+      if (opts.signal?.aborted) throw e;
+      let alive = true;
+      try { alive = await this.engine.isLoaded(opts.model, { cpu: opts.cpu, ctx: opts.ctx }); } catch { alive = false; }
+      if (alive && !/ECONNRESET|socket hang up|fetch failed|terminated|ECONNREFUSED/i.test(e.message)) throw e;
+      this.log('handoff', `${opts.model} dropped out mid-answer (${e.message}); loading it again`);
+      this.gate.ledgerOf(opts.signal)?.step('retry', { what: opts.model, why: e.message }).done();
+      emit?.({ type: 'token', text: '\n\nMy brain dropped out there. Loading it again and picking up where I left off.\n\n' });
+      const model = (await this.ensureModel(opts.model, emit || (() => {}), opts.signal, who, { cpu: opts.cpu, ctx: opts.ctx })) || opts.model;
+      return this.engine.chat({ ...opts, model });
+    }
   }
 
   // Asks the user. need: a string, or { text, diff, plan, command, cwd } (plan = rows the user can tick one by one,
@@ -373,7 +432,7 @@ export class Brain {
     this.cfg.session = id;
     this.suggested = null;
     this.lastActivity = Date.now(); // for /api/idle
-    if (!this.turns.size) await this.engine.unloadAll().catch(() => {});
+    if (!this.turns.size) { await this.engine.unloadAll().catch(() => {}); await this.painter?.unload?.('session switch', { force: true }).catch?.(() => {}); }
     this.log('session', `now ${id}`);
     if (holdsChatBrain(this.cfg)) this.wake('always on').catch(() => {});
     this.broadcast({ type: 'session', session: currentSession(this.cfg) });
@@ -386,38 +445,133 @@ export class Brain {
     return this.engine.unloadAll();
   }
 
+  // Every tool call goes through here. Quarantine (quarantine.js, opt-in) watches before and after; it's a few counters.
   async runTool(name, args, ctx) {
     const tool = this.tools[name];
+    if (typeof args === 'string') { try { args = JSON.parse(args); } catch { args = {}; } }
+    args = args || {};
+    const held = await qGate(this, name, args, ctx, tool);
+    if (held) { qAfter(this, name, args, held.text, ctx, tool); return held; }
+    const res = await this.runToolNow(name, args, ctx, tool);
+    qAfter(this, name, args, res.text, ctx, tool);
+    return res;
+  }
+
+  async runToolNow(name, args, ctx, tool) {
     if (!tool) return { text: `Error: there is no tool called ${name}.` };
     if (!this.usable(name)) {
       const hand = Object.entries(HANDS).find(([, h]) => h.tools.includes(name))?.[0];
       return { text: hand ? handOffWhy(this.cfg, hand) : `Error: ${name} can't be used on this PC right now.` };
     }
-    if (typeof args === 'string') { try { args = JSON.parse(args); } catch { args = {}; } }
-    args = args || {};
     ctx.emit({ type: 'tool', name, summary: tool.summary ? tool.summary(args) : name });
     try {
       ctx.picked = null;
       if (tool.check) {
         const need = await tool.check(args, ctx);
         const group = typeof tool.approvalGroup === 'function' ? tool.approvalGroup(args) : tool.approvalGroup;
-        if (need && !(group && ctx.allowAll.has(group))) {
+        // "Let Bob work without asking" (Settings, Hands; off by default): no card, but the hard limits in check()
+        // still apply, every action still goes in the logbook and the chat, and ✋ Hands turns it off at once.
+        // Tools marked alwaysAsk (cloud helpers: they cost money) still show their card.
+        if (need && !tool.alwaysAsk && freeOn(this.cfg)) {
+          const text = typeof need === 'string' ? need : need.text;
+          this.log('approval', `done without asking: ${text}${need.command ? ` [${need.command}]` : ''}`);
+          ctx.emit({ type: 'auto-approved', text, command: need.command || '', rows: Array.isArray(need.plan) ? need.plan.filter((r) => !r.blocked).length : null });
+        } else if (need && !(group && ctx.allowAll.has(group))) {
           const hand = Boolean(need && typeof need === 'object' && (need.plan || need.command));
           const out = {};
           const answer = await this.approve(need, ctx.emit, ctx.signal, group, { hand, out });
-          if (!answer) return { text: 'The user said no. Do not try again; say it is fine and ask what to do instead.' };
+          if (!answer) { ctx.ledger?.action(name, args, true, 'declined'); return { text: 'The user said no. Do not try again; say it is fine and ask what to do instead.' }; }
           if (answer === 'all' && group) ctx.allowAll.add(group);
           if (Array.isArray(need.plan)) ctx.picked = out.picked ?? null;
         }
       }
-      const out = await tool.run(args, ctx);
-      this.log('tool', tool.summary ? tool.summary(args) : name);
-      return { text: String(out), endsTurn: tool.endsTurn };
+      const startedAt = Date.now();
+      ctx.currentTool = name;
+      ctx.made = null;
+      let text;
+      try { text = String(await tool.run(args, ctx)); }
+      catch (e) { if (ctx.signal.aborted) throw e; text = `Error: ${e.message}`; }
+      // The system checks it really happened (verify.js): a missing or broken output, or an action that didn't take,
+      // gets one more go before Bob is told it failed. Approvals aren't asked twice.
+      if (ctx.ledger) ctx.ledger.toolStart = startedAt;
+      let v = await this.checkTool(name, args, text, ctx);
+      if (v.retry && !ctx.signal.aborted) {
+        this.log('handoff', `${name} didn't take (${v.why || 'no proof'}); trying it once more`);
+        ctx.ledger?.step('retry', { what: name, why: v.why || '' }).done();
+        ctx.ledger?.action(name, args, false, text, startedAt, v);
+        if (ctx.ledger) ctx.ledger.toolStart = Date.now();
+        try { text = String(await tool.run(args, ctx)); }
+        catch (e) { if (ctx.signal.aborted) throw e; text = `Error: ${e.message}`; }
+        v = await this.checkTool(name, args, text, ctx);
+        if (v.retry) v = { ...v, ok: false, text: v.text || `Error: ${name} was tried twice and still didn't take (${v.why || 'no proof it worked'}).` };
+      }
+      if (v.text) text = v.text;
+      for (const o of v.show || []) if (o?.file) await this.deliver(ctx, o.type || 'image', o.file);
+      ctx.currentTool = null;
+      const ok = v.ok !== false && !/^Error:/.test(text);
+      ctx.ledger?.action(name, args, ok || Boolean(v.declined), text, startedAt, v);
+      this.log(ok ? 'tool' : 'error', ok ? (tool.summary ? tool.summary(args) : name) : `${name}: ${text.replace(/^Error:\s*/, '')}`);
+      // Files the tool saved or made (write_file, spreadsheets, Hands copies and zips...): on the Made by Bob
+      // list, and a card with a preview in the chat that opens in the side panel.
+      const paths = ok ? [...new Set([...(ctx.made || []), ...madePaths(name, text)])].slice(0, 6) : [];
+      ctx.made = null;
+      if (paths.length) {
+        const items = paths.map((p) => { try { return this.made.add(p, { tool: name, chat: ctx.sessionId }); } catch { return null; } }).filter(Boolean);
+        if (items.length) ctx.emit({ type: 'made', items });
+      }
+      return { text, endsTurn: tool.endsTurn };
     } catch (e) {
+      ctx.currentTool = null;
       if (ctx.signal.aborted) throw e;
       this.log('error', `${name}: ${e.message}`);
       return { text: `Error: ${e.message}` };
     }
+  }
+
+  // verify.js's check of one tool run; a check that itself breaks never breaks the turn.
+  async checkTool(name, args, text, ctx) {
+    try { return (await afterTool(name, args, text, ctx)) || { ok: true }; } catch (e) { this.log('handoff', `check of ${name} broke: ${e.message}`); return { ok: true }; }
+  }
+
+  // The end of a turn: the user asked for something (a picture, to see one, an app action). If it didn't happen,
+  // Bob gets one more go (again = true) with the tools it needs; if it still didn't, the user is told plainly.
+  // Returns true when the turn should go round once more.
+  checkTurn(ctx, reply, again) {
+    let v = null;
+    try { v = afterTurn(ctx, reply?.content || ''); } catch (e) { this.log('handoff', `end-of-turn check broke: ${e.message}`); }
+    if (!v) return false;
+    if (v.strike) { try { noteStrike(this, ctx, v.strike === 'claim' ? 'claims' : v.strike, v.note || v.nudge || ''); } catch {} }
+    if (v.nudge && again && !ctx.ledger.nudged) {
+      ctx.ledger.nudged++;
+      // A claim with nothing behind it is corrected at once, as well as the second go.
+      if (v.note) { ctx.emit({ type: 'correction', text: v.note }); if (reply) reply.correction = reply.correction ? `${reply.correction} ${v.note}` : v.note; }
+      for (const g of v.groups || []) if (groupsFor(this)[g]) ctx.loaded.add(g);
+      ctx.msgs.push({ role: 'system', content: v.nudge, hidden: true });
+      ctx.ledger.step('retry', { what: 'turn', why: v.nudge }).done();
+      this.log('handoff', `asked for ${ctx.ledger.expect?.kind || 'something'} and it didn't happen; one more go`);
+      ctx.emit({ type: 'token', text: '\n\n' });
+      return true;
+    }
+    const note = v.note || ''; // a nudge with no second go left: the caller's own note (or the hat's answer) stands
+    if (note) {
+      ctx.emit({ type: 'correction', text: note });
+      if (reply) reply.correction = reply.correction ? `${reply.correction} ${note}` : note;
+      ctx.ledger.step('note', { what: note }).done();
+      ctx.ledger.noted = true;
+      this.log('handoff', note);
+    }
+    return false;
+  }
+
+  // Shows a file Bob made, once it's checked to be real. Returns false (and says why) when it isn't.
+  async deliver(ctx, type, file) {
+    const v = await verifyOutput(file, type).catch((e) => ({ ok: false, why: e.message }));
+    if (!v.ok) { this.log('handoff', `${path.basename(file)} wasn't shown: ${v.why}`); return false; }
+    const name = path.basename(file);
+    // Only files in Bob's pictures folder have a link the chat can show.
+    if (path.resolve(path.dirname(file)) !== path.resolve(this.cfg.painterDir)) return false;
+    ctx.emit({ type, url: `/images/${encodeURIComponent(name)}`, file });
+    return true;
   }
 
   // A personal backstory (inn\bob\backstory.md) replaces the generic one; it isn't part of the shared install.
@@ -441,6 +595,8 @@ export class Brain {
     // The Hands line only when a Hand group is added (or for hats and "all tools at once"); otherwise use_tools lists them.
     if (!loaded || allToolsOn(this.cfg) || Object.keys(HANDS).some((h) => loaded.has(h))) prompt += handsPrompt(this.cfg);
     if (loaded) prompt += realPcPrompt(this.cfg) + toolboxPrompt(this, loaded);
+    // "Show me a picture of X" once got no answer at all (2026-11-02): say plainly that make_image is the way.
+    if ((!loaded || allToolsOn(this.cfg) || loaded.has('pictures')) && this.usable('make_image')) prompt += `\n\nWhen ${this.cfg.userName || 'the user'} asks to see, show, make, draw or paint a picture, call make_image yourself straight away with a good prompt.`;
     if (helpers.length) prompt += `\n\nCloud copies of you that ${this.cfg.userName || 'the user'} switched on (use ask_cloud only for jobs too big for you, or when asked; each use is approved and costs money): ${helpers.map((h) => `${h.id} = ${copyName(this.cfg, 'cloud:' + h.id, 'cloud helper')}, running on ${h.name} ${h.model}`).join('; ')}.`;
     const shelf = this.refs.describe();
     if (shelf) prompt += `\n\n${shelf}`;
@@ -500,8 +656,12 @@ export class Brain {
   loadQueue() {
     let q = [];
     try { q = JSON.parse(fs.readFileSync(this.queueFile, 'utf8')); } catch {}
-    // A job that was running when Bob closed may have half-finished: don't redo it blindly, offer a retry.
-    for (const j of q) if (j.state === 'working') { j.state = 'interrupted'; j.error = 'Bob was closed while this was running.'; }
+    // A job that was running when Bob closed may have half-finished: don't redo it blindly. Its ledger says what it did.
+    // With "Pick up unfinished jobs after a restart" on (off by default), one that changed nothing on the PC starts again.
+    for (const j of q) if (j.state === 'working') {
+      if (this.cfg?.resumeJobs === true && safeToResume(j) && !j.resumed) { j.state = 'waiting'; j.resumed = true; j.steps = []; j.at = Date.now(); }
+      else { j.state = 'interrupted'; j.error = interruptedNote(j); }
+    }
     return q.filter((j) => j && j.id && j.text);
   }
 
@@ -635,6 +795,7 @@ export class Brain {
       })
       .finally(() => {
         this.saveSession(sessionId);
+        this.gate.done(controller.signal); // the graphics card goes to the next job waiting for it
         this.turns.delete(lane);
         this.lastActivity = Date.now();
         emit({ type: 'done' });
@@ -656,9 +817,9 @@ export class Brain {
     for (const r of pics) {
       let seen = r.seen;
       if (!seen && eyes) {
-        await this.ensureModel(eyes, emit, signal, 'eyes');
-        this.setState('thinking', `Looking at ${r.name}`, eyes);
-        const reply = await this.engine.chat({ model: eyes, signal, messages: [{ role: 'user', content: 'Describe this picture for an artist who has to draw it again: who or what is in it, their look (face, hair, build, clothes, colours), the setting, the lighting and the art style. Plain sentences, under 150 words.', images: [this.refs.base64(r)] }] });
+        const sees = (await this.ensureModel(eyes, emit, signal, 'eyes')) || eyes;
+        this.setState('thinking', `Looking at ${r.name}`, sees);
+        const reply = await this.chatSafe({ model: sees, signal, messages: [{ role: 'user', content: 'Describe this picture for an artist who has to draw it again: who or what is in it, their look (face, hair, build, clothes, colours), the setting, the lighting and the art style. Plain sentences, under 150 words.', images: [this.refs.base64(r)] }] }, { emit, who: 'eyes' });
         seen = (reply.content || '').trim();
         if (seen) this.refs.setSeen(r.id, seen);
       }
@@ -677,14 +838,20 @@ export class Brain {
     // Pictures, clips and sounds Bob makes are kept with his reply, so they're still in the chat after a
     // reload, a restart or a missed live event (they used to exist only as a live event).
     const media = [];
+    const out = {};
     const keep = (ev) => {
-      if (['image', 'video', 'audio'].includes(ev.type) && typeof ev.url === 'string' && ev.url.startsWith('/images/')) media.push({ type: ev.type, url: ev.url, name: path.basename(decodeURIComponent(ev.url.slice(8))) });
+      if (['image', 'video', 'audio'].includes(ev.type) && typeof ev.url === 'string' && ev.url.startsWith('/images/')) {
+        if (media.some((m) => m.url === ev.url)) return; // delivered once already
+        media.push({ type: ev.type, url: ev.url, name: path.basename(decodeURIComponent(ev.url.slice(8))) });
+        out.ctx?.ledger?.output(ev, out.ctx.currentTool || null);
+      }
+      // Saved files and things called up with show_made: kept as cards with the reply.
+      if (ev.type === 'made') for (const x of ev.items || []) if (x?.url && !media.some((m) => m.url === x.url)) { media.push({ type: 'file', kind: x.kind, url: x.url, name: x.name, path: x.path }); out.ctx?.ledger?.output({ type: 'file', file: x.path, url: x.url }, out.ctx.currentTool || null); }
       return emit(ev);
     };
     try {
       // High and Extreme effort: Bob calls a moot. The draft comes first (runOn), then his reviewer copy checks it.
       if (careful(job)) emit({ type: 'announce', text: mootOpening(this.cfg, job.effort, base) });
-      const out = {};
       await this.runOn(msgs, text, keep, signal, pics, job, sessionId, out);
       if (careful(job) && out.ctx && !signal?.aborted) await runMoot(this, { msgs, base, emit: keep, signal, job, ctx: out.ctx });
     }
@@ -732,12 +899,23 @@ export class Brain {
     const turnStart = msgs.length - 1;
     this.log('chat', `${this.cfg.userName || 'User'}: ${text}`);
     // The turn's pictures travel with it, so a hat Bob hands the job to can see them too.
-    const ctx = { emit, signal, brain: this, cfg: this.cfg, allowAll: new Set(), pics, picNote, msgs, turnText: text, job };
+    // Every picture, clip or sound he makes goes on the Made by Bob list as it's announced.
+    const emitMade = (ev) => {
+      if (['image', 'video', 'audio'].includes(ev?.type) && ev.file) { try { this.made.add(ev.file, { tool: ev.type, chat: sessionId }); } catch {} }
+      return emit(ev);
+    };
+    const ctx = { emit: emitMade, signal, brain: this, cfg: this.cfg, allowAll: new Set(), pics, picNote, msgs, turnText: text, job, sessionId };
+    // The ledger (handoff.js): what was asked for, every load, tool and output this turn, kept by the system.
+    ctx.ledger = new Ledger({ job, expect: expectFrom(text, { pics }), save: () => this.saveQueue() });
+    this.gate.track(signal, ctx.ledger);
     ctx.loaded = this.startGroups(sessionId, text); // toolbox groups this turn (use_tools adds more)
     out.ctx = ctx;
     const used = new Set();
     // High and Extreme effort draft on the big brain; Low is the usual chat brain.
-    const { model, cpu, think, ctx: wantCtx } = (careful(job) && draftBrain(this.cfg)) || modelFor(this.cfg, 'bob');
+    let { model, cpu, think, ctx: wantCtx } = (bigThinker(job) && draftBrain(this.cfg, job.effort)) || modelFor(this.cfg, 'bob');
+    // 1.5.16: a Low-effort chat reply doesn't think first (gemma4 and others think by default, which delays every reply).
+    // Medium and up, and sessions that set a level (Deep thought), keep their thinking.
+    if (think === undefined && !bigThinker(job)) think = false;
     // Small extras, only on some turns: the effort note (High/Extreme) and now and then a moment with the cat.
     const turnNo = msgs.filter((m) => m.role === 'user').length;
     const state = realState({ model, session: currentSession(this.cfg).label, waiting: this.queue.filter((j) => j.state === 'waiting').length, cat: this.cfg.catName, turn: turnNo });
@@ -748,14 +926,14 @@ export class Brain {
     const earlier = await this.recall(sessionId, text);
 
     for (let step = 0; step < MAX_STEPS; step++) {
-      await this.ensureModel(model, emit, signal, 'bob', { cpu, ctx: brainCtx });
+      model = (await this.ensureModel(model, emit, signal, 'bob', { cpu, ctx: brainCtx })) || model;
       this.setState('thinking', '', model);
       const tools = this.frontDeskTools(ctx.loaded);
       const sys = { role: 'system', content: this.withLimits(systemPrompt({ now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName, look: lookPrompt(this.cfg), dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') }), ctx.loaded) + extras + (earlier ? `\n\n${earlier}` : '') };
-      const reply = await this.engine.chat({
+      const reply = await this.chatSafe({
         model, messages: [sys, ...staleHandErrors(msgs, turnStart)], tools, signal, cpu, think, ctx: brainCtx,
         onToken: (t) => emit({ type: 'token', text: t })
-      });
+      }, { emit });
       // He's seen the new look once; that's enough.
       if (this.cfg.lookChange) { try { saveSettings(this.cfg, { lookChange: null }); } catch {} this.cfg.lookChange = null; }
       msgs.push(reply);
@@ -769,6 +947,8 @@ export class Brain {
         reply.correction = CLAIM_CORRECTION;
         msgs.push({ role: 'system', content: CLAIM_NUDGE, hidden: true });
         this.log('honesty', 'Bob claimed a PC action with no tool result; corrected and asked to retry');
+        noteStrike(this, ctx, 'claims', 'said he did something on the PC that no tool did');
+        await qAsk(this, ctx);
         continue;
       }
       if (!reply.tool_calls && !ctx.observeChecked && !msgs.slice(turnStart).some((m) => m.role === 'tool') && claimsObservation(reply.content)) {
@@ -778,21 +958,37 @@ export class Brain {
         reply.correction = OBSERVE_CORRECTION;
         msgs.push({ role: 'system', content: OBSERVE_NUDGE.replaceAll('{{USER}}', this.cfg.userName || 'the user'), hidden: true });
         this.log('honesty', 'Bob described an observation with no tool result; corrected and asked to answer again');
+        noteStrike(this, ctx, 'claims', 'described something on the PC with no tool behind it');
+        await qAsk(this, ctx);
         continue;
       }
       // "I can't..." with groups still not added: add them all and give him one more go (router test fix).
-      if (!reply.tool_calls && !ctx.cantRetried && !allToolsOn(this.cfg) && saysCant(reply.content)) {
-        const missing = Object.keys(groupsFor(this)).filter((g) => !ctx.loaded.has(g));
-        if (missing.length) {
+      const empty = !reply.tool_calls && !String(reply.content || '').trim();
+      if (!reply.tool_calls && !ctx.cantRetried && saysCant(reply.content)) {
+        const missing = allToolsOn(this.cfg) ? [] : Object.keys(groupsFor(this)).filter((g) => !ctx.loaded.has(g));
+        // An empty reply always gets its one more go, even with every tool already there.
+        if (missing.length || empty) {
           ctx.cantRetried = true;
           missing.forEach((g) => ctx.loaded.add(g));
-          emit({ type: 'tool', name: 'use_tools', summary: 'tools: all' });
-          msgs.push({ role: 'system', content: CANT_NUDGE, hidden: true });
-          this.log('toolbox', 'Bob said he could not; added every tool group and asked again');
+          if (missing.length) emit({ type: 'tool', name: 'use_tools', summary: 'Trying again with all his tools' });
+          if (empty) msgs.pop(); // an empty reply isn't worth keeping in the chat
+          msgs.push({ role: 'system', content: empty ? EMPTY_NUDGE : CANT_NUDGE, hidden: true });
+          this.log('toolbox', empty ? 'Bob gave an empty reply; added every tool group and asked again' : 'Bob said he could not; added every tool group and asked again');
           emit({ type: 'token', text: '\n\n' });
           continue;
         }
       }
+      if (empty) {
+        // Still nothing after the retry. The end-of-turn check says what was really done ("Done: ..."), or nothing
+        // when a card in the chat is the answer; only with neither is it the plain app note. Never an empty bubble.
+        this.checkTurn(ctx, reply, false);
+        if (!ctx.ledger.noted && !ctx.ledger.outputs.length) {
+          msgs.pop();
+          emit({ type: 'correction', text: EMPTY_NOTE });
+          msgs.push({ role: 'assistant', content: '', correction: EMPTY_NOTE });
+        }
+        this.log('toolbox', 'Bob gave an empty reply twice');
+      } else if (!reply.tool_calls && this.checkTurn(ctx, reply, true)) continue; // asked for something that didn't happen: one more go
       if (!reply.tool_calls) { this.keepGroups(sessionId, used); return; }
       let ended = false;
       for (const call of reply.tool_calls) {
@@ -835,6 +1031,7 @@ export class Brain {
         const last = msgs.at(-1);
         msgs.push({ role: 'assistant', content: last.content });
         if (ctx.hatNotes) { last.content = `${last.content}\n\n${ctx.hatNotes}`; ctx.hatNotes = ''; }
+        this.checkTurn(ctx, msgs.at(-1), false); // a hat answered: no second go, but never a silent miss
         this.keepGroups(sessionId, used);
         return;
       }
@@ -904,19 +1101,26 @@ export class Brain {
   // Bob wearing a different hat: a different model and focus, same Bob.
   async runHat(hat, task, ctx, force = null) {
     if (!HATS[hat]) throw new Error(`Unknown hat ${hat}.`);
+    const heldCopy = copyHeld(this.cfg, hat);
+    if (heldCopy) { this.log('quarantine', `didn't send ${hat}: in quarantine`); ctx.emit?.({ type: 'announce', text: heldCopy.split('. ')[0] + '.' }); return heldCopy; }
+    // Extreme effort: coding goes research -> check -> plan -> check -> do it (moot.js).
+    if (hat === 'tinker' && !ctx.phased && cleanEffort(ctx.job?.effort) === 'extreme') return phasedWork(this, hat, task, ctx);
     // "One brain" mode: every hat runs on the main model, so there's no brain swap (about 20 s each) mid-chat.
     // Normal session: the hat's own brain (or the main one with "One brain"). Other sessions: the session's brain.
     // A moot (High/Extreme effort) passes force: the reviewer always runs on the Review slot brain.
-    const { model, cpu, think, ctx: wantCtx } = force || modelFor(this.cfg, hat);
+    const { model, cpu, think, ctx: wantCtx } = force || (bigThinker(ctx.job) && hat !== 'reviewer' && hatBrain(this.cfg, hat, ctx.job.effort)) || modelFor(this.cfg, hat);
     const brainCtx = await this.fitCtx(model, wantCtx);
     const copy = copyName(this.cfg, hat, HATS[hat].label);
     ctx.emit({ type: 'hat', hat, label: PLAIN_HATS[hat] || HATS[hat].label, copy });
     // The Tasks panel: this job is now delegated to a copy (in progress) until the copy hands back.
     const step = { hat, label: PLAIN_HATS[hat] || HATS[hat].label, copy, task: String(task).slice(0, 140), state: 'in progress', at: Date.now() };
     if (ctx.job) { (ctx.job.steps ||= []).push(step); this.saveQueue(); }
+    const wasHat = ctx.hatNow;
+    ctx.hatNow = hat; // so quarantine knows which copy did what
     try { return await this.wearHat(hat, task, ctx, { model, cpu, think, brainCtx, copy }); }
     catch (e) { step.state = ctx.signal?.aborted ? 'cancelled' : 'failed'; throw e; }
     finally {
+      ctx.hatNow = wasHat;
       if (step.state === 'in progress') step.state = 'completed';
       step.doneAt = Date.now();
       if (ctx.job) this.saveQueue();
@@ -924,7 +1128,7 @@ export class Brain {
   }
 
   async wearHat(hat, task, ctx, { model, cpu, think, brainCtx, copy }) {
-    await this.ensureModel(model, ctx.emit, ctx.signal, hat, { cpu, ctx: brainCtx });
+    model = (await this.ensureModel(model, ctx.emit, ctx.signal, hat, { cpu, ctx: brainCtx })) || model;
     this.setState('busy', `${copy} is on it (${PLAIN_HATS[hat] || HATS[hat].label})`, model);
     const hatTools = {
       ledger: ['save_spreadsheet', 'read_file', 'list_folder'],
@@ -945,15 +1149,11 @@ export class Brain {
     ];
     let final = '';
     const did = []; // what this copy did, handed back to the main conversation afterwards
-    let swapped = false;
-    const notes = [];
     for (let step = 0; step < maxSteps; step++) {
-      // A checkpoint (Extreme) borrowed the card for the reviewer: bring this copy's brain back first.
-      if (swapped) { await this.ensureModel(model, ctx.emit, ctx.signal, hat, { cpu, ctx: brainCtx }); swapped = false; }
-      const reply = await this.engine.chat({
+      const reply = await this.chatSafe({
         model, messages, tools: this.toolSchemas(hatTools), signal: ctx.signal, cpu, think, ctx: brainCtx,
         onToken: (t) => ctx.emit({ type: 'token', text: t })
-      });
+      }, { emit: ctx.emit, who: hat });
       messages.push(reply);
       final += reply.content;
       if (!reply.tool_calls) break;
@@ -963,14 +1163,8 @@ export class Brain {
         let a = call.function?.arguments; if (typeof a === 'string') { try { a = JSON.parse(a); } catch { a = {}; } }
         const where = a?.path || a?.url || a?.query || a?.name || '';
         did.push(`${call.function?.name}${where ? ` ${String(where).slice(0, 160)}` : ''}: ${String(res.text).replace(/\s+/g, ' ').slice(0, 240)}`);
-        // Extreme effort: the reviewer checks each change that went through, then the work carries on.
-        if (['edit_file', 'write_file'].includes(call.function?.name) && !/^Error|said no/i.test(String(res.text))) {
-          const note = await checkpoint(this, ctx, { hat, copy, plan: final, name: call.function?.name, where, args: JSON.stringify(a), result: res.text });
-          if (note) { notes.push(note); swapped = true; this.setState('busy', `${copy} is on it (${PLAIN_HATS[hat] || HATS[hat].label})`, model); }
-        }
       }
-      // After the tool results (engines want those right after the call), so the copy reads them next.
-      if (notes.length) messages.push({ role: 'user', content: notes.splice(0).join('\n\n') });
+
       ctx.emit({ type: 'token', text: '\n\n' });
     }
     // The return trip: the main conversation learns what the helper did, so the next turn (and the next
@@ -984,17 +1178,24 @@ export class Brain {
     const video = kind === 'video';
     if (kind === 'edit' && !this.cfg.painter?.sdcpp?.exe) throw new Error('The painter (stable-diffusion.cpp) isn\'t installed yet.');
     ctx.emit({ type: 'announce', text: video
-      ? 'Stepping out of the GPU so the painter can make a short clip. Video is slow: give it several minutes.'
-      : 'Stepping out of the GPU so the painter can work. The picture takes about half a minute.' });
-    const unloaded = await this.clearGpu();
-    this.state.model = null;
+      ? 'Freeing the graphics card so the clip can be made. Video is slow: give it several minutes.'
+      : 'Freeing the graphics card so the picture can be made. It takes about half a minute.' });
+    // The gate: brains let go, the card really free, the picture engine ready. Then paint, check the file is a real
+    // picture or clip, and try once more if it isn't (the card can take a moment to free up after a big brain).
+    const unloaded = await this.gate.need({ id: 'painter', kind }, { signal: ctx.signal, emit: ctx.emit });
     this.setState('painting', video ? 'Filming' : 'Painting', null);
-    this.log(kind, `unloaded ${unloaded.join(', ') || 'nothing'}; painting with sd.cpp`);
-    const { file, name } = await paint(this.cfg, kind, args, {
-      signal: ctx.signal,
-      onProgress: (n, total) => this.setState('painting', `${video ? 'Filming' : 'Painting'} ${n}/${total}`, null)
+    this.log(kind, `unloaded ${unloaded.join(', ') || 'nothing'}; painting with ${this.painter?.paint ? 'the picture engine' : 'sd.cpp'}`);
+    const onProgress = (n, total) => this.setState('painting', `${video ? 'Filming' : 'Painting'} ${n}/${total}`, null);
+    const type = video ? 'video' : 'image';
+    const { file, name } = await withRetry(async () => {
+      const made = this.painter?.paint ? await this.painter.paint(kind, args, { signal: ctx.signal, onProgress }) : await paint(this.cfg, kind, args, { signal: ctx.signal, onProgress });
+      if (!made.checked) { const v = await verifyOutput(made.file, type); if (!v.ok) throw new Error(`The painter finished but ${v.why}.`); }
+      return made;
+    }, {
+      signal: ctx.signal, wait: 3000,
+      onRetry: (e) => { this.log('handoff', `painting failed (${e.message.slice(0, 120)}); trying once more`); ctx.ledger?.step('retry', { what: 'painter', why: e.message }).done(); ctx.emit({ type: 'announce', text: `Making the ${video ? 'clip' : 'picture'} didn't work. Trying once more.` }); }
     });
-    ctx.emit({ type: video ? 'video' : 'image', url: `/images/${encodeURIComponent(name)}`, file });
+    ctx.emit({ type, url: `/images/${encodeURIComponent(name)}`, file });
     this.setState('thinking', '', null);
     return `${video ? 'Made a clip' : 'Painted a picture'}, saved as ${file}. The user can see it in the chat.`;
   }
@@ -1005,8 +1206,7 @@ export class Brain {
     const video = kind === 'video';
     const modelType = this.cfg.maestro[kind];
     ctx.emit({ type: 'announce', text: `Stepping out of the GPU and handing this to Maestro (${modelType}). ${video ? 'Clips take a few minutes.' : 'Should be quick.'} If Maestro hasn't used this model before, it downloads it first.` });
-    const unloaded = await this.clearGpu();
-    this.state.model = null;
+    const unloaded = await this.gate.need({ id: 'card' }, { signal: ctx.signal, emit: ctx.emit }); // the gate: the card really free first
     this.setState('painting', video ? 'Maestro is filming' : 'Maestro is painting', null);
     this.log(kind, `unloaded ${unloaded.join(', ') || 'nothing'}; Maestro ${modelType}`);
     const made = await maestroMake(this.cfg, kind, { ...args, modelType }, {
@@ -1022,8 +1222,7 @@ export class Brain {
   async makeSound(kind, args, ctx) {
     const music = kind === 'music';
     ctx.emit({ type: 'announce', text: music ? 'Stepping out of the GPU so the audio workshop can compose. Music takes a few minutes; the first time, it also fetches the music model.' : 'Stepping out of the GPU for a sound effect. About a minute; the first time, it also fetches the model.' });
-    const unloaded = await this.clearGpu();
-    this.state.model = null;
+    const unloaded = await this.gate.need({ id: 'card' }, { signal: ctx.signal, emit: ctx.emit }); // the gate: the card really free first
     this.setState('painting', music ? 'Composing' : 'Making a sound', null);
     this.log(kind, `unloaded ${unloaded.join(', ') || 'nothing'}; audio workshop`);
     const { file, name } = await makeAudio(this.cfg, kind, args, {
@@ -1039,8 +1238,7 @@ export class Brain {
   async runWorkshop({ workflow, prompt, negative, reference }, ctx) {
     const refs = this.pickRefs(reference);
     ctx.emit({ type: 'announce', text: `Stepping out of the GPU and running the "${workflow}" workflow in ComfyUI.` });
-    const unloaded = await this.clearGpu();
-    this.state.model = null;
+    const unloaded = await this.gate.need({ id: 'card' }, { signal: ctx.signal, emit: ctx.emit }); // the gate: the card really free first
     this.setState('painting', `Workshop: ${workflow}`, null);
     this.log('workshop', `unloaded ${unloaded.join(', ') || 'nothing'}; ComfyUI ${workflow}`);
     const made = await runWorkflow(this.cfg, workflow, { prompt: prompt && this.withLooks(prompt, refs), negative, refs: refs.map((r) => this.refs.pathOf(r)) }, {
@@ -1126,7 +1324,7 @@ export class Brain {
       }
     }
 
-    ctx.emit({ type: 'announce', text: 'Stepping out of the GPU so the painter can work. The picture takes about half a minute.' });
+    ctx.emit({ type: 'announce', text: 'Freeing the graphics card so the picture can be made. It takes about half a minute.' });
     const unloaded = await this.clearGpu();
     this.state.model = null;
     this.setState('painting', 'Painting', null);

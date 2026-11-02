@@ -2,22 +2,31 @@
 //   Low (default): today's Bob. One brain, a quick answer, nothing extra loads.
 //   High: Bob calls a moot. The draft is made on the big brain (Deep thinking, or the main one), then his reviewer
 //         copy (the Review slot brain) checks it once. Code problems go back to the workbench for one fix round.
-//   Extreme: the same, plus the reviewer checks each code change as it's made (checkpoints), and a second
-//         check after fixes. Slowest: on a 16 GB card every check is a brain swap.
+//   Extreme: the same, plus coding goes in three phases (research, plan, do it) with a check after each, and a
+//         second check after fixes. Slowest: on a 16 GB card every check is a brain swap.
 // Big brains load only for the job; settle() lets them go when it ends, as with any big job.
 // The moot is Bob and his copies meeting in The Idle Process to agree on an answer. All wording is original.
 import { copyName } from './clan.js';
 import { catMoment } from '../public/patches.js';
+import { quarantineOn, QUARANTINE_LINE, flagFromReviewer, maybeAsk } from './quarantine.js';
 
-export const EFFORTS = ['low', 'high', 'extreme'];
+// 1.5.12: Medium = one big brain thinks it through on the graphics card. No moot, no reviewer.
+export const EFFORTS = ['low', 'medium', 'high', 'extreme'];
 export const cleanEffort = (v) => (EFFORTS.includes(v) ? v : 'low');
-export const careful = (job) => cleanEffort(job?.effort) !== 'low';
-export const MAX_CHECKPOINTS = 6;
+export const careful = (job) => ['high', 'extreme'].includes(cleanEffort(job?.effort)); // a moot (reviewer checks)
+export const bigThinker = (job) => cleanEffort(job?.effort) !== 'low'; // drafts on the big brain
 
-// The brain that drafts at High and Extreme: Deep thinking if one is picked, otherwise the main brain.
-export function draftBrain(cfg) {
+// The brain that thinks at Medium, High and Extreme: Deep thinking if one is picked, otherwise the main Brain slot.
+// Always on the graphics card. Medium thinks normally; High and Extreme think hard.
+export function draftBrain(cfg, effort = 'high') {
   const model = cfg.sessionBrains?.deep || cfg.models?.bob;
-  return model ? { model, cpu: false, think: 'high', ctx: null } : null;
+  return model ? { model, cpu: false, think: cleanEffort(effort) === 'medium' ? undefined : 'high', ctx: null } : null;
+}
+// A helper copy at Medium and up: coding on the Coding slot, everything else on the big thinker, always on the card.
+// (Effort is the user's explicit choice, so it beats the session, e.g. Light / gaming keeping everything small.)
+export function hatBrain(cfg, hat, effort) {
+  if (hat === 'tinker' && cfg.models?.tinker) return { model: cfg.models.tinker, cpu: false, think: undefined, ctx: null };
+  return draftBrain(cfg, effort);
 }
 // The brain that checks: the Review slot, else Deep thinking, else the main brain (it then checks its own work).
 export function reviewBrain(cfg) {
@@ -29,7 +38,8 @@ export function reviewBrain(cfg) {
 export function effortPrompt(effort) {
   const e = cleanEffort(effort);
   if (e === 'low') return '';
-  return `Effort is ${e === 'high' ? 'High' : 'Extreme'}: {{USER}} wants the best answer, not the fastest. Plan first, check facts with your tools, and answer completely. Writing: outline, draft, then re-read it for mistakes and clarity. Coding and research go to the matching hat. Your reviewer copy checks the result${e === 'extreme' ? ', and each code change as it happens' : ''}, so never claim something was tested or checked unless a tool result shows it.`;
+  if (e === 'medium') return 'Effort is Medium: {{USER}} wants a thought-through answer. Plan briefly, check facts with your tools when it matters, and answer completely.';
+  return `Effort is ${e === 'high' ? 'High' : 'Extreme'}: {{USER}} wants the best answer, not the fastest. Plan first, check facts with your tools, and answer completely. Writing: outline, draft, then re-read it for mistakes and clarity. Coding and research go to the matching hat. Your reviewer copy checks the result${e === 'extreme' ? ' (and, for code, the research and the plan first)' : ''}, so never claim something was tested or checked unless a tool result shows it.`;
 }
 
 const LOOKS_RIGHT = /^\W*looks right/i;
@@ -47,16 +57,40 @@ export function fixTask(review) {
   return `Your reviewer copy checked your changes and found problems:\n${review}\n\nFix the real ones the same careful way (read first, small steps, check each). Then report honestly: what's fixed, what isn't, and what you ran. If you disagree with a point, say why in one line.`;
 }
 
-export function checkpointTask({ copy, plan, name, where, args, result }) {
-  return `Checkpoint: ${copy} just made one change in the middle of a job. Check only this change: is it correct and safe, and does it fit the plan? Under 120 words.
-Plan and notes so far:
-${String(plan || '(none written)').slice(-2000)}
-
-The change (${name}${where ? ` on ${where}` : ''}):
-${String(args || '').slice(0, 4000)}
-
-Result: ${String(result || '').slice(0, 400)}
+// Extreme (1.5.12): the workbench works in three phases with a check between each: research, plan, then do it.
+// The last check is the moot's own, after the job. (Before 1.5.12 the reviewer checked every single edit: slow, little gain.)
+export function gateTask(phase, work) {
+  return `Gate check (${phase}): Bob's workbench copy just finished the ${phase} phase of a coding job. Check only that: ${phase === 'research' ? 'did it read the right files and find what matters? Anything missed or misread?' : 'is the plan correct, complete, safe and the smallest change that works? Is the way it will be checked good enough?'} Under 150 words.
+The ${phase}:
+${String(work || '(nothing written)').slice(-5000)}
 Start with exactly "Looks right." or "Needs fixes:".`;
+}
+
+export function phaseTask(phase, task, { research = '', plan = '', notes = '' } = {}) {
+  if (phase === 'research') return `${task}\n\nPhase 1 of 3, research: read and search only. Don't edit or run anything yet. End with a short summary: what you found and which files matter.`;
+  if (phase === 'plan') return `${task}\n\nPhase 2 of 3, plan. What you found:\n${String(research).slice(-4000)}\n\nReviewer's notes on the research:\n${notes}\n\nWrite only the numbered plan: what, where, why, and how you'll check it. Don't edit yet.`;
+  return `${task}\n\nPhase 3 of 3, do it. The plan:\n${String(plan).slice(-4000)}\n\nReviewer's notes on the plan:\n${notes}\n\nCarry out the plan in small steps, check each, then report honestly.`;
+}
+
+export async function phasedWork(brain, hat, task, ctx) {
+  ctx.phased = true;
+  const rev = copyName(brain.cfg, 'reviewer', 'second look');
+  const force = reviewBrain(brain.cfg);
+  const say = (text) => ctx.emit({ type: 'token', text });
+  const gate = async (phase, work) => {
+    say(`\n\n---\n**${rev}, checking the ${phase}:**\n\n`);
+    const text = await brain.runHat('reviewer', gateTask(phase, work), { ...ctx, hatNotes: '' }, force);
+    (ctx.mootRounds ||= []).push({ kind: 'gate', phase, verdict: verdict(text) === 'ok' ? 'ok' : 'fix' });
+    return text;
+  };
+  say('**Research:**\n\n');
+  const research = await brain.runHat(hat, phaseTask('research', task), ctx);
+  const n1 = await gate('research', research);
+  say('\n\n---\n**Plan:**\n\n');
+  const plan = await brain.runHat(hat, phaseTask('plan', task, { research, notes: n1 }), ctx);
+  const n2 = await gate('plan', plan);
+  say('\n\n---\n**Doing it:**\n\n');
+  return brain.runHat(hat, phaseTask('do', task, { plan, notes: n2 }), ctx);
 }
 
 const plain = (hat) => ({ tinker: 'workbench', scout: 'scouting', ledger: 'ledger', painter: 'painter', reviewer: 'reviewer' }[hat] || hat);
@@ -68,7 +102,7 @@ export function mootOpening(cfg, effort, turnNo = 0) {
   const draft = draftBrain(cfg)?.model || 'the main brain';
   const check = reviewBrain(cfg)?.model || 'the main brain';
   const cat = turnNo % 3 === 0 ? ` ${catMoment(cfg.catName, turnNo)}.` : '';
-  return `🛰 Bob calls a moot in The Idle Process. He drafts on the big brain (${draft}), then ${rev} checks it (${check})${e === 'extreme' ? ', and checks each code change along the way' : ''}. Slower, more careful.${cat}`;
+  return `🛰 Bob calls a moot in The Idle Process. He drafts on the big brain (${draft}), then ${rev} checks it (${check})${e === 'extreme' ? ', and for code also checks the research and the plan before anything changes' : ''}. Slower, more careful.${cat}`;
 }
 
 // What happened at the moot, in a few words, kept with the reply. "Not done" is said plainly when it isn't.
@@ -76,7 +110,7 @@ export function mootMinutes(rounds, rev) {
   if (!rounds.length) return '';
   const words = rounds.map((r) => r.kind === 'check' ? `${rev} checked: ${r.verdict === 'ok' ? 'looks right' : r.verdict === 'fix' ? 'needs fixes' : 'no clear verdict'}`
     : r.kind === 'fix' ? `${r.copy} fixed what was found`
-    : r.kind === 'checkpoint' ? `${rev} checked a change: ${r.verdict === 'ok' ? 'fine' : 'needs fixes'}` : '');
+    : r.kind === 'gate' ? `${rev} checked the ${r.phase}: ${r.verdict === 'ok' ? 'fine' : 'needs fixes'}` : '');
   const last = [...rounds].reverse().find((r) => r.kind === 'check');
   const fixedAfter = rounds.at(-1)?.kind === 'fix';
   const end = !last ? '' : fixedAfter ? `Result: fixes made; ${rev} hasn't checked them again (Extreme effort does).` : last.verdict === 'ok' ? 'Result: checked, nothing open.'
@@ -104,17 +138,20 @@ export async function runMoot(brain, { msgs, base, emit, signal, job, ctx }) {
     || added.some((m, i) => m.role === 'tool' && ['edit_file', 'write_file'].includes(m.tool_name) && !/^Error|said no/i.test(String(m.content)) && i >= 0);
   const rounds = [...(ctx.mootRounds || [])];
   const say = (text) => { emit({ type: 'token', text }); };
+  let held = false; // the user quarantined Bob after the reviewer flagged him: no fix rounds
   const check = async (n) => {
     say(`\n\n---\n**${rev}, second look${n > 1 ? ' (again)' : ''}:**\n\n`);
-    const text = await brain.runHat('reviewer', CHECK_TASK, ctx, force);
+    // Quarantine on (opt-in): the reviewer may also say Bob went off track. Off: the check is exactly as before.
+    const text = await brain.runHat('reviewer', quarantineOn(brain.cfg) ? `${CHECK_TASK}\n${QUARANTINE_LINE}` : CHECK_TASK, ctx, force);
     msgs.push({ role: 'assistant', content: `${rev}, second look: ${text}`, moot: 'check' });
+    if (quarantineOn(brain.cfg) && flagFromReviewer(brain, ctx, text, 'bob')) held = (await maybeAsk(brain, ctx)) === 'quarantined';
     const v = verdict(text);
     rounds.push({ kind: 'check', verdict: v, corrected: /corrected answer:/i.test(text) });
     return { text, v };
   };
   let res = await check(1);
   const maxFix = effort === 'extreme' ? 2 : 1;
-  for (let i = 0; i < maxFix && res.v !== 'ok' && changedCode && !signal?.aborted; i++) {
+  for (let i = 0; i < maxFix && res.v !== 'ok' && changedCode && !held && !signal?.aborted; i++) {
     const copy = copyName(brain.cfg, 'tinker', 'workbench');
     say(`\n\n---\n**${copy}, fixing:**\n\n`);
     const fixed = await brain.runHat('tinker', fixTask(res.text), ctx);
@@ -128,19 +165,6 @@ export async function runMoot(brain, { msgs, base, emit, signal, job, ctx }) {
   if (minutes) { say(`\n\n${minutes}`); msgs.push({ role: 'assistant', content: minutes, moot: 'minutes' }); }
   brain.log('moot', `${effort}: ${rounds.map((r) => r.kind + (r.verdict ? `:${r.verdict}` : '')).join(', ')}`);
   return { rounds, minutes };
-}
-
-// Extreme only: called by the workbench loop after each change that went through.
-export async function checkpoint(brain, ctx, { hat, copy, plan, name, where, args, result }) {
-  if (hat !== 'tinker' || cleanEffort(ctx.job?.effort) !== 'extreme') return null;
-  ctx.checkpoints = (ctx.checkpoints || 0) + 1;
-  if (ctx.checkpoints > MAX_CHECKPOINTS) return null;
-  const rev = copyName(brain.cfg, 'reviewer', 'second look');
-  ctx.emit({ type: 'token', text: `\n\n**Checkpoint, ${rev}:** ` });
-  const text = await brain.runHat('reviewer', checkpointTask({ copy, plan, name, where, args, result }), { ...ctx, hatNotes: '' }, reviewBrain(brain.cfg));
-  ctx.emit({ type: 'token', text: '\n\n' });
-  (ctx.mootRounds ||= []).push({ kind: 'checkpoint', verdict: verdict(text) === 'ok' ? 'ok' : 'fix' });
-  return `Checkpoint from ${rev} on that change:\n${text}\nIf it found a real problem, fix it next; otherwise carry on with the plan.`;
 }
 
 export { plain as hatWord };

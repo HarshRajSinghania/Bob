@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { appDir } from './config.js';
-import { handOn, handOffWhy, HANDS } from './hands-settings.js';
+import { handOn, handOffWhy, HANDS, limitOn } from './hands-settings.js';
 
 const fn = (name, description, properties, required = Object.keys(properties)) => ({ type: 'function', function: { name, description, parameters: { type: 'object', properties, required } } });
 const str = (description, extra = {}) => ({ type: 'string', description, ...extra });
@@ -38,6 +38,20 @@ export const BLOCKED_PROCESSES = [
 const BLOCKED_TITLE = /\b(password|passphrase|credential|windows security|user account control|sign[- ]?in to windows|bitlocker|recovery key|2fa|two[- ]factor|one[- ]time code)\b/i;
 // Start menu names Bob won't open (the same tools by their friendly names).
 const BLOCKED_APP_NAME = /\b(command prompt|powershell|terminal|registry editor|task manager|computer management|disk management|group policy|local security policy|services|event viewer|system configuration|resource monitor|performance monitor|user accounts|credential manager|windows security|bitlocker|recovery|reset this pc|control panel|wsl|ubuntu|debian|keepass|1password|bitwarden|dashlane|lastpass|enpass|nordpass|roboform|keeper|proton pass)\b/i;
+
+// "Don't send anything out" (a hard limit, on by default): apps where typing or a Send button sends things off
+// the PC. In these Bob may look and click around, but not type, press keys, or click Send/Post/Upload/Share.
+const SEND_PROCESSES = /^(chrome|msedge|firefox|brave|opera|opera_gx|vivaldi|arc|iexplore|outlook|olk|hxoutlook|thunderbird|mailspring|discord|slack|teams|ms-teams|telegram|whatsapp|signal|zoom|skype|messenger|element|thunderbird)$/;
+const SEND_BUTTON = /\b(send|post|submit|upload|share|publish|reply|tweet|comment|attach)\b/i;
+export function sendOutBlock(cfg, w, action, target = {}) {
+  if (!limitOn(cfg, 'sendOut')) return '';
+  const proc = String(w?.process || '').toLowerCase().replace(/\.exe$/, '');
+  if (!SEND_PROCESSES.test(proc)) return '';
+  const what = `${w.process} can send things off your PC, and "Don't send anything out" is on (Settings, Hands)`;
+  if (action === 'type' || action === 'keys') return `${what}, so Bob doesn't type or press keys there.`;
+  if (action === 'click' && SEND_BUTTON.test(`${target.name || ''} ${target.id || ''}`)) return `${what}, so Bob doesn't click that.`;
+  return '';
+}
 
 export function blockedWindow(w, { ownPids = [] } = {}) {
   if (!w) return 'That window is gone.';
@@ -355,17 +369,19 @@ export function appsTools(brain, { driver = null, track = () => () => {}, openWa
       if (['type', 'focus'].includes(args.action) || target.name || target.id) {
         if (!['click', 'type', 'keys', 'focus'].includes(args.action)) throw new Error('The action should be click, type, keys or focus.');
         const r = await drv.request('resolve', { hwnd: w.hwnd, action: args.action, target });
-        if (r.password) throw new Error('Bob never types into password fields.');
+        if (r.password && limitOn(cfg, 'passwords')) throw new Error('Bob never types into password fields ("Never type into password fields" is on in Settings, Hands).');
         if (r.enabled === false) throw new Error(`${r.label} is greyed out.`);
         real = r.label || '';
         if (r.swapped) note = ` (${plain(r.swapped)} doesn't accept typing, so Bob will type into the window's main text area instead)`;
       }
+      const sent = sendOutBlock(cfg, w, args.action, { name: `${target.name} ${real}`, id: target.id });
+      if (sent) throw new Error(sent);
       const tt = () => plain(real || targetText(target)); // ids stay off the card (they're for Bob, not you)
       let what;
       if (args.action === 'click') { if (!target.name && !target.id) throw new Error('Say what to click (its name or id from app_look).'); what = `Click ${tt()}`; }
       else if (args.action === 'type') {
         if (args.text == null || String(args.text).length > 4000) throw new Error('Say the text to type (at most 4000 characters).');
-        if (/password|passwd|pwd|\bpin\b/i.test(`${target.name} ${target.id}`)) throw new Error('Bob never types into password fields.');
+        if (limitOn(cfg, 'passwords') && /password|passwd|pwd|\bpin\b/i.test(`${target.name} ${target.id}`)) throw new Error('Bob never types into password fields ("Never type into password fields" is on in Settings, Hands).');
         let text = String(args.text);
         // Plain-text windows get plain text: no literal ** and # marks.
         if (PLAIN_TEXT_APPS.includes(String(w.process).toLowerCase().replace(/\.exe$/, ''))) text = plainText(text);
@@ -399,7 +415,9 @@ export function appsTools(brain, { driver = null, track = () => () => {}, openWa
       state.driving = true;
       let r;
       try {
-        r = await drv.request('act', { hwnd: w.hwnd, action: args.action, target, text: args.action === 'type' ? typed : '', keys, expect });
+        const sent = sendOutBlock(cfg, now, args.action, { name: `${target.name} ${expect}`, id: target.id });
+        if (sent) throw new Error(sent);
+        r = await drv.request('act', { hwnd: w.hwnd, action: args.action, target, text: args.action === 'type' ? typed : '', keys, expect, allowPassword: !limitOn(cfg, 'passwords') });
       } catch (e) {
         // Windows' own reason, word for word, so Bob passes it on instead of inventing one.
         log('hands', `apps: ${args.action} in ${label(w)} failed: ${e.message}`);

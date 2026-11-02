@@ -4,7 +4,7 @@
 // Adding or switching one on always asks. Off by default, and "Stop everything" stops schedules too
 // (it turns the master switch off, and nothing is due while the Hand is off).
 import { Schedules, startTicker, describe, cleanWhen, setWindowsTask } from './schedules.js';
-import { handOn, HANDS } from './hands-settings.js';
+import { handOn, HANDS, freeOn } from './hands-settings.js';
 import { saveSettings } from './config.js';
 
 export const SCHEDULE_SESSION = 'schedules';
@@ -45,7 +45,7 @@ export function scheduleTools(brain) {
       const when = whenFrom(args);
       const task = String(args.task || '').trim();
       if (!task) throw new Error('Say what the schedule should do.');
-      return { text: `Add the schedule "${String(args.name || '').slice(0, 80)}": ${describe(when)}, Bob will: ${task.slice(0, 300)}. It starts switched on. Each run still asks before every action.`, hand: 'schedules' };
+      return { text: `Add the schedule "${String(args.name || '').slice(0, 80)}": ${describe(when)}, Bob will: ${task.slice(0, 300)}. It starts switched on. ${freeOn(cfg) ? 'While "Let Bob work without asking" is on, runs go ahead without asking.' : 'Each run still asks before every action.'}`, hand: 'schedules' };
     },
     async run(args) {
       off(cfg);

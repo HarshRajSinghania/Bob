@@ -44,9 +44,14 @@ export function sessionCtx(cfg, id, hat) {
 }
 
 // The model a hat runs on right now, and whether it must stay off the graphics card.
+// 1.5.12: Low effort in the Normal and Light sessions chats on the Quick brain, on the processor, so the graphics card stays free.
+// Setting quickOnCpu (Settings > Everyday): OFF unless switched on. Measured 2026-11-02 on a 9800X3D (gemma4:e4b, 4.3K-token
+// prompt): about 31 s to the first word on the processor vs about 4 s on the card, because reading the prompt is slow there.
+export const quickOnCpu = (cfg) => cfg?.quickOnCpu === true;
 export function modelFor(cfg, hat) {
   const s = currentSession(cfg);
   const ctx = sessionCtx(cfg, s.id, hat);
+  if (['normal', 'light'].includes(s.id) && hat === 'bob' && quickOnCpu(cfg)) return { model: sessionBrains(cfg).small, cpu: true, ctx };
   if (s.id === 'normal') return { model: cfg.oneBrain ? cfg.models.bob : (cfg.models[hat] || cfg.models.bob), cpu: false, ctx };
   const model = sessionBrains(cfg)[s.brain] || cfg.models.bob;
   return { model, cpu: Boolean(s.cpu), think: s.think, ctx };

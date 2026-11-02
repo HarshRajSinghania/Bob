@@ -8,14 +8,23 @@ export const HELP = [
 <p>To see the first-time setup again: Settings, <strong>Run first-time setup</strong>.</p>` },
 
   { id: 'around', group: 'Getting started', title: 'Finding your way around', words: 'menu layout now running chat copy paste fold panel',
-    html: `<ul><li><strong>The menu on the left:</strong> Chat, Tasks, Downloads, References, Topics, Tidy up, Get models, Settings, Style and Help. Fold it to icons with Ctrl+B.</li>
+    html: `<ul><li><strong>The menu on the left:</strong> Chat, Tasks, Downloads, References, Made by Bob, Topics, Tidy up, Get models, Settings, Style and Help. Fold it to icons with Ctrl+B.</li>
 <li><strong>The chat in the middle.</strong> Enter sends; Shift+Enter starts a new line. Send as many messages as you like: each becomes a task, and Bob works through them in order.</li>
 <li><strong>Now running on the right:</strong> tasks, downloads, and how full your graphics card and RAM are. Hide it with Ctrl+J.</li></ul>
 <p>Every message and every piece of code has a <strong>Copy</strong> button, which helps over remote desktop apps such as Parsec. Files Bob mentions get a card with <strong>Open</strong>, <strong>Show in folder</strong> and <strong>Copy path</strong>.</p>` },
 
+  { id: 'made', group: 'Getting started', title: 'Seeing what Bob made', words: 'made by bob side panel outputs pictures files documents preview view open show last picture tabs gallery where did it go',
+    html: `<p>Everything Bob makes or saves shows up in the chat as a <strong>card with a preview</strong>: the picture itself, a player for clips and sounds, or the first few lines of a document.</p>
+<ul><li>Click the preview, the name or <strong>View</strong> to open it in the <strong>side panel</strong>, beside the chat. Each thing gets its own tab. Click a picture there to see it at full size.</li>
+<li><strong>Made by Bob</strong> in the left menu opens the panel at a list of everything he has made, newest first. Pick Pictures, Clips, Sounds or Documents, or search by name.</li>
+<li>You can also just ask: "show me the last picture" or "show me the spreadsheet you made".</li>
+<li>In the panel, <strong>Open in its app</strong> opens the file the usual way, and <strong>Show in folder</strong> opens its folder.</li></ul>
+<p>Web pages Bob writes show as a preview with their scripts switched off. Use <strong>Code</strong> to see the source. Word, PDF and other files that Bob can't show in the panel still get a card, and open in their own app.</p>
+<p>On a narrower screen it takes Now running's place. Click Now running to switch back.</p>` },
+
   { id: 'keys', group: 'Getting started', title: 'Keyboard shortcuts', words: 'keys shortcut ctrl f1 escape',
     html: `<table><tr><th>Keys</th><th>What it does</th></tr>
-<tr><td>F1</td><td>Opens this Help</td></tr><tr><td>Ctrl+B</td><td>Folds or opens the left menu</td></tr><tr><td>Ctrl+J</td><td>Shows or hides Now running</td></tr>
+<tr><td>F1</td><td>Opens this Help</td></tr><tr><td>Ctrl+B</td><td>Folds or opens the left menu</td></tr><tr><td>Ctrl+J</td><td>Shows or hides Now running</td></tr><tr><td>Esc (in the side panel)</td><td>Closes the side panel</td></tr>
 <tr><td>Esc</td><td>Back to the chat from Settings, Get models, Style or Help</td></tr><tr><td>Enter / Shift+Enter</td><td>Send / new line</td></tr></table>` },
 
   { id: 'recommended', group: 'Models', title: 'How Bob picks models for your PC', words: 'recommended fits your card does not suit star badge show models that don\'t suit compatible slot job score',
@@ -61,7 +70,7 @@ export const HELP = [
 <li><strong>Context</strong> (how much Bob keeps in mind): more lets him read longer files and chats, but uses more graphics memory and loads slower. Set it per session in Settings, Brains.</li>
 <li><strong>Tools only when needed:</strong> Bob starts each chat with a few everyday tools, and adds the picture, file and Hands ones when a message needs them. That leaves more room for your chat. To send them all every time, turn on <strong>Give Bob all his tools at once</strong> in Settings, Show advanced settings, Engines &amp; speed.</li>
 <li><strong>Now running, Memory</strong> shows how full the graphics card and RAM are, and which brain is loaded.</li></ul>
-<p>Effort (above the chat box): Low answers from one brain. High and Extreme add a second check by the Review brain, which is slower. It goes back to Low when Bob restarts.</p>` },
+<p>Effort (above the chat box): Low answers from one quick brain on the graphics card (or on the processor, if you switch that on in Settings). Medium uses one big brain. High and Extreme add a second check by the Review brain, which is slower. It goes back to Low when Bob restarts.</p>` },
 
   { id: 'sessions', group: 'Using Bob', title: 'Sessions', words: 'session normal art coding office deep thought light gaming',
     html: `<p>The <strong>Session</strong> picker at the bottom of the menu tells Bob how to share your PC with you.</p>
@@ -71,9 +80,9 @@ export const HELP = [
   { id: 'personality', group: 'Using Bob', title: 'Bob\'s personality', words: 'attributes dials wit puns presets reset',
     html: `<p>Click Bob's picture and look at <strong>Attributes</strong>. Eleven dials, each from 0 to 4, turn his wit, puns, tangents, outlook, nerd references, chattiness and more up or down. <strong>Ambition</strong> sets how often he mentions what he'd love to build or finish; wanting something never makes him do it. His greeting changes as you move a dial so you can hear the difference. <strong>Reset to Bob</strong> puts everything back.</p>` },
 
-  { id: 'effort', group: 'Using Bob', title: 'Effort: Low, High and Extreme', words: 'effort low high extreme moot review second look check careful quick slow reviewer',
+  { id: 'effort', group: 'Using Bob', title: 'Effort: Low, Medium, High and Extreme', words: 'effort low medium high extreme processor cpu moot review second look check careful quick slow reviewer',
     html: `<p>Above the chat box, <strong>Effort</strong> sets how hard Bob works on your next messages.</p>
-<ul><li><strong>Low</strong> (the default): a quick answer from one brain. Nothing extra loads.</li><li><strong>High</strong>: Bob calls a <em>moot</em>, a meeting with his copies. A big brain drafts the answer, then his reviewer copy checks it on the Review brain. Code problems go back to the workbench for one fix.</li><li><strong>Extreme</strong>: like High, and the reviewer also checks each code change as it's made, then checks the fixes again. Slowest: on one graphics card every check swaps brains.</li></ul>
+<ul><li><strong>Low</strong> (the default): a quick answer from the Quick brain. If you switch on "Keep the graphics card free for quick answers" (Settings, Advanced, Engines & speed), it runs on the processor in the Normal and Light sessions, so games and pictures keep the card, but replies take about half a minute to start.</li><li><strong>Medium</strong>: one big brain (Deep thinking, or the main Brain if that slot is empty) thinks it through on the graphics card. No second check.</li><li><strong>High</strong>: Bob calls a <em>moot</em>, a meeting with his copies. A big brain drafts the answer, then his reviewer copy checks it on the Review brain. Code problems go back to the workbench for one fix.</li><li><strong>Extreme</strong>: like High, and coding goes in three steps, research, plan, then the changes, with the reviewer checking after each one. He also checks the fixes again. Slowest: on one graphics card every check swaps brains.</li></ul>
 <p>At the end you see the <strong>moot minutes</strong>: who checked what, and whether anything is still open. The big brains are freed when the job ends. Effort goes back to Low each time Bob starts.</p>` },
 
   { id: 'topics', group: 'Using Bob', title: 'Topics, past chats and forgetting', words: 'topics search past chats forget pin merge rename',
@@ -91,13 +100,14 @@ export const HELP = [
     html: `<ul><li><strong>Read aloud</strong> (menu): Bob speaks his replies. Kokoro is the recommended voice (runs on the processor). Every voice has a <strong>Play</strong> button.</li>
 <li><strong>Talk to Bob:</strong> fill the 👂 Hearing you slot, then use 🎙 or turn on <strong>Listen</strong> for "Hey Bob" (only while the window is open).</li></ul>` },
 
-  { id: 'hands', group: 'Hands and safety', title: 'Hands: letting Bob do things on your PC', words: 'hands files run commands schedules apps permission preview allow undo stop everything kill switch self-test read-only',
+  { id: 'hands', group: 'Hands and safety', title: 'Hands: letting Bob do things on your PC', words: 'hands files run commands schedules apps permission preview allow undo stop everything kill switch self-test read-only without asking free unimpeded hard limits delete secrets passwords send out upload',
     html: `<p>Hands let Bob do things on your PC instead of only talking about them: <strong>Files</strong> (zip, move, copy, rename, tidy folders), <strong>Run</strong> (programs and scripts), <strong>Schedules</strong> (a job at a set time) and <strong>Apps</strong> (click and type in another program).</p>
 <ul><li><strong>Every Hand is off</strong> until you switch it on in Settings, Show advanced settings, Hands.</li>
 <li><strong>Bob shows exactly what he's about to do</strong> on a card and waits for your click. "Allow for the rest of this job" is your choice and ends with the job.</li>
 <li><strong>✋ Hands</strong> at the top of the chat is a kill switch: anything running stops, waiting cards are answered No. It never switches a Hand on.</li>
 <li>File changes keep an undo list; anything removed goes to the Recycle Bin. Folders you mark read-only stay untouched.</li>
-<li>Some things are never allowed: anything needing administrator rights, and Bob's list of destructive commands.</li>
+<li><strong>Hard limits</strong> are all on to start with: Recycle Bin only, keep secret files private, read-only projects stay read-only, block dangerous commands, never type into password fields, and don't send anything out. Each is its own switch, and each says what switching it off allows. Bob never runs as administrator and never changes his own code or settings, whatever you pick.</li>
+<li><strong>Let Bob work without asking</strong> (off to start with) skips the cards: he just does the job and tells you what he did. The hard limits still hold, everything goes in the chat and the logbook, a banner shows above the chat the whole time, and ✋ Hands stops him at once. Cloud helpers still ask, because they cost money.</li>
 <li><strong>Run the self-test</strong> (Settings, Show advanced settings, Hands) checks the safety nets in a throwaway folder. Nothing of yours is touched.</li></ul>` },
 
   { id: 'privacy', group: 'Hands and safety', title: 'What stays on your PC', words: 'privacy online cloud network internet data keys',
@@ -128,7 +138,10 @@ export const HELP = [
 <li><strong>Cloud helpers</strong> (off unless you turn one on): paid online AIs for one big job. Add your key yourself as a Windows user environment variable; Bob never stores it.</li></ul>` },
 
   { id: 'settings-hands', group: 'Settings', title: 'Settings: Hands', words: 'hands folders read-only stop command after recipes self-test',
-    html: `<p>Switch each Hand on or off, choose the folders the Files Hand may work in (and which are read-only), how long a command may run, and see recent jobs. <strong>✋ Stop everything</strong> there does the same as the ✋ Hands kill switch on the chat page. <strong>Run the self-test</strong> checks the safety nets. See <a href="#" data-helpgo="hands">Hands</a>.</p>` },
+    html: `<p>Switch each Hand on or off, choose the folders the Files Hand may work in (and which are read-only), how long a command may run, and see recent jobs. To stop him right away, use the ✋ Hands kill switch on the chat page. <strong>Run the self-test</strong> checks the safety nets. See <a href="#" data-helpgo="hands">Hands</a>.</p>` },
+
+  { id: 'quarantine', group: 'Settings', title: 'Quarantine', words: 'quarantine reviewer off track loop rogue crazy release stop',
+    html: `<p>Off unless you turn on <strong>Let the reviewer quarantine Bob</strong> (Settings, Show advanced settings, Hands). Then Bob's reviewer copy watches for him going off track: trying again after you said no, doing the same thing over and over, failing again and again, pushing against your limits, saying he did things that never ran, or racing through actions while working without asking. At High or Extreme effort its check can flag him too. Watching is simple counting, so no extra brain loads.</p><p>When it spots one, Bob stops at his next action and a card asks you: <strong>Quarantine</strong> or <strong>Let him carry on</strong>. Nothing happens without your click. If nobody answers, that job stops but he isn't quarantined. In quarantine he can still talk, read and search, but every action is refused. Nothing he did is undone and the logbook keeps everything. A copy can be quarantined on its own. Click <strong>Release</strong> on the banner above the chat (or in Settings) to let him act again.</p>` },
 
   { id: 'settings-housekeeping', group: 'Settings', title: 'Settings: Housekeeping', words: 'tidy old chats pictures logs ask first automatically',
     html: `<p>Turn housekeeping on, choose how old is "old" for each kind of thing, and whether Bob asks first or tidies by himself. <strong>Load a brain for it if none is loaded</strong> stays off while gaming. See <a href="#" data-helpgo="housekeeping">Housekeeping and Tidy up</a>.</p>` },

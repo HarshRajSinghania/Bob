@@ -9,6 +9,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { insideAny, isInside } from './config.js';
 import { isSensitive } from './tools.js';
+import { limitOn, readOnlyRoots } from './hands-settings.js';
 
 const MAX_OUT = 200_000; // characters of output kept for Bob (the chat gets all of it live)
 const WIN = process.platform === 'win32';
@@ -50,6 +51,30 @@ const NEVER_TEXT = [
   [/\bmkfs\b|\bdd\s+[^\n]*of=\/dev\//i, 'writes raw disks']
 ];
 
+// "Don't send anything out" (a hard limit, on by default): commands that upload or post the user's things.
+// The line: a command that sends a body, a file or a push to another computer is refused; plain downloads
+// (curl URL, git pull/clone/fetch, npm install) are reads and stay allowed.
+const SEND_PROGRAMS = new Map(Object.entries({
+  scp: 'copies files to another computer', sftp: 'copies files to another computer', ftp: 'copies files to another computer',
+  rsync: 'can copy files to another computer', rclone: 'copies files to cloud storage', azcopy: 'copies files to cloud storage',
+  gsutil: 'copies files to cloud storage', ssh: 'opens a link to another computer', nc: 'sends data over the network', ncat: 'sends data over the network',
+  telnet: 'sends data over the network', sendmail: 'sends email', mail: 'sends email', mutt: 'sends email'
+}));
+const SEND_TEXT = [
+  [/\bcurl\b[^\n]*\s(-d|--data[\w-]*|-F|--form[\w-]*|-T|--upload-file|--json|-X\s*['"]?(POST|PUT|PATCH)|--request\s+['"]?(POST|PUT|PATCH))(?=[\s'"=]|$)/i, 'sends data to a website'],
+  [/\bwget\b[^\n]*--(post|body)-(data|file)\b/i, 'sends data to a website'],
+  [/\b(invoke-webrequest|iwr|invoke-restmethod|irm)\b[^\n]*-(body|infile|method\s+['"]?(post|put|patch))\b/i, 'sends data to a website'],
+  [/\bgit\b[^\n]*\b(push|send-email|request-pull)\b/i, 'pushes or sends code to another computer'],
+  [/\b(npm|pnpm|yarn|cargo|twine|gem|nuget)\b[^\n]*\b(publish|push|upload)\b/i, 'publishes to the internet'],
+  [/\bgh\b[^\n]*\b(pr|issue|release|gist|repo|api)\b[^\n]*\b(create|edit|comment|upload|post)\b/i, 'posts to GitHub'],
+  [/\bsend-mailmessage\b|\bsmtpclient\b/i, 'sends email'],
+  [/\bstart-bitstransfer\b[^\n]*-transfertype\s+upload\b/i, 'uploads files']
+];
+function sendProblem(text) {
+  for (const [re, why] of SEND_TEXT) if (re.test(text)) return why;
+  return '';
+}
+
 // Programs that only read or interpret text: their inline code is checked the same way, and they may not take hidden input.
 const INTERPRETERS = new Set(['cmd', 'powershell', 'pwsh', 'python', 'python3', 'py', 'node', 'bash', 'sh', 'wscript', 'cscript', 'mshta']);
 const NO_SCRIPT_HOSTS = new Set(['wscript', 'cscript', 'mshta']); // old Windows script hosts: too easy to hide things in
@@ -59,8 +84,10 @@ const CMD_META = /[&|<>^%!"\r\n]/;
 
 const progName = (cmd) => path.basename(String(cmd || '')).toLowerCase().replace(/\.(exe|com|bat|cmd)$/, '');
 
-function textProblem(text) {
-  for (const [re, why] of NEVER_TEXT) if (re.test(text)) return why;
+// What's wrong with this text, by the hard limits that are on (commands = the blocklist, sendOut = uploads).
+function textProblem(text, cfg = {}) {
+  if (limitOn(cfg, 'commands')) for (const [re, why] of NEVER_TEXT) if (re.test(text)) return why;
+  if (limitOn(cfg, 'sendOut')) { const why = sendProblem(text); if (why) return `${why}, and "Don't send anything out" is on`; }
   return '';
 }
 
@@ -75,13 +102,15 @@ export function checkCommand(cfg, { cmd, args = [], cwd } = {}) {
   let st = null;
   try { st = fs.statSync(cwd); } catch {}
   if (!st?.isDirectory()) return no(`The folder ${cwd} doesn't exist.`);
-  if (insideAny(cfg.readOnlyRoots || [], cwd)) return no(`${cwd} is read-only for Bob (his own files, backups, or a project you marked read-only).`);
+  if (insideAny(readOnlyRoots(cfg), cwd)) return no(`${cwd} is read-only for Bob (his own files, backups, or a project you marked read-only).`);
 
   const name = progName(cmd);
-  if (NEVER_PROGRAMS.has(name)) return no(`${name} is never run by Bob: it ${NEVER_PROGRAMS.get(name)}.`);
-  if (NO_SCRIPT_HOSTS.has(name)) return no(`${name} is never run by Bob: old script hosts make it too easy to hide what runs.`);
+  const blocklist = limitOn(cfg, 'commands');
+  if (blocklist && NEVER_PROGRAMS.has(name)) return no(`${name} is never run by Bob: it ${NEVER_PROGRAMS.get(name)}.`);
+  if (blocklist && NO_SCRIPT_HOSTS.has(name)) return no(`${name} is never run by Bob: old script hosts make it too easy to hide what runs.`);
+  if (limitOn(cfg, 'sendOut') && SEND_PROGRAMS.has(name)) return no(`${name} isn't run while "Don't send anything out" is on: it ${SEND_PROGRAMS.get(name)}.`);
   const line = [cmd, ...args].map(quoteForShow).join(' ');
-  const why = textProblem([cmd, ...args].join(' '));
+  const why = textProblem([cmd, ...args].join(' '), cfg);
   if (why) return no(`That command is refused: it ${why}.`);
 
   // Paths in the command: no secrets, and nothing of Bob's own settings (so he can't switch his own Hands on).
@@ -102,7 +131,7 @@ export function checkCommand(cfg, { cmd, args = [], cwd } = {}) {
     if (isSensitive(cfg, file)) return no('That script is in a secret file, which stays off-limits to Bob.');
     try {
       const body = fs.readFileSync(file).subarray(0, 1_000_000).toString('utf8');
-      const inside = textProblem(body);
+      const inside = textProblem(body, cfg);
       if (inside) return no(`The script ${path.basename(file)} is refused: it ${inside}.`);
     } catch { if (SCRIPT_EXT.has(ext)) return no(`The script ${file} doesn't exist.`); }
   }

@@ -22,6 +22,7 @@
     <button id="tasksBtn" type="button" class="nav-item" title="Tasks: what Bob is doing, what is waiting, what is done" aria-label="Tasks"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5"/><circle cx="5" cy="18" r="1.3"/></svg><span class="lbl">Tasks</span><span class="short" aria-hidden="true">Tasks</span><span class="badge" hidden></span></button>
     <button id="dlBtn" type="button" class="nav-item" title="Downloads: pause, resume, reorder" aria-label="Downloads"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v3h16v-3"/></svg><span class="lbl">Downloads</span><span class="short" aria-hidden="true">Downloads</span><span class="badge" hidden></span></button>
     <button id="shelfBtn" type="button" class="nav-item" title="References: characters, scenes, styles" aria-label="References"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg><span class="lbl">References</span><span class="short" aria-hidden="true">Refs</span></button>
+    <button id="madeBtn" type="button" class="nav-item" title="Made by Bob: pictures, clips, sounds and files he made, in a panel beside the chat" aria-label="Made by Bob" aria-expanded="false" aria-controls="viewer"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M14 4v16"/><path d="M6 9h5M6 13h5"/></svg><span class="lbl">Made by Bob</span><span class="short" aria-hidden="true">Made</span></button>
     <button id="topicsBtn" type="button" class="nav-item" title="Topics: what you've talked about, by project, with past chats and search" aria-label="Topics"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4h10l6 6v10H4z"/><path d="M8 10h6M8 14h8M8 18h5"/></svg><span class="lbl">Topics</span><span class="short" aria-hidden="true">Topics</span></button>
     <button id="tidyBtn" type="button" class="nav-item" title="Tidy up: old chats, pictures and logs Bob can clear away (asks first)" aria-label="Tidy up"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3l-2 8"/><path d="M6 13h12l-1 8H7z"/><path d="M9 17v2M12 17v2M15 17v2"/></svg><span class="lbl">Tidy up</span><span class="short" aria-hidden="true">Tidy</span><span class="badge" hidden></span></button>
     <div class="nav-head">Setup</div>
@@ -53,6 +54,7 @@
       <div class="cellar-head"><h2 id="cellar-title">Settings</h2><button id="cellar-close" type="button" class="back" title="Back to the chat (Esc)" aria-label="Back to the chat">← Back to chat</button></div>
       <div id="cellar-body"></div>
     </dialog>
+  <div id="freeBanner" class="free-banner" role="status" hidden><span>⚠ Bob is working without asking. Hard limits still apply.</span><button type="button" id="freeBannerStop" class="big">✋ Stop Hands</button></div>
   <main id="log" class="log" aria-live="polite"></main>
 
   <div id="chips" class="chips">
@@ -68,6 +70,7 @@
   <div id="effort" class="effort" role="radiogroup" aria-label="Effort" data-level="low">
     <span class="effort-lbl">Effort</span>
     <button type="button" role="radio" aria-checked="true" data-effort="low"><b>Low</b><small>Quick</small></button>
+    <button type="button" role="radio" aria-checked="false" data-effort="medium" tabindex="-1"><b>Medium</b><small>Deeper</small></button>
     <button type="button" role="radio" aria-checked="false" data-effort="high" tabindex="-1"><b>High</b><small>Checked</small></button>
     <button type="button" role="radio" aria-checked="false" data-effort="extreme" tabindex="-1"><b>Extreme</b><small>Slowest</small></button>
     <span id="effortHint" class="muted effort-hint" aria-live="polite"></span>
@@ -84,6 +87,11 @@
   </form>
   </div>
 
+  <div id="vgrab" class="grab vgrab" role="separator" aria-orientation="vertical" aria-label="Drag to resize the side panel" tabindex="0" hidden></div>
+  <aside id="viewer" class="viewer" aria-label="Side panel: things Bob made" tabindex="-1" hidden>
+    <div class="vhead"><div id="vtabs" class="vtabs" role="tablist" aria-label="Open in the side panel"></div><button id="vclose" type="button" class="link" title="Close the side panel (Esc)">Close ✕</button></div>
+    <div id="vbody" class="vbody"></div>
+  </aside>
   <div id="grab" class="grab" role="separator" aria-orientation="vertical" aria-label="Drag to resize Now running" tabindex="0"></div>
   <aside id="now" class="now" aria-label="Now running">
     <div class="now-head"><strong>Now running</strong><span class="ctx-fill"></span><button id="hideRight" type="button" class="link" title="Hide (Ctrl+J)">Hide »</button></div>
