@@ -11,6 +11,7 @@ import { systemPrompt, HATS } from './persona.js';
 import { lookPrompt } from './look.js';
 import { personalityPrompt, cleanPersonality } from '../public/personality.js';
 import { catPrompt, catMoment } from '../public/patches.js';
+import { sleepyAfterReply, sleepySwitch, SLEEPY_SESSION } from '../public/sleepy.js';
 import { cleanEffort, careful, bigThinker, draftBrain, hatBrain, effortPrompt, mootOpening, runMoot, phasedWork } from './moot.js';
 import { saveSettings } from './config.js';
 import { paint, paintingAvailable } from './painter.js';
@@ -130,6 +131,7 @@ export class Brain {
     this.cfg = cfg;
     this.broadcast = broadcast;
     this.engine = cfg.engine === 'llamacpp' ? new LlamaCpp(cfg) : new Ollama(cfg);
+    this.sleepy = { since: 0, recent: [] }; // Gaming-session asides (public/sleepy.js)
     // Bob's own engine unloads its brain when idle; it asks here first so it never does that mid-job.
     if (this.engine instanceof LlamaCpp) this.engine.isBusy = () => this.turns.size > 0 || this.queue.some((j) => j.state === 'working');
     // The Brain toggle (1.5.2): "Always on" keeps the chat brain loaded; otherwise both engines let it go when idle.
@@ -524,6 +526,7 @@ export class Brain {
   // Switch session (only ever from the user's click). Brains from the old session are let go so the new set fits.
   async setSession(id) {
     if (!SESSIONS[id]) throw new Error('Unknown session.');
+    const from = currentSession(this.cfg).id;
     this.cfg.session = id;
     this.suggested = null;
     this.lastActivity = Date.now(); // for /api/idle
@@ -533,6 +536,8 @@ export class Brain {
     setTimeout(() => this.pump(), 0); // jobs that waited for Gaming to end can start
     if (holdsChatBrain(this.cfg)) this.wake('always on').catch(() => {});
     this.broadcast({ type: 'session', session: currentSession(this.cfg) });
+    const aside = sleepySwitch(this.sleepy, from, id, cleanPersonality(this.cfg.personality));
+    if (aside) this.broadcast({ type: 'aside', text: aside });
     return currentSession(this.cfg);
   }
 
@@ -882,12 +887,14 @@ export class Brain {
     if (this.turns.has(lane)) throw new Error('busy');
     const turnId = job?.id || crypto.randomUUID();
     const controller = new AbortController();
-    const emit = (ev) => this.broadcast({ ...ev, turnId, sessionId });
+    let flagged = false; // an error or correction note under this reply: no sleepy aside (never joke about a real failure)
+    const emit = (ev) => { if (['error', 'correction', 'held', 'waiting'].includes(ev.type)) flagged = true; this.broadcast({ ...ev, turnId, sessionId }); };
     this.turns.set(lane, { turnId, controller });
     emit({ type: 'start', text: text.slice(0, 140) });
     const pics = [].concat(attach || []).map((id) => this.refs.find(String(id))).filter(Boolean).slice(0, 4);
+    let ok = false;
     this.run(sessionId, text, emit, controller.signal, pics, job)
-      .then(() => { if (job) job.state = 'done'; })
+      .then(() => { ok = true; if (job) job.state = 'done'; })
       .catch((e) => {
         if (controller.signal.aborted) { emit({ type: 'token', text: '\n\n*(Stopped.)*' }); if (job) job.state = 'cancelled'; }
         else { emit({ type: 'error', text: e.message }); this.log('error', e.message); if (job) { job.state = 'failed'; job.error = e.message.slice(0, 200); } }
@@ -898,6 +905,12 @@ export class Brain {
         if (job?.handoff) job.handoff = slimHandoff(job.handoff); // finished: keep what it did, drop the load-by-load steps
         this.turns.delete(lane);
         this.lastActivity = Date.now();
+        // Gaming: now and then a scripted sleepy aside under a normal finished reply (a feeling, never a fact about the job).
+        // Never after an error or correction note, or for a job held back (e.g. "Waiting · Gaming is on").
+        if (ok && !flagged && !controller.signal.aborted && (!job || job.state === 'done') && currentSession(this.cfg).id === SLEEPY_SESSION) {
+          const aside = sleepyAfterReply(this.sleepy, cleanPersonality(this.cfg.personality));
+          if (aside) emit({ type: 'aside', text: aside });
+        }
         emit({ type: 'done' });
         if (!this.turns.size) this.setState('idle', '');
         if (job) { job.doneAt = Date.now(); for (const st of job.steps || []) if (st.state === 'in progress') st.state = job.state === 'done' ? 'completed' : job.state; this.saveQueue(); }

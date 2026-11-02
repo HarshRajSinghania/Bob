@@ -219,8 +219,10 @@ function browserSpeak(text) {
   u.onend = () => { talkingUntil = 0; };
   speechSynthesis.speak(u);
 }
+// Read aloud skips stage directions like *yawns* and just says the words.
+const sayAside = (t) => String(t).replace(/\*[^*]+\*\s*/g, '').trim();
 function speak(text) {
-  if (!speakOn) return;
+  if (!speakOn || !text) return;
   if (ownVoice) { sayQueue.push(text); sayNext(); } else browserSpeak(text);
 }
 const speakBtn = $('speak');
@@ -456,16 +458,25 @@ function onEvent(ev) {
       endReply(ev);
       note(ev.text, 'error');
       break;
+    case 'aside': {
+      // Gaming-session sleepy aside (public/sleepy.js): scripted, not part of the reply, not saved in the chat.
+      const rep = ev.turnId && replies.get(ev.turnId);
+      if (rep) rep.aside = ev.text;
+      else if (!ev.turnId) { add('msg bob aside-msg', `<div class="aside">${renderRich(ev.text).html}</div>`); speak(sayAside(ev.text)); }
+      break;
+    }
     case 'done': {
       const rep = replies.get(ev.turnId || '-');
       const finished = rep?.text;
       // Never leave an empty Bob bubble (nothing said, nothing made).
       if (rep && !String(finished || '').trim() && !rep.media?.length && !rep.el.querySelector('img, video, audio, .out-card')) rep.el.remove();
       else if (rep) decorate(rep.el, finished || '');
+      const aside = rep?.el.isConnected && String(finished || '').trim() ? rep.aside : '';
+      if (aside) { const a = document.createElement('div'); a.className = 'aside'; a.innerHTML = renderRich(aside).html; rep.el.insertBefore(a, rep.el.querySelector(':scope > .msg-tools')); }
       endReply(ev);
       running.delete(ev.turnId);
       setBusy(running.size > 0);
-      if (finished) { speak(finished); ping('Bob replied', finished.slice(0, 120)); }
+      if (finished) { speak(finished); if (aside) speak(sayAside(aside)); ping('Bob replied', finished.slice(0, 120)); }
       break;
     }
   }
