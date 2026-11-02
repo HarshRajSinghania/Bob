@@ -98,7 +98,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 - Committers and reviewers: the members of this repository with write access.
 - Approvers: the project owner (MouseWurX). Every signing request for a release is approved by hand.
 
-**Privacy policy:** This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. In particular, Bob only reaches the internet when you click: model and engine downloads (from the address shown before you confirm), voice samples from a voice's publisher, web research you ask for, and cloud AI helpers you switch on with your own API key (each use asks first). Phone access over Tailscale is off unless you turn it on. Bob sends no telemetry.
+**Privacy policy** ([PRIVACY.md](PRIVACY.md)): This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. In particular, Bob only reaches the internet when you click: model and engine downloads (from the address shown before you confirm), voice samples from a voice's publisher, web research you ask for, and cloud AI helpers you switch on with your own API key (each use asks first). Phone access over Tailscale is off unless you turn it on. Bob sends no telemetry.
 
 ### Versions
 
