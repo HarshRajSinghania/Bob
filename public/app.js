@@ -380,7 +380,8 @@ function onEvent(ev) {
       const [yes, no] = el.querySelectorAll('button');
       yes.onclick = async () => {
         yes.disabled = true;
-        try { await api('/api/models/download', { id: ev.id }); el.remove(); note(`Downloading the ${ev.name}. Progress is in Downloads. Ask me for the ${ev.why === 'music' ? 'song' : 'job'} again when it's done.`); }
+        // 1.5.38: the message that asked waits in Tasks and runs by itself when the download is done (even after a restart).
+        try { await api('/api/models/download', { id: ev.id, ...(ev.jobId ? { thenJob: ev.jobId } : {}) }); el.remove(); note(ev.jobId ? `Downloading the ${ev.name}. Progress is in Downloads. Your ${ev.why === 'music' ? 'song' : 'request'} waits in Tasks, and I'll make it as soon as the download is done.` : `Downloading the ${ev.name}. Progress is in Downloads. Ask me for the ${ev.why === 'music' ? 'song' : 'job'} again when it's done.`); }
         catch (e) { yes.disabled = false; note(e.message, 'error'); }
       };
       no.onclick = () => el.remove();
@@ -847,9 +848,13 @@ function watchUpdateReady() {
     if (!st?.done) updWatch = setTimeout(watchUpdateReady, 3000);
   }).catch(() => { updWatch = setTimeout(watchUpdateReady, 5000); });
 }
-function askRestart(st) {
+async function askRestart(st) {
   const busyWith = [running.size ? 'a task' : '', liveDl.size ? 'a download' : ''].filter(Boolean).join(' and ');
-  const el = add('suggest', `<span>The new Bob (${esc(st.version || 'update')}) is built.${busyWith ? ` I'm working on ${esc(busyWith)}; if I restart now I pick up where I left off.` : ''}</span>
+  // 1.5.38: only promise to pick up where he left off when that switch is on.
+  let pickUp = false;
+  if (busyWith) { try { pickUp = (await (await fetch('/api/settings')).json()).resumeJobs === true; } catch {} }
+  const after = pickUp ? 'if I restart now, I pick up where I left off when I open again.' : 'if I restart now, it stops and waits in Tasks or Downloads for you to start it again. (Turn on "Pick up where Bob left off after a restart" in Settings, Show advanced settings, Engines & speed, and I\'ll carry on by myself.)';
+  const el = add('suggest', `<span>The new Bob (${esc(st.version || 'update')}) is built.${busyWith ? ` I'm working on ${esc(busyWith)}; ${esc(after)}` : ''}</span>
     <button type="button" data-r="now">${busyWith ? 'Restart anyway' : 'Restart Bob now'}</button>${busyWith ? '<button type="button" data-r="done">Wait until I\'m done</button>' : ''}<button type="button" class="link" data-r="later">Later</button>`);
   for (const b of el.querySelectorAll('button')) b.onclick = async () => {
     if (b.dataset.r === 'later') { el.remove(); note('OK. The new Bob takes over the next time Bob starts, or press Restart in the update window.'); return; }

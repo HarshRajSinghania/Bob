@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { appDir, saveSettings } from './config.js';
 import { ENGINES, engineStatus, installEngine, latestEngine } from './engines.js';
-import { audioReady, voicesReady, aceModelsDir } from './audio.js';
+import { audioReady, voicesReady, aceModelsDir, aceFileOk, tidyAceCache } from './audio.js';
 import { maestroModels } from './maestro.js';
 
 const MODEL_EXT = new Set(['.gguf', '.safetensors', '.ckpt', '.pt', '.pth', '.bin', '.sft']);
@@ -208,7 +208,7 @@ export class ModelShop {
     for (const f of entry.files || []) {
       if (entry.into) { // only its own folder counts, and only at the right size (half a download doesn't)
         const p = this.dest(entry, f);
-        try { if (!f.bytes || fs.statSync(p).size === f.bytes) out[f.role] = p; } catch {}
+        try { const size = fs.statSync(p).size; if (!f.bytes || aceFileOk(f, size)) out[f.role] = p; } catch {}
         continue;
       }
       const name = fileNameOf(f.url);
@@ -277,7 +277,8 @@ export class ModelShop {
     try { list = JSON.parse(fs.readFileSync(this.dlFile, 'utf8')); } catch {}
     if (!Array.isArray(list)) list = [];
     const keep = Date.now() - 7 * 864e5;
-    const resume = this.cfg.downloads?.resumeOnStart === true; // opt-in: off unless the user turns it on
+    // Opt-in: off unless the user turns it on, here or with "Pick up where Bob left off after a restart" (1.5.38).
+    const resume = this.cfg.downloads?.resumeOnStart === true || this.cfg.resumeJobs === true;
     return list.filter((d) => d && typeof d.id === 'string' && d.name && !(['done', 'cancelled'].includes(d.state) && (d.doneAt || 0) < keep)).map((d) => {
       if (d.state === 'downloading' || d.state === 'queued') {
         if (resume) return { ...d, state: 'queued', retryAt: 0 };
@@ -572,7 +573,7 @@ export class ModelShop {
       if (!entry.into) this.found.files.push({ path: final, name, size: got, kind: entry.category, owner: 'Bob' });
     }
     // 1.5.37: ACE-Step's own half-finished download (left before Bob fetched the models himself) is only clutter now.
-    if (entry.into === 'ace-checkpoints') { try { fs.rmSync(path.join(aceModelsDir(this.cfg), '.cache', 'huggingface'), { recursive: true, force: true }); } catch {} }
+    if (entry.into === 'ace-checkpoints') tidyAceCache(this.cfg);
     try { fs.writeFileSync(this.scanFile, JSON.stringify(this.found, null, 1)); } catch {}
   }
 

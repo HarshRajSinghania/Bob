@@ -59,10 +59,12 @@ const ICON = { chat: '💬', picture: '🎨', video: '🎬', research: '🔎', c
 export function taskRow(j, { movable, full }) {
   const status = j.status || j.state;
   // 1.5.23: a job that needs the graphics card waits while the Gaming session is on.
-  const tag = j.gaming ? `<span class="tag queued gaming">${esc(j.gaming.tag)}</span>` : `<span class="tag ${status.replace(' ', '-')}">${esc(STATUS[status] || status)}${status === 'delegated' && j.delegatedTo ? `: ${esc(j.delegatedTo.copy)}` : ''}</span>`;
+  const tag = j.gaming ? `<span class="tag queued gaming">${esc(j.gaming.tag)}</span>` : j.waitsFor ? '<span class="tag queued">Waiting for a download</span>' : `<span class="tag ${status.replace(' ', '-')}">${esc(STATUS[status] || status)}${status === 'delegated' && j.delegatedTo ? `: ${esc(j.delegatedTo.copy)}` : ''}</span>`;
   const sub = status === 'delegated' && j.delegatedTo ? `${esc(j.delegatedTo.copy)} (${esc(j.delegatedTo.label)}) is on it`
     : status === 'completed' ? `Completed ${when(j.doneAt)}`
     : j.gaming ? esc(j.gaming.hint)
+    : j.waitsFor ? `Runs by itself when ${esc(j.waitsFor)} finishes downloading (see Downloads)`
+    : j.pickUp && status === 'queued' ? 'Picking up where it left off before Bob closed'
     : status === 'queued' ? `Added ${when(j.at)}`
     : status === 'in progress' ? `Started ${when(j.startedAt)}`
     : status === 'needs you' ? 'Bob is waiting for your OK in the chat'
@@ -70,7 +72,8 @@ export function taskRow(j, { movable, full }) {
   const trail = full && j.steps?.length ? `<ol class="steps-trail">${j.steps.map((s) => `<li>Handed to ${esc(s.copy)} (${esc(s.label)}): ${esc(s.state)}${s.doneAt ? ` at ${when(s.doneAt)}` : ''}</li>`).join('')}</ol>` : '';
   const btns = [
     movable ? '<button type="button" data-t="up" title="Move up" aria-label="Move up">▲</button><button type="button" data-t="down" title="Move down" aria-label="Move down">▼</button>' : '',
-    ['failed', 'interrupted', 'cancelled'].includes(status) ? '<button type="button" data-t="retry">Try again</button>' : '',
+    // 1.5.38: an interrupted job carries on from where it stopped; a failed or cancelled one starts over.
+    status === 'interrupted' ? '<button type="button" data-t="retry">Carry on</button>' : ['failed', 'cancelled'].includes(status) ? '<button type="button" data-t="retry">Try again</button>' : '',
     status === 'queued' ? '<button type="button" data-t="cancel">Remove</button>' : '',
     ['in progress', 'delegated', 'needs you'].includes(status) ? '<button type="button" data-t="cancel">Stop</button>' : '',
     full && !['queued', 'in progress', 'delegated', 'needs you'].includes(status) ? '<button type="button" data-t="remove" title="Take it off the list" aria-label="Take it off the list">✕</button>' : ''
@@ -162,7 +165,7 @@ export function downloadRow(d) {
 
 export function createDownloads({ api, post }) {
   const dlg = document.getElementById('downloads'), body = document.getElementById('downloads-body');
-  let items = [], settings = { concurrent: 1, resumeOnStart: false };
+  let items = [], settings = { concurrent: 1, resumeOnStart: false }, pickUpOn = false;
   let last = 0;
   function draw(force) {
     if (!dlg.open) return;
@@ -177,8 +180,8 @@ export function createDownloads({ api, post }) {
       <div class="dl-settings">
         <strong>Settings</strong>
         <label>At once: <select data-set="concurrent"><option value="1" ${settings.concurrent !== 2 ? 'selected' : ''}>1 download</option><option value="2" ${settings.concurrent === 2 ? 'selected' : ''}>2 downloads</option></select></label>
-        <label><input type="checkbox" data-set="resumeOnStart" ${settings.resumeOnStart ? 'checked' : ''}> Carry on unfinished downloads when Bob starts</label>
-        <p class="muted">Left off, they wait, paused, until you press Resume.</p>
+        <label><input type="checkbox" data-set="resumeOnStart" ${settings.resumeOnStart || pickUpOn ? 'checked' : ''} ${pickUpOn ? 'disabled' : ''}> Carry on unfinished downloads when Bob starts</label>
+        <p class="muted">${pickUpOn ? 'On because Pick up where Bob left off is on.' : 'Left off, they wait, paused, until you press Resume.'}</p>
       </div>`;
   }
   body.addEventListener('click', async (e) => {
@@ -206,7 +209,7 @@ export function createDownloads({ api, post }) {
   return {
     async open() {
       dlg.showModal();
-      try { [items, { downloads: settings = settings }] = await Promise.all([api('/api/downloads'), api('/api/settings')]); } catch {}
+      try { let st; [items, st] = await Promise.all([api('/api/downloads'), api('/api/settings')]); settings = st.downloads || settings; pickUpOn = st.resumeJobs === true; } catch {}
       draw(true);
     },
     update(list) { items = list; draw(true); },

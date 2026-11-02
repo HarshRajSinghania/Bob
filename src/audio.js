@@ -17,13 +17,23 @@ export const aceModelsDir = (cfg) => cfg.audio?.aceModelsDir || path.join(aceDir
 export const ACE_MODELS_ID = 'ace-step-music';
 
 // The music models' catalog entry and what's missing of it: [] when every file is there at its pinned size.
-export function aceModelsMissing(cfg, catalog) {
+// 1.5.38: the small code and config files (sizeOnly) only have to be there. ACE-Step's own install ships its own
+// copies, which can differ from the model repo's, and they belong to its code version.
+export const aceFileOk = (f, size) => (f.sizeOnly ? size > 0 : size === f.bytes);
+export function aceModelsMissing(cfg, catalog) { return aceMissingFiles(cfg, catalog).map((f) => f.path); }
+// The missing files themselves (for their total size).
+export function aceMissingFiles(cfg, catalog) {
   let cat = catalog;
   if (!cat) { try { cat = JSON.parse(fs.readFileSync(cfg.catalogFile || path.join(unpackedDir, 'catalog.json'), 'utf8')); } catch { return []; } }
   const entry = (cat.models || []).find((m) => m.id === ACE_MODELS_ID);
   if (!entry?.files?.length) return [];
   const root = aceModelsDir(cfg);
-  return entry.files.filter((f) => { try { return fs.statSync(path.join(root, f.path)).size !== f.bytes; } catch { return true; } }).map((f) => f.path);
+  return entry.files.filter((f) => { try { return !aceFileOk(f, fs.statSync(path.join(root, f.path)).size); } catch { return true; } });
+}
+// ACE-Step's own half-finished downloads (from before Bob fetched the models himself) are only clutter once every
+// file checks out: gigabytes of .incomplete files nothing will finish.
+export function tidyAceCache(cfg) {
+  try { fs.rmSync(path.join(aceModelsDir(cfg), '.cache', 'huggingface'), { recursive: true, force: true }); return true; } catch { return false; }
 }
 export function aceModelsEntry(cfg) {
   try { return JSON.parse(fs.readFileSync(cfg.catalogFile || path.join(unpackedDir, 'catalog.json'), 'utf8')).models.find((m) => m.id === ACE_MODELS_ID) || null; } catch { return null; }
@@ -310,12 +320,15 @@ export async function makeAudio(cfg, kind, { prompt, lyrics, seconds }, { signal
   const job = { kind, prompt: String(prompt).slice(0, 1000), lyrics: lyrics ? String(lyrics).slice(0, 4000) : '', seconds: Math.min(kind === 'music' ? 240 : 20, Math.max(1, Number(seconds) || (kind === 'music' ? 30 : 5))), out };
   if (kind === 'music') {
     // 1.5.37: the models come first, through Bob's Downloads, and only when the user says so. No silent download.
-    if (!cfg.audio?.aceUrl && aceModelsMissing(cfg).length) {
+    const missing = cfg.audio?.aceUrl ? [] : aceMissingFiles(cfg);
+    if (missing.length) {
       const e = aceModelsEntry(cfg);
-      const err = new Error(`The music models aren't downloaded yet (about ${e?.sizeGB || 8} GB, first time only). Nothing was downloaded. Ask the user if they want them: they can say yes in the chat, or click Get on "${e?.name || 'ACE-Step 1.5 music models'}" in Settings (left menu), Get models, Music. Then ask for the song again.`);
+      const left = Math.max(0.1, Math.round(missing.reduce((t, f) => t + (f.bytes || 0), 0) / 1e8) / 10);
+      const err = new Error(`The music models aren't all downloaded yet (about ${left} GB left, first time only). Nothing was downloaded. Ask the user if they want them: they can say yes in the chat, or click Get on "${e?.name || 'ACE-Step 1.5 music models'}" in Settings (left menu), Get models, Music. Then ask for the song again.`);
       err.code = 'MUSIC_MODELS_MISSING';
       throw err;
     }
+    if (!cfg.audio?.aceUrl) tidyAceCache(cfg);
     return makeMusic(cfg, job, { signal, onProgress });
   }
   const script = cfg.audio?.script || path.join(unpackedDir, 'audio', 'bob-audio.py');

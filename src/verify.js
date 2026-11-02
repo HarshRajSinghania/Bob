@@ -230,6 +230,11 @@ export async function afterTool(name, args, text, ctx = {}) {
 
 const PIC_CLAIM = new RegExp(`\\b(?:here(?:'s| is| are| you go)|I(?:'ve| have)?\\s+(?:just\\s+|now\\s+|gone and\\s+)?(?:made|painted|drawn|drew|created|generated|rendered|sketched|whipped up|put together|done))\\b[^.!?\\n]{0,60}?\\b${PIC_NOUN}\\b${NOT_THE_THING}`, 'i');
 const VID_CLAIM = new RegExp(`\\b(?:here(?:'s| is| are| you go)|I(?:'ve| have)?\\s+(?:just\\s+|now\\s+)?(?:made|filmed|created|generated|rendered|animated|put together))\\b[^.!?\\n]{0,60}?\\b${VID_NOUN}\\b${NOT_THE_THING}`, 'i');
+// 1.5.38: "Your song is ready", "the track played for 30 seconds", "saved it as a .wav": claims that a song exists
+// without the "I made" opener. (A made-up song once came with no make_music call at all.)
+const AUDIO_DONE = new RegExp(`\\b(?:${MUSIC_NOUN})\\b[^.!?\\n]{0,50}?\\b(?:is|was|are|were|'s)\\s+(?:now\\s+|all\\s+)?(?:ready|done|finished|saved|playing)\\b|\\b(?:${MUSIC_NOUN})\\b[^.!?\\n]{0,50}?\\b(?:played|finished playing|ended)\\b|\\bsaved (?:it|the (?:${MUSIC_NOUN}))? ?as an? \\.?(?:wav|mp3|ogg|flac)\\b`, 'i');
+// 1.5.38: Bob saying his songs can't be saved. They always are (a .wav in his painter folder).
+const SAVE_DENIAL = /\b(?:no (?:function|tool|way|option)|(?:can'?t|cannot|unable to|not able to|don'?t have (?:a|any) (?:way|function|tool) to))\b[^.!?\n]{0,80}?\b(?:sav|record|keep|persist|stor)\w*\b[^.!?\n]{0,80}?\b(?:music|songs?|tracks?|audio|sounds?|make_music|make_sound|wav)\b|\b(?:music|songs?|tracks?|make_music)\b[^.!?\n]{0,80}?\b(?:can'?t|cannot|isn'?t|aren'?t|won'?t|doesn'?t)\b[^.!?\n]{0,20}?\b(?:be )?(?:saved|kept|stored|persistent|recorded)\b/i;
 const AUDIO_CLAIM = new RegExp(`\\b(?:here(?:'s| is| are| you go)|I(?:'ve| have)?\\s+(?:just\\s+|now\\s+)?(?:made|composed|created|generated|recorded|produced|put together))\\b[^.!?\\n]{0,60}?\\b(?:${MUSIC_NOUN}|${SOUND_NOUN})\\b${NOT_THE_THING}`, 'i');
 const FILE_CLAIM = /\bI(?:'ve| have|)\s+(?:just\s+|now\s+|also\s+)?(?:saved|written|wrote|created|stored|exported|put)\b[^.!?\n]{0,60}?\b(?:file|document|spreadsheet|csv|txt|desktop|documents folder|downloads)\b/i;
 const SAVED_AT = /\b(?:saved|written|wrote|created|stored|exported|put)\s+(?:it\s+|that\s+|this\s+|them\s+|everything\s+|the [\w ]{1,30}?\s+)?(?:as|to|at|in|into)\s+[`"'*]*((?:[A-Za-z]:\\|\/)[^\s`"'*]+)/gi;
@@ -338,13 +343,14 @@ export function afterTurn(ctx = {}, replyText) {
   const claims = [];
   if (PIC_CLAIM.test(reply) && !made('image') && !actions.some((a) => ok(a) && a.name in MEDIA && MEDIA[a.name] === 'image')) claims.push('picture');
   if (VID_CLAIM.test(reply) && !made('video') && !actions.some((a) => ok(a) && a.name === 'make_video')) claims.push('clip');
-  if (AUDIO_CLAIM.test(reply) && !made('audio') && !actions.some((a) => ok(a) && (a.name === 'make_music' || a.name === 'make_sound'))) claims.push('sound');
+  if ((AUDIO_CLAIM.test(reply) || AUDIO_DONE.test(reply)) && !made('audio') && !actions.some((a) => ok(a) && (a.name === 'make_music' || a.name === 'make_sound'))) claims.push('sound');
   if (FILE_CLAIM.test(reply) && !actions.some((a) => ok(a) && FILE_TOOLS.has(a.name))) claims.push('file');
   if (!ctx.claimChecked && APP_CLAIM.test(reply) && !actions.some((a) => ok(a) && APP_TOOLS.has(a.name))) claims.push('app');
   const missing = [];
   for (const m of reply.matchAll(SAVED_AT)) { const p = m[1].replace(/[.,;:)]+$/, ''); if (/\.\w{1,8}$/.test(p) && !fs.existsSync(p)) missing.push(p); }
   // Only one correction per reply.
   const correction = claims.length ? CLAIM_NOTE[claims[0]]
+    : SAVE_DENIAL.test(reply) ? 'That isn\'t right: every song and sound Bob makes is saved as a .wav file. Find it in Made by Bob, under Sounds.'
     : missing.length ? `There's no file at ${missing.map(baseName).join(', ')}, though Bob said he saved it there. Ask him to save it again.` : '';
 
   // 1. Actions that failed and weren't put right later in the turn (a retry, or another way).

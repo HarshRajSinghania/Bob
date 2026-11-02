@@ -54,7 +54,8 @@ function broadcast(ev) {
 }
 
 const brain = new Brain(cfg, broadcast);
-const shop = new ModelShop(cfg, broadcast, brain.engine);
+// 1.5.38: when Downloads change, a job waiting for one (a song waiting for the music models) may be able to go.
+const shop = new ModelShop(cfg, (ev) => { broadcast(ev); if (ev?.type === 'downloads') brain.downloadsChanged(); }, brain.engine);
 // 1.5.24: the card's size, for picture settings matched to it (only used when that switch is on).
 if (!cfg.gpuVramGB) shop.hardware().then((h) => { if (h?.gpu?.vramGB) cfg.cardGB = h.gpu.vramGB; }).catch(() => {});
 brain.shop = shop; // so Bob can tell when a model is on the PC but not assigned to a job
@@ -252,7 +253,10 @@ const server = http.createServer(async (req, res) => {
         if (p === '/api/models/download') {
           const ids = [].concat(b.ids || b.id || []).map(String);
           if (!ids.length) return send(res, 400, { error: 'Nothing to download.' });
-          return send(res, 200, await shop.download(ids[0], { queue: ids.slice(1) }));
+          const started = await shop.download(ids[0], { queue: ids.slice(1) });
+          // 1.5.38: pressed from the chat's "Download it" button: that message waits in Tasks and runs once it's done.
+          if (typeof b.thenJob === 'string') brain.waitForDownload(b.thenJob, ids[0]);
+          return send(res, 200, started);
         }
         if (p === '/api/models/role') {
           const patch = await shop.setRole(String(b.job), String(b.value));

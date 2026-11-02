@@ -135,6 +135,8 @@ const b2 = again.dl.find((d) => d.id === B);
 check('after a restart an unfinished download waits, paused, for Resume', b2.state === 'paused' && /closed/.test(b2.note) && again.active.size === 0);
 const auto = new ModelShop({ ...cfg, downloads: { resumeOnStart: true } }, () => {});
 check('with "carry on when Bob starts" it queues up again', auto.dl.find((d) => d.id === B).state === 'queued');
+const pickUp = new ModelShop({ ...cfg, resumeJobs: true }, () => {});
+check('with "Pick up where Bob left off after a restart" on, it queues up again too (1.5.38)', pickUp.dl.find((d) => d.id === B).state === 'queued');
 shop.cancel(B);
 await until(() => !shop.active.size);
 check('downloads events carry the whole list for the Downloads panel', events.some((e) => e.type === 'downloads' && Array.isArray(e.items) && e.items.some((d) => d.id === A)));

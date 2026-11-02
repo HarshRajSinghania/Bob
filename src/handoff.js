@@ -55,6 +55,7 @@ export class Ledger {
   constructor({ job = null, expect = null, save = () => {} } = {}) {
     this.job = job; this.expect = expect; this.save = save;
     this.steps = []; this.outputs = []; this.actions = []; this.nudged = 0; this.reply = '';
+    this.current = null; // 1.5.38: the tool running right now, so a restart knows which step was cut off
     this.persist();
   }
   step(kind, info = {}) {
@@ -69,13 +70,15 @@ export class Ledger {
   output(o, tool = null) { this.outputs.push({ type: o.type, file: o.file || null, url: o.url || null, tool, at: Date.now() }); this.persist(); }
   // at: when the tool started.
   // extra: what verify.js found (why, files, info, declined), so the end-of-turn check can use it.
+  begin(name, args) { this.current = { name, args: clip(typeof args === 'string' ? args : JSON.stringify(args || {}), 300), at: Date.now() }; this.persist(); }
   action(name, args, ok, text, at = Date.now(), extra = {}) {
+    this.current = null;
     const keep = Object.fromEntries(Object.entries(extra || {}).filter(([k, v]) => ['why', 'files', 'info', 'declined', 'partly'].includes(k) && v != null));
     this.actions.push({ name, args: clip(typeof args === 'string' ? args : JSON.stringify(args || {}), 300), ok, text: clip(text, 300), at, ...keep });
     this.persist();
   }
   // The part that's saved with the job (queue file): small, and enough for a restart to see what was done.
-  view() { return { expect: this.expect, steps: this.steps.slice(-30), outputs: this.outputs.slice(-24), actions: this.actions.slice(-40) }; }
+  view() { return { expect: this.expect, steps: this.steps.slice(-30), outputs: this.outputs.slice(-24), actions: this.actions.slice(-40), current: this.current }; }
   persist() { if (this.job) { this.job.handoff = this.view(); try { this.save(); } catch {} } }
 }
 
@@ -87,19 +90,63 @@ export function slimHandoff(h) {
 }
 
 // Tools that change something outside Bob's own chat (a restart must not redo these blindly).
-export const SIDE_EFFECT = /^(app_|open_app|edit_file|write_file|move_|copy_|rename_|delete_|recycle|zip|unzip|run_command|run_recipe|save_|schedule_|make_)/;
+export const SIDE_EFFECT = /^(app_|open_app|edit_file|write_file|file_hands|undo_files|move_|copy_|rename_|delete_|recycle|zip|unzip|run_command|run_recipe|save_|schedule_|make_)/; // file_hands/undo_files: 1.5.38
 // A job that was cut off by a restart can be picked up again on its own when nothing it did changed the PC.
 export function safeToResume(job) {
   const done = job?.handoff?.actions || [];
   return !done.some((a) => a.ok && SIDE_EFFECT.test(a.name));
 }
 export function interruptedNote(job) {
-  const args = (x) => { try { return JSON.parse(x || '{}'); } catch { return {}; } };
-  const plain = (a) => { try { return describe(a.name, args(a.args)).replace(/^\w/, (c) => c.toLowerCase()); } catch { return a.name; } };
-  const done = (job?.handoff?.actions || []).filter((a) => a.ok && SIDE_EFFECT.test(a.name)).map(plain);
+  const done = (job?.handoff?.actions || []).filter((a) => a.ok && SIDE_EFFECT.test(a.name)).map(plainStep);
   const made = (job?.handoff?.outputs || []).length;
   const parts = [done.length && `it had started ${[...new Set(done)].slice(0, 3).join(', ')}`, made && `made ${made} file${made === 1 ? '' : 's'}`].filter(Boolean);
-  return `Bob was closed while this was running${parts.length ? ` (${parts.join('; ')})` : ''}. Retry runs it from the start.`;
+  const cut = job?.handoff?.current;
+  if (cut && WAIT_IF_CUT.test(cut.name)) return `Bob was closed in the middle of this step: ${plainStep(cut)}. Check how far it got first (it may be half done), then press Carry on: Bob carries on from there and won't redo the finished steps.`;
+  return `Bob was closed while this was running${parts.length ? ` (${parts.join('; ')})` : ''}. Carry on picks up from where it stopped.`;
+}
+
+// ---------- Carrying on after a restart (1.5.38) ----------
+// Asked for: "pick up and continue from where it left off", and "if an action didn't finish, retry or restart it",
+// when Bob opens again. The ledger saved with the job says which steps finished and which one was cut off.
+// Finished steps are never done again. The cut-off step is done again from the start, with the same settings,
+// unless it's one that can be left half done (typing into an app, moving or deleting files, running a command, an edit):
+// then the job waits in Tasks so the user can look first.
+export const WAIT_IF_CUT = /^(app_|edit_file|file_hands|undo_files|move_|rename_|delete_|recycle|unzip|run_command|run_recipe|schedule_)/;
+export const MAX_AUTO_RESUMES = 2; // a job that keeps getting cut off (or keeps crashing Bob) stops coming back on its own
+const plainStep = (a) => { try { return describe(a.name, parseArgs(a.args)).replace(/^\w/, (c) => c.toLowerCase()); } catch { return a.name; } };
+const parseArgs = (x) => { try { return typeof x === 'string' ? JSON.parse(x || '{}') : (x || {}); } catch { return {}; } };
+
+// What a cut-off job did, kept across restarts (each run starts a new ledger).
+export function finishedSteps(job) {
+  const now = (job?.handoff?.actions || []).filter((a) => a.ok && a.text !== 'declined').map(({ name, args, text }) => ({ name, args, text }));
+  return [...(job?.before || []), ...now].slice(-20);
+}
+
+// mode: 'restart' (nothing done yet: run it again as it was), 'carry' (carry on after the finished steps, redoing
+// the cut-off one), or 'wait' (the cut-off step may be half done: wait for Carry on). note: what the brain is told.
+export function carryOnPlan(job) {
+  const done = finishedSteps(job);
+  const cut = job?.handoff?.current || null;
+  const outputs = (job?.handoff?.outputs || []).map((o) => o.file || o.url).filter(Boolean).slice(-6);
+  if (!done.length && !cut) return { mode: 'restart', note: null, done, cut };
+  const lines = ['[Bob note, not from the user: Bob was closed (an update, a restart or a crash) while working on this message, and has opened again. Carry on from where you stopped. Don\'t greet the user again or start over.'];
+  if (done.length) {
+    lines.push('Already finished. Do NOT do these again:');
+    done.forEach((a, i) => lines.push(`${i + 1}. ${a.name} ${a.args || '{}'} -> ${String(a.text || 'done').slice(0, 160)}`));
+  }
+  if (outputs.length) lines.push(`Files already made: ${outputs.join(', ')}`);
+  if (cut) lines.push(`Cut off before it finished: ${cut.name} ${cut.args || '{}'}. Do that step again with the same settings (it may have half happened, so check first if it changes files), then finish the rest.`);
+  else lines.push('Do the next step that is still left, then answer.');
+  lines.push(']');
+  return { mode: cut && WAIT_IF_CUT.test(cut.name) ? 'wait' : 'carry', note: lines.join('\n'), done, cut };
+}
+
+// The plain line in the chat when a job picks up again.
+export function carryOnLine(job) {
+  const plan = { done: job?.before || [], cut: job?.cutStep || null };
+  if (!plan.done.length && !plan.cut) return 'I was closed partway through this one, so I\'m starting it again.';
+  const bits = [plan.done.length && `${plan.done.length} step${plan.done.length === 1 ? ' was' : 's were'} already done, so I won't redo ${plan.done.length === 1 ? 'it' : 'them'}`, plan.cut && `I'm doing ${plainStep(plan.cut)} again from the start`].filter(Boolean);
+  return `I was closed partway through this one. Picking up where I left off: ${bits.join(', and ')}.`;
 }
 
 // ---------- The gate ----------

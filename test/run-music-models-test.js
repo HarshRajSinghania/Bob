@@ -64,19 +64,32 @@ await until(() => shop.dl.find((d) => d.id === ACE_MODELS_ID)?.state === 'done')
 check('the download lands at the repo paths ACE-Step reads', fs.existsSync(path.join(ck, 'acestep-v15-turbo', 'model.safetensors')) && fs.readFileSync(path.join(ck, 'vae', 'config.json'), 'utf8') === '{"x":1}', shop.dl.find((d) => d.id === ACE_MODELS_ID)?.error || '');
 check('ACE-Step\'s leftover half download is gone afterwards', !fs.existsSync(path.join(ck, '.cache', 'huggingface')));
 check('after it: installed, and nothing missing', (await shop.statusOf(mini.models[0], null)).state === 'installed' && aceModelsMissing(cfg).length === 0);
-fs.writeFileSync(path.join(ck, 'vae', 'config.json'), '{');
-check('a file at the wrong size (half a download) counts as missing again', aceModelsMissing(cfg).join() === 'vae/config.json' && (await shop.statusOf(mini.models[0], null)).state === 'partial');
+// 1.5.38: ACE-Step's install ships its own small code/config files, which can differ from the model repo's. They only
+// have to be there; the big model files must match exactly.
+fs.writeFileSync(path.join(ck, 'vae', 'config.json'), '{"from":"ACE-Step\'s own install"}');
+check('a small code/config file from ACE-Step\'s own install counts as present', aceModelsMissing(cfg).length === 0 && (await shop.statusOf(mini.models[0], null)).state === 'installed');
+fs.rmSync(path.join(ck, 'vae', 'config.json'));
+check('a missing small file still counts as missing', aceModelsMissing(cfg).join() === 'vae/config.json');
+fs.writeFileSync(path.join(ck, 'vae', 'config.json'), '{"x":1}');
+fs.writeFileSync(path.join(ck, 'acestep-v15-turbo', 'model.safetensors'), 'half');
+check('a big model file at the wrong size (half a download) counts as missing', aceModelsMissing(cfg).join() === 'acestep-v15-turbo/model.safetensors' && (await shop.statusOf(mini.models[0], null)).state === 'partial');
+const { aceMissingFiles, tidyAceCache } = await import('../src/audio.js');
+check('what\'s left is counted by its own size, not the whole set', aceMissingFiles(cfg).reduce((t, f) => t + f.bytes, 0) === bytes.a.length);
+fs.writeFileSync(path.join(ck, 'acestep-v15-turbo', 'model.safetensors'), bytes.a);
+fs.mkdirSync(path.join(ck, '.cache', 'huggingface', 'download'), { recursive: true }); fs.writeFileSync(path.join(ck, '.cache', 'huggingface', 'download', 'old.incomplete'), 'stale');
+check('ACE-Step\'s stale half download is tidied once everything checks out', tidyAceCache(cfg) && !fs.existsSync(path.join(ck, '.cache', 'huggingface')) && /if \(!cfg\.audio\?\.aceUrl\) tidyAceCache\(cfg\);\s*return makeMusic/.test(read('../src/audio.js')));
+check('the chat offer shows the size left', /sizeGB: left/.test(read('../src/brain.js')));
 
 // The engine runs offline and no longer waits half an hour for a start-up download.
 const audio = read('../src/audio.js');
 check('a music engine Bob didn\'t start this job is ended, never reused', /if \(await aceUp\(cfg\)\) \{\s*await stopStrayAce\(cfg\)/.test(audio) && /acestep-api/.test(audio));
 check('stopping the engine ends its whole process tree on Windows (uv starts Python as a child)', /taskkill', \['\/PID', String\(child\.pid\), '\/T', '\/F'\]/.test(audio) && !/child\.kill\(\); throw/.test(audio));
-check('ACE-Step\'s own half-finished download is cleared after Bob\'s download', /'\.cache', 'huggingface'/.test(read('../src/models.js')));
+check('ACE-Step\'s own half-finished download is cleared after Bob\'s download', /tidyAceCache\(this\.cfg\)/.test(read('../src/models.js')));
 check('ACE-Step runs offline (it can\'t download on its own)', /HF_HUB_OFFLINE: '1'/.test(audio) && /TRANSFORMERS_OFFLINE: '1'/.test(audio));
 // The brain offers the download in the chat instead, and the chat shows a button for it.
 const brain = read('../src/brain.js'), app = read('../public/app.js');
-check('the brain offers the music models when they are missing', /type: 'offer-download', id: ACE_MODELS_ID/.test(brain));
-check('the chat shows a Download button that only starts on a click', /case 'offer-download'/.test(app) && /yes\.onclick = async/.test(app) && /\/api\/models\/download', \{ id: ev\.id \}/.test(app));
+check('the brain offers the music models when they are missing', /type: 'offer-download', (jobId: [^,]+, )?id: ACE_MODELS_ID/.test(brain));
+check('the chat shows a Download button that only starts on a click', /case 'offer-download'/.test(app) && /yes\.onclick = async/.test(app) && /\/api\/models\/download', \{ id: ev\.id(, \.\.\.\(ev\.jobId \? \{ thenJob: ev\.jobId \} : \{\}\))? \}/.test(app));
 
 // Busy note: a chat message behind a long media job hears about it at once.
 const { Brain } = await import('../src/brain.js');
@@ -84,6 +97,13 @@ const fake = { turns: new Map([['talk', {}]]), state: { state: 'painting', detai
 const line = Brain.prototype.busyLine.call(fake, { kind: 'chat' });
 check('a message sent while Bob composes gets a busy note straight away', /^I'm still on the last job \(Composing 40%\)\. I'll answer this as soon as it's done\. If this can't wait, stop it in Tasks\.$/.test(line || ''), line);
 check('no busy note when nothing long is running', Brain.prototype.busyLine.call({ ...fake, state: { state: 'thinking', detail: '' } }, { kind: 'chat' }) === null && Brain.prototype.busyLine.call({ ...fake, turns: new Map() }, { kind: 'chat' }) === null);
+check('the song\'s tool result says it was saved as a .wav and where', /saved it as a \.wav file: \$\{file\}\. It is kept on the PC/.test(brain) && /Songs and sounds are files too/.test(read('../public/help-content.js')));
+const { afterTurn } = await import('../src/verify.js');
+const noteOf = (t, actions = [], outputs = []) => afterTurn({ ledger: { actions, outputs }, cfg: {} }, t)?.note || '';
+for (const t of ['Here it is! The lo-fi track played for 30 seconds and is saved.', 'Your song is ready: 30 seconds of lo-fi.', 'The track finished playing. I saved it as a wav.']) check(`a made-up song is corrected: "${t}"`, /no sound was made/.test(noteOf(t)));
+check('saying songs can\'t be saved is corrected', /saved as a \.wav file\. Find it in Made by Bob, under Sounds\./.test(noteOf('Sorry, there is no function for recording the output stream from make_music into a persistent file.')));
+check('a real song isn\'t corrected', !noteOf('Your song is ready: 30 seconds of lo-fi.', [{ name: 'make_music', ok: true, text: 'Made the song' }], [{ type: 'audio', file: 'x.wav' }]));
+for (const t of ['I can write a prompt for a track if you like.', 'Which track do you want, the one from yesterday?', 'The song I made yesterday is in Made by Bob.']) check(`ordinary talk about music isn't corrected: "${t}"`, !noteOf(t));
 check('the logbook names music tools too', /pictures: 'Using his picture, video and music tools'/.test(read('../src/toolbox.js')));
 
 fs.rmSync(root, { recursive: true, force: true });

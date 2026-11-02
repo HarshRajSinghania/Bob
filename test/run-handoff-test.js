@@ -221,18 +221,99 @@ async function turn(text, script) {
 }
 {
   // Restart: the queue file had a running job.
-  const q = [
+  const q = () => [
     { id: 'a', text: 'tell me a joke', state: 'working', handoff: { actions: [] } },
-    { id: 'b', text: 'type it in notepad', state: 'working', handoff: { actions: [{ name: 'app_act', ok: true }], outputs: [] } }
+    { id: 'b', text: 'type it in notepad', state: 'working', handoff: { actions: [{ name: 'app_act', ok: true, args: '{"window":"Notepad","action":"type"}', text: 'typed' }], outputs: [] } },
+    { id: 'c', text: 'paint a fox then write a song about it', state: 'working', handoff: { actions: [{ name: 'make_image', ok: true, args: '{"prompt":"a fox"}', text: 'made fox.png' }], outputs: [{ type: 'image', file: 'C:/p/fox.png' }], current: { name: 'make_music', args: '{"prompt":"fox song","seconds":60}' } } },
+    { id: 'd', text: 'move my photos', state: 'working', handoff: { actions: [{ name: 'list_folder', ok: true, args: '{}', text: '3 files' }], outputs: [], current: { name: 'move_files', args: '{"to":"D:/Photos"}' } } },
+    { id: 'e', text: 'keeps crashing', state: 'working', resumed: 2, handoff: { actions: [] } },
+    { id: 'f', text: 'old flag', state: 'working', resumed: true, handoff: { actions: [] } }
   ];
-  fs.writeFileSync(brain.queueFile, JSON.stringify(q));
+  fs.writeFileSync(brain.queueFile, JSON.stringify(q()));
   let got = brain.loadQueue();
-  check('by default a cut-off job waits for Retry (opt-in rule)', got.every((j) => j.state === 'interrupted'));
+  const J = (id) => got.find((j) => j.id === id);
+  check('by default a cut-off job waits for Try again (opt-in rule)', got.every((j) => j.state === 'interrupted'));
+  check('...and its note says Carry on picks up from where it stopped', /Carry on picks up from where it stopped/.test(J('c').error), J('c').error);
+  check('...and the carry-on note is ready for Try again', /Already finished\. Do NOT do these again/.test(J('c').carryOn || '') && /make_image/.test(J('c').carryOn) && /Cut off before it finished: make_music/.test(J('c').carryOn));
+  check('a cut-off move says so plainly, so the user checks first', /in the middle of/.test(J('d').error) && /in the middle of this step: .+\. Check how far it got first \(it may be half done\), then press Carry on/.test(J('d').error), J('d').error);
   cfg.resumeJobs = true;
+  fs.writeFileSync(brain.queueFile, JSON.stringify(q()));
   got = brain.loadQueue();
-  check('with "Pick up unfinished jobs" on, a job that changed nothing starts again', got.find((j) => j.id === 'a').state === 'waiting');
-  check('...but one that already typed into an app waits, saying what it did', got.find((j) => j.id === 'b').state === 'interrupted' && /Bob was closed/.test(got.find((j) => j.id === 'b').error));
+  check('with "Pick up where Bob left off" on, a job that did nothing yet starts again, with no note', J('a').state === 'waiting' && J('a').pickUp && !J('a').carryOn && J('a').resumed === 1);
+  check('...a job that already typed (finished) carries on, told not to type again', J('b').state === 'waiting' && /app_act/.test(J('b').carryOn) && /Do NOT do these again/.test(J('b').carryOn));
+  check('...a song cut off mid-way is made again with the same settings, after the finished picture', J('c').state === 'waiting' && /"prompt":"fox song"/.test(J('c').carryOn) && /Files already made: C:\/p\/fox\.png/.test(J('c').carryOn), J('c').carryOn);
+  check('...a move cut off mid-way waits in Tasks instead (it may be half done)', J('d').state === 'interrupted' && /then press Carry on/.test(J('d').error));
+  check('...a job cut off twice already stops coming back by itself', J('e').state === 'interrupted' && /2 times/.test(J('e').error), J('e').error);
+  check('...an old true/false flag counts as one pick-up', J('f').state === 'waiting' && J('f').resumed === 2);
+  const { carryOnLine, carryOnPlan } = await import('../src/handoff.js');
+  check('a file job (move, delete...) cut off mid-way waits too', carryOnPlan({ handoff: { actions: [], current: { name: 'file_hands', args: '{"action":"move"}' } } }).mode === 'wait');
+  check('the chat line for a carried-on job says what is kept and what is redone', /Picking up where I left off: 1 step was already done, so I won't redo it, and I'm doing .* again from the start\./.test(carryOnLine(J('c'))), carryOnLine(J('c')));
+  check('...and for one that starts again', /starting it again/.test(carryOnLine(J('a'))));
+  // Try again on an interrupted job keeps the note; on a failed job it starts clean.
+  brain.queue = got; brain.pump = () => {};
+  J('d').state = 'interrupted';
+  brain.retryJob('d');
+  check('Try again on an interrupted job carries on (the note stays)', J('d').state === 'waiting' && J('d').pickUp && /move_files/.test(J('d').carryOn) && J('d').resumed === 0);
+  J('b').state = 'failed';
+  brain.retryJob('b');
+  check('Try again on a failed job starts it from nothing', J('b').state === 'waiting' && !J('b').carryOn && !J('b').pickUp);
+  delete brain.pump;
+  brain.queue = [];
   cfg.resumeJobs = false;
+}
+{
+  // The brain is told what finished; the chat keeps only the user's words.
+  const job = { id: 'carry1', sessionId: 'carry', text: 'paint a fox then a song', kind: 'picture', state: 'working', pickUp: true, before: [{ name: 'make_image', args: '{}', text: 'ok' }], carryOn: '[Bob note, not from the user: Already finished. Do NOT do these again: 1. make_image]' };
+  let seen = '';
+  const keepChat = eng.chat;
+  eng.chat = async ({ messages }) => { seen = messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n'); return { role: 'assistant', content: 'Carrying on.' }; };
+  brain.queue.push(job);
+  const sig = new AbortController().signal;
+  try { await brain.run('carry', job.text, () => {}, sig, [], job); } finally { brain.gate.done(sig); eng.chat = keepChat; }
+  const { said } = await import('../src/chats.js');
+  const userMsg = brain.session('carry').find((m) => m.role === 'user');
+  check('a carried-on job: the brain sees the note', /Do NOT do these again/.test(seen), seen);
+  check('...and the chat shows only what the user typed', said(userMsg) === 'paint a fox then a song');
+  brain.queue = [];
+}
+{
+  // The ledger knows which step was running, and forgets it when the step ends.
+  const job = {};
+  const L = new Ledger({ job });
+  L.begin('make_music', { prompt: 'x' });
+  check('a running step is saved with the job (so a restart knows it was cut off)', job.handoff.current?.name === 'make_music');
+  L.action('make_music', { prompt: 'x' }, true, 'ok');
+  check('...and cleared when it finishes', job.handoff.current === null && job.handoff.actions.length === 1);
+}
+{
+  // A song waiting for its music models download.
+  const dl = [{ id: 'ace-step-music', name: 'ACE-Step 1.5 music models', state: 'downloading' }];
+  brain.shop = { dl, describe: (id) => ({ id, name: 'ACE-Step 1.5 music models' }) };
+  const started = [];
+  const keepStart = brain.startTurn;
+  brain.startTurn = (sid, text, refs, job) => { started.push(job.id); job.state = 'done'; };
+  const job = { id: 'song1', sessionId: 's', text: 'make me a song about foxes', kind: 'chat', state: 'done', at: 1 };
+  brain.queue = [job];
+  check('pressing Download from the chat puts the request back in line, waiting for it', brain.waitForDownload('song1', 'ace-step-music') && job.state === 'waiting' && job.after?.id === 'ace-step-music');
+  check('...Tasks says it waits for the download', brain.queueView()[0].waitsFor === 'ACE-Step 1.5 music models');
+  brain.pump();
+  check('...it doesn\'t run while downloading', !started.length && job.state === 'waiting');
+  dl[0].state = 'paused'; brain.downloadsChanged();
+  check('...or while the download is paused', !started.length);
+  dl[0].state = 'done'; brain.downloadsChanged();
+  check('...and runs by itself when the download is done, told the models are there', started[0] === 'song1' && !job.after && /on the PC now/.test(job.carryOn));
+  const job2 = { id: 'song2', sessionId: 's', text: 'another song', kind: 'chat', state: 'done', at: 1 };
+  brain.queue = [job2]; dl[0].state = 'downloading';
+  brain.waitForDownload('song2', 'ace-step-music');
+  dl[0].state = 'cancelled'; brain.downloadsChanged();
+  check('a cancelled download sends the waiting request to Tasks with a plain reason (never waits forever)', job2.state === 'interrupted' && /was cancelled/.test(job2.error) && /press Carry on/.test(job2.error), job2.error);
+  const job3 = { id: 'song3', sessionId: 's', text: 'a third song', kind: 'chat', state: 'working', at: 1 };
+  brain.queue = [job3]; dl[0].state = 'downloading';
+  brain.waitForDownload('song3', 'ace-step-music');
+  check('pressed while the reply is still being written: it stays running for now', job3.state === 'working' && job3.after);
+  brain.startTurn = keepStart;
+  delete brain.shop;
+  brain.queue = [];
 }
 {
   cfg.models.small = 'gemma4:e4b';

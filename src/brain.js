@@ -24,7 +24,7 @@ import { capabilities } from './capabilities.js';
 import { cloudHelpers } from './cloud.js';
 import { copyName } from './clan.js';
 import { RefShelf } from './refs.js';
-import { makeAudio, aceModelsMissing, aceModelsEntry, ACE_MODELS_ID } from './audio.js';
+import { makeAudio, aceMissingFiles, aceModelsEntry, ACE_MODELS_ID } from './audio.js';
 import { runWorkflow } from './workshop.js';
 import { currentSession, modelFor, laneOf, suggestSession, SESSIONS, sessionBrains, waitsForGaming, GAMING_TAG, GAMING_HINT } from './sessions.js';
 import { stampMessages, keepOlder, readSummary } from './chats.js';
@@ -36,7 +36,7 @@ import { scheduleTools } from './hands-schedules.js';
 import { toolsOff, HANDS, handOn, handOffWhy, freeOn } from './hands-settings.js';
 import { gate as qGate, after as qAfter, maybeAsk as qAsk, noteStrike, copyHeld } from './quarantine.js';
 import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUseTools, tidySchema, STICKY_TURNS, toolboxPrompt, saysCant } from './toolbox.js';
-import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff } from './handoff.js';
+import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff, carryOnPlan, carryOnLine, finishedSteps, MAX_AUTO_RESUMES } from './handoff.js';
 import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
 import { WEB_TOOLS, WEB_OFF, webOn, webPrompt } from './web.js';
@@ -609,6 +609,7 @@ export class Brain {
       const startedAt = Date.now();
       ctx.currentTool = name;
       ctx.made = null;
+      ctx.ledger?.begin?.(name, args); // 1.5.38: so a restart knows this step was cut off
       let text;
       try { text = String(await tool.run(args, ctx)); }
       catch (e) { if (ctx.signal.aborted) throw e; text = `Error: ${e.message}`; }
@@ -788,10 +789,20 @@ export class Brain {
     let q = [];
     try { q = JSON.parse(fs.readFileSync(this.queueFile, 'utf8')); } catch {}
     // A job that was running when Bob closed may have half-finished: don't redo it blindly. Its ledger says what it did.
-    // With "Pick up unfinished jobs after a restart" on (off by default), one that changed nothing on the PC starts again.
+    // 1.5.38: with "Pick up where Bob left off after a restart" on (off by default), it carries on from the last finished
+    // step: finished steps aren't done again, and the step that was cut off is done again from the start. A cut-off
+    // step that can be left half done (typing into an app, moving files, a command...) waits in Tasks for Carry on.
+    // Off, every cut-off job waits in Tasks; Carry on (the Tasks button) picks up the same way.
     for (const j of q) if (j.state === 'working') {
-      if (this.cfg?.resumeJobs === true && safeToResume(j) && !j.resumed) { j.state = 'waiting'; j.resumed = true; j.steps = []; j.at = Date.now(); }
-      else { j.state = 'interrupted'; j.error = interruptedNote(j); }
+      const plan = carryOnPlan(j);
+      j.before = finishedSteps(j); j.cutStep = plan.cut; j.carryOn = plan.note;
+      const tries = Number(j.resumed) || 0; // was a true/false flag before 1.5.38
+      if (this.cfg?.resumeJobs === true && plan.mode !== 'wait' && tries < MAX_AUTO_RESUMES) {
+        Object.assign(j, { state: 'waiting', resumed: tries + 1, pickUp: true, steps: [], at: Date.now(), error: undefined });
+      } else {
+        j.state = 'interrupted'; j.error = interruptedNote(j);
+        if (this.cfg?.resumeJobs === true && plan.mode !== 'wait') j.error = `Bob was closed partway through this ${Math.max(2, tries)} times, so he stopped picking it up on his own. Carry on picks up from where it stopped.`;
+      }
     }
     return q.filter((j) => j && j.id && j.text);
   }
@@ -809,12 +820,13 @@ export class Brain {
   }
 
   queueView() {
-    return this.queue.map(({ id, sessionId, text, state, at, error, refs, kind, startedAt, doneAt, steps, effort }) => {
+    return this.queue.map(({ id, sessionId, text, state, at, error, refs, kind, startedAt, doneAt, steps, effort, after, pickUp }) => {
       const out = (steps || []).find((x) => x.state === 'in progress');
       // Plain status for the Tasks panel: Queued, In progress, Delegated (to which copy), Completed...
       const status = state === 'waiting' ? 'queued' : state === 'working' ? (out ? 'delegated' : 'in progress') : state === 'done' ? 'completed' : state;
       return { id, sessionId, kind, text: text.slice(0, 140), state, status, at, startedAt, doneAt, error, pics: (refs || []).length,
-        delegatedTo: out ? { hat: out.hat, label: out.label, copy: out.copy } : null, gaming: state === 'waiting' && waitsForGaming(this.cfg, { kind, effort }) ? { tag: GAMING_TAG, hint: GAMING_HINT } : undefined, steps: (steps || []).slice(-8), effort: effort || 'low' };
+        delegatedTo: out ? { hat: out.hat, label: out.label, copy: out.copy } : null, gaming: state === 'waiting' && waitsForGaming(this.cfg, { kind, effort }) ? { tag: GAMING_TAG, hint: GAMING_HINT } : undefined, steps: (steps || []).slice(-8), effort: effort || 'low',
+        waitsFor: state === 'waiting' && after ? after.name : undefined, pickUp: state === 'waiting' && pickUp ? true : undefined };
     });
   }
 
@@ -900,6 +912,12 @@ export class Brain {
   retryJob(id) {
     const j = this.queue.find((x) => x.id === id);
     if (!j || !['interrupted', 'failed', 'cancelled'].includes(j.state)) return false;
+    // 1.5.38: a job cut off by a restart carries on from where it stopped (its carry-on note was made at start-up).
+    // A failed or cancelled job starts again from nothing, as before.
+    if (j.state !== 'interrupted') { j.carryOn = null; j.before = []; j.cutStep = null; }
+    j.pickUp = j.state === 'interrupted' && Boolean(j.carryOn);
+    j.resumed = 0; // the user pressed it: the automatic pick-up count starts over
+    j.after = undefined;
     j.state = 'waiting'; j.error = undefined; j.at = Date.now(); j.doneAt = undefined; j.steps = [];
     this.queue = [...this.queue.filter((x) => x !== j), j]; // back of the line
     this.saveQueue();
@@ -907,12 +925,49 @@ export class Brain {
     return true;
   }
 
+  // ---- Jobs that wait for a download (1.5.38) ----
+  // "Make me a song" with no music models yet: the user presses Download in the chat, and the song request waits
+  // in Tasks until the download is done, then runs by itself. It's in queue.json, so it survives Bob closing too.
+  waitForDownload(jobId, modelId) {
+    const j = this.queue.find((x) => x.id === jobId);
+    if (!j || !modelId) return false;
+    let name = String(modelId);
+    try { name = this.shop?.describe(modelId)?.name || name; } catch {}
+    j.after = { id: String(modelId), name };
+    j.carryOn = `[Bob note, not from the user: the ${name} the user downloaded for this are on the PC now. Do what they asked.]`;
+    j.before = []; j.cutStep = null; j.pickUp = false;
+    if (j.state !== 'working') { // still running: the end of the turn puts it back in line
+      Object.assign(j, { state: 'waiting', error: undefined, doneAt: undefined, steps: [], at: Date.now() });
+      this.queue = [...this.queue.filter((x) => x !== j), j];
+    }
+    this.log('queue', `waits for the ${name} download: ${j.text.slice(0, 60)}`);
+    this.saveQueue();
+    return true;
+  }
+
+  // true once the download a waiting job needs is done. A download that failed or was cancelled sends the job to
+  // Tasks as interrupted, with a plain reason (it never waits forever). Paused or queued: it keeps waiting.
+  downloadReady(job) {
+    const d = (this.shop?.dl || []).find((x) => x.id === job.after.id);
+    if (d?.state === 'done') { job.after = undefined; return true; }
+    if (d && ['queued', 'downloading', 'paused'].includes(d.state)) return false;
+    job.state = 'interrupted';
+    job.error = `The ${job.after.name} download ${d?.state === 'cancelled' ? 'was cancelled' : d?.state === 'failed' ? 'failed' : 'isn\'t in Downloads any more'}, so this didn't run. Get it again in Downloads, then press Carry on.`;
+    job.after = undefined;
+    setTimeout(() => this.saveQueue(), 0);
+    return false;
+  }
+
+  // Bob's Downloads changed (server.js passes it on): a job waiting for one may be able to go now.
+  downloadsChanged() { if (this.queue.some((j) => j.state === 'waiting' && j.after)) this.pump(); }
+
   // Starts the next waiting job in each free lane, oldest first.
   pump() {
     const seen = new Set();
     for (const job of this.queue) {
       if (job.state !== 'waiting') continue;
       if (waitsForGaming(this.cfg, job)) continue; // 1.5.23: waits in Tasks until the session isn't Gaming
+      if (job.after && !this.downloadReady(job)) continue; // 1.5.38: waits for the download it needs
       const lane = laneOf(this.cfg, job);
       if (seen.has(lane)) continue;
       seen.add(lane);
@@ -932,6 +987,7 @@ export class Brain {
     const emit = (ev) => { if (['error', 'correction', 'held', 'waiting'].includes(ev.type)) flagged = true; this.broadcast({ ...ev, turnId, sessionId }); };
     this.turns.set(lane, { turnId, controller });
     emit({ type: 'start', text: text.slice(0, 140) });
+    if (job?.pickUp) emit({ type: 'announce', text: carryOnLine(job) }); // 1.5.38: picked up after a restart
     const pics = [].concat(attach || []).map((id) => this.refs.find(String(id))).filter(Boolean).slice(0, 4);
     let ok = false;
     this.run(sessionId, text, emit, controller.signal, pics, job)
@@ -944,6 +1000,9 @@ export class Brain {
         this.saveSession(sessionId);
         this.gate.done(controller.signal); // the graphics card goes to the next job waiting for it
         if (job?.handoff) job.handoff = slimHandoff(job.handoff); // finished: keep what it did, drop the load-by-load steps
+        // 1.5.38: carried on (or not) once; the note isn't used again. A job told to wait for a download goes back in line.
+        if (job && job.state !== 'interrupted' && !job.after) { job.carryOn = null; job.before = undefined; job.cutStep = undefined; job.pickUp = false; }
+        if (job?.after && job.state !== 'cancelled') { job.state = 'waiting'; job.error = undefined; job.at = Date.now(); this.queue = [...this.queue.filter((x) => x !== job), job]; }
         this.turns.delete(lane);
         this.lastActivity = Date.now();
         // Gaming: now and then a scripted sleepy aside under a normal finished reply (a feeling, never a fact about the job).
@@ -1049,6 +1108,9 @@ export class Brain {
       user.text = text;
       if (images.length) user.images = images;
     }
+    // 1.5.38: after a restart, the brain is told which steps already finished and which was cut off (the chat shows only
+    // the user's own words).
+    if (job?.carryOn) { user.content = `${user.content}\n\n${job.carryOn}`; user.text = text; }
     msgs.push(user);
     const turnStart = msgs.length - 1;
     this.log('chat', `${this.cfg.userName || 'User'}: ${text}`);
@@ -1396,11 +1458,13 @@ export class Brain {
     const music = kind === 'music';
     // 1.5.37: music needs its models on the PC first. If they aren't, offer the download (the user's click) and stop here.
     if (music && !this.cfg.audio?.aceUrl) {
-      const missing = aceModelsMissing(this.cfg);
+      const missing = aceMissingFiles(this.cfg);
       if (missing.length) {
         const e = aceModelsEntry(this.cfg);
-        ctx.emit({ type: 'offer-download', id: ACE_MODELS_ID, name: e?.name || 'ACE-Step 1.5 music models', sizeGB: e?.sizeGB || null, why: 'music' });
-        throw Object.assign(new Error(`The music models aren't on this PC yet (about ${e?.sizeGB || 8} GB, first time only). Nothing was downloaded. A "Download the music models" button is now under this chat: tell the user to press it if they want music, and to ask for the song again when it's done.`), { code: 'MUSIC_MODELS_MISSING' });
+        // 1.5.38: the size of what's really left, not the whole set (most of it may already be here).
+        const left = Math.max(0.1, Math.round(missing.reduce((t, f) => t + (f.bytes || 0), 0) / 1e8) / 10);
+        ctx.emit({ type: 'offer-download', jobId: ctx.job?.id || null, id: ACE_MODELS_ID, name: e?.name || 'ACE-Step 1.5 music models', sizeGB: left, why: 'music' });
+        throw Object.assign(new Error(`The music models aren't all on this PC yet (about ${left} GB left to download, first time only). Nothing was downloaded. A "Download the music models" button is now under this chat: tell the user to press it if they want music. The song then waits in Tasks and is made by itself when the download is done, so they don't need to ask again. Say it once, plainly, and don't call make_music again now.`), { code: 'MUSIC_MODELS_MISSING' });
       }
     }
     ctx.emit({ type: 'announce', text: music ? 'Stepping out of the GPU so the audio workshop can compose. Music takes a few minutes.' : 'Stepping out of the GPU for a sound effect. About a minute; the first time, it also fetches the model.' });
@@ -1413,7 +1477,8 @@ export class Brain {
     });
     ctx.emit({ type: 'audio', url: `/images/${encodeURIComponent(name)}`, file });
     this.setState('thinking', '', null);
-    return `${music ? 'Made the music' : 'Made the sound'}, saved as ${file}. The user can play it in the chat.`;
+    // 1.5.38: plain about where it is, so Bob never claims a song only played and wasn't kept.
+    return `${music ? 'Made the song' : 'Made the sound'} and saved it as a .wav file: ${file}. It is kept on the PC: the user can play it in the chat, find it in Made by Bob (left menu, Sounds), or open that file. Tell the user where it was saved.`;
   }
 
   // The advanced workshop: a ComfyUI workflow the user saved. ComfyUI does the work in its own process.

@@ -44,6 +44,7 @@ export function settingsNow(cfg) {
     `One brain (snappier): ${onOff(cfg.oneBrain === true)}`,
     `Launch Bob on start-up: ${onOff(cfg.autostart === true)}`,
     `Check for updates when Bob starts: ${onOff(cfg.updates?.autoCheck === true)}`,
+    `Pick up where Bob left off after a restart: ${onOff(cfg.resumeJobs === true)}; Carry on unfinished downloads when Bob starts: ${onOff(cfg.downloads?.resumeOnStart === true || cfg.resumeJobs === true)}`,
     `Bob's engine: ${cfg.engine === 'ollama' ? 'Ollama' : "Bob's own (llama.cpp)"}`,
     `Voice: ${cfg.tts?.provider || 'Windows voice'}`,
     `Hands: ${hands}${h.enabled ? `; Let Bob work without asking ${onOff(h.free)}` : ''}`,
