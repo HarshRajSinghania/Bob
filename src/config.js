@@ -47,7 +47,9 @@ export function loadConfig() {
   // Bob's own code, the backups, and his settings/data folder (inn\bob: settings.json, reminders, file backups)
   // are never writable through his file tools, so he can't flip settings such as autostart himself.
   cfg.readOnlyRoots = [...new Set([...(cfg.readOnlyRoots || []), appDir, path.join(cfg.agentDir, 'backup'), cfg.dataDir])];
-  cfg.userName = cfg.userName || (os.userInfo().username || 'friend').replace(/^./, (c) => c.toUpperCase());
+  // The name Bob falls back to: the one in config.json, else the Windows user name.
+  cfg.windowsName = cfg.userName || (os.userInfo().username || 'friend').replace(/^./, (c) => c.toUpperCase());
+  cfg.userName = cfg.windowsName;
   cfg.timeZone = cfg.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   cfg.comfy = cfg.comfy || {};
   if (cfg.comfy.workflowFile && !path.isAbsolute(cfg.comfy.workflowFile)) {
@@ -62,6 +64,8 @@ export function loadConfig() {
   // so config.json stays as installed. Only these keys can be changed from the window.
   cfg.settingsFile = path.join(cfg.dataDir, 'settings.json');
   try { mergeSettings(cfg, JSON.parse(fs.readFileSync(cfg.settingsFile, 'utf8'))); } catch {}
+  // "What should Bob call you?" (Attributes, first-run). Kept in inn\bob\settings.json, never in config.json.
+  if (cfg.callMe) cfg.userName = cfg.callMe;
   cfg.autostart = cfg.autostart === true; // opt-in: off unless the user turned it on
   return cfg;
 }
@@ -92,7 +96,7 @@ export const VERSION = (() => {
   } catch { return { release: '0.9', branch: '', build: 0, label: '0.9.0' }; }
 })();
 
-export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange'];
+export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe'];
 const LOCKED_LLAMACPP = ['exe', 'preArgs'];
 
 function deepMerge(into, from) {

@@ -145,10 +145,13 @@ export function bobTake(lookId) {
   return TAKES[id] || TAKES[id.split('-')[0]] || TAKES.sysop;
 }
 
-export function attributesHtml({ personality, look, lookText, lookComments = true, user }) {
+export function attributesHtml({ personality, look, lookText, lookComments = true, user, callMe = '', windowsName = '' }) {
   const p = cleanPersonality(personality);
   const preset = PRESETS.find((x) => DIALS.every((d) => (x.set[d.id] ?? 2) === p[d.id]));
   return `<details class="attributes" open><summary><h3>Attributes</h3></summary>
+    <label class="callme"><strong>What should Bob call you?</strong>
+      <input type="text" data-callme maxlength="40" value="${esc(callMe)}" placeholder="${esc(windowsName || 'your Windows name')}" aria-label="What should Bob call you?" autocomplete="off"></label>
+    <p class="muted small">Leave it empty and he uses your Windows name${windowsName ? ` (${esc(windowsName)})` : ''}.</p>
     <div class="avatar-card">
       <canvas class="attr-avatar" width="64" height="64" aria-label="Bob's look"></canvas>
       <div><strong>Look:</strong> ${esc(lookText || '')}<br><span class="take">"${esc(bobTake(look))}"</span></div>

@@ -283,6 +283,90 @@
       }
     },
     {
+      "id": "z-image-turbo-q5",
+      "category": "images",
+      "name": "Z-Image Turbo (8 GB card version)",
+      "what": "The same fast painter, squeezed to fit an 8 GB card. Pictures look almost the same as the full one.",
+      "sizeGB": 7.4,
+      "vramGB": 7,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "small",
+      "needs": "stable-diffusion.cpp",
+      "files": [
+        {
+          "url": "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q5_0.gguf",
+          "role": "diffusionModel",
+          "sha256": "12b4a5c064cf8a0fa45d665c5b399d43effbcbeb37748d028d0d0d0fc34c2255"
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
+          "role": "vae"
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+          "role": "llm",
+          "sha256": "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597"
+        }
+      ],
+      "use": {
+        "painter": {
+          "engine": "sdcpp",
+          "sdcpp": {
+            "image": {
+              "diffusionModel": "$file:diffusionModel",
+              "vae": "$file:vae",
+              "llm": "$file:llm",
+              "steps": 8,
+              "cfg": 1.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "z-image-turbo-q4",
+      "category": "images",
+      "name": "Z-Image Turbo (6 GB card version)",
+      "what": "The fast painter made small enough for 6 GB cards and laptops. A touch less detail than the bigger versions.",
+      "sizeGB": 6.7,
+      "vramGB": 5,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "tiny",
+      "needs": "stable-diffusion.cpp",
+      "files": [
+        {
+          "url": "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q4_K.gguf",
+          "role": "diffusionModel",
+          "sha256": "14b375ab4f226bc5378f68f37e899ef3c2242b8541e61e2bc1aff40976086fbd"
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
+          "role": "vae"
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+          "role": "llm",
+          "sha256": "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597"
+        }
+      ],
+      "use": {
+        "painter": {
+          "engine": "sdcpp",
+          "sdcpp": {
+            "image": {
+              "diffusionModel": "$file:diffusionModel",
+              "vae": "$file:vae",
+              "llm": "$file:llm",
+              "steps": 8,
+              "cfg": 1.0
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "flux-schnell",
       "category": "images",
       "name": "FLUX.1 schnell",
@@ -375,6 +459,92 @@
               "steps": 20,
               "cfg": 2.5,
               "flowShift": 3,
+              "sampler": "euler"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "flux2-klein-4b",
+      "category": "images",
+      "name": "FLUX.2 klein 4B (picture edits)",
+      "what": "Small, quick picture editor: change a picture with words, or keep a character's look from reference pictures. Fits an 8 GB card.",
+      "sizeGB": 7.1,
+      "vramGB": 6,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "small",
+      "needs": "stable-diffusion.cpp",
+      "files": [
+        {
+          "url": "https://huggingface.co/leejet/FLUX.2-klein-4B-GGUF/resolve/main/flux-2-klein-4b-Q8_0.gguf",
+          "role": "diffusionModel",
+          "sha256": "0bba6951258ec8f92d51114a8fa13e66828297bfff58a738f52729b3ef66fa28"
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b/resolve/main/split_files/vae/flux2-vae.safetensors",
+          "role": "vae",
+          "sha256": "868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3"
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf",
+          "role": "llm",
+          "sha256": "f6f851777709861056efcdad3af01da38b31223a3ba26e61a4f8bf3a2195813a"
+        }
+      ],
+      "use": {
+        "painter": {
+          "sdcpp": {
+            "edit": {
+              "diffusionModel": "$file:diffusionModel",
+              "vae": "$file:vae",
+              "llm": "$file:llm",
+              "steps": 4,
+              "cfg": 1.0,
+              "sampler": "euler"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "flux2-klein-4b-q4",
+      "category": "images",
+      "name": "FLUX.2 klein 4B (picture edits, 6 GB card version)",
+      "what": "The small picture editor made even smaller for 6 GB cards and laptops.",
+      "sizeGB": 5.3,
+      "vramGB": 4,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "tiny",
+      "needs": "stable-diffusion.cpp",
+      "files": [
+        {
+          "url": "https://huggingface.co/leejet/FLUX.2-klein-4B-GGUF/resolve/main/flux-2-klein-4b-Q4_0.gguf",
+          "role": "diffusionModel",
+          "sha256": "d1023499ef3f2f82ff7c50e6778495195c1b6cc34835741778868428111f9ff4"
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b/resolve/main/split_files/vae/flux2-vae.safetensors",
+          "role": "vae",
+          "sha256": "868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3"
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf",
+          "role": "llm",
+          "sha256": "f6f851777709861056efcdad3af01da38b31223a3ba26e61a4f8bf3a2195813a"
+        }
+      ],
+      "use": {
+        "painter": {
+          "sdcpp": {
+            "edit": {
+              "diffusionModel": "$file:diffusionModel",
+              "vae": "$file:vae",
+              "llm": "$file:llm",
+              "steps": 4,
+              "cfg": 1.0,
               "sampler": "euler"
             }
           }
@@ -478,6 +648,52 @@
               "steps": 20,
               "cfg": 5.0,
               "flowShift": 5.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "wan2.2-ti2v-5b-q4",
+      "category": "video",
+      "name": "Wan 2.2 TI2V 5B (small card version)",
+      "what": "Short clips from words or a picture, squeezed for 8 GB cards. Slow, so keep clips to a few seconds.",
+      "sizeGB": 9.0,
+      "vramGB": 8,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "small",
+      "needs": "stable-diffusion.cpp",
+      "files": [
+        {
+          "url": "https://huggingface.co/QuantStack/Wan2.2-TI2V-5B-GGUF/resolve/main/Wan2.2-TI2V-5B-Q4_K_M.gguf",
+          "role": "diffusionModel",
+          "sha256": "95b19697b7f98e65b0a543640e9ca7b4dfec32e2a6e3731e8e10708be52655e2"
+        },
+        {
+          "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan2.2_vae.safetensors",
+          "role": "vae",
+          "sha256": "e40321bd36b9709991dae2530eb4ac303dd168276980d3e9bc4b6e2b75fed156"
+        },
+        {
+          "url": "https://huggingface.co/city96/umt5-xxl-encoder-gguf/resolve/main/umt5-xxl-encoder-Q5_K_M.gguf",
+          "role": "t5xxl",
+          "sha256": "eaea358bb438c5d211721a4feecc162000e3636e9cb96f51e216f1f44ebd12ce"
+        }
+      ],
+      "use": {
+        "painter": {
+          "sdcpp": {
+            "video": {
+              "diffusionModel": "$file:diffusionModel",
+              "vae": "$file:vae",
+              "t5xxl": "$file:t5xxl",
+              "steps": 20,
+              "cfg": 6.0,
+              "flowShift": 3.0,
+              "sampler": "euler",
+              "maxFrames": 49,
+              "clipOnCpu": true
             }
           }
         }
@@ -682,8 +898,9 @@
         "kokoro-v1",
         "nomic-embed-text",
         "qwen3-coder-30b",
-        "z-image-turbo",
-        "wan2.2-ti2v-5b"
+        "z-image-turbo-q5",
+        "flux2-klein-4b",
+        "wan2.2-ti2v-5b-q4"
       ],
       "slots": {
         "gemma4-e4b": [
@@ -692,33 +909,36 @@
           "eyes",
           "voice"
         ],
-        "qwen3-coder-30b": [
-          "tinker"
-        ],
-        "z-image-turbo": [
-          "image"
-        ],
-        "wan2.2-ti2v-5b": [
-          "video"
-        ],
         "kokoro-v1": [
           "speech"
         ],
         "nomic-embed-text": [
           "embed"
+        ],
+        "qwen3-coder-30b": [
+          "tinker"
+        ],
+        "z-image-turbo-q5": [
+          "image"
+        ],
+        "flux2-klein-4b": [
+          "edit"
+        ],
+        "wan2.2-ti2v-5b-q4": [
+          "video"
         ]
       },
       "tick": [
-        "qwen3-coder-30b",
-        "z-image-turbo"
+        "qwen3-coder-30b"
       ],
       "notes": {
         "gemma4-e4b": "one model for chat, quick brain, eyes and ears, so everyday chat never swaps",
         "qwen3-coder-30b": "the best coder; most of it sits in your RAM, so replies are slower (roughly 15 to 25 words a second)",
-        "z-image-turbo": "bigger than your card, so it runs part in RAM: slower",
-        "wan2.2-ti2v-5b": "slow on this card: keep clips short"
+        "z-image-turbo-q5": "a version of the painter made to fit your card",
+        "flux2-klein-4b": "a small, quick editor: change a picture with words or keep a look from references",
+        "wan2.2-ti2v-5b-q4": "slow on this card: keep clips to a few seconds"
       },
-      "times": "Rough guesses, not yet measured on an 8 GB card: about 1 to 2 minutes a picture, 10 minutes or more a clip. Bob puts his brain away while he paints, so chat waits until the picture is done.",
+      "times": "Rough guesses, not yet measured on an 8 GB card: about 30 seconds to a minute a picture, a minute or two an edit, 10 minutes or more a short clip. Bob puts his brain away while he paints, so chat waits until the picture is done.",
       "cardGB": 8
     },
     {
@@ -730,8 +950,9 @@
         "kokoro-v1",
         "nomic-embed-text",
         "qwen2.5-coder-7b",
-        "z-image-turbo",
-        "wan2.2-ti2v-5b"
+        "z-image-turbo-q4",
+        "flux2-klein-4b-q4",
+        "wan2.2-ti2v-5b-q4"
       ],
       "slots": {
         "gemma4-e4b": [
@@ -740,29 +961,33 @@
           "eyes",
           "voice"
         ],
-        "qwen2.5-coder-7b": [
-          "tinker"
-        ],
-        "z-image-turbo": [
-          "image"
-        ],
-        "wan2.2-ti2v-5b": [
-          "video"
-        ],
         "kokoro-v1": [
           "speech"
         ],
         "nomic-embed-text": [
           "embed"
+        ],
+        "qwen2.5-coder-7b": [
+          "tinker"
+        ],
+        "z-image-turbo-q4": [
+          "image"
+        ],
+        "flux2-klein-4b-q4": [
+          "edit"
+        ],
+        "wan2.2-ti2v-5b-q4": [
+          "video"
         ]
       },
       "notes": {
         "gemma4-e4b": "one model for chat, quick brain, eyes and ears",
         "qwen2.5-coder-7b": "small, quick coder that fits the card",
-        "z-image-turbo": "much bigger than your card: very slow; a smaller version for 6 GB cards is planned",
-        "wan2.2-ti2v-5b": "very slow on this card; best skipped for now"
+        "z-image-turbo-q4": "a version of the painter made to fit 6 GB cards",
+        "flux2-klein-4b-q4": "a small editor made to fit 6 GB cards",
+        "wan2.2-ti2v-5b-q4": "very slow on a 6 GB card, so it is left unticked; tick it if you want short clips anyway"
       },
-      "times": "Rough guesses, not yet measured on a 6 GB card: 2 to 4 minutes a picture if it runs at all; clips are very slow. Bob puts his brain away while he paints.",
+      "times": "Rough guesses, not yet measured on a 6 GB card: about 1 to 2 minutes a picture or an edit; clips take a long time. Bob puts his brain away while he paints.",
       "cardGB": 6
     },
     {

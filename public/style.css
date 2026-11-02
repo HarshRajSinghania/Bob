@@ -538,3 +538,7 @@ p.small, .muted.small { font-size: 12px; }
   .attributes summary h3::after { content: " (tap to fold)"; text-transform: none; letter-spacing: 0; }
   .equip-page .kit-panel { border-left: 0; padding-left: 0; position: static; max-height: none; border-top: 1px solid var(--line); padding-top: 8px; }
 }
+
+/* 1.3.1: what Bob calls you */
+.callme { display: block; font-size: 13px; margin-bottom: 4px; }
+.callme input { display: block; width: 100%; margin-top: 4px; font: inherit; padding: 6px 8px; border-radius: var(--r); border: 1px solid var(--line); background: var(--bg); color: var(--text); }

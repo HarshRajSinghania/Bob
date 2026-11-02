@@ -9,7 +9,7 @@ import { ModelShop } from '../src/models.js';
 let pass = 0, fail = 0;
 const check = (name, ok, extra = '') => { ok ? pass++ : fail++; console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' ' + extra : ''}`); };
 const catalog = JSON.parse(fs.readFileSync(new URL('../catalog.json', import.meta.url), 'utf8'));
-const models = catalog.models.map((m) => ({ ...m, status: { state: ['gemma4-e4b', 'z-image-turbo'].includes(m.id) ? 'installed' : 'missing' } }));
+const models = catalog.models.map((m) => ({ ...m, status: { state: ['gemma4-e4b', 'z-image-turbo', 'z-image-turbo-q4'].includes(m.id) ? 'installed' : 'missing' } }));
 const roles = {
   current: { bob: 'gemma4:e4b', tinker: '', reviewer: 'gemma4:e4b', eyes: '', image: 'z-image-turbo', speech: 'windows', voice: '' },
   options: { llm: [{ value: 'gemma4:e4b', label: 'Gemma 4 E4B (gemma4:e4b)' }, { value: 'qwen3-coder:30b', label: 'Qwen3 Coder' }], images: [{ value: 'z-image-turbo', label: 'Z-Image Turbo' }], edit: [], video: [], voice: [{ value: 'ollama:gemma4:e4b', label: 'Gemma 4 E4B through Ollama' }], speech: [{ value: 'windows', label: 'Windows voices' }], embed: [{ value: 'nomic-embed-text:latest', label: 'nomic-embed-text:latest' }] }
@@ -68,22 +68,42 @@ const ctx = { roles, models, brains: { small: 'gemma4:e4b' }, embed: '', selecte
   check('small sets put one model in chat, quick brain, eyes and ears', ['mid', 'small', 'cpu'].every((id) => packs.find((p) => p.id === id).slots['gemma4-e4b'].join() === 'bob,small,eyes,voice'));
   check('picked by card size', packFor(packs, 16).id === 'big' && packFor(packs, 8).id === 'mid' && packFor(packs, 6).id === 'small' && packFor(packs, 4).id === 'cpu' && packFor(packs, null).id === 'cpu');
   check('small cards are told how long pictures take', ['mid', 'small'].every((id) => /minute/.test(packs.find((p) => p.id === id).times)));
-  const mid = packs.find((p) => p.id === 'mid');
+  const mid = packs.find((p) => p.id === 'mid'), small = packs.find((p) => p.id === 'small');
   const ticks = starterTicks(mid, models, 8);
-  check('what fits is ticked, and the coder the set recommends', ticks.has('gemma4-e4b') && ticks.has('qwen3-coder-30b') && ticks.has('kokoro-v1'));
-  check('too big and not recommended: left unticked', !ticks.has('wan2.2-ti2v-5b'));
-  check('no card detected: judged by the card the set is for', !starterTicks(mid, models, null).has('wan2.2-ti2v-5b') && starterTicks(packs.find((p) => p.id === 'big'), models, null).has('wan2.2-ti2v-5b'));
+  check('what fits is ticked, and the coder the set recommends', ticks.has('gemma4-e4b') && ticks.has('qwen3-coder-30b') && ticks.has('kokoro-v1') && ticks.has('z-image-turbo-q5') && ticks.has('flux2-klein-4b'));
+  const smallTicks = starterTicks(small, models, 6);
+  check('too big and not recommended: left unticked', !smallTicks.has('wan2.2-ti2v-5b-q4') && smallTicks.has('z-image-turbo-q4'));
+  check('no card detected: judged by the card the set is for', !starterTicks(small, models, null).has('wan2.2-ti2v-5b-q4') && starterTicks(mid, models, null).has('wan2.2-ti2v-5b-q4') && starterTicks(packs.find((p) => p.id === 'big'), models, null).has('wan2.2-ti2v-5b'));
   const engines = [{ id: 'kokoro', name: 'Kokoro voices', installed: false }, { id: 'sdcpp', name: 'stable-diffusion.cpp', installed: true }];
-  const { ids, plan } = starterPlan(mid, models, engines, ticks);
-  check('already here: equipped, not downloaded again', !ids.includes('gemma4-e4b') && plan['gemma4-e4b'] && !ids.includes('z-image-turbo'));
+  const { ids, plan } = starterPlan(small, models, engines, smallTicks);
+  check('already here: equipped, not downloaded again', !ids.includes('gemma4-e4b') && plan['gemma4-e4b'] && !ids.includes('z-image-turbo-q4') && plan['z-image-turbo-q4']);
   check('the engine a model needs is downloaded with it', ids.includes('kokoro-v1') && ids.includes('engine:kokoro') && !ids.includes('engine:sdcpp'));
-  check('unticked models are left out entirely', !ids.includes('wan2.2-ti2v-5b') && !plan['wan2.2-ti2v-5b']);
+  check('unticked models are left out entirely', !ids.includes('wan2.2-ti2v-5b-q4') && !plan['wan2.2-ti2v-5b-q4']);
   const html = starterHtml({ ...ctx, packs, engines });
   check('the starter box shows the sets with yours marked, and one button', /8 GB card \(this PC\)/.test(html) && /data-starter="mid"/.test(html) && /to download\)/.test(html));
   check('it opens by itself only when Bob has no brain', !/<details class="starter" open/.test(html) && /<details class="starter" open/.test(starterHtml({ ...ctx, packs, roles: { ...roles, current: { ...roles.current, bob: '' } } })));
   const e4b = models.find((m) => m.id === 'gemma4-e4b'), nomic = models.find((m) => m.id === 'nomic-embed-text');
   check('slot values: Ollama name for brains, ollama: for ears, :latest tags match', slotValue(SLOTS[0], e4b, roles) === 'gemma4:e4b' && slotValue(SLOTS.find((s) => s.id === 'voice'), e4b, roles) === 'ollama:gemma4:e4b' && slotValue(SLOTS.find((s) => s.id === 'embed'), nomic, roles) === 'nomic-embed-text:latest');
   check('nothing to put in a slot until it\'s on this PC', slotValue(SLOTS.find((s) => s.id === 'video'), models.find((m) => m.id === 'wan2.2-ti2v-5b'), roles) === '');
+}
+
+// ---- small-card versions (8 GB and 6 GB) ----
+{
+  const byId = (id) => catalog.models.find((m) => m.id === id);
+  const packs = catalog.packs;
+  for (const id of ['mid', 'small']) {
+    const p = packs.find((x) => x.id === id);
+    const job = (slot) => Object.keys(p.slots).find((m) => p.slots[m].includes(slot));
+    check(`the ${p.cardGB} GB set can paint, edit and film`, ['image', 'edit', 'video'].every((slot) => job(slot)));
+    check(`the ${p.cardGB} GB set uses the squeezed (GGUF) versions for pictures, edits and clips`, ['image', 'edit', 'video'].every((slot) => /\.gguf$/.test(byId(job(slot)).files.find((f) => f.role === 'diffusionModel').url)));
+    check(`the ${p.cardGB} GB painter and editor fit the card`, ['image', 'edit'].every((slot) => byId(job(slot)).vramGB <= p.cardGB));
+    check(`the ${p.cardGB} GB editor is a real edit model`, Boolean(byId(job('edit')).use?.painter?.sdcpp?.edit));
+  }
+  const small = ['z-image-turbo-q5', 'z-image-turbo-q4', 'flux2-klein-4b', 'flux2-klein-4b-q4', 'wan2.2-ti2v-5b-q4'].map(byId);
+  check('the small-card versions are in the catalog', small.every(Boolean));
+  check('their links are checked: every file comes from Hugging Face and the big ones carry a checksum', small.every((m) => m.files.every((f) => /^https:\/\/huggingface\.co\/[\w.-]+\/[\w.-]+\/resolve\/main\//.test(f.url) && !f.verify)) && small.every((m) => /^[0-9a-f]{64}$/.test(m.files.find((f) => f.role === 'diffusionModel').sha256)));
+  check('the small painters and editors share helper files, so they download once', byId('z-image-turbo-q5').files.slice(1).map((f) => f.url).join() === byId('z-image-turbo-q4').files.slice(1).map((f) => f.url).join() && byId('flux2-klein-4b').files.slice(1).map((f) => f.url).join() === byId('flux2-klein-4b-q4').files.slice(1).map((f) => f.url).join());
+  check('FLUX.2 klein in the sets is the Apache 4B, not the non-commercial 9B or dev', small.filter((m) => /klein/.test(m.id)).every((m) => m.license === 'Apache 2.0' && m.files.every((f) => !/9b|flux2-dev|FLUX\.2-dev/i.test(f.url))));
 }
 
 // ---- server side ----

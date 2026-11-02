@@ -285,6 +285,7 @@ export function createCellar() {
     const total = needed.reduce((t, m) => t + m.sizeGB, 0);
     return `<div class="welcome">
       <h2>Welcome to Bob</h2>
+      <label class="callme"><strong>What should I call you?</strong> <input type="text" data-callme maxlength="40" value="${esc(settings?.callMe || '')}" placeholder="${esc(settings?.windowsName || 'your name')}" aria-label="What should Bob call you?" autocomplete="off"></label>
       <p>I'm Bob. Before I can help, I need a few models. Here's what I'd pick for this PC${hw.gpu ? ` (${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB)` : ''}:</p>
       <label class="pick"><strong>Setup</strong><select data-pack>${data.packs.map((p) => `<option value="${p.id}" ${p.id === pack.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
       <ul class="packlist">${items.map((m) => { const extra = covered(m); return `<li><label><input type="checkbox" data-pick="${esc(m.id)}" ${m.status.state === 'installed' ? 'checked disabled' : extra ? '' : suit(m).level === 'ok' ? 'checked' : suit(m).level === 'blocked' ? 'disabled' : ''}> ${esc(m.name)} <span class="muted">· ${esc(data.categories.find((c) => c.id === m.category)?.label)} · ${m.status.state === 'installed' ? 'already here' : gb(m.sizeGB)}${extra ? ` · ${esc(extra)}` : m.status.state !== 'installed' && suit(m).level !== 'ok' ? ' · not recommended for this PC' : ''}</span></label></li>`; }).join('')}</ul>
@@ -321,7 +322,7 @@ export function createCellar() {
   function eqCtx() {
     return { roles, models: data?.models || [], brains: settings?.sessionBrains || {}, embed: roles?.current?.embed || '', selected: eqSelected, vramGB: hw?.vramGB || hw?.gpu?.vramGB || null,
       packs: data?.packs || [], packId: starterPack, picks: starterPicks, engines: data?.engines || [], starterOpen,
-      attributes: settings ? attributesHtml({ personality: settings.personality, look: settings.look, lookText: settings.lookText, lookComments: settings.lookComments, user: settings.userName }) : '' };
+      attributes: settings ? attributesHtml({ personality: settings.personality, look: settings.look, lookText: settings.lookText, lookComments: settings.lookComments, user: settings.userName, callMe: settings.callMe, windowsName: settings.windowsName }) : '' };
   }
   // Starter set: which set, what's ticked (null = the defaults), and what still has to be equipped once it's downloaded.
   let starterPack = null, starterPicks = null, starterOpen = null;
@@ -560,6 +561,7 @@ export function createCellar() {
     try {
       if (el.dataset.dial) { const p = dialValues(); const r = await api('/api/settings', { personality: p }); settings.personality = r.personality; showDials(r.personality); return; }
       if ('preset' in el.dataset) { const ps = PRESETS.find((x) => x.id === el.value); if (!ps) return; const r = await api('/api/settings', { personality: ps.set }); settings.personality = r.personality; draw(); return; }
+      if ('callme' in el.dataset) { const r = await api('/api/settings', { callMe: el.value }); settings.userName = r.userName; settings.callMe = r.callMe; el.value = r.callMe; showDials(dialValues()); flash(el, `Saved. Bob calls you ${r.userName}.`); return; }
       if ('lookcomments' in el.dataset) { const r = await api('/api/settings', { lookComments: el.checked }); settings.lookComments = r.lookComments; flash(el, 'Saved.'); return; }
       if ('starterpack' in el.dataset) { starterPack = el.value; starterPicks = null; draw(); return; }
       if (el.dataset.starterpick) { const p = new Set(currentPicks()); el.checked ? p.add(el.dataset.starterpick) : p.delete(el.dataset.starterpick); starterPicks = p; draw(); return; }

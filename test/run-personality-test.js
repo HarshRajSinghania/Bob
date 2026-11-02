@@ -76,5 +76,15 @@ const read = (f) => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8')
   check('three columns when wide, stacked when narrow', /\.equip-page \{ display: grid; grid-template-columns: 250px minmax\(0, 1fr\) 280px/.test(css) && /@media \(max-width: 1100px\)[^@]*\.equip-page \{ grid-template-columns: 1fr/.test(css));
 }
 
+// ---- 1.3.1: what Bob calls you ----
+{
+  const html = attributesHtml({ personality: {}, look: 'sysop', lookText: 'x', user: 'Sam', callMe: '', windowsName: 'Pcuser' });
+  check('Attributes asks what Bob should call you, with the Windows name as the fallback', /What should Bob call you\?/.test(html) && /data-callme/.test(html) && /placeholder="Pcuser"/.test(html));
+  const cfgSrc = read('src/config.js'), srv = read('src/server.js'), cel = read('public/cellar.js');
+  check('the name is kept in inn settings and wins over the Windows name', /if \(cfg\.callMe\) cfg\.userName = cfg\.callMe;/.test(cfgSrc) && /'callMe'\]/.test(cfgSrc));
+  check('the name is cleaned and kept short; empty means the Windows name', /slice\(0, 40\)/.test(srv) && /cfg\.userName = name \|\| cfg\.windowsName/.test(srv));
+  check('first-run setup asks too', /What should I call you\?/.test(cel));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
