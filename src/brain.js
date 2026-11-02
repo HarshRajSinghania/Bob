@@ -25,7 +25,7 @@ import { stampMessages, keepOlder, readSummary } from './chats.js';
 import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
 import { scheduleTools } from './hands-schedules.js';
-import { toolsOff, HANDS, handOffWhy } from './hands-settings.js';
+import { toolsOff, HANDS, handOn, handOffWhy } from './hands-settings.js';
 import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUseTools, STICKY_TURNS, toolboxPrompt, saysCant } from './toolbox.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
 
@@ -46,6 +46,21 @@ export function claimsPcAction(text) {
 }
 export const CLAIM_CORRECTION = 'Nothing was actually done on the PC in that reply. Bob said he did, but no action ran.';
 const CLAIM_NUDGE = 'You just said you did something on the PC, but no tool did it in this turn. Never claim that. If it should be done, call the right tool now; if you cannot, say plainly that you have not done it and why (the tool\'s own words if it gave an error).';
+// Always in the front desk's prompt (slim tools or not): he lives on a real PC and, with the Apps hand on, drives it.
+// The owner, 2026-11-02: "he should want to take control of the wheel". The model had said "I am the process inside
+// the computer, not a remote driver... simulated environment" right after two errors.
+export function realPcPrompt(cfg) {
+  const who = cfg.userName || 'the user';
+  const base = `You live on ${who}'s real Windows PC; the apps, windows and files are real, not a simulation (only your Idle Process workspace is make-believe). Never call the PC simulated or virtual.`;
+  if (handOn(cfg, 'apps')) return `\n\n${base} Being inside the PC is exactly why you can drive it: with the Apps hand on you really do take the wheel. When ${who} says drive, take control, take the wheel, use my screen or do it in <an app>, be keen and start at once by showing the first step's card: open_app, then app_look, then app_act (add them with use_tools apps if they aren't here). Nothing happens on the PC until ${who} clicks it. When the Apps hand is on, don't refuse to drive. If a step fails, tell ${who} exactly what failed and what to click, and never say a step worked unless its result says so.`;
+  return `\n\n${base} Driving apps (open, click, type in them) needs the Apps hand, which is off: ${handOffWhy(cfg, 'apps')} If asked to drive, say that and offer to start as soon as it's on.`;
+}
+// After a doing-tool fails: one other route, then stop (asked for 2026-11-02).
+export const ALT_ROUTE_NUDGE = (who) => ` (If another route could still do this, try ONE other way now: for example, if a file or command tool failed, do it in the app with the Apps hand; if the Apps hand failed, use write_file, the Files Hand or the Run Hand. Then tell ${who} which way worked, or say plainly that neither did.)`;
+export const ALT_ROUTE_DONE = (who) => ` (You already tried another way this turn. Stop here and tell ${who} plainly what failed, in the tools' own words.)`;
+const DOING_TOOLS = new Set(['write_file', 'edit_file', 'save_spreadsheet']);
+const isLook = (name) => ['app_look', 'list_schedules'].includes(name);
+const callKey = (name, args) => { let a = args; if (typeof a === 'string') { try { a = JSON.parse(a); } catch {} } return `${name}|${JSON.stringify(a ?? {})}`; };
 const CANT_NUDGE = 'You now have every tool you can use on this PC. If one of them does what was asked, call it now. If none does, say so in one line; don\'t repeat yourself.';
 const MAX_HISTORY = 40;
 const APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
@@ -410,7 +425,7 @@ export class Brain {
     const helpers = cloudHelpers(this.cfg);
     // The Hands line only when a Hand group is added (or for hats and "all tools at once"); otherwise use_tools lists them.
     if (!loaded || allToolsOn(this.cfg) || Object.keys(HANDS).some((h) => loaded.has(h))) prompt += handsPrompt(this.cfg);
-    if (loaded) prompt += toolboxPrompt(this, loaded);
+    if (loaded) prompt += realPcPrompt(this.cfg) + toolboxPrompt(this, loaded);
     if (helpers.length) prompt += `\n\nCloud copies of you that ${this.cfg.userName || 'the user'} switched on (use ask_cloud only for jobs too big for you, or when asked; each use is approved and costs money): ${helpers.map((h) => `${h.id} = ${copyName(this.cfg, 'cloud:' + h.id, 'cloud helper')}, running on ${h.name} ${h.model}`).join('; ')}.`;
     const shelf = this.refs.describe();
     if (shelf) prompt += `\n\n${shelf}`;
@@ -760,7 +775,31 @@ export class Brain {
         // A tool from a group that isn't added yet: small brains sometimes call it straight away. Add its group and run it.
         const g = name === 'use_tools' ? null : groupOf(this, name);
         if (g) { ctx.loaded.add(g); used.add(g); }
-        const res = await this.runTool(name, call.function?.arguments, ctx);
+        const key = callKey(name, call.function?.arguments);
+        const doing = (HAND_TOOLS.has(name) || DOING_TOOLS.has(name)) && !isLook(name);
+        let res;
+        if (doing && ctx.lastDoing?.key === key) {
+          // The same action twice in a row (small brains do this): don't do it again.
+          res = { text: `(Not done again: that exact call just ran. Its result: ${String(ctx.lastDoing.text).slice(0, 300)}) Report that result; don't repeat the call.` };
+          this.log('tool', `skipped a repeat of ${name}`);
+        } else {
+          res = await this.runTool(name, call.function?.arguments, ctx);
+          if (doing) {
+            const failed = /^Error:/.test(String(res.text));
+            const who = this.cfg.userName || 'the user';
+            // A failure after a success this turn: make him say both.
+            if (failed && ctx.doneThisTurn?.length) res.text += ` (Earlier this turn this worked: ${ctx.doneThisTurn.slice(-2).map((x) => x.slice(0, 160)).join(' / ')}. Tell ${who} what really happened: what worked, then what failed.)`;
+            if (failed) res.text += ctx.altTried ? ALT_ROUTE_DONE(who) : ALT_ROUTE_NUDGE(who);
+            if (failed && !ctx.altTried) {
+              ctx.altTried = true;
+              // The other routes need their tools: add the switched-on Hands and the documents group.
+              for (const id of [...Object.keys(HANDS), 'documents']) if (groupsFor(this)[id]) ctx.loaded.add(id);
+              this.log('tool', `${name} failed; asked Bob to try one other way`);
+            }
+            if (!failed && !/said no/.test(String(res.text))) (ctx.doneThisTurn ||= []).push(`${name}: ${String(res.text)}`);
+            ctx.lastDoing = { key, text: res.text };
+          }
+        }
         if (name === 'use_tools') { let a = call.function?.arguments; if (typeof a === 'string') { try { a = JSON.parse(a); } catch { a = {}; } } const id = String(a?.group || '').toLowerCase().trim(); if (ctx.loaded.has(id)) used.add(id); }
         msgs.push({ role: 'tool', tool_name: name, content: res.text });
         if (HAND_TOOLS.has(name) && !/^Error:|said no/.test(String(res.text))) ctx.handsDid = true;

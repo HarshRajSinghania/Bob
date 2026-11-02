@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cleanHands, handOn, toolsOff, HANDS } from '../src/hands-settings.js';
 import { handsTools, stopEverything, handsPrompt, runningNow } from '../src/hands.js';
-import { AppsDriver, blockedWindow, blockedApp, keysFor, BLOCKED_PROCESSES } from '../src/hands-apps.js';
+import { AppsDriver, blockedWindow, blockedApp, keysFor, BLOCKED_PROCESSES, plainText, LONG_TYPING } from '../src/hands-apps.js';
 import { Brain, staleHandErrors, claimsPcAction, CLAIM_CORRECTION } from '../src/brain.js';
 
 let pass = 0, fail = 0;
@@ -129,6 +129,7 @@ const l1 = await fake.runTool('app_look', {}, ctx());
 check('listing windows needs a card too, and hides the off-limits ones', /List open windows/.test(cards().at(-1).command) && /Untitled - Notepad/.test(l1.text) && /Paint/.test(l1.text) && !/Command Prompt|KeePass|Windows Security|\bBob \(/.test(l1.text));
 const l2 = await fake.runTool('app_look', { window: 'notepad', picture: true }, ctx());
 check('looking at a window shows a card naming it', /Look at Untitled - Notepad/.test(cards().at(-1).command) && cards().at(-1).cwd === 'notepad');
+check('app_look lists where Bob can type first, with a "You can type in" line', /\nYou can type in: Document "Text editor"\. Anything else is for clicking or reading\.\n- Document "Text editor"/.test(l2.text), l2.text.slice(0, 300));
 check('Bob gets the names of its controls, and never a password value', /Button "Save" \[id save\]/.test(l2.text) && /Document "Text editor".*you can type here.*= "hello"/.test(l2.text) && /Text "Untitled" \[id ContentTextBlock\]$/m.test(l2.text) && /password field: never typed in/.test(l2.text));
 check('the picture of the window goes to the chat', events.some((e) => e.type === 'image' && /window-\d+\.png/.test(e.url)) && /picture of the window/.test(l2.text));
 const nC2 = cards().length;
@@ -170,6 +171,25 @@ check("a field the helper flags as a password is refused before any card, even w
 const nG = cards().length;
 const g2 = await fake.runTool('app_act', { window: 'notepad', action: 'click', name: 'Greyed' }, ctx());
 check('a greyed-out target is refused before any card', /greyed out/.test(g2.text) && cards().length === nG);
+// Notepad renames itself after the first typing ("Untitled - Notepad" -> "*Shopping list - Notepad").
+{
+  const r1 = await fake.runTool('app_act', { window: 'Untitled - Notepad', action: 'type', text: 'Shopping list' }, ctx());
+  const r2 = await fake.runTool('app_act', { window: 'Untitled - Notepad', action: 'keys', keys: 'Enter' }, ctx());
+  check('a window Bob used is still found by its old title after Notepad renames it', /Done/.test(r1.text) && /Done/.test(r2.text), r2.text);
+  const r3 = await fake.runTool('app_act', { window: 'Shopping list - Notepad', action: 'keys', keys: 'Enter' }, ctx());
+  check('…and by the new title without its leading *', /Done/.test(r3.text), r3.text);
+}
+// Markdown into a plain-text window
+check('Markdown becomes plain text', plainText('# Title\n\n**Bold** and *it* and `code`\n* one\n- two\n[site](https://x.y)') === 'Title\n\nBold and it and code\n- one\n- two\nsite (https://x.y)');
+{
+  const before2 = sent().length;
+  await fake.runTool('app_act', { window: 'notepad', action: 'type', text: '## Plan\n**Buy** milk' }, ctx());
+  const typedMsg = sent().slice(before2).find((m) => m.op === 'act');
+  check('typing into Notepad sends plain text (no ** or #), and the card shows that text', typedMsg?.text === 'Plan\nBuy milk' && /Plan\nBuy milk|Plan Buy milk|"Plan/.test(cards().at(-1).command), typedMsg?.text);
+  const nL = cards().length;
+  const long = await fake.runTool('app_act', { window: 'notepad', action: 'type', text: 'x'.repeat(LONG_TYPING + 1) }, ctx());
+  check('long text is not typed key by key: Bob is pointed at a .txt file instead, before any card', /too long to type key by key \(it would take about \d+ minutes?\)/.test(long.text) && /save it as a \.txt file instead \(one approval\) and open it in Notepad/.test(long.text) && /Never name tools like write_file/.test(long.text) && cards().length === nL);
+}
 const nC3 = cards().length;
 const t2 = await fake.runTool('app_act', { window: 'notepad', action: 'type', type: 'Edit', name: 'Password', id: 'pw', text: 'x' }, ctx());
 check('a password field (by name, or flagged by the helper) is refused before any card', /never types into password/.test(t2.text) && cards().length === nC3);

@@ -43,7 +43,13 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     else if (m.text === 'TAKE OVER') { driving = false; out({ event: 'stopped', why: 'mouse' }); r.ok = false; r.error = 'Stopped: you took back control.'; }
     else if (m.text === 'FAIL FOCUS') { r.ok = false; r.error = 'Windows wouldn\'t let Bob put the cursor in Document "Text editor", so nothing was typed.'; }
     else if (m.text === 'NOT THERE') r.did = 'typed into Document "Text editor" (added at the end), but when Bob read it back the text wasn\'t there';
-    else r.did = `${m.action} ${m.target?.name || ''}`.trim();
+    else {
+      r.did = `${m.action} ${m.target?.name || ''}`.trim();
+      // Like Windows 11 Notepad: after the first typing the title becomes "*<first line> - Notepad".
+      const w = windows.find((x) => x.hwnd === m.hwnd);
+      if (m.action === 'type' && w && w.process === 'notepad' && !w.title.startsWith('*')) w.title = `*${String(m.text).split('\n')[0].slice(0, 30)} - Notepad`;
+      if (m.action === 'type') r.typed = m.text;
+    }
   } else if (m.op === 'quit') { out(r); process.exit(0); }
   out(r);
 });

@@ -39,7 +39,7 @@ const HAND_WORDS = {
   files: /\b(move|copy|rename|zip|unzip|extract|tidy|organi[sz]e|sort|clean ?up|downloads|undo|folder|folders)\b/i,
   run: /\b(run|execute|command|script|terminal|powershell|cmd|install|build|npm|python|node|git|recipe)\b/i,
   schedules: /\b(schedules?|scheduled|every (?:day|morning|afternoon|evening|night|week|weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|month|hour|\d+)|each (?:day|morning|evening|night|week|weekday|hour)|daily|nightly|weekly|hourly|on a timer)\b/i,
-  apps: /\b(open|launch|click|press|button|type (?:in|into)|app|apps|notepad|browser|chrome|explorer|blender|paint\.net)\b/i
+  apps: /\b(open|launch|click|press|button|type (?:in|into)|app|apps|notepad|browser|chrome|explorer|blender|paint\.net|drive|driving|take (?:the )?(?:wheel|control|over)|screen control|control (?:my|the) (?:pc|computer|screen)|use my (?:screen|pc|computer|mouse|keyboard)|do it in)\b/i
 };
 
 const HAND_WHAT = {

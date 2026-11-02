@@ -71,6 +71,28 @@ export function keysFor(combo) {
   return `${ctrl ? '^' : ''}${mods.has('shift') ? '+' : ''}${mods.has('alt') ? '%' : ''}${k}`;
 }
 
+// Programs whose windows are plain text: Markdown marks would show up as literal * and #.
+export const PLAIN_TEXT_APPS = ['notepad'];
+// Markdown -> plain text, for typing into a plain-text window.
+export function plainText(md) {
+  return String(md || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/^```[^\n]*\n?/gm, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^(\s*)[*+]\s+/gm, '$1- ')
+    .replace(/\*\*(.+?)\*\*|__(.+?)__/g, (m, a, b) => a ?? b)
+    .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*(?!\w)/g, '$1$2')
+    .replace(/(^|[^_\w])_(?!\s)([^_\n]+?)_(?!\w)/g, '$1$2')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/!?\[([^\]]+)\]\(([^)\s]+)\)/g, '$1 ($2)')
+    .replace(/^>\s?/gm, '')
+    .replace(/^\s*([-*_])\s*\1\s*\1[\s\1]*$/gm, '');
+}
+// Typing more than this is slow and fragile: Bob is pointed at writing a .txt file instead.
+export const LONG_TYPING = 1500;
+// Loose title match: Notepad renames "Untitled - Notepad" to "*hello - Notepad" after the first typing.
+const tidyTitle = (t) => String(t || '').toLowerCase().replace(/^\*\s*/, '').trim();
+
 // ---- The helper process ----
 export class AppsDriver {
   // command: [exe, ...args] (tests use a mock); default is Windows PowerShell running installer\bob-apps.ps1.
@@ -164,7 +186,9 @@ export function appsTools(brain, { driver = null, track = () => () => {}, openWa
   const cfg = brain.cfg;
   const log = (k, t) => brain.log?.(k, t);
   const ownPids = [process.pid, process.ppid].filter(Boolean);
-  const state = { stoppedCtx: null, windows: new Map(), lastCtx: null, untrack: null, driving: false };
+  const state = { stoppedCtx: null, windows: new Map(), lastCtx: null, untrack: null, driving: false, seen: new Map() };
+  // Every title a window has had (by hwnd), so a window Bob opened or looked at is still found after it renames itself.
+  const remember = (w) => { if (!w) return; const k = String(w.hwnd); if (!state.seen.has(k)) state.seen.set(k, new Set()); state.seen.get(k).add(tidyTitle(w.title)); };
 
   const onEvent = (m) => {
     if (m.event === 'stopped') {
@@ -204,10 +228,19 @@ export function appsTools(brain, { driver = null, track = () => () => {}, openWa
     const s = String(want || '').trim().toLowerCase();
     if (!s) throw new Error('Say which window.');
     const hits = list.filter((w) => String(w.hwnd) === s);
-    const byTitle = hits.length ? hits : list.filter((w) => w.title.toLowerCase() === s || w.title.toLowerCase().includes(s) || String(w.process).toLowerCase() === s.replace(/\.exe$/, ''));
+    let byTitle = hits.length ? hits : list.filter((w) => w.title.toLowerCase() === s || w.title.toLowerCase().includes(s) || tidyTitle(w.title) === tidyTitle(s) || String(w.process).toLowerCase() === s.replace(/\.exe$/, ''));
+    // A window Bob already used, under an older title ("Untitled - Notepad" is now "*hello - Notepad").
+    if (!byTitle.length) byTitle = list.filter((w) => state.seen.get(String(w.hwnd))?.has(tidyTitle(s)));
+    // "... - Notepad" when exactly one Notepad window is open.
+    if (!byTitle.length) {
+      const words = s.split(/[^a-z0-9.+]+/).filter((x) => x.length > 2);
+      const procs = [...new Set(list.map((w) => String(w.process).toLowerCase()))].filter((p) => words.includes(p));
+      if (procs.length === 1) { const same = list.filter((w) => String(w.process).toLowerCase() === procs[0]); if (same.length === 1) byTitle = same; }
+    }
     if (!byTitle.length) throw new Error(`No open window matches "${want}". Open ones: ${list.filter((w) => !blockedWindow(w, { ownPids })).slice(0, 15).map((w) => `${w.title} (${w.process})`).join('; ') || 'none'}.`);
     const ok = byTitle.filter((w) => !blockedWindow(w, { ownPids }));
     if (!ok.length) throw new Error(blockedWindow(byTitle[0], { ownPids }));
+    remember(ok[0]);
     return ok[0];
   }
   const label = (w) => `${w.title} (${w.process})`;
@@ -248,6 +281,7 @@ export function appsTools(brain, { driver = null, track = () => () => {}, openWa
         const fresh = (await windows()).filter((w) => !before.has(String(w.hwnd)));
         if (fresh.length) {
           const w = fresh[0];
+          remember(w);
           log('hands', `apps: opened ${hit.name} (${label(w)})`);
           return `Opened ${hit.name}: its window "${w.title}" is open. Use app_look on it before clicking or typing.`;
         }
@@ -281,7 +315,10 @@ export function appsTools(brain, { driver = null, track = () => () => {}, openWa
       const w = ctx?.appsWindow || await findWindow(args.window);
       if (ctx) ctx.appsWindow = null;
       const r = await drv.request('look', { hwnd: w.hwnd, max: 150 });
-      const items = (r.items || []).filter((x) => x && (x.name || x.id || x.type === 'Edit'));
+      const all = (r.items || []).filter((x) => x && (x.name || x.id || x.type === 'Edit'));
+      // Where he can type comes first, so a small brain doesn't aim at a label (Notepad's "ContentTextBlock").
+      const items = [...all.filter((x) => x.typable && !x.password), ...all.filter((x) => !(x.typable && !x.password))];
+      const typeHere = items.filter((x) => x.typable && !x.password);
       log('hands', `apps: looked at ${label(w)} (${items.length} things)`);
       let pic = '';
       if (args.picture) {
@@ -291,7 +328,8 @@ export function appsTools(brain, { driver = null, track = () => () => {}, openWa
         if (fs.existsSync(file) || driver) { ctx?.emit?.({ type: 'image', url: `/images/${encodeURIComponent(name)}`, file }); pic = '\nA picture of the window is in the chat.'; }
       }
       const lines = items.slice(0, 150).map((x) => `- ${x.type}${x.name ? ` "${String(x.name).slice(0, 80)}"` : ''}${x.id ? ` [id ${String(x.id).slice(0, 40)}]` : ''}${x.password ? ' (password field: never typed in)' : x.typable ? ' (you can type here)' : ''}${x.enabled === false ? ' (greyed out)' : ''}${x.value ? ` = "${String(x.value).slice(0, 60)}"` : ''}`);
-      return `Window: ${label(w)}\n${lines.join('\n') || '(nothing readable; this app may not support UI Automation)'}${pic}\nTo use one, call app_act with its type and name (and id if names repeat). To type, pick one marked "you can type here".`;
+      const head = typeHere.length ? `You can type in: ${typeHere.slice(0, 5).map((x) => `${x.type} "${String(x.name || x.id).slice(0, 60)}"`).join('; ')}. Anything else is for clicking or reading.\n` : 'Nothing in this window takes typing.\n';
+      return `Window: ${label(w)}\n${head}${lines.join('\n') || '(nothing readable; this app may not support UI Automation)'}${pic}\nTo use one, call app_act with its type and name (and id if names repeat). To type, pick one marked "you can type here".`;
     },
     summary: ({ window }) => `apps: look ${window || '(windows)'}`
   };
@@ -328,7 +366,12 @@ export function appsTools(brain, { driver = null, track = () => () => {}, openWa
       else if (args.action === 'type') {
         if (args.text == null || String(args.text).length > 4000) throw new Error('Say the text to type (at most 4000 characters).');
         if (/password|passwd|pwd|\bpin\b/i.test(`${target.name} ${target.id}`)) throw new Error('Bob never types into password fields.');
-        const said = `${String(args.text).slice(0, 300)}${String(args.text).length > 300 ? '...' : ''}`;
+        let text = String(args.text);
+        // Plain-text windows get plain text: no literal ** and # marks.
+        if (PLAIN_TEXT_APPS.includes(String(w.process).toLowerCase().replace(/\.exe$/, ''))) text = plainText(text);
+        if (text.length > LONG_TYPING) { const mins = Math.max(1, Math.ceil(text.length / 100 / 60)); const who = cfg.userName || 'the user'; throw new Error(`That's ${text.length} characters, too long to type key by key (it would take about ${mins} minute${mins === 1 ? '' : 's'}). Offer ${who} to save it as a .txt file instead (one approval) and open it in Notepad, then say where it is. (For you: use write_file. Never name tools like write_file to ${who}.)`); }
+        if (ctx) ctx.appsText = text;
+        const said = `${text.slice(0, 300)}${text.length > 300 ? '...' : ''}`;
         // A one-line field gets the text in place of what is there; a document gets it added at the end (same as the helper).
         what = /^Edit\b/.test(real) ? `Replace what's in "${field(real || targetText(target))}" with: "${said}"` : `Add to the end of "${field(real || targetText(target))}"${note}: "${said}"`;
       } else if (args.action === 'keys') { const k = keysFor(args.keys); if (ctx) ctx.appsKeys = k; what = `Press ${String(args.keys)}${target.name || target.id ? ` in ${tt()}` : ''}${/%\{F4\}$/.test(k) ? ' (this closes the window)' : ''}`; }
@@ -344,8 +387,9 @@ export function appsTools(brain, { driver = null, track = () => () => {}, openWa
       const keys = args.action === 'keys' ? (ctx?.appsKeys || keysFor(args.keys)) : '';
       // What the card showed: if the window now resolves to something else, the helper does nothing.
       const expect = ctx?.appsExpect || '';
+      const typed = ctx?.appsText ?? String(args.text ?? '');
       if (['click', 'type', 'focus'].includes(args.action) && !expect) throw new Error('Bob had no approved target for that action, so he did nothing. Ask again.');
-      if (ctx) { ctx.appsWindow = null; ctx.appsTarget = null; ctx.appsKeys = null; ctx.appsExpect = null; state.lastCtx = ctx; }
+      if (ctx) { ctx.appsWindow = null; ctx.appsTarget = null; ctx.appsKeys = null; ctx.appsExpect = null; ctx.appsText = null; state.lastCtx = ctx; }
       // Check the window again right before acting: it may have changed title (a password prompt) or closed.
       const now = (await windows()).find((x) => String(x.hwnd) === String(w.hwnd));
       const b = blockedWindow(now, { ownPids }); if (b) throw new Error(b);
@@ -355,7 +399,7 @@ export function appsTools(brain, { driver = null, track = () => () => {}, openWa
       state.driving = true;
       let r;
       try {
-        r = await drv.request('act', { hwnd: w.hwnd, action: args.action, target, text: args.action === 'type' ? String(args.text) : '', keys, expect });
+        r = await drv.request('act', { hwnd: w.hwnd, action: args.action, target, text: args.action === 'type' ? typed : '', keys, expect });
       } catch (e) {
         // Windows' own reason, word for word, so Bob passes it on instead of inventing one.
         log('hands', `apps: ${args.action} in ${label(w)} failed: ${e.message}`);
