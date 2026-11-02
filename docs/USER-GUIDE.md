@@ -50,7 +50,7 @@ These open as a page in the middle of the window, in place of the chat. **← Ba
 
 - **Get models:** Equip Bob, the model shops (Voice & conversation, Coding, Seeing pictures, Pictures & video) and **On this PC**.
 - **Settings** starts as one short page showing what's set now: Bob's voice (with **Play sample** and **Change**), his look, the colours, animations, the cat's name, one brain, launch on start-up and checking for updates (both off unless you turn them on), and the version, graphics card and disk space, with **Check for updates** and **Run first-time setup**.
-- **Show advanced settings** (off unless you turn it on, and remembered) adds a search box and the rest: Brains (model roles, session brains, context), Voice details, Look & feel extras, Engines & speed, Connections (ComfyUI, cloud helpers), Hands, Housekeeping and Remove Bob. Longer explanations fold behind **More**.
+- **Show advanced settings** (off unless you turn it on, and remembered) adds a search box and the rest: Brains (model roles, session brains, context), Voice details, Look & feel, Engines & speed, Connections (ComfyUI, cloud helpers), Hands, Housekeeping and Remove Bob. Longer explanations fold behind **More**.
 
 ---
 

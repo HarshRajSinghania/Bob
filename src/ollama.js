@@ -76,7 +76,7 @@ export class Ollama {
   async preload(model, signal, { cpu = false, ctx } = {}) {
     (this.ctxOf ||= {})[model] = ctx || null;
     const t0 = Date.now();
-    await this.json('/api/generate', { model, prompt: '', keep_alive: this.keepAlive(), options: this.opts(cpu, ctx) }, signal);
+    await this.json('/api/generate', { model, prompt: '', keep_alive: this.keepAlive(model), options: this.opts(cpu, ctx) }, signal);
     const secs = (Date.now() - t0) / 1000;
     if (!cpu) this.loadTimes[model] = secs;
     try { fs.writeFileSync(this.timesFile, JSON.stringify(this.loadTimes, null, 2)); } catch { /* not fatal */ }
@@ -98,8 +98,26 @@ export class Ollama {
     return models.map((m) => m.name);
   }
 
-  // How long Ollama keeps a model in memory after use (setting ollamaKeepAlive, default 10 minutes).
-  keepAlive() { const k = String(this.cfg?.ollamaKeepAlive ?? '10m'); return /^\d+[smh]$|^-1$/.test(k) ? (k === '-1' ? -1 : k) : '10m'; }
+  // How long Ollama keeps a model in memory after use (setting ollamaKeepAlive, default 5 minutes).
+  // keepFor (set by the brain) can override it per model: "Always on" holds the chat brain with -1.
+  keepAlive(model) {
+    if (model && this.keepFor) { try { const v = this.keepFor(model); if (v !== undefined) return v; } catch {} }
+    const k = String(this.cfg?.ollamaKeepAlive ?? '5m'); return /^\d+[smh]$|^-1$/.test(k) ? (k === '-1' ? -1 : k) : '5m';
+  }
+
+  // Lets go of one model. Returns the names unloaded.
+  async unload(model) {
+    const hit = (await this.loaded()).filter((m) => m.name === model || m.name === model + ':latest' || m.name + ':latest' === model);
+    for (const m of hit) await this.json('/api/generate', { model: m.name, prompt: '', keep_alive: 0 }).catch(() => {});
+    return hit.map((m) => m.name);
+  }
+
+  // Re-sets how long a loaded model stays (after the Brain toggle changes). Doesn't count as a load time.
+  // Same options as the load (cpu, context size), or Ollama would reload the model to change them.
+  async touch(model, { cpu = false, ctx } = {}) {
+    if (!(await this.isLoaded(model, { cpu, ctx }).catch(() => false))) return;
+    await this.json('/api/generate', { model, prompt: '', keep_alive: this.keepAlive(model), options: this.opts(cpu, ctx) }).catch(() => {});
+  }
 
   // A model's details; "capabilities" lists completion, vision, audio, tools, thinking (newer Ollama).
   async show(model) { return this.json('/api/show', { model }); }
@@ -117,7 +135,7 @@ export class Ollama {
     const res = await fetch(this.url + '/api/chat', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model, messages, tools: tools && tools.length ? tools : undefined, stream: true, keep_alive: this.keepAlive(), options: this.opts(cpu, ctx),
+      body: JSON.stringify({ model, messages, tools: tools && tools.length ? tools : undefined, stream: true, keep_alive: this.keepAlive(model), options: this.opts(cpu, ctx),
         // Deep thought: gpt-oss takes a reasoning level; other models don't all understand "think", so it's only sent to gpt-oss.
         think: think && /gpt-oss/.test(model) ? think : undefined }),
       signal

@@ -3,7 +3,16 @@
 // Models are found by Ollama name in Ollama's model folder (no duplicate downloads), or set by path in config.
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
+
+// How long a brain may sit unused in memory: the shared setting ollamaKeepAlive ("10m", "30m", "1h", or "-1" for never).
+// Both engines use it: Ollama through keep_alive, Bob's own engine through the idle check below (1.5.2).
+export function keepAliveMs(cfg) {
+  const k = String(cfg?.ollamaKeepAlive ?? '5m');
+  if (k === '-1') return Infinity;
+  const m = k.match(/^(\d+)([smh])$/);
+  return m ? Number(m[1]) * { s: 1000, m: 60000, h: 3600000 }[m[2]] : 300000;
+}
 
 export class LlamaCpp {
   // Read fresh each time, so speed settings changed in the app apply to the next brain load.
@@ -15,6 +24,14 @@ export class LlamaCpp {
     this.url = `http://127.0.0.1:${this.port}`;
     this.child = null;
     this.current = null;
+    this.now = () => Date.now();
+    this.lastUse = this.now();
+    this.active = 0; // chats running right now
+    this.isBusy = () => false; // the brain sets this: a turn or a queued job that is working
+    this.holdModel = () => null; // the brain sets this: the model "Always on" keeps loaded (never idle-unloaded)
+    // Unload the brain once it has been idle longer than the keep-alive, so a quiet Bob gives the graphics card back.
+    this.idleTimer = setInterval(() => { this.idleTick().catch(() => {}); }, 60_000);
+    this.idleTimer.unref?.();
     this.timesFile = path.join(cfg.dataDir, 'load-times-llamacpp.json');
     try { this.loadTimes = JSON.parse(fs.readFileSync(this.timesFile, 'utf8')); } catch { this.loadTimes = {}; }
     const stop = () => { try { this.child && this.child.kill(); } catch {} };
@@ -46,7 +63,39 @@ export class LlamaCpp {
   }
 
   async loaded() {
-    return this.current && this.child && this.child.exitCode === null ? [{ name: this.current, size: 0, vram: 0 }] : [];
+    if (!(this.current && this.child && this.child.exitCode === null)) return [];
+    let size = 0;
+    try { size = fs.statSync(this.resolve(this.current).gguf).size; } catch {}
+    return [{ name: this.current, size, vram: await this.vramOf(this.child.pid) }];
+  }
+
+  // Graphics memory llama-server holds, in bytes, from nvidia-smi (ships with the NVIDIA driver). 0 when unknown.
+  vramOf(pid) {
+    return new Promise((resolve) => {
+      try {
+        execFile('nvidia-smi', ['--query-compute-apps=pid,used_memory', '--format=csv,noheader,nounits'], { timeout: 3000, windowsHide: true }, (err, out) => {
+          if (err) return resolve(0);
+          const row = String(out).split(/\r?\n/).map((l) => l.split(',').map((x) => x.trim())).find(([p]) => Number(p) === pid);
+          resolve(row && Number(row[1]) > 0 ? Number(row[1]) * 1048576 : 0);
+        });
+      } catch { resolve(0); }
+    });
+  }
+
+  // Called every minute: stop llama-server once nothing has used it for longer than the keep-alive.
+  // The next chat loads the brain again, as after a restart. Returns true when it unloaded.
+  async idleTick() {
+    if (!this.child || this.child.exitCode !== null || this.active > 0) return false;
+    let busy = false;
+    try { busy = Boolean(this.isBusy()); } catch {}
+    if (busy) { this.lastUse = this.now(); return false; }
+    let hold = null;
+    try { hold = this.holdModel(); } catch {}
+    if (hold && hold === this.current) { this.lastUse = this.now(); return false; }
+    if (this.now() - this.lastUse <= keepAliveMs(this.cfg)) return false;
+    this.idleUnloaded = this.current;
+    await this.stopServer();
+    return true;
   }
 
   // ctx: the session's context size. A different size means restarting llama-server with it.
@@ -106,6 +155,16 @@ export class LlamaCpp {
     } catch { return 15; }
   }
 
+  // Lets go of one brain (Bob's own engine holds one at a time). Returns the names unloaded.
+  async unload(model) {
+    if (!this.current || this.current !== model) return [];
+    await this.stopServer();
+    return [model];
+  }
+
+  // Counts as use, so the idle clock starts again (someone is typing).
+  touch() { this.lastUse = this.now(); }
+
   async unloadAll() {
     const was = this.current;
     await this.stopServer();
@@ -123,6 +182,7 @@ export class LlamaCpp {
 
   async preload(model, signal, { ctx } = {}) {
     const t0 = Date.now();
+    this.lastUse = this.now();
     const args = this.buildArgs(model, { ctx });
     await this.stopServer();
     // A llama-server left over from a crash would hold the port: stop it first.
@@ -194,7 +254,13 @@ export class LlamaCpp {
     return out;
   }
 
-  async chat({ model, messages, tools, signal, onToken }) {
+  async chat(opts) {
+    this.active++;
+    this.lastUse = this.now();
+    try { return await this.chatOnce(opts); } finally { this.active--; this.lastUse = this.now(); }
+  }
+
+  async chatOnce({ model, messages, tools, signal, onToken }) {
     const res = await fetch(this.url + '/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

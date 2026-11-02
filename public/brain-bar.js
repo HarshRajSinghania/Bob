@@ -1,0 +1,72 @@
+// Keep Bob light (1.5.2): the "Free memory when Bob is idle" switch and the memory label at the top of the chat.
+// On (default): nothing stays on the graphics card while Bob is quiet; typing loads his small brain again.
+// Off: the small brain stays loaded. Big brains load for their job and go right after, either way.
+// Same setting as Advanced, Engines & speed, "Free memory after Bob has been quiet for" (Never = off).
+const $ = (id) => document.getElementById(id);
+
+export function createBrainBar({ post, note }) {
+  const pill = $('brainPill'), pillText = $('brainPillText'), pop = $('brainPop'), sw = $('brainFree'), swSt = $('brainFreeSt');
+  const swLabel = sw;
+  let st = null, timer = null, lastWake = 0;
+
+  const secs = (n) => (n ? `about ${n} seconds` : 'a few seconds');
+  const list = () => st.models.map((m) => `${m.name} ${m.gb} GB${m.onCard ? '' : ' (in system memory)'}`).join(', ');
+
+  function draw() {
+    if (!st) return;
+    const on = st.mode !== 'always';
+    sw.setAttribute('aria-checked', String(on));
+    swSt.textContent = on ? 'On' : 'Off';
+    swLabel.title = on
+      ? `On: gives the graphics memory back after Bob has been quiet for ${st.sleepAfter || '5 minutes'}. Typing loads it again (${secs(st.wakeSeconds)}). Change the time in Settings, Advanced, Engines & speed.`
+      : st.bigSession
+        ? `Off: in the ${st.session} session Bob's brain is a big one, so it's still freed about 2 minutes after each job.`
+        : 'Off: Bob\'s small brain stays loaded so he answers straight away. Big brains (coding, deep thought, pictures, video) are still freed right after their job.';
+    const chat = st.models.find((m) => m.chat);
+    const where = chat && !chat.onCard ? 'in system memory' : 'on the graphics card';
+    let text, title;
+    if (!st.engineOk) { text = 'Brain: engine not answering'; title = 'Bob can\'t reach his engine. Check it\'s running (Settings, Advanced, Engines & speed).'; }
+    else if (st.state === 'waking') { text = 'Brain: loading...'; title = `Loading the small brain (${secs(st.wakeSeconds)}).`; }
+    else if (st.state === 'working') { text = `Brain: working · ${st.gb} GB ${where}`; title = `In memory now: ${list() || 'loading'}. Big brains are freed when the job is done.`; }
+    else if (st.state === 'awake') {
+      text = `Brain: loaded · ${st.gb} GB ${where}`;
+      title = `In memory: ${list()}. ` + (!on && !st.bigSession ? 'Stays loaded (Free memory when Bob is idle is off).' : st.bigSession ? 'Freed about 2 minutes after the job.' : `Freed after ${st.sleepAfter || '5 minutes'} quiet.`);
+    } else { text = 'Brain: memory freed'; title = on || st.bigSession ? `Nothing on the graphics card. Typing loads the small brain (${secs(st.wakeSeconds)}).` : 'Loading the small brain shortly.'; }
+    pillText.textContent = text;
+    pill.title = title;
+    pop.textContent = title;
+    pill.className = `brain-pill ${st.engineOk ? st.state : 'off'}`;
+  }
+
+  async function refresh() {
+    clearTimeout(timer);
+    try { st = await (await fetch('/api/brain')).json(); draw(); } catch {}
+    timer = setTimeout(refresh, document.hidden ? 30000 : (st?.state === 'waking' || st?.state === 'working') ? 2000 : 8000);
+  }
+
+  // Tooltips need a mouse to hover (awkward over Parsec), so a click on the label shows the same words.
+  pill.onclick = () => { const open = pop.hidden; pop.hidden = !open; pill.setAttribute('aria-expanded', String(open)); };
+  document.addEventListener('click', (e) => { if (!pop.hidden && !e.target.closest('#brainPill, #brainPop')) { pop.hidden = true; pill.setAttribute('aria-expanded', 'false'); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pop.hidden) { pop.hidden = true; pill.setAttribute('aria-expanded', 'false'); } });
+
+  sw.onclick = async () => {
+    const mode = sw.getAttribute('aria-checked') === 'true' ? 'always' : 'wake';
+    const r = await post('/api/settings', { brainMode: mode });
+    if (!r.ok) { note(r.data.error || 'Couldn\'t change "Free memory when Bob is idle". It can only be changed on the PC itself.', 'error'); return; }
+    if (st) { st.mode = r.data.brainMode; draw(); }
+    setTimeout(refresh, 400);
+  };
+
+  // Someone is typing: load the small brain now, so it's ready by the time they press Send.
+  function typing() {
+    if (Date.now() - lastWake < 10000) return;
+    if (st && st.state !== 'asleep') return;
+    lastWake = Date.now();
+    post('/api/wake', {}).then(() => setTimeout(refresh, 300)).catch(() => {});
+  }
+
+  window.addEventListener('bob-brain-mode', refresh);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  refresh();
+  return { refresh, typing };
+}

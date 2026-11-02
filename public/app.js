@@ -13,6 +13,7 @@ import { esc, render, renderRich, fileCard } from './rich.js';
 import { createTopics } from './topics.js';
 import { createTidy } from './tidy.js';
 import { handsApproval, onHandsEvent, setupStopAll } from './hands.js';
+import { createBrainBar } from './brain-bar.js';
 
 const cellar = createCellar();
 const api = async (url, data) => {
@@ -27,6 +28,7 @@ const layout = createLayout({ post: (u, d) => post(u, d), openTasks: () => tasks
 
 const $ = (id) => document.getElementById(id);
 const log = $('log'), input = $('input'), sendBtn = $('send'), stopBtn = $('stop'), statusEl = $('status');
+const brainBar = createBrainBar({ post: (u, d) => post(u, d), note: (t, k) => note(t, k) });
 const bobCanvas = $('bob'), bobCtx = bobCanvas.getContext('2d');
 bobCtx.imageSmoothingEnabled = false;
 
@@ -300,7 +302,10 @@ dlbar.title = 'Open Downloads: pause, resume, reorder';
 function drawDownloadsBadge(items) { countBadge($('dlBtn'), items.filter((d) => ['queued', 'downloading'].includes(d.state)).length); }
 
 // ---------- Events from the brain ----------
+let brainSoon = null;
 function onEvent(ev) {
+  if (ev.type === 'brain' || ev.type === 'status') { clearTimeout(brainSoon); brainSoon = setTimeout(() => brainBar.refresh(), 250); }
+  if (ev.type === 'brain') return;
   if (ev.type === 'status') return setStatus(ev);
   if (ev.sessionId && ev.sessionId !== sessionId && ev.type !== 'reminder') return;
   if (onHandsEvent(ev, { add, scrollDown, note })) return;
@@ -643,6 +648,8 @@ $('composer').onsubmit = async (e) => {
   tag.textContent = r.data.ahead ? `queued, ${r.data.ahead} ahead` : 'queued';
   if (lastJobs.some((j) => j.id === r.data.jobId && j.state !== 'waiting')) drawQueue(lastJobs); // it may already have run
 };
+// Keep Bob light: typing wakes the small brain (Wake when I type), so it's ready by the time you press Send.
+input.addEventListener('input', () => { if (input.value.trim()) brainBar.typing(); });
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('composer').requestSubmit(); }
 });
@@ -658,6 +665,7 @@ for (const b of document.querySelectorAll('#chips button')) {
 
 // ---------- Voice ----------
 const micBtn = $('mic'), earBtn = $('ear');
+micBtn.addEventListener('click', () => brainBar.typing());
 let wakeOn = store.get('bob-wake', '0') === '1';
 const voice = createVoice({
   transcribe: async (wav) => {

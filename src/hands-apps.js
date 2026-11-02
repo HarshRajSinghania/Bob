@@ -203,7 +203,7 @@ export function appsTools(brain, { driver = null, track = () => () => {} } = {})
     const list = await windows();
     const s = String(want || '').trim().toLowerCase();
     if (!s) throw new Error('Say which window.');
-    const hits = list.filter((w) => String(w.hwnd) === s) || [];
+    const hits = list.filter((w) => String(w.hwnd) === s);
     const byTitle = hits.length ? hits : list.filter((w) => w.title.toLowerCase() === s || w.title.toLowerCase().includes(s) || String(w.process).toLowerCase() === s.replace(/\.exe$/, ''));
     if (!byTitle.length) throw new Error(`No open window matches "${want}". Open ones: ${list.filter((w) => !blockedWindow(w, { ownPids })).slice(0, 15).map((w) => `${w.title} (${w.process})`).join('; ') || 'none'}.`);
     const ok = byTitle.filter((w) => !blockedWindow(w, { ownPids }));
@@ -301,9 +301,9 @@ export function appsTools(brain, { driver = null, track = () => () => {} } = {})
       if (args.action === 'click') { if (!target.name && !target.id) throw new Error('Say what to click (its name or id from app_look).'); what = `Click ${targetText(target)}`; }
       else if (args.action === 'type') {
         if (args.text == null || String(args.text).length > 4000) throw new Error('Say the text to type (at most 4000 characters).');
-        if (/password|passwd|pwd|pin\b/i.test(`${target.name} ${target.id}`)) throw new Error('Bob never types into password fields.');
+        if (/password|passwd|pwd|\bpin\b/i.test(`${target.name} ${target.id}`)) throw new Error('Bob never types into password fields.');
         what = `Type into ${targetText(target)}: "${String(args.text).slice(0, 300)}${String(args.text).length > 300 ? '...' : ''}"`;
-      } else if (args.action === 'keys') { const k = keysFor(args.keys); if (ctx) ctx.appsKeys = k; what = `Press ${String(args.keys)}${target.name || target.id ? ` in ${targetText(target)}` : ''}`; }
+      } else if (args.action === 'keys') { const k = keysFor(args.keys); if (ctx) ctx.appsKeys = k; what = `Press ${String(args.keys)}${target.name || target.id ? ` in ${targetText(target)}` : ''}${/%\{F4\}$/.test(k) ? ' (this closes the window)' : ''}`; }
       else if (args.action === 'focus') what = `Put the cursor in ${targetText(target)}`;
       else throw new Error('The action should be click, type, keys or focus.');
       if (ctx) { ctx.appsWindow = w; ctx.appsTarget = target; }

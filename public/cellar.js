@@ -178,7 +178,7 @@ export function createCellar() {
         const list = roles.options.llm || [];
         return `<tr><th scope="row">${esc(label)}<span class="muted">${esc(what)}</span></th><td><select data-sbrain="${k}" aria-label="${esc(label)}">${list.some((o) => o.value === cur) || !cur ? '' : `<option value="${esc(cur)}" selected>${esc(cur)} (not found)</option>`}${list.map((o) => `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select></td></tr>`;
       }).join('')}</table>
-      <h3>How much each session keeps in mind</h3><p class="muted">Context size: more lets Bob read longer files and chats, but uses more graphics memory and loads slower. Default uses the engine's own setting.</p>
+      <h3>How much each session keeps in mind</h3><p class="muted">Context (how much he keeps in mind): more lets Bob read longer files and chats, but uses more graphics memory and loads slower. Default uses the engine's own setting.</p>
       <table class="roles">${(settings.sessions || []).map((x) => `<tr><th scope="row">${x.icon} ${esc(x.label)}</th><td><select data-sctx="${esc(x.id)}" aria-label="${esc(x.label)} context"><option value="">Default${({ normal: ' (32K)', light: ' (32K)', art: ' (32K)', office: ' (64K)' })[x.id] || ' (engine\'s own)'}</option>${[8192, 16384, 32768, 65536, 131072, 262144].map((v) => `<option value="${v}" ${settings.sessionCtx?.[x.id] === v ? 'selected' : ''}>${v / 1024}K${v === 262144 ? ' (slow: one-off whole-project reads)' : ''}</option>`).join('')}</select></td></tr>`).join('')}</table>
       <p class="muted">Missing something? Get it from its category tab first.</p>`;
   }
@@ -214,11 +214,13 @@ export function createCellar() {
     return `<div><strong>Speed (Bob's own engine)</strong>${settings.engine === 'llamacpp' ? '' : ' <span class="tag">only used with Bob\'s own engine</span>'}
       <p class="muted">Changes apply the next time a brain loads. Leave a box empty for llama.cpp's default.</p>
       <div class="row">${n('threads', 'Threads', 'auto')}${n('batch', 'Batch', '2048')}${n('ubatch', 'Micro-batch', '512')}</div>
-      <label class="switch"><input type="checkbox" data-fit ${sp.fit !== false ? 'checked' : ''}><span><strong>Fit to free graphics memory</strong> <span class="tag good">recommended</span><br><span class="muted">llama.cpp works out how much of each brain fits next to whatever else is using the card right now. Faster and steadier than a fixed split. Needs llama.cpp b12000 or newer.</span></span></label>
-      <label class="switch"><input type="checkbox" data-draft="enabled" ${d.enabled && d.model ? 'checked' : ''}><span><strong>Speculative decoding</strong> <span class="tag warn">experimental</span><br><span class="muted">A small "draft" brain guesses a few words ahead and the big one checks them: often 1.5 to 2 times faster, same answers. The draft must be from the same family (for example a small Qwen for a big Qwen). Not every pair works: check that Bob got faster. The exact command is in inn\\bob\\llama-server-args.txt.</span></span></label>
+      <label class="switch"><input type="checkbox" data-fit ${sp.fit !== false ? 'checked' : ''}><span><strong>Fit to free graphics memory</strong> <span class="tag good">recommended</span><br><span class="muted">Fits each brain around whatever else is using the graphics card right now.</span></span></label>
+      ${more('Faster and steadier than a fixed split. Needs llama.cpp b12000 or newer.')}
+      <label class="switch"><input type="checkbox" data-draft="enabled" ${d.enabled && d.model ? 'checked' : ''}><span><strong>Speculative decoding</strong> <span class="tag warn">experimental</span><br><span class="muted">A small "draft" brain guesses ahead and the big one checks: often 1.5 to 2 times faster, same answers.</span></span></label>
+      ${more('The draft must be from the same family (for example a small Qwen for a big Qwen). Not every pair works: check that Bob got faster. The exact command is in inn\\bob\\llama-server-args.txt.')}
       <div class="row"><label class="pick"><span>Draft brain</span><select data-draft="model"><option value="">Pick one</option>${llms.map((o) => `<option value="${esc(o.value)}" ${o.value === d.model ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}${d.model && !llms.some((o) => o.value === d.model) ? `<option selected value="${esc(d.model)}">${esc(d.model)}</option>` : ''}</select></label>
-        <label class="pick"><span>Guess up to</span><input type="text" inputmode="numeric" data-draft="max" value="${esc(d.max ?? 16)}" style="width:5em"></label>
-        <label class="pick"><span>At least</span><input type="text" inputmode="numeric" data-draft="min" value="${esc(d.min ?? 1)}" style="width:5em"></label></div>
+        <label class="pick"><span>Guess up to (words ahead)</span><input type="text" inputmode="numeric" data-draft="max" value="${esc(d.max ?? 16)}" style="width:5em" aria-label="Guess up to this many words ahead"></label>
+        <label class="pick"><span>At least (words ahead)</span><input type="text" inputmode="numeric" data-draft="min" value="${esc(d.min ?? 1)}" style="width:5em" aria-label="Guess at least this many words ahead"></label></div>
       <div class="row"><label class="pick"><span>Extra settings for one brain</span><select data-margsmodel>${models.map((m) => `<option ${m === speedModel ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
         <label class="pick" style="flex:1"><span>llama.cpp flags (for example <code>--n-cpu-moe 8</code>)</span><input type="text" data-margs value="${esc((sp.modelArgs?.[speedModel || models[0]] || []).join(' '))}" placeholder="none"></label></div>
     </div>`;
@@ -231,8 +233,8 @@ export function createCellar() {
     const units = ['minutes', 'hours', 'days', 'weeks', 'months'];
     return `<div class="housekeeping"><strong>Housekeeping</strong> <span class="tag">off unless you turn it on</span>
       ${more('Bob tidies up after himself while he\'s idle: he sums up the older part of long chats, files what you talked about under Topics, moves lasting facts to his memory file, and offers to clear away things that haven\'t come up for a while. Removed things go to the Recycle Bin. Pinned chats, pictures and topics are never touched, and everything he does goes in the logbook.')}
-      <label class="switch"><input type="checkbox" data-hk="enabled" ${hk.enabled ? 'checked' : ''}><span><strong>Let Bob keep house</strong><br><span class="muted">Only while he's idle (10 minutes quiet, nothing running). He mentions old things at most once a day.</span></span></label>
-      <label class="switch"><input type="checkbox" data-hk="wakeBrain" ${hk.wakeBrain ? 'checked' : ''} ${hk.enabled ? '' : 'disabled'}><span><strong>Load a brain for it if none is loaded</strong><br><span class="muted">Off: he sums up and sorts topics only when his brain is already in memory, so a game keeps the graphics card.</span></span></label>
+      <label class="switch"><input type="checkbox" data-hk="enabled" ${hk.enabled ? 'checked' : ''}><span><strong>Tidy up old things by himself</strong><br><span class="muted">Only while he's idle (10 minutes quiet, nothing running). He mentions old things at most once a day.</span></span></label>
+      <label class="switch"><input type="checkbox" data-hk="wakeBrain" ${hk.wakeBrain ? 'checked' : ''} ${hk.enabled ? '' : 'disabled'}><span><strong>Load a brain for it if none is loaded</strong><br><span class="muted">Loads a brain just for tidying. Leave off while gaming.</span></span></label>
       <table class="hk-table"><thead><tr><th>What</th><th>When it hasn't come up for</th><th>Then</th></tr></thead><tbody>
       ${KINDS.map(([k, label, note]) => { const c = hk[k] || {}; return `<tr><td>${esc(label)}${note ? `<br><span class="muted">${esc(note)}</span>` : ''}</td>
         <td><input type="number" min="1" max="999" data-hkkind="${k}" data-hkfield="n" value="${esc(c.n || '')}" aria-label="${esc(label)}: how many" style="width:5em"> <select data-hkkind="${k}" data-hkfield="unit" aria-label="${esc(label)}: unit">${units.map((u) => `<option ${u === c.unit ? 'selected' : ''}>${u}</option>`).join('')}</select></td>
@@ -266,10 +268,10 @@ export function createCellar() {
     return `<div class="everyday">
       ${srow('Bob\'s voice', esc(v.name), `${v.play} <button type="button" class="mini" data-tab="speech">Change</button>`)}
       ${srow('Bob\'s look', esc(lookName), '<button type="button" class="mini" data-tab="style">Change</button>')}
-      ${srow('Colours', esc(theme?.name || 'Bob\'s Inn'), '<button type="button" class="mini" data-tab="style">Change</button>')}
+      ${srow('Theme', esc(theme?.name || 'Bob\'s Inn'), '<button type="button" class="mini" data-tab="style">Change</button>')}
       ${srow('Animations', `<span class="ttabs" role="radiogroup" aria-label="Animations">${mopt('on', 'On')}${mopt('system', 'Follow Windows')}${mopt('off', 'Off')}</span>`)}
-      ${srow('Bob\'s cat', `<input data-set="catName" maxlength="24" value="${esc(settings.catName || 'Patches')}" aria-label="Cat's name" style="width:12em">`)}
-      ${sswitch('oneBrain', settings.oneBrain, 'One brain (snappier)', 'Every copy of Bob uses the main brain, so there\'s no brain swap.')}
+      ${srow('Bob\'s cat', `<input data-set="catName" maxlength="24" value="${esc(settings.catName || 'Patches')}" aria-label="Cat's name" style="width:12em"> <span class="muted">The cat in Bob's stories.</span>`)}
+      ${sswitch('oneBrain', settings.oneBrain, 'One brain (snappier)', 'Every copy of Bob uses the main brain, so he never stops to swap brains (about 20 seconds).')}
       ${sswitch('autostart', settings.autostart, 'Launch Bob on start-up', 'Off unless you turn it on.', settings.platform !== 'win32' ? 'disabled' : '')}
       ${sswitch('autoCheck', settings.updates?.autoCheck, 'Check for updates when Bob starts', 'Off unless you turn it on. Bob only tells you; updating always takes your click.')}
       <div class="updates srow-foot"><span class="muted">Bob ${esc(settings.version?.label || '')} · Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'} · Free disk: ${hw?.freeGB ?? '?'} GB</span>
@@ -279,7 +281,12 @@ export function createCellar() {
   }
 
   function enginesHtml() {
-    return `<label class="pick"><strong>Bob's engine</strong>
+    const ka = settings.ollamaKeepAlive || '5m';
+    const kaOpts = [['5m', '5 minutes'], ['10m', '10 minutes'], ['30m', '30 minutes'], ['1h', '1 hour'], ['-1', 'Never (keep it loaded)']];
+    return `<label class="pick"><strong>Free memory after Bob has been quiet for</strong>
+        <select data-set="keepAlive" aria-label="Free memory after Bob has been quiet for">${kaOpts.some(([v]) => v === ka) ? '' : `<option value="${esc(ka)}" selected>${esc(ka)}</option>`}${kaOpts.map(([v, label]) => `<option value="${v}" ${v === ka ? 'selected' : ''}>${label}</option>`).join('')}</select>
+        <span class="muted">Same setting as "Free memory when Bob is idle" on the chat page. Never turns that switch off.</span></label>
+      <label class="pick"><strong>Bob's engine</strong>
         <select data-set="engine"><option value="ollama" ${settings.engine === 'ollama' ? 'selected' : ''}>Ollama (if you already have it)</option><option value="llamacpp" ${settings.engine === 'llamacpp' ? 'selected' : ''}>Bob's own (llama.cpp, nothing else needed)</option></select>
         <span class="muted">Takes effect next time Bob starts.</span></label>
       <div><strong>Engine downloads</strong>${more('The programs that run the models, from their official GitHub pages, matched to your graphics card.')}
@@ -320,8 +327,8 @@ export function createCellar() {
   const ADV = [
     ['brains', '🧠 Brains', 'model roles session brains context thinking making', () => rolesHtml()],
     ['voice', '🔊 Voice details', 'kokoro chatterbox speed hey bob read aloud listen', () => voiceDetailsHtml()],
-    ['look', '🎨 Look & feel extras', 'theme editor now running layout', () => lookExtrasHtml()],
-    ['engines', '⚙ Engines & speed', 'engine ollama llama.cpp downloads fit memory speculative decoding draft flags threads batch', () => enginesHtml()],
+    ['look', '🎨 Look & feel', 'theme editor now running layout', () => lookExtrasHtml()],
+    ['engines', '⚙ Engines & speed', 'unload idle keep alive graphics memory vram engine ollama llama.cpp downloads fit memory speculative decoding draft flags threads batch', () => enginesHtml()],
     ['connections', '🔌 Connections', 'comfyui workflows port cloud helpers api', () => connectionsHtml()],
     ['hands', '✋ Hands', 'files run commands schedules apps permission', () => handsSettingsHtml()],
     ['housekeeping', '🧹 Housekeeping', 'tidy old chats pictures logs', () => housekeepingHtml()],
@@ -679,6 +686,7 @@ export function createCellar() {
       if (el.dataset.set === 'oneBrain') { const r = await api('/api/settings', { oneBrain: el.checked }); settings.oneBrain = r.oneBrain; el.checked = r.oneBrain; return; }
       if (el.dataset.set === 'catName') { const r = await api('/api/settings', { catName: el.value }); settings.catName = r.catName; el.value = r.catName; return; }
       if (el.dataset.set === 'workshop') { const r = await api('/api/settings', { workshop: { enabled: el.checked } }); settings.workshop = r.workshop; draw(); return; }
+      if (el.dataset.set === 'keepAlive') { const r = await api('/api/settings', { ollamaKeepAlive: el.value }); settings.ollamaKeepAlive = r.ollamaKeepAlive; settings.brainMode = r.brainMode; flash(el, 'Saved.'); window.dispatchEvent(new CustomEvent('bob-brain-mode')); return; }
       if (el.dataset.set === 'workshopPort') { const r = await api('/api/settings', { workshop: { port: Number(el.value) } }); settings.workshop = r.workshop; return; }
       if (el.dataset.hk) { const r = await api('/api/settings', { housekeeping: { [el.dataset.hk]: el.checked } }); settings.housekeeping = r.housekeeping; draw(); return; }
       if (el.dataset.hkkind) { const v = el.dataset.hkfield === 'n' ? Number(el.value) : el.value; const r = await api('/api/settings', { housekeeping: { [el.dataset.hkkind]: { [el.dataset.hkfield]: v } } }); settings.housekeeping = r.housekeeping; if (el.dataset.hkfield === 'n') el.value = r.housekeeping[el.dataset.hkkind].n; flash(el, el.dataset.hkfield === 'mode' && v === 'auto' ? 'Saved. Bob tidies these without asking (to the Recycle Bin).' : 'Saved.'); return; }

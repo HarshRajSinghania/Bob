@@ -97,7 +97,7 @@ export const VERSION = (() => {
   } catch { return { release: '0.9', branch: '', build: 0, label: '0.9.0' }; }
 })();
 
-export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask'];
+export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask', 'brainMode'];
 const LOCKED_LLAMACPP = ['exe', 'preArgs'];
 
 function deepMerge(into, from) {
@@ -118,6 +118,7 @@ function clean(patch) {
     for (const k of ['normal', 'art', 'coding', 'office', 'deep', 'light']) if (k in sc) out.sessionCtx[k] = [8192, 16384, 32768, 65536, 131072, 262144].includes(sc[k]) ? sc[k] : null;
   }
   if (out.painter?.sdcpp) { out.painter = { ...out.painter, sdcpp: { ...out.painter.sdcpp } }; delete out.painter.sdcpp.exe; delete out.painter.sdcpp.preArgs; }
+  if ('brainMode' in out) out.brainMode = out.brainMode === 'always' ? 'always' : 'wake';
   if ('ollamaKeepAlive' in out) out.ollamaKeepAlive = /^\d+[smh]$|^-1$/.test(String(out.ollamaKeepAlive)) ? String(out.ollamaKeepAlive) : undefined;
   if ('oneBrain' in out) out.oneBrain = out.oneBrain === true;
   if ('updates' in out) out.updates = { autoCheck: out.updates?.autoCheck === true };

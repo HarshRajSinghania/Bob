@@ -165,6 +165,12 @@ const ui = fs.readFileSync(path.join(here, '..', 'public', 'hands.js'), 'utf8');
 check('the card uses the button text the Hand asks for', /esc\(ev\.button \|\| 'Run it'\)/.test(ui));
 check('the chat says when Bob stopped because you took over', /apps-stopped/.test(ui));
 
+// PC review (1.5.2): Alt+F4 says it closes the window; "spin" isn't taken for a PIN field.
+{
+  const src = fs.readFileSync(new URL('../src/hands-apps.js', import.meta.url), 'utf8');
+  check('an Alt+F4 card says it closes the window', keysFor('Alt+F4') === '%{F4}' && /this closes the window/.test(src));
+  check('the PIN guard matches the word "pin", not "spin"', /\\bpin\\b/.test(src) && /\bpin\b/i.test('PIN code') && !/\bpin\b/i.test('spin button'));
+}
 driver.stop();
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);

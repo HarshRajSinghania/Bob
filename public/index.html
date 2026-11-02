@@ -38,6 +38,11 @@
   <div class="mid">
     <div class="ctx">
       <strong class="ctx-title">Chat</strong>
+      <div id="brainBar" class="brainbar">
+        <button id="brainPill" type="button" class="brain-pill asleep" aria-expanded="false" aria-controls="brainPop"><span id="brainPillText" role="status" aria-live="polite">Checking...</span></button>
+        <div id="brainPop" class="brain-pop" hidden></div>
+        <button id="brainFree" type="button" class="brain-switch" role="switch" aria-checked="true"><span class="lbl">Free memory when Bob is idle</span><span class="st" id="brainFreeSt">On</span></button>
+      </div>
       <button id="dlbar" class="dlbar" type="button" hidden title="Open Downloads"><span class="meter moving"><i></i></span><span class="dlbar-text"></span></button>
       <span class="ctx-fill"></span>
       <button id="foldRight" type="button" class="nav-item now-toggle" title="Show or hide Now running (Ctrl+J)" aria-label="Now running" aria-expanded="true" aria-controls="now"><span class="lbl">Now running</span><span class="badge" hidden></span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></button>

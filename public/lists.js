@@ -175,7 +175,8 @@ export function createDownloads({ api, post }) {
       <div class="dl-settings">
         <strong>Settings</strong>
         <label>At once: <select data-set="concurrent"><option value="1" ${settings.concurrent !== 2 ? 'selected' : ''}>1 download</option><option value="2" ${settings.concurrent === 2 ? 'selected' : ''}>2 downloads</option></select></label>
-        <label><input type="checkbox" data-set="resumeOnStart" ${settings.resumeOnStart ? 'checked' : ''}> Carry on unfinished downloads when Bob starts (off: they wait, paused, until you press Resume)</label>
+        <label><input type="checkbox" data-set="resumeOnStart" ${settings.resumeOnStart ? 'checked' : ''}> Carry on unfinished downloads when Bob starts</label>
+        <p class="muted">Left off, they wait, paused, until you press Resume.</p>
       </div>`;
   }
   body.addEventListener('click', async (e) => {

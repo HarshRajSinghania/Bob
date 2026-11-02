@@ -24,6 +24,7 @@ import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
 import { scheduleTools } from './hands-schedules.js';
 import { toolsOff } from './hands-settings.js';
+import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, BIG_GRACE_MS } from './brain-mode.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -38,6 +39,13 @@ export class Brain {
     this.cfg = cfg;
     this.broadcast = broadcast;
     this.engine = cfg.engine === 'llamacpp' ? new LlamaCpp(cfg) : new Ollama(cfg);
+    // Bob's own engine unloads its brain when idle; it asks here first so it never does that mid-job.
+    if (this.engine instanceof LlamaCpp) this.engine.isBusy = () => this.turns.size > 0 || this.queue.some((j) => j.state === 'working');
+    // The Brain toggle (1.5.2): "Always on" keeps the chat brain loaded; otherwise both engines let it go when idle.
+    this.engine.holdModel = () => (holdsChatBrain(this.cfg) ? chatBrain(this.cfg).model : null);
+    this.engine.keepFor = (model) => (holdsChatBrain(this.cfg) && sameModel(model, chatBrain(this.cfg).model) ? -1 : undefined);
+    this.waking = null;
+    this.graceTimer = null;
     this.engineName = cfg.engine === 'llamacpp' ? 'llama.cpp' : 'Ollama';
     this.tools = buildTools(cfg);
     this.refs = new RefShelf(cfg);
@@ -57,6 +65,94 @@ export class Brain {
     this.tools.forget_topic = forgetTopicTool(this);
     Object.assign(this.tools, handsTools(this), scheduleTools(this)); // Hands: off until the user turns them on (see hands-settings.js)
     this.handApprovals = new Set(); // approvals waiting that came from a Hand, so Stop everything can deny them
+    // Always on: load the small brain shortly after start-up. Wake when I type (the default) loads nothing.
+    if (holdsChatBrain(cfg)) { const t = setTimeout(() => this.wake('always on').catch(() => {}), 4000); t.unref?.(); }
+  }
+
+  // ---------- Keep Bob light (1.5.2) ----------
+  // Loads the chat brain ahead of a message: someone started typing, or "Always on" wants it back after a job.
+  // Never during a job. Returns true when it loaded something.
+  async wake(reason = 'typing') {
+    if (this.waking) return this.waking;
+    if (this.turns.size) return false;
+    const { model, cpu, ctx: want } = chatBrain(this.cfg);
+    if (!model) return false;
+    clearTimeout(this.graceTimer);
+    this.waking = (async () => {
+      const ctx = await this.fitCtx(model, want);
+      let loaded = false;
+      try { loaded = await this.engine.isLoaded(model, { cpu, ctx }); } catch { return false; }
+      if (loaded) { this.engine.touch?.(model, { cpu, ctx })?.catch?.(() => {}); return false; }
+      this.setState('waking', 'Waking up...', model);
+      this.broadcast({ type: 'brain' });
+      const took = await this.engine.preload(model, undefined, { cpu, ctx });
+      this.log('model', `woke ${model} in ${took.toFixed(1)} s (${reason})`);
+      return true;
+    })();
+    try { return await this.waking; }
+    catch (e) { this.log('model', `couldn't wake ${model}: ${e.message}`); return false; }
+    finally {
+      this.waking = null;
+      if (!this.turns.size) this.setState('idle', '', this.state.model);
+      this.broadcast({ type: 'brain' });
+    }
+  }
+
+  // After a job: big brains go right away; the chat brain stays only if "Always on" holds it (and comes back
+  // if a big brain pushed it out). Only Bob's own brains are touched, never another app's.
+  async settle() {
+    if (this.turns.size || this.waking || this.queue.some((j) => j.state === 'waiting')) return [];
+    const chat = chatBrain(this.cfg).model;
+    let loaded = [];
+    try { loaded = await this.engine.loaded(); } catch { return []; }
+    const gone = [];
+    for (const m of loaded) {
+      if (this.turns.size) break; // a new job started: leave the rest to it
+      if (!isBobs(this.cfg, m.name) && !sameModel(m.name, chat)) continue;
+      if (sameModel(m.name, chat)) continue; // the chat brain: held, or let go by the idle timer / grace below
+      gone.push(...(await (this.engine.unload ? this.engine.unload(m.name) : this.engine.unloadAll()).catch(() => [])));
+    }
+    if (gone.length) this.log('model', `let go of ${gone.join(', ')} after the job`);
+    clearTimeout(this.graceTimer);
+    // Coding and Deep thought: the chat brain is a big one. A short grace for a follow-up question, then it goes.
+    if (bigSession(this.cfg) && loaded.some((m) => sameModel(m.name, chat))) {
+      this.graceTimer = setTimeout(async () => {
+        if (this.turns.size || this.waking) return;
+        const g = await (this.engine.unload ? this.engine.unload(chat) : this.engine.unloadAll()).catch(() => []);
+        if (g.length) { this.log('model', `let go of ${g.join(', ')} (big brain, idle)`); this.broadcast({ type: 'brain' }); }
+      }, BIG_GRACE_MS);
+      this.graceTimer.unref?.();
+    }
+    if (holdsChatBrain(this.cfg) && !this.turns.size) await this.wake('always on');
+    this.broadcast({ type: 'brain' });
+    return gone;
+  }
+
+  // The toggle changed: Always on loads the chat brain now; Wake when I type starts the idle clock on it.
+  async applyBrainMode() {
+    if (holdsChatBrain(this.cfg)) return this.wake('always on');
+    const { model, cpu, ctx: want } = chatBrain(this.cfg);
+    if (model && !this.turns.size) { const ctx = await this.fitCtx(model, want); await this.engine.touch?.(model, { cpu, ctx })?.catch?.(() => {}); }
+    this.broadcast({ type: 'brain' });
+    return false;
+  }
+
+  // For the label on the chat page: asleep, waking, awake or working, and how much memory Bob's brains hold.
+  async brainStatus() {
+    let loaded = [], engineOk = true;
+    try { loaded = await Promise.race([this.engine.loaded(), new Promise((r) => setTimeout(() => r([]), 3000))]); } catch { engineOk = false; }
+    const chat = chatBrain(this.cfg);
+    const mine = loaded.filter((m) => isBobs(this.cfg, m.name) || sameModel(m.name, chat.model));
+    const gb = (b) => Math.round((b || 0) / 1e8) / 10;
+    const models = mine.map((m) => ({ name: m.name, gb: gb(m.vram || m.size), onCard: m.vram > 0 || (!m.vram && !chat.cpu), chat: sameModel(m.name, chat.model) }));
+    const state = this.waking ? 'waking' : this.turns.size ? 'working' : models.length ? 'awake' : 'asleep';
+    let wakeSeconds = null;
+    try { if (chat.model) wakeSeconds = await this.engine.estimateLoad(chat.model); } catch {}
+    return {
+      mode: brainMode(this.cfg), holds: holdsChatBrain(this.cfg), bigSession: bigSession(this.cfg), session: currentSession(this.cfg).label,
+      state, models, gb: Math.round(models.reduce((a, m) => a + m.gb, 0) * 10) / 10,
+      chatBrain: chat.model || null, sleepAfter: sleepAfterText(this.cfg), wakeSeconds, engineOk
+    };
   }
 
   checkReminders() {
@@ -128,6 +224,8 @@ export class Brain {
 
   // Makes sure a model is in memory, telling the user first if it means a wait.
   async ensureModel(model, emit, signal, who = 'bob', opts = {}) {
+    if (this.waking) await this.waking.catch(() => {}); // typing already started loading it: don't load twice
+    clearTimeout(this.graceTimer);
     let loaded = false;
     try { loaded = await this.engine.isLoaded(model, opts); } catch (e) { throw new Error(`I can't reach my engine, ${this.engineName} (${e.message}).`); }
     if (loaded) { this.state.model = model; return; }
@@ -219,6 +317,7 @@ export class Brain {
     this.lastActivity = Date.now(); // for /api/idle
     if (!this.turns.size) await this.engine.unloadAll().catch(() => {});
     this.log('session', `now ${id}`);
+    if (holdsChatBrain(this.cfg)) this.wake('always on').catch(() => {});
     this.broadcast({ type: 'session', session: currentSession(this.cfg) });
     return currentSession(this.cfg);
   }
@@ -441,6 +540,7 @@ export class Brain {
         if (!this.turns.size) this.setState('idle', '');
         if (job) { job.doneAt = Date.now(); for (const st of job.steps || []) if (st.state === 'in progress') st.state = job.state === 'done' ? 'completed' : job.state; this.saveQueue(); }
         setTimeout(() => this.pump(), 0);
+        setTimeout(() => this.settle().catch(() => {}), 0); // after pump, so a waiting job keeps its brain
       });
     return turnId;
   }

@@ -611,3 +611,21 @@ details.more > summary:hover { color: var(--accent); }
   .doll-mid { order: -1; padding-top: 0; position: static; }
   .srow { grid-template-columns: 1fr; } .srow .sact { justify-content: flex-start; }
 }
+
+/* Keep Bob light (1.5.2): the Free memory switch and the awake/asleep label in the chat's top bar */
+.brainbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; font-size: 12px; }
+.brain-pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; white-space: nowrap; }
+.brain-pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; border: 1px solid currentColor; background: transparent; }
+.brain-pill.awake::before, .brain-pill.working::before { background: currentColor; }
+.brain-pill.waking::before { background: currentColor; opacity: .5; }
+.brain-pill.off { border-style: dashed; }
+.brainbar { position: relative; }
+.brain-pill { font: inherit; font-size: 12px; color: inherit; background: none; cursor: pointer; min-height: 32px; }
+.brain-pop { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; max-width: 360px; padding: 8px 10px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); font-size: 12px; white-space: normal; }
+/* Same ON/OFF pill as Read aloud and Alerts; the whole button is the click target (32 px tall, easy over Parsec). */
+.brain-switch { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 10px; font: inherit; font-size: 12px; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: var(--r); cursor: pointer; white-space: nowrap; }
+.brain-switch .st { font-size: 10px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; padding: 1px 5px; border-radius: 999px; background: var(--line); color: var(--muted); }
+.brain-switch[aria-checked="true"] { color: var(--text); }
+.brain-switch[aria-checked="true"] .st { background: var(--accent); color: var(--on-accent); }
+@media (forced-colors: active) { .brain-switch .st { border: 1px solid CanvasText; } }
+@media (max-width: 700px) { .brain-pill { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; } }
