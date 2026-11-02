@@ -111,6 +111,20 @@ export function useToolsTool(brain) {
 }
 
 // The text that fills in use_tools's description and enum.
+// 1.5.26: an empty "enum" (for example the project list when there are no projects) makes llama.cpp's tool grammar
+// refuse the whole request ("enum must be a non-empty array"). Drop empty enums anywhere in a tool's schema;
+// the parameter stays, as a plain value.
+export function tidySchema(x) {
+  if (Array.isArray(x)) return x.map(tidySchema);
+  if (!x || typeof x !== 'object') return x;
+  const out = {};
+  for (const [k, v] of Object.entries(x)) {
+    if (k === 'enum' && Array.isArray(v) && !v.length) continue;
+    out[k] = tidySchema(v);
+  }
+  return out;
+}
+
 export function fillUseTools(schema, groups, loaded) {
   const open = Object.entries(groups).filter(([id]) => !loaded.has(id));
   if (!open.length) return null; // everything's already here; no need for the tool

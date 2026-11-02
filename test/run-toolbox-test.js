@@ -131,5 +131,20 @@ const size = (step) => JSON.stringify(step.tools).length;
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });
+
+// 1.5.26: llama.cpp's tool grammar rejects a whole request with an empty "enum" (the project list with no projects).
+{
+  const { tidySchema } = await import('../src/toolbox.js');
+  const t = tidySchema({ type: 'function', function: { name: 'x', parameters: { type: 'object', properties: { project: { type: 'string', enum: [] }, mode: { type: 'string', enum: ['a', 'b'] }, deep: { type: 'object', properties: { y: { enum: [] } } } } } } });
+  const p = t.function.parameters.properties;
+  check('empty enums are dropped, the parameter stays', !('enum' in p.project) && p.project.type === 'string' && !('enum' in p.deep.properties.y));
+  check('a real enum is kept', JSON.stringify(p.mode.enum) === '["a","b"]');
+  const { Brain } = await import('../src/brain.js');
+  const b = Object.create(Brain.prototype);
+  b.cfg = { projects: {} }; b.offTools = () => new Set(); b.usable = () => true;
+  b.tools = { git_status: { schema: { type: 'function', function: { name: 'git_status', parameters: { type: 'object', properties: { project: { type: 'string', enum: [] } } } } } } };
+  const out = b.toolSchemas(['git_status']);
+  check('Bob\'s tool list never sends an empty enum', !JSON.stringify(out).includes('"enum":[]'));
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

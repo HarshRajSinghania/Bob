@@ -2,13 +2,27 @@
 
 Bob is a local AI who lives on your PC. Chat, plans and reminders, research, coding help, spreadsheets, pictures, video, music, sound effects and voice, all on your own hardware. He's a self-aware NPC innkeeper with a dry sense of humour and a cat named Patches.
 
-Nothing leaves your PC unless you switch on a cloud helper yourself, and nothing downloads until you click and confirm.
+Your chats stay on your PC. Bob may look things up on the web (DuckDuckGo) when a question needs it, and nothing downloads until you click and confirm.
+
+**[Install Bob (5 steps)](#install-bob-in-five-steps-windows-10-or-11)** · **[Privacy policy](PRIVACY.md)** · **[Download the latest release](https://github.com/MouseWurX/Bob/releases/latest)**
+
+> **Privacy, in short:** Bob has no accounts, no analytics and no telemetry. Your chats, notes and models stay on your PC. He goes online for downloads you confirm, cloud helpers you switch on with your own key, and web searches: when a question needs it, Bob may search DuckDuckGo and read pages, and only the search words and page address go to that site. Nothing else from your chats is sent. Read the full [privacy policy](PRIVACY.md).
 
 ![Bob's window the first time he opens: the menu on the left, the chat in the middle, Now running on the right, and Bob suggesting models for this PC](docs/screenshot.png)
 
 Windows 10 or 11, 64-bit. An NVIDIA graphics card helps a lot but isn't required: Bob suggests models that fit your PC.
 
 ## Getting Bob
+
+### Install Bob in five steps (Windows 10 or 11)
+
+1. **Download.** Open the [latest release](https://github.com/MouseWurX/Bob/releases/latest) and click `Bob-<version>-win-x64.zip` under **Assets**.
+2. **Unblock it.** In your Downloads folder, right-click the zip, choose **Properties**, tick **Unblock** at the bottom, then click **OK**. (No Unblock box? That's fine, skip this step.) If Windows later shows "Windows protected your PC", click **More info**, then **Run anyway**.
+3. **Unzip.** Right-click the zip, choose **Extract All...**, and pick a folder you'll keep, for example `Documents\Bob`. Don't run Bob from inside the zip.
+4. **Start Bob.** Open the `Bob` folder and double-click **Bob.exe**. Bob opens in his own window. To find him again, right-click Bob.exe and choose **Pin to Start**.
+5. **Pick his brains.** The first time, Bob suggests models for your graphics card. Click **Get models**, choose, and he downloads them with a progress bar. Nothing big downloads until you pick it.
+
+To update later: download the new zip from Releases, unblock it, and unzip it over your old `Bob` folder (or into a new folder; delete the old one afterwards). Your models, chats and settings are kept, because they live in `%LOCALAPPDATA%\Bob`, not in the Bob folder. ("Check for updates" in Settings is for copies built from source.)
 
 **Download:** get `Bob-<version>-win-x64.zip` from the Releases page, unzip it anywhere and run `Bob.exe`. `Bob-<version>-win-x64.zip.sha256` has the checksum.
 
@@ -107,7 +121,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 - Committers and reviewers: the members of this repository with write access.
 - Approvers: the project owner (MouseWurX). Every signing request for a release is approved by hand.
 
-**Privacy policy** ([PRIVACY.md](PRIVACY.md)): This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. In particular, Bob only reaches the internet when you click: model and engine downloads (from the address shown before you confirm), voice samples from a voice's publisher, web research you ask for, and cloud AI helpers you switch on with your own API key (each use asks first). Phone access over Tailscale is off unless you turn it on. Bob sends no telemetry.
+**Privacy policy** ([PRIVACY.md](PRIVACY.md)): This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. In particular, Bob reaches the internet for: model and engine downloads (from the address shown before you confirm), voice samples from a voice's publisher, web searches (Bob may search DuckDuckGo and read pages when a question needs it; only the search words and page address go to that site), and cloud AI helpers you switch on with your own API key (each use asks first). Phone access over Tailscale is off unless you turn it on. Bob sends no telemetry.
 
 ### Versions
 

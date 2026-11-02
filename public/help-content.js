@@ -79,7 +79,7 @@ export const HELP = [
 <li><strong>One brain (snappier)</strong> in Settings makes every copy of Bob use the main brain, so he never swaps.</li>
 <li><strong>Context</strong> (how much Bob keeps in mind): more lets him read longer files and chats, but uses more graphics memory and loads slower. Set it per session in Settings, Brains.</li>
 <li><strong>Tools only when needed:</strong> Bob starts each chat with a few everyday tools, and adds the picture, file and Hands ones when a message needs them. That leaves more room for your chat. To send them all every time, turn on <strong>Give Bob all his tools at once</strong> in Settings, Show advanced settings, Engines &amp; speed.</li>
-<li><strong>Now running, Memory</strong> shows how full the graphics card and RAM are, and which brain is loaded.</li></ul>
+<li><strong>Now running, Memory</strong> shows how full the graphics card and RAM are, counting every app and Windows itself, and under the meters how much of that is Bob's: his brain and, while it's loaded, his picture model. The <strong>Brain</strong> label at the top of the chat counts Bob's brain only, so it is the same number as that line and smaller than the graphics card meter.</li></ul>
 <p>Effort (above the chat box): Low answers from one quick brain on the graphics card (or on the processor, if you switch that on in Settings). Medium uses one big brain. High and Extreme add a second check by the Review brain, which is slower. It goes back to Low when Bob restarts.</p>` },
 
   { id: 'sessions', group: 'Using Bob', title: 'Sessions', words: 'session normal art coding office gaming games light graphics card free',

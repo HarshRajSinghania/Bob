@@ -11,14 +11,17 @@ export function createBrainBar({ post, note }) {
 
   const secs = (n) => (n ? `about ${n} seconds` : 'a few seconds');
   // "5.8 GB on the graphics card · 1.2 GB in RAM": RAM shows when part of a brain sits in system memory (1.5.3).
-  const where = (cardGB, ramGB, onCard) => {
-    if (ramGB == null) return `${cardGB} GB ${onCard ? 'on the graphics card' : 'in RAM'}`;
+  // about: Bob's own engine only knows the file size when Windows won't say how much graphics memory it holds.
+  const where = (cardGB, ramGB, onCard, about) => {
+    if (ramGB == null) return `${about ? 'about ' : ''}${cardGB} GB ${onCard ? 'on the graphics card' : 'in RAM'}`;
     const parts = [];
     if (cardGB > 0) parts.push(`${cardGB} GB on the graphics card`);
     if (ramGB > 0) parts.push(`${ramGB} GB in RAM`);
     return parts.join(' · ') || '0 GB';
   };
-  const list = () => st.models.map((m) => `${m.name} ${where(m.gb, m.ramGB, m.onCard)}`).join(', ');
+  const list = () => st.models.map((m) => `${m.label || m.name} ${where(m.gb, m.ramGB, m.onCard, m.estimate)}`).join(', ');
+  // 1.5.26: this label counts Bob's brain only. The Memory meter in Now running counts the whole graphics card.
+  const whole = ' This counts Bob\'s brain only. The Memory meter in Now running counts everything on the card: Windows, other apps and Bob\'s picture model.';
 
   function draw() {
     if (!st) return;
@@ -31,14 +34,14 @@ export function createBrainBar({ post, note }) {
         ? `Off: in the ${st.session} session Bob's brain is a big one, so it's still freed ${st.bigGrace || '2 minutes'} after each job.`
         : 'Off: Bob\'s small brain stays loaded so he answers straight away. Big brains (coding, deep thought, pictures, video) are still freed right after their job.';
     const chat = st.models.find((m) => m.chat);
-    const mem = where(st.gb, st.ramGB, !(chat && !chat.onCard));
+    const mem = where(st.gb, st.ramGB, !(chat && !chat.onCard), st.models.some((m) => m.estimate));
     let text, title;
     if (!st.engineOk) { text = 'Brain: engine not answering'; title = 'Bob can\'t reach his engine. Check it\'s running (Settings, Advanced, Engines & speed).'; }
     else if (st.state === 'waking') { text = 'Brain: loading...'; title = `Loading the small brain (${secs(st.wakeSeconds)}).`; }
-    else if (st.state === 'working') { text = `Brain: working · ${mem}`; title = `In memory now: ${list() || 'loading'}. Big brains are freed when the job is done.`; }
+    else if (st.state === 'working') { text = `Brain: working · ${mem}`; title = `In memory now: ${list() || 'loading'}. Big brains are freed when the job is done.${whole}`; }
     else if (st.state === 'awake') {
       text = `Brain: loaded · ${mem}`;
-      title = `In memory: ${list()}. ` + (!on && !st.bigSession ? 'Stays loaded (Free memory when Bob is idle is off).' : st.bigSession ? `Freed ${st.bigGrace || '2 minutes'} after the job.` : `Freed after ${st.sleepAfter || '5 minutes'} quiet.`);
+      title = `In memory: ${list()}. ` + (!on && !st.bigSession ? 'Stays loaded (Free memory when Bob is idle is off).' : st.bigSession ? `Freed ${st.bigGrace || '2 minutes'} after the job.` : `Freed after ${st.sleepAfter || '5 minutes'} quiet.`) + whole;
     } else { text = 'Brain: memory freed'; title = on || st.bigSession ? `Nothing on the graphics card. Typing loads the small brain (${secs(st.wakeSeconds)}).` : 'Loading the small brain shortly.'; }
     pillText.textContent = text;
     pill.title = title;
@@ -48,7 +51,11 @@ export function createBrainBar({ post, note }) {
 
   async function refresh() {
     clearTimeout(timer);
-    try { st = await (await fetch('/api/brain')).json(); draw(); } catch {}
+    try {
+      st = await (await fetch('/api/brain')).json(); draw();
+      // Now running shows the same reading for Bob's brain line, so the two never disagree (1.5.26).
+      window.dispatchEvent(new CustomEvent('bob-brain-status', { detail: st }));
+    } catch {}
     timer = setTimeout(refresh, document.hidden ? 30000 : (st?.state === 'waking' || st?.state === 'working') ? 2000 : 8000);
   }
 

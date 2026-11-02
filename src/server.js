@@ -1,5 +1,5 @@
 // Bob's local server: serves the panel and a small API. Only listens on this PC.
-import { ramNow } from './server-ram.js';
+import { ramNow, memGB } from './server-ram.js';
 import { brainMode, BRAIN_MODES, keepTime } from './brain-mode.js';
 import http from 'node:http';
 import { lookText } from './look.js';
@@ -162,7 +162,18 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     // Keep Bob light (1.5.2): the Brain label on the chat page, and waking the small brain when someone types.
-    if (req.method === 'GET' && p === '/api/brain') return send(res, 200, await brain.brainStatus());
+    // 1.5.26: each brain carries its friendly name, so the label and Now running name it the same way.
+    if (req.method === 'GET' && p === '/api/brain') {
+      const st = await brain.brainStatus();
+      for (const m of st.models || []) m.label = friendlyName(m.name);
+      // The picture model (sd-server) is Bob's too, so Now running can show where the rest of the card goes.
+      // gb is null when Windows won't give a per-process figure; it is a measurement otherwise, never a guess.
+      try {
+        const ps = brain.painter?.status?.();
+        if (ps && brain.painter.alive() && ['loading', 'ready', 'busy'].includes(ps.state)) st.picture = { state: ps.state, kind: ps.kind, gb: ps.vramBytes ? memGB(ps.vramBytes) : null };
+      } catch {}
+      return send(res, 200, st);
+    }
     if (req.method === 'POST' && p === '/api/more-pictures') {
       // "Make another picture?" in the chat box: { id, more }. An old card (timed out, replaced) just says so.
       const b = await body(req);
@@ -370,10 +381,9 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/queue') return send(res, 200, brain.queueView());
     if (req.method === 'GET' && p === '/api/downloads') return send(res, 200, shop.downloadsView());
     if (req.method === 'GET' && p === '/api/gpu') {
-      // The brain by its friendly name (model ids stay in Advanced), plus system memory (1.5.3).
-      const id = brain.state?.model || '';
-      const entry = id && shop.catalog.models.find((m) => m.ollama && (m.ollama === id || m.ollama === id + ':latest' || m.ollama + ':latest' === id));
-      return send(res, 200, { ...(await gpuNow()), ram: ramNow(), brain: id ? (entry?.name || id) : '' });
+      // The whole graphics card (every app) and system memory (1.5.3). Bob's own brain line in Now running comes
+      // from /api/brain, the same reading as the label at the top of the chat (1.5.26), so the two always agree.
+      return send(res, 200, { ...(await gpuNow()), ram: ramNow() });
     }
     if (req.method === 'GET' && p === '/api/update/check') return send(res, 200, checkUpdate());
     if (req.method === 'GET' && p === '/api/update/status') return send(res, 200, updateStatus(cfg) || {});
@@ -544,6 +554,13 @@ if (!remoteOn && cfg.host === '127.0.0.1') {
 process.on('unhandledRejection', (e) => { console.error('Unhandled:', e); try { brain.log('error', String(e && e.stack || e).slice(0, 500)); } catch {} });
 process.on('uncaughtException', (e) => { console.error('Uncaught:', e); try { brain.log('error', String(e && e.stack || e).slice(0, 500)); } catch {} });
 
+
+// A model id by its friendly catalog name (model ids stay in Advanced).
+function friendlyName(id) {
+  if (!id) return '';
+  const entry = shop.catalog.models.find((m) => m.id === id || (m.ollama && (m.ollama === id || m.ollama === id + ':latest' || m.ollama + ':latest' === id)));
+  return entry?.name || id;
+}
 
 // Graphics card memory for the Now running panel (NVIDIA only; nvidia-smi ships with the driver).
 let gpuCache = { at: 0, val: null };

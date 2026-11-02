@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import os from 'node:os';
 import { Ollama } from './ollama.js';
+import { memGB } from './server-ram.js';
 import { LlamaCpp } from './llamacpp.js';
 import { buildTools, today, loadReminders, saveReminders } from './tools.js';
 import { systemPrompt, HATS } from './persona.js';
@@ -32,7 +33,7 @@ import { imageInfoOf, sizeLike } from './imageinfo.js';
 import { scheduleTools } from './hands-schedules.js';
 import { toolsOff, HANDS, handOn, handOffWhy, freeOn } from './hands-settings.js';
 import { gate as qGate, after as qAfter, maybeAsk as qAsk, noteStrike, copyHeld } from './quarantine.js';
-import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUseTools, STICKY_TURNS, toolboxPrompt, saysCant } from './toolbox.js';
+import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUseTools, tidySchema, STICKY_TURNS, toolboxPrompt, saysCant } from './toolbox.js';
 import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff } from './handoff.js';
 import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
@@ -261,12 +262,13 @@ export class Brain {
     try { loaded = await Promise.race([this.engine.loaded(), new Promise((r) => setTimeout(() => r([]), 3000))]); } catch { engineOk = false; }
     const chat = chatBrain(this.cfg);
     const mine = loaded.filter((m) => isBobs(this.cfg, m.name) || sameModel(m.name, chat.model));
-    const gb = (b) => Math.round((b || 0) / 1e8) / 10;
+    const gb = memGB; // same unit as the graphics card meter in Now running (1.5.26)
     // gb: on the graphics card; ramGB: the part in system memory (RAM), when the engine says how it splits.
     const models = mine.map((m) => {
       const split = m.split !== false && m.size > 0;
       const ramGB = split ? gb(Math.max(0, m.size - (m.vram || 0))) : null;
-      return { name: m.name, gb: split ? gb(m.vram || 0) : gb(m.vram || m.size), ramGB, onCard: m.vram > 0 || (!m.vram && !chat.cpu && !split), chat: sameModel(m.name, chat.model) };
+      // estimate: llama.cpp without a per-process figure from nvidia-smi (common on Windows) only knows the file size.
+      return { name: m.name, gb: split ? gb(m.vram || 0) : gb(m.vram || m.size), ramGB, estimate: !split && !m.vram, onCard: m.vram > 0 || (!m.vram && !chat.cpu && !split), chat: sameModel(m.name, chat.model) };
     });
     const ramKnown = models.some((m) => m.ramGB != null);
     const state = this.waking ? 'waking' : this.turns.size ? 'working' : models.length ? 'awake' : 'asleep';
@@ -731,7 +733,7 @@ export class Brain {
   toolSchemas(names) {
     const who = this.cfg.userName || 'the user';
     const off = this.offTools();
-    return names.filter((n) => n !== 'use_tools' && this.usable(n, off)).map((n) => JSON.parse(JSON.stringify(this.tools[n].schema).replaceAll('{{USER}}', who)));
+    return names.filter((n) => n !== 'use_tools' && this.usable(n, off)).map((n) => tidySchema(JSON.parse(JSON.stringify(this.tools[n].schema).replaceAll('{{USER}}', who))));
   }
 
   // The front desk's tools for this step: the core, plus the groups added so far this turn (toolbox.js).
@@ -742,7 +744,7 @@ export class Brain {
     const names = [...CORE, ...[...loaded].flatMap((g) => groups[g]?.tools || [])];
     const list = this.toolSchemas([...new Set(names)]);
     const use = fillUseTools(this.tools.use_tools.schema, groups, loaded);
-    if (use) list.push(use);
+    if (use) list.push(tidySchema(use));
     return list;
   }
 

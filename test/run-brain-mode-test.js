@@ -56,7 +56,7 @@ const loaded = new Map();
 const preloads = [];
 brain.engine = {
   isLoaded: async (m) => loaded.has(m),
-  loaded: async () => [...loaded].map(([name, gb]) => ({ name, size: gb * 1e9, vram: gb * 1e9 })),
+  loaded: async () => [...loaded].map(([name, gb]) => ({ name, size: gb * 1024 ** 3, vram: gb * 1024 ** 3 })),
   estimateLoad: async () => 6,
   preload: async (m) => { preloads.push(m); await wait(50); loaded.set(m, m === 'small:4b' ? 5.8 : 18); return 0.05; },
   unload: async (m) => (loaded.delete(m) ? [m] : []),

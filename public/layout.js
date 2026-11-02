@@ -22,6 +22,7 @@ export function createLayout({ post, openTasks, openDownloads }) {
   setInterval(() => { if (!jobs.some((j) => j.state === 'waiting' || j.state === 'working')) draw(); }, 600000).unref?.();
   const tl = $('nowTasks'), dl = $('nowDl');
   let gpuTimer = null;
+  let gpuAt = 0, brainSt = null; // 1.5.26: up here, because pollGpu() can run before the graphics-card section below
 
   // ---- folding ----
   const leftFolded = () => body.classList.contains('left-folded');
@@ -114,26 +115,52 @@ export function createLayout({ post, openTasks, openDownloads }) {
   });
 
   // ---- graphics card ----
+  // 1.5.26: two readings, kept apart and labelled. The meters are the whole graphics card and RAM as Windows sees
+  // them (every app, from nvidia-smi). "Bob's brain" is only Bob's chat brain, the same reading as the label at
+  // the top of the chat (it arrives from there as bob-brain-status), so the two always show the same number.
+  const brainLine = () => {
+    const el = $('nowGpu').querySelector('.mem-brain');
+    if (!el) return;
+    const st = brainSt;
+    if (!st) { el.textContent = ''; return; }
+    if (!st.engineOk) { el.textContent = 'Bob\'s brain: engine not answering'; return; }
+    const pic = st.picture ? `Picture model: ${st.picture.gb != null ? `${st.picture.gb} GB on the card` : st.picture.state === 'loading' ? 'loading...' : 'on the card (Windows doesn\'t say how much)'}` : '';
+    if (!st.models?.length && !pic) { el.textContent = st.state === 'waking' ? 'Bob\'s brain: loading...' : 'Bob has nothing on the card right now.'; return; }
+    const one = (m) => {
+      const parts = [];
+      if (m.ramGB == null) parts.push(`${m.estimate ? 'about ' : ''}${m.gb} GB${m.onCard ? '' : ' in RAM'}`);
+      else { if (m.gb > 0) parts.push(`${m.gb} GB on the card`); if (m.ramGB > 0) parts.push(`${m.ramGB} GB in RAM`); }
+      return `${m.label || m.name}, ${parts.join(' + ') || '0 GB'}`;
+    };
+    // One line per thing of Bob's on the card, so they add up to his share of the meter above.
+    const lines = [st.models?.length ? `Bob's brain: ${st.models.map(one).join('; ')}` : st.state === 'waking' ? 'Bob\'s brain: loading...' : 'Bob\'s brain: not loaded', pic].filter(Boolean);
+    el.replaceChildren(...lines.map((t) => Object.assign(document.createElement('div'), { textContent: t })));
+    el.title = 'What Bob has on the card. "Bob\'s brain" is the same reading as the label at the top of the chat. The Graphics card meter above counts everything on the card: Windows, other apps and Bob\'s picture model.';
+  };
   async function pollGpu() {
     clearTimeout(gpuTimer);
     if (body.classList.contains('right-hidden') || document.hidden) return;
+    gpuAt = Date.now();
     try {
-      const { gpu, ram, brain } = await (await fetch('/api/gpu')).json();
+      const { gpu, ram } = await (await fetch('/api/gpu')).json();
       const el = $('nowGpu');
-      // 1.5.3: graphics card and system memory (RAM), each with a meter; the brain by its friendly name.
+      // 1.5.3: graphics card and system memory (RAM), each with a meter.
       const row = (label, m) => {
         const pct = Math.min(100, Math.round((m.usedGB / m.totalGB) * 100));
-        return `<div class="mem-row"><span class="mem-label"></span><div class="meter"><i style="width:${pct}%"></i></div><span class="mem-text"></span></div>`;
+        return `<div class="mem-row"><span class="mem-text"></span><div class="meter"><i style="width:${pct}%"></i></div></div>`;
       };
-      el.innerHTML = `${gpu ? row('Graphics card', gpu) : '<div class="mem-row"><span class="mem-label"></span><span class="mem-text"></span></div>'}${ram?.totalGB ? row('RAM', ram) : ''}${brain ? '<div class="mem-brain"></div>' : ''}`;
+      el.innerHTML = `${gpu ? row('Graphics card', gpu) : '<div class="mem-row"><span class="mem-text"></span></div>'}${ram?.totalGB ? row('RAM', ram) : ''}<div class="mem-brain"></div>`;
+      // 1.5.26: each meter names itself on its own line: "Graphics card · 9.1 of 15.9 GB in use (all apps)".
       const rows = el.querySelectorAll('.mem-row');
-      rows[0].querySelector('.mem-label').textContent = 'Graphics card';
-      rows[0].querySelector('.mem-text').textContent = gpu ? `${gpu.usedGB} of ${gpu.totalGB} GB in use` : 'not detected';
-      if (rows[1]) { rows[1].querySelector('.mem-label').textContent = 'RAM'; rows[1].querySelector('.mem-text').textContent = `${ram.usedGB} of ${ram.totalGB} GB in use`; }
-      if (brain) el.querySelector('.mem-brain').textContent = `Brain: ${brain}`;
+      rows[0].querySelector('.mem-text').textContent = gpu ? `Graphics card · ${gpu.usedGB} of ${gpu.totalGB} GB in use (all apps)` : 'Graphics card · not detected';
+      rows[0].title = 'Everything using the graphics card right now: Windows, games, other apps and all of Bob.';
+      if (rows[1]) rows[1].querySelector('.mem-text').textContent = `RAM · ${ram.usedGB} of ${ram.totalGB} GB in use (all apps)`;
+      brainLine();
     } catch {}
     gpuTimer = setTimeout(pollGpu, 5000);
   }
+  // A fresh brain reading also refreshes the meters, so both are read at the same moment.
+  window.addEventListener('bob-brain-status', (e) => { brainSt = e.detail; if (Date.now() - gpuAt > 1500) pollGpu(); else brainLine(); });
   document.addEventListener('visibilitychange', pollGpu);
 
   return {

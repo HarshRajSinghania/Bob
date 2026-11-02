@@ -10,7 +10,7 @@ const read = (f) => fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
 
 const cfg = { models: { bob: 'gemma4:e4b', tinker: 'qwen3-coder:30b' }, sessionBrains: {}, session: 'normal', ollamaKeepAlive: '5m' };
 const status = (loaded) => Brain.prototype.brainStatus.call({ cfg, waking: null, turns: new Map(), engine: { loaded: async () => loaded, estimateLoad: async () => 8 } });
-const GB = 1e9;
+const GB = 1024 ** 3; // Bob counts memory as Task Manager and nvidia-smi do (1.5.26)
 
 let s = await status([{ name: 'gemma4:e4b', size: 7 * GB, vram: 5.8 * GB, split: true }]);
 check('Ollama: a brain partly in RAM shows both parts', s.models[0].gb === 5.8 && s.models[0].ramGB === 1.2 && s.gb === 5.8 && s.ramGB === 1.2, JSON.stringify(s.models));
@@ -34,10 +34,29 @@ check('the label reads "5.8 GB on the graphics card · 1.2 GB in RAM"', /GB on t
 const r = ramNow(32 * GB, 20 * GB);
 check('system RAM in use: total minus available', r.usedGB === 12 && r.totalGB === 32);
 const server = read('src/server.js'), layout = read('public/layout.js'), html = read('public/index.html');
-check('/api/gpu adds RAM and the brain by its friendly name', /ram: ramNow\(\), brain:/.test(server) && /entry\?\.name \|\| id/.test(server));
-check('Now running: a Memory section with Graphics card and RAM meters', /<div class="now-sec">Memory<\/div>/.test(html) && /row\('RAM', ram\)/.test(layout) && /textContent = 'RAM'/.test(layout));
-check('no NVIDIA card says "Graphics card: not detected", not the old wording', /'not detected'/.test(layout) && !/No NVIDIA card info/.test(layout));
-check('model ids stay out of Now running (friendly name only)', /`Brain: \$\{brain\}`/.test(layout) && !/· \$\{model\}/.test(layout));
+check('/api/gpu adds RAM; brains get friendly names on /api/brain', /ram: ramNow\(\) \}/.test(server) && /m\.label = friendlyName\(m\.name\)/.test(server) && /entry\?\.name \|\| id/.test(server));
+check('Now running: a Memory section with Graphics card and RAM meters', /<div class="now-sec">Memory<\/div>/.test(html) && /row\('RAM', ram\)/.test(layout) && /`RAM · \$\{ram\.usedGB\}/.test(layout));
+check('no NVIDIA card says "Graphics card: not detected", not the old wording', /'Graphics card · not detected'/.test(layout) && !/No NVIDIA card info/.test(layout));
+check('model ids stay out of Now running (friendly name only)', /m\.label \|\| m\.name/.test(layout) && !/· \$\{model\}/.test(layout));
+
+// 1.5.26: "the memory usage at the top doesn't match the memory usage on the right panel".
+{
+  const { memGB } = await import('../src/server-ram.js');
+  check('one unit everywhere: 1024 MB to the GB, like nvidia-smi and Task Manager', memGB(16 * GB) === 16 && memGB(5.8e9) === 5.4);
+  s = await status([{ name: 'gemma4:e4b', size: 5.8e9, vram: 5.8e9, split: true }]);
+  const smiGB = Math.round(5.8e9 / 1048576 / 102.4) / 10; // what nvidia-smi would say for the same bytes
+  check('the brain label and the card meter count the same bytes as the same number', s.gb === smiGB, `${s.gb} vs ${smiGB}`);
+  check('ram meter uses the same unit', /memGB\(total - free\)/.test(read('src/server-ram.js')) && /const gb = memGB/.test(read('src/brain.js')));
+  s = await status([{ name: 'gemma4:e4b', size: 6 * GB, vram: 0, split: false }]);
+  check('llama.cpp without a per-process figure is marked as an estimate', s.models[0].estimate === true);
+  s = await status([{ name: 'gemma4:e4b', size: 6 * GB, vram: 6 * GB, split: true }]);
+  check('a measured brain is not an estimate', s.models[0].estimate === false);
+  check('the label says it is Bob\'s brain only, and the meter counts everything', /This counts Bob\\'s brain only\. The Memory meter in Now running counts everything on the card: Windows, other apps and Bob\\'s picture model\./.test(bar) && /about ' : ''/.test(bar) && /`Graphics card · \$\{gpu\.usedGB\} of \$\{gpu\.totalGB\} GB in use \(all apps\)`/.test(layout));
+  check('the picture model gets its own line when loaded, measured only (never "about")', /st\.picture = \{ state: ps\.state, kind: ps\.kind, gb: ps\.vramBytes \? memGB\(ps\.vramBytes\) : null \}/.test(server) && /Picture model: \$\{st\.picture\.gb != null \? `\$\{st\.picture\.gb\} GB on the card`/.test(layout));
+  check('nothing of Bob\'s loaded says so plainly', /'Bob has nothing on the card right now\.'/.test(layout));
+  check('Now running takes Bob\'s brain from the same reading as the label, not the last model used', /dispatchEvent\(new CustomEvent\('bob-brain-status'/.test(bar) && /addEventListener\('bob-brain-status'/.test(layout) && !/brain\.state\?\.model/.test(server.slice(server.indexOf("p === '/api/gpu'"), server.indexOf("p === '/api/gpu'") + 600)));
+  check('a new brain reading refreshes the meters too, so both are read together', /Date\.now\(\) - gpuAt > 1500\) pollGpu\(\)/.test(layout));
+}
 const css = read('public/style.css');
 check('the Session menu has its own line, so its name is not cut off', /\.side \.session-wrap \{ flex-wrap: wrap; \}/.test(css) && /\.side \.session \{ flex: 1 1 100%; \}/.test(css));
 

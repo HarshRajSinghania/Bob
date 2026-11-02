@@ -649,10 +649,8 @@ details.more > summary:hover { color: var(--accent); }
 .brain-pill { min-width: 0; max-width: 100%; overflow: hidden; }
 #brainPillText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 1.5.3: Now running shows the graphics card and RAM, one meter each. */
-.now-gpu .mem-row { display: grid; grid-template-columns: 7.5em 1fr; align-items: center; gap: 2px 8px; }
-.now-gpu .mem-row .meter { grid-column: 2; }
-.now-gpu .mem-row .mem-text { grid-column: 2; }
-.now-gpu .mem-row .mem-label { grid-row: 1 / span 2; color: var(--text); }
+.now-gpu .mem-row { display: grid; gap: 2px; }
+.now-gpu .mem-row .mem-text { color: var(--text); }
 .now-gpu .mem-brain { margin-top: 2px; }
 /* The Session menu gets its own line in the left menu, so its name isn't cut off. */
 .side .session-wrap { flex-wrap: wrap; }
