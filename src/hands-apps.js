@@ -1,0 +1,345 @@
+// The Apps Hand: Bob opens apps from the Start menu, looks at a window (the names of its buttons, fields and
+// menus, read through Windows UI Automation) and clicks, types or presses keys in it. Off until switched on,
+// like every Hand, and every single action shows a card and waits for a click.
+//
+// How it works: a small helper (installer\bob-apps.ps1, Windows PowerShell 5.1) runs while Bob uses apps and
+// talks JSON lines over stdin/stdout. It prefers the app's own controls (press a button, set a field's text)
+// over moving the mouse. While Bob is driving, a red "Bob is driving" bar sits across the top of the screen,
+// and moving the mouse or pressing Esc stops him at once: the helper drops out of driving, Bob ends the
+// "allow the rest of this job" for apps, and any Hand card still waiting is answered No.
+//
+// Never: the Run hand's jobs (terminals, PowerShell, cmd), admin tools (Registry Editor, Task Manager, MMC),
+// password managers, Windows sign-in or security prompts, password fields, or Bob's own window (so he can
+// never approve his own cards).
+import path from 'node:path';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { appDir } from './config.js';
+import { handOn, HANDS } from './hands-settings.js';
+
+const fn = (name, description, properties, required = Object.keys(properties)) => ({ type: 'function', function: { name, description, parameters: { type: 'object', properties, required } } });
+const str = (description, extra = {}) => ({ type: 'string', description, ...extra });
+
+// Process names (without .exe, lower case) Bob never looks at, clicks in or opens.
+export const BLOCKED_PROCESSES = [
+  // Terminals and script hosts: running things is the Run hand's job, with its own checks.
+  'cmd', 'powershell', 'pwsh', 'powershell_ise', 'windowsterminal', 'wt', 'conhost', 'openconsole', 'wsl', 'bash', 'wscript', 'cscript', 'mshta',
+  // Admin and system tools.
+  'regedit', 'mmc', 'taskmgr', 'msconfig', 'gpedit', 'secpol', 'compmgmt', 'diskmgmt', 'eventvwr', 'services', 'perfmon', 'resmon', 'systempropertiesadvanced', 'useraccountcontrolsettings', 'netplwiz', 'lusrmgr', 'control', 'sysdm',
+  // Sign-in, security and password prompts.
+  'consent', 'credentialuibroker', 'logonui', 'lockapp', 'sechealthui', 'securityhealthsystray', 'securityhealthhost', 'msmpeng', 'smartscreen', 'useraccountbroker',
+  // Password managers.
+  'keepass', 'keepassxc', '1password', 'bitwarden', 'dashlane', 'lastpass', 'enpass', 'nordpass', 'roboform', 'keeper', 'protonpass',
+  // Bob himself (and Electron running him from source).
+  'bob', 'electron'
+];
+// Window titles that are never touched, whatever the app.
+const BLOCKED_TITLE = /\b(password|passphrase|credential|windows security|user account control|sign[- ]?in to windows|bitlocker|recovery key|2fa|two[- ]factor|one[- ]time code)\b/i;
+// Start menu names Bob won't open (the same tools by their friendly names).
+const BLOCKED_APP_NAME = /\b(command prompt|powershell|terminal|registry editor|task manager|computer management|disk management|group policy|local security policy|services|event viewer|system configuration|resource monitor|performance monitor|user accounts|credential manager|windows security|bitlocker|recovery|reset this pc|control panel|wsl|ubuntu|debian|keepass|1password|bitwarden|dashlane|lastpass|enpass|nordpass|roboform|keeper|proton pass)\b/i;
+
+export function blockedWindow(w, { ownPids = [] } = {}) {
+  if (!w) return 'That window is gone.';
+  const proc = String(w.process || '').toLowerCase().replace(/\.exe$/, '');
+  if (ownPids.includes(Number(w.pid))) return "That's Bob's own window. Bob never clicks his own buttons.";
+  if (BLOCKED_PROCESSES.includes(proc)) {
+    if (['cmd', 'powershell', 'pwsh', 'powershell_ise', 'windowsterminal', 'wt', 'conhost', 'openconsole', 'wsl', 'bash', 'wscript', 'cscript', 'mshta'].includes(proc)) return 'Terminals are off limits to the Apps hand. Commands go through the Run hand, which shows the exact command.';
+    if (proc === 'bob' || proc === 'electron') return "That's Bob's own window. Bob never clicks his own buttons.";
+    return `${w.process} is off limits (admin, security or password app).`;
+  }
+  if (BLOCKED_TITLE.test(String(w.title || ''))) return 'That window looks like a password or security prompt, so Bob leaves it to you.';
+  return '';
+}
+export const blockedApp = (name) => (BLOCKED_APP_NAME.test(String(name || '')) ? `${name} is off limits to the Apps hand.` : '');
+
+// Keys Bob may press. Returns the SendKeys string, or throws. No Windows key, no Ctrl+Alt combinations.
+const KEYMAP = { enter: '{ENTER}', tab: '{TAB}', esc: '{ESC}', escape: '{ESC}', up: '{UP}', down: '{DOWN}', left: '{LEFT}', right: '{RIGHT}', home: '{HOME}', end: '{END}', pageup: '{PGUP}', pagedown: '{PGDN}', backspace: '{BACKSPACE}', delete: '{DELETE}', del: '{DELETE}', space: ' ', insert: '{INSERT}' };
+for (let i = 1; i <= 12; i++) KEYMAP[`f${i}`] = `{F${i}}`;
+export function keysFor(combo) {
+  const parts = String(combo || '').toLowerCase().replace(/\s+/g, '').split('+').filter(Boolean);
+  if (!parts.length || parts.length > 3) throw new Error('Say one key or combination, like "Enter" or "Ctrl+S".');
+  const key = parts.pop();
+  const mods = new Set(parts);
+  for (const m of mods) if (!['ctrl', 'control', 'shift', 'alt'].includes(m)) throw new Error(m === 'win' || m === 'windows' || m === 'meta' ? 'Bob never presses the Windows key.' : `Unknown key "${m}".`);
+  const ctrl = mods.has('ctrl') || mods.has('control');
+  if (ctrl && mods.has('alt')) throw new Error('Bob never presses Ctrl+Alt combinations.');
+  let k = KEYMAP[key];
+  if (!k && /^[a-z0-9]$/.test(key)) k = key;
+  if (!k) throw new Error(`Bob doesn't press "${key}".`);
+  if (mods.has('alt') && key === 'f4') k = '{F4}'; // allowed: closing a window, which still asks to save
+  return `${ctrl ? '^' : ''}${mods.has('shift') ? '+' : ''}${mods.has('alt') ? '%' : ''}${k}`;
+}
+
+// ---- The helper process ----
+export class AppsDriver {
+  // command: [exe, ...args] (tests use a mock); default is Windows PowerShell running installer\bob-apps.ps1.
+  constructor({ command = null, spawnImpl = spawn, env = process.env, onEvent = () => {}, idleMs = 120000 } = {}) {
+    this.command = command;
+    this.spawnImpl = spawnImpl;
+    this.env = env;
+    this.onEvent = onEvent;
+    this.idleMs = idleMs;
+    this.child = null;
+    this.waiting = new Map();
+    this.buf = '';
+    this.idle = null;
+  }
+
+  defaultCommand() {
+    const ps = path.join(this.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    const script = path.join(appDir, 'installer', 'bob-apps.ps1');
+    return [ps, '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-STA', '-File', script, '-BobPid', String(process.pid), '-BobParent', String(process.ppid || 0)];
+  }
+
+  start() {
+    if (this.child) return;
+    if (!this.command && process.platform !== 'win32') throw new Error('The Apps hand works on Windows.');
+    const [exe, ...args] = this.command || this.defaultCommand();
+    const child = this.spawnImpl(exe, args, { shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    this.child = child;
+    child.stdout.setEncoding?.('utf8');
+    child.stdout.on('data', (d) => this.#data(d));
+    child.stderr?.on?.('data', () => {});
+    const gone = (why) => {
+      if (this.child !== child) return;
+      this.child = null;
+      for (const [, w] of this.waiting) w.reject(new Error(why));
+      this.waiting.clear();
+      this.onEvent({ event: 'closed' });
+    };
+    child.on('error', (e) => gone(`The apps helper didn't start: ${e.message}`));
+    child.on('exit', () => gone('The apps helper stopped.'));
+  }
+
+  #data(d) {
+    this.buf += d;
+    let i;
+    while ((i = this.buf.indexOf('\n')) >= 0) {
+      const line = this.buf.slice(0, i).trim();
+      this.buf = this.buf.slice(i + 1);
+      if (!line) continue;
+      let m; try { m = JSON.parse(line); } catch { continue; }
+      if (m.event) { this.onEvent(m); continue; }
+      const w = this.waiting.get(m.id);
+      if (!w) continue;
+      this.waiting.delete(m.id);
+      clearTimeout(w.timer);
+      m.ok ? w.resolve(m) : w.reject(new Error(m.error || 'The app did not answer.'));
+    }
+  }
+
+  request(op, data = {}, { timeoutMs = 20000 } = {}) {
+    this.start();
+    this.#touch();
+    const id = crypto.randomUUID().slice(0, 8);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.waiting.delete(id); reject(new Error('The app took too long to answer.')); }, timeoutMs);
+      timer.unref?.();
+      this.waiting.set(id, { resolve, reject, timer });
+      this.child.stdin.write(JSON.stringify({ id, op, ...data }) + '\n');
+    });
+  }
+
+  #touch() {
+    clearTimeout(this.idle);
+    this.idle = setTimeout(() => this.stop(), this.idleMs);
+    this.idle.unref?.();
+  }
+
+  // Ends the helper: the red bar goes with it.
+  stop() {
+    clearTimeout(this.idle);
+    const c = this.child;
+    if (!c) return false;
+    this.child = null;
+    try { c.stdin.end(JSON.stringify({ id: 'bye', op: 'quit' }) + '\n'); } catch {}
+    setTimeout(() => { try { c.kill(); } catch {} }, 1500).unref?.();
+    return true;
+  }
+}
+
+// ---- The tools ----
+export function appsTools(brain, { driver = null, track = () => () => {} } = {}) {
+  const cfg = brain.cfg;
+  const log = (k, t) => brain.log?.(k, t);
+  const ownPids = [process.pid, process.ppid].filter(Boolean);
+  const state = { stoppedCtx: null, windows: new Map(), lastCtx: null, untrack: null, driving: false };
+
+  const onEvent = (m) => {
+    if (m.event === 'stopped') {
+      state.driving = false;
+      const why = m.why === 'esc' ? 'pressed Esc' : 'moved the mouse';
+      log('hands', `apps: ${cfg.userName || 'the user'} ${why}; Bob stopped driving`);
+      const ctx = state.lastCtx;
+      if (ctx) {
+        state.stoppedCtx = ctx;
+        for (const g of [...(ctx.allowAll || [])]) if (String(g).startsWith('apps-')) ctx.allowAll.delete(g);
+        ctx.emit?.({ type: 'apps-stopped', why });
+      }
+      brain.denyHands?.();
+    }
+    if (m.event === 'closed') { state.driving = false; state.untrack?.(); state.untrack = null; }
+  };
+  const drv = driver || new AppsDriver({ onEvent });
+  if (driver) driver.onEvent = onEvent;
+  const ensure = () => {
+    // Registered with Hands so "Stop everything" ends the helper (and its red bar) too.
+    if (!state.untrack) state.untrack = track({ line: 'Apps hand', stop: () => { state.driving = false; drv.stop(); } });
+  };
+
+  const off = () => { if (!handOn(cfg, 'apps')) throw new Error(`The ${HANDS.apps.label} Hand is switched off. ${cfg.userName || 'The user'} can turn it on in Settings, Hands.`); };
+  const notStopped = (ctx) => { if (ctx && state.stoppedCtx === ctx) throw new Error(`${cfg.userName || 'The user'} took back the mouse, so Bob stopped using apps for this job. Don't try again; ask what they'd like instead.`); };
+
+  async function windows() {
+    ensure();
+    const r = await drv.request('windows');
+    const list = (r.windows || []).filter((w) => w && w.title);
+    state.windows = new Map(list.map((w) => [String(w.hwnd), w]));
+    return list;
+  }
+  // "window" may be the number from a list, part of a title, or a program name.
+  async function findWindow(want) {
+    const list = await windows();
+    const s = String(want || '').trim().toLowerCase();
+    if (!s) throw new Error('Say which window.');
+    const hits = list.filter((w) => String(w.hwnd) === s) || [];
+    const byTitle = hits.length ? hits : list.filter((w) => w.title.toLowerCase() === s || w.title.toLowerCase().includes(s) || String(w.process).toLowerCase() === s.replace(/\.exe$/, ''));
+    if (!byTitle.length) throw new Error(`No open window matches "${want}". Open ones: ${list.filter((w) => !blockedWindow(w, { ownPids })).slice(0, 15).map((w) => `${w.title} (${w.process})`).join('; ') || 'none'}.`);
+    const ok = byTitle.filter((w) => !blockedWindow(w, { ownPids }));
+    if (!ok.length) throw new Error(blockedWindow(byTitle[0], { ownPids }));
+    return ok[0];
+  }
+  const label = (w) => `${w.title} (${w.process})`;
+  const targetText = (t = {}) => [t.type || '', t.name ? `"${t.name}"` : '', t.id ? `[id ${t.id}]` : '', t.nth > 1 ? `#${t.nth}` : ''].filter(Boolean).join(' ') || 'the window';
+
+  const t = {};
+
+  t.open_app = {
+    schema: fn('open_app', 'Open an app from {{USER}}\'s Start menu by its name (like "Notepad", "Paint", "Calculator", "Blender"). {{USER}} approves it first. Not terminals or admin tools (commands go through run_command).', { name: str('The app\'s name as it shows in the Start menu.') }),
+    approvalGroup: (a) => `apps-open:${String(a.name || '').toLowerCase()}`,
+    async check(args, ctx) {
+      off(); notStopped(ctx);
+      ensure();
+      const want = String(args.name || '').trim();
+      if (!want) throw new Error('Say which app.');
+      const b = blockedApp(want); if (b) throw new Error(b);
+      const r = await drv.request('apps');
+      const apps = (r.apps || []).filter((a) => a && a.name && a.appId && !blockedApp(a.name));
+      const lw = want.toLowerCase();
+      const hit = apps.find((a) => a.name.toLowerCase() === lw) || apps.find((a) => a.name.toLowerCase().startsWith(lw)) || apps.find((a) => a.name.toLowerCase().includes(lw));
+      if (!hit) throw new Error(`No Start menu app called "${want}".`);
+      if (ctx) ctx.appsOpen = hit;
+      return { text: `Open ${hit.name} (as you, not as administrator; if it asks for admin, Windows asks you).`, command: `Open ${hit.name}`, cwd: 'the Start menu', button: 'Open it' };
+    },
+    async run(args, ctx) {
+      off(); notStopped(ctx);
+      const hit = ctx?.appsOpen; if (ctx) ctx.appsOpen = null;
+      if (!hit) throw new Error('Nothing to open.');
+      await drv.request('open', { appId: hit.appId });
+      log('hands', `apps: opened ${hit.name}`);
+      return `Opened ${hit.name}. Give it a moment, then use app_look to see its window.`;
+    },
+    summary: ({ name }) => `apps: open ${name}`
+  };
+
+  t.app_look = {
+    schema: fn('app_look', 'See which windows are open (leave window empty), or read one window: the names of its buttons, fields, menus and text, so you can say what to click. Password fields are never read. {{USER}} approves each look.', {
+      window: str('Part of the window title, or the program name (like "notepad"). Leave empty to list open windows.'),
+      picture: { type: 'boolean', description: 'Also take a picture of that window and show it in the chat.' }
+    }, []),
+    approvalGroup: (a) => `apps-look:${String(a.window || '*').toLowerCase()}`,
+    async check(args, ctx) {
+      off(); notStopped(ctx);
+      if (!args.window) return { text: 'See which windows are open (just their titles).', command: 'List open windows', cwd: 'your desktop', button: 'Allow' };
+      const w = await findWindow(args.window);
+      if (ctx) ctx.appsWindow = w;
+      return { text: `Look at ${label(w)}: read the names of its buttons, fields and menus${args.picture ? ', and take a picture of it' : ''}. Password fields are never read.`, command: `Look at ${w.title}`, cwd: w.process, button: 'Allow' };
+    },
+    async run(args, ctx) {
+      off(); notStopped(ctx);
+      if (!args.window) {
+        const list = (await windows()).filter((w) => !blockedWindow(w, { ownPids }));
+        log('hands', `apps: listed ${list.length} windows`);
+        return list.length ? `Open windows:\n${list.slice(0, 40).map((w) => `- ${w.title} (${w.process})`).join('\n')}` : 'No windows Bob may use are open.';
+      }
+      const w = ctx?.appsWindow || await findWindow(args.window);
+      if (ctx) ctx.appsWindow = null;
+      const r = await drv.request('look', { hwnd: w.hwnd, max: 150 });
+      const items = (r.items || []).filter((x) => x && (x.name || x.id || x.type === 'Edit'));
+      log('hands', `apps: looked at ${label(w)} (${items.length} things)`);
+      let pic = '';
+      if (args.picture) {
+        const name = `window-${Date.now()}.png`;
+        const file = path.join(cfg.painterDir || cfg.dataDir, name);
+        await drv.request('picture', { hwnd: w.hwnd, file });
+        if (fs.existsSync(file) || driver) { ctx?.emit?.({ type: 'image', url: `/images/${encodeURIComponent(name)}`, file }); pic = '\nA picture of the window is in the chat.'; }
+      }
+      const lines = items.slice(0, 150).map((x) => `- ${x.type}${x.name ? ` "${String(x.name).slice(0, 80)}"` : ''}${x.id ? ` [id ${String(x.id).slice(0, 40)}]` : ''}${x.password ? ' (password field: never typed in)' : ''}${x.enabled === false ? ' (greyed out)' : ''}${x.value ? ` = "${String(x.value).slice(0, 60)}"` : ''}`);
+      return `Window: ${label(w)}\n${lines.join('\n') || '(nothing readable; this app may not support UI Automation)'}${pic}\nTo use one, call app_act with its type and name (and id if names repeat).`;
+    },
+    summary: ({ window }) => `apps: look ${window || '(windows)'}`
+  };
+
+  t.app_act = {
+    schema: fn('app_act', 'Do one thing in an open window: click a button, menu item, tab, checkbox or list item; type text into a field; or press a key (like "Enter" or "Ctrl+S"). Find names with app_look first. {{USER}} approves each action, and can stop you by moving the mouse or pressing Esc. Never in password fields.', {
+      window: str('Part of the window title, or the program name.'),
+      action: str('What to do', { enum: ['click', 'type', 'keys', 'focus'] }),
+      type: str('The kind of thing, as app_look listed it (Button, Edit, MenuItem, TabItem, CheckBox, ListItem...).'),
+      name: str('Its name, as app_look listed it.'),
+      id: str('Its id, if app_look showed one (use it when names repeat).'),
+      nth: { type: 'integer', description: 'If several match, which one (1 = first).' },
+      text: str('type: the text to put in the field (replaces what is there).'),
+      keys: str('keys: the key or combination, like "Enter", "Tab", "Ctrl+S".')
+    }, ['window', 'action']),
+    approvalGroup: (a) => `apps-act:${String(a.window || '').toLowerCase()}`,
+    async check(args, ctx) {
+      off(); notStopped(ctx);
+      const w = await findWindow(args.window);
+      const target = { type: args.type ? String(args.type).replace(/[^A-Za-z]/g, '') : '', name: args.name ? String(args.name).slice(0, 200) : '', id: args.id ? String(args.id).slice(0, 200) : '', nth: Math.max(1, Math.min(50, Number(args.nth) || 1)) };
+      let what;
+      if (args.action === 'click') { if (!target.name && !target.id) throw new Error('Say what to click (its name or id from app_look).'); what = `Click ${targetText(target)}`; }
+      else if (args.action === 'type') {
+        if (args.text == null || String(args.text).length > 4000) throw new Error('Say the text to type (at most 4000 characters).');
+        if (/password|passwd|pwd|pin\b/i.test(`${target.name} ${target.id}`)) throw new Error('Bob never types into password fields.');
+        what = `Type into ${targetText(target)}: "${String(args.text).slice(0, 300)}${String(args.text).length > 300 ? '...' : ''}"`;
+      } else if (args.action === 'keys') { const k = keysFor(args.keys); if (ctx) ctx.appsKeys = k; what = `Press ${String(args.keys)}${target.name || target.id ? ` in ${targetText(target)}` : ''}`; }
+      else if (args.action === 'focus') what = `Put the cursor in ${targetText(target)}`;
+      else throw new Error('The action should be click, type, keys or focus.');
+      if (ctx) { ctx.appsWindow = w; ctx.appsTarget = target; }
+      return { text: `${what} in ${label(w)}. A red bar shows while Bob drives; move the mouse or press Esc to stop him.`, command: what, cwd: label(w), button: 'Do it' };
+    },
+    async run(args, ctx) {
+      off(); notStopped(ctx);
+      const w = ctx?.appsWindow || await findWindow(args.window);
+      const target = ctx?.appsTarget || { type: args.type || '', name: args.name || '', id: args.id || '', nth: Number(args.nth) || 1 };
+      const keys = args.action === 'keys' ? (ctx?.appsKeys || keysFor(args.keys)) : '';
+      if (ctx) { ctx.appsWindow = null; ctx.appsTarget = null; ctx.appsKeys = null; state.lastCtx = ctx; }
+      // Check the window again right before acting: it may have changed title (a password prompt) or closed.
+      const now = (await windows()).find((x) => String(x.hwnd) === String(w.hwnd));
+      const b = blockedWindow(now, { ownPids }); if (b) throw new Error(b);
+      const group = `apps-act:${String(args.window || '').toLowerCase()}`;
+      const streak = Boolean(ctx?.allowAll?.has?.(group));
+      await drv.request('drive', { on: true });
+      state.driving = true;
+      let r;
+      try {
+        r = await drv.request('act', { hwnd: w.hwnd, action: args.action, target, text: args.action === 'type' ? String(args.text) : '', keys });
+      } finally {
+        // With per-action approval the mouse is yours again between actions (you need it for the next card);
+        // only an "allow the rest of this job" streak keeps the red bar up until the helper goes idle.
+        clearTimeout(state.offTimer);
+        if (!streak && state.driving) { state.driving = false; await drv.request('drive', { on: false }).catch(() => {}); }
+        else if (state.driving) {
+          state.offTimer = setTimeout(() => { if (state.driving) { state.driving = false; drv.request('drive', { on: false }).catch(() => {}); } }, 10000);
+          state.offTimer.unref?.();
+        }
+      }
+      log('hands', `apps: ${args.action} ${targetText(target)} in ${label(w)}: ${r.did || 'done'}`);
+      return `Done: ${r.did || args.action}. Use app_look to check the result if it matters.`;
+    },
+    summary: ({ action, window, name }) => `apps: ${action}${name ? ` "${name}"` : ''} in ${window}`
+  };
+
+  return t;
+}

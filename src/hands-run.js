@@ -166,7 +166,7 @@ export function killTree(child) {
 const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07/g;
 
 // Runs it. Resolves with { code, out, killed, why } and never throws for the program's own failure.
-export function runCommand({ cmd, args = [], cwd, timeoutMs = 15 * 60_000, signal, onOutput = () => {}, env } = {}) {
+export function runCommand({ cmd, args = [], cwd, timeoutMs = 15 * 60_000, signal, onOutput = () => {}, onStart = () => {}, env } = {}) {
   return new Promise((resolve) => {
     const plan = launchPlan(path.isAbsolute(cmd) || !/[\\/]/.test(cmd) ? cmd : path.resolve(cwd, cmd), args);
     let out = '', killed = '', child;
@@ -174,6 +174,7 @@ export function runCommand({ cmd, args = [], cwd, timeoutMs = 15 * 60_000, signa
     try {
       child = spawn(plan.file, plan.args, { cwd, env: env || safeEnv(), stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, detached: !WIN, shell: false, windowsVerbatimArguments: Boolean(plan.verbatim) });
     } catch (e) { return resolve({ code: null, out: '', killed: '', why: e.message }); }
+    try { onStart(child.pid); } catch {}
     const decoder = (stream) => { stream.setEncoding('utf8'); stream.on('data', (d) => { const t = d.replace(ANSI, ''); keep(t); try { onOutput(t); } catch {} }); };
     decoder(child.stdout); decoder(child.stderr);
     const stop = (why) => { if (!killed) killed = why; killTree(child); };

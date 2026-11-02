@@ -151,7 +151,7 @@ export class Brain {
     this.setState('waiting', text);
     const card = { type: 'approval', id, text, diff: need.diff, allowAll: Boolean(group) };
     if (Array.isArray(need.plan)) card.plan = need.plan;
-    if (need.command) { card.command = need.command; card.cwd = need.cwd || ''; }
+    if (need.command) { card.command = need.command; card.cwd = need.cwd || ''; if (need.button) card.button = String(need.button).slice(0, 30); }
     if (hand) card.hand = true;
     emit(card);
     if (hand) this.handApprovals.add(id);
@@ -281,8 +281,8 @@ export class Brain {
     if (helpers.length) prompt += `\n\nCloud copies of you that ${this.cfg.userName || 'the user'} switched on (use ask_cloud only for jobs too big for you, or when asked; each use is approved and costs money): ${helpers.map((h) => `${h.id} = ${copyName(this.cfg, 'cloud:' + h.id, 'cloud helper')}, running on ${h.name} ${h.model}`).join('; ')}.`;
     const shelf = this.refs.describe();
     if (shelf) prompt += `\n\n${shelf}`;
-    if (can.pictures && !can.edits) prompt += '\n\nYour picture model can start from a reference picture but can\'t hold a character\'s exact look across new poses. If keeping a look matters, say a picture-edit model in Models and settings (left menu, Pictures) does that better.';
-    return missing.length ? `${prompt}\n\nOn this PC you can't ${missing.join(', ')} yet. If asked, say so in one line, offer to write the prompt or plan instead, and mention Models and settings (left menu) where the right model can be added.` : prompt;
+    if (can.pictures && !can.edits) prompt += '\n\nYour picture model can start from a reference picture but can\'t hold a character\'s exact look across new poses. If keeping a look matters, say a picture-edit model in Get models (left menu, Pictures & video) does that better.';
+    return missing.length ? `${prompt}\n\nOn this PC you can't ${missing.join(', ')} yet. If asked, say so in one line, offer to write the prompt or plan instead, and mention Get models (left menu) where the right model can be added.` : prompt;
   }
 
   toolSchemas(names) {
@@ -528,7 +528,7 @@ export class Brain {
     const tools = this.toolSchemas(Object.keys(this.tools));
     const { model, cpu, think, ctx: wantCtx } = modelFor(this.cfg, 'bob');
     const brainCtx = await this.fitCtx(model, wantCtx);
-    if (!model) throw new Error('I don\'t have a brain yet. Open Models and settings (in the menu on the left) and pick one; the first-time setup suggests the right one for this PC.');
+    if (!model) throw new Error('I don\'t have a brain yet. Open Get models (in the menu on the left) and pick one; the first-time setup suggests the right one for this PC.');
     this.setState('thinking', '', this.state.model);
     const earlier = await this.recall(sessionId, text);
 
@@ -773,7 +773,7 @@ export class Brain {
   async makeVideo({ reference, ...args }, ctx) {
     const refs = this.pickRefs(reference);
     if (this.cfg.maestro?.enabled && this.cfg.maestro?.video) return this.viaMaestro('video', args, ctx);
-    if (!paintingAvailable(this.cfg, 'video')) throw new Error('Video isn\'t set up yet. Pick a video maker in Models and settings (left menu, Equip Bob, Video slot). I can write the video prompt instead.');
+    if (!paintingAvailable(this.cfg, 'video')) throw new Error('Video isn\'t set up yet. Pick a video maker in Get models (left menu, Equip Bob, Video slot). I can write the video prompt instead.');
     // The first reference becomes the opening frame; the clip moves on from there.
     if (refs.length) return this.paintOwn('video', { ...args, prompt: this.withLooks(args.prompt, refs), image: this.refs.pathOf(refs[0]) }, ctx);
     return this.paintOwn('video', args, ctx);
@@ -791,8 +791,8 @@ export class Brain {
   async noEditModel(what) {
     const waiting = await this.editModelWaiting();
     const fix = waiting
-      ? `${waiting} is on this PC but isn't assigned to "Picture edits": Models and settings, Equip Bob, the Picture editor slot (one click).`
-      : 'No picture-edit model is on this PC yet: Models and settings, Pictures, a picture-edit model (Qwen Image Edit), then Equip Bob, the Picture editor slot.';
+      ? `${waiting} is on this PC but isn't assigned to "Picture edits": Get models, Equip Bob, the Picture editor slot (one click).`
+      : 'No picture-edit model is on this PC yet: Get models, Pictures & video, a picture-edit model (Qwen Image Edit), then Equip Bob, the Picture editor slot.';
     return `Didn't paint anything. Editing ${what} and keeping it looking the same needs a picture-edit model. ${fix} Tell the user that plainly. Offer the alternative too: rework the picture from itself (make_image with mode start_from), where the look can drift.`;
   }
 
@@ -808,7 +808,7 @@ export class Brain {
       const files = refs.map((r) => this.refs.pathOf(r));
       if (can.edits && mode !== 'start_from') return this.paintOwn('edit', { prompt: this.withLooks(prompt, refs), width, height, refs: files }, ctx);
       if (!can.edits && mode !== 'start_from') return this.noEditModel(refs.map((r) => `"${r.name}"`).join(', '));
-      if (!paintingAvailable(this.cfg, 'image')) throw new Error('Painting from a reference needs Bob\'s own painter (a picture model from Models and settings).');
+      if (!paintingAvailable(this.cfg, 'image')) throw new Error('Painting from a reference needs Bob\'s own painter (a picture model from Get models).');
       const out = await this.paintOwn('image', { prompt: this.withLooks(prompt, refs), width, height, image: files[0], strength: strength ?? (mode === 'start_from' ? 0.6 : 0.75) }, ctx);
       return can.edits ? out : `${out} (Reworked from ${refs[0].name} without a picture-edit model, so the look can drift.)`;
     }

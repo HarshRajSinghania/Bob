@@ -214,7 +214,10 @@ notifyBtn.onclick = async () => {
 };
 syncNotify();
 
-$('cellarBtn').onclick = () => cellar.open();
+$('cellarBtn').onclick = () => cellar.open('shop', 'roles');
+$('settingsBtn').onclick = () => cellar.open('settings');
+// Settings, Get models and Style are pages in the main area: Chat or New chat goes back to the chat.
+for (const id of ['chatBtn', 'newchat']) $(id).addEventListener('click', () => { if ($('cellar').open) $('cellar').close(); });
 $('styleBtn').onclick = () => cellar.open('shop', 'style');
 $('tasksBtn').onclick = () => tasks.open();
 $('dlBtn').onclick = () => downloads.open();
@@ -715,7 +718,7 @@ async function start() {
   try {
     const st = await (await fetch('/api/settings')).json(); setLook(st.look); applyStyle(st.style); drawSessions(st.sessions, st.session);
     // Opt-in: tell the user a newer Bob is ready to build. Never updates by itself.
-    if (st.updates?.autoCheck) { const c = await (await fetch('/api/update/check')).json(); if (c.newer) note(`A newer Bob (${c.available.label}) is ready. Models & settings, Settings, Updates.`); }
+    if (st.updates?.autoCheck) { const c = await (await fetch('/api/update/check')).json(); if (c.newer) note(`A newer Bob (${c.available.label}) is ready. Settings, Check for updates.`); }
   } catch {}
   try { drawQueue(await (await fetch('/api/queue')).json()); } catch {}
   try { const d = await (await fetch('/api/downloads')).json(); downloads.update(d); layout.downloads(d); drawDownloadsBadge(d); for (const x of d) if (x.state === 'downloading') showDownload({ ...x, phase: 'downloading' }); } catch {}

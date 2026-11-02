@@ -53,7 +53,7 @@ async function viaHttp(stt, wav) {
 
 async function viaWhisperCpp(cfg, stt, wav) {
   const exe = stt.exe || path.join(cfg.agentDir, 'whisper.cpp', 'whisper-cli.exe');
-  if (!stt.model || !fs.existsSync(stt.model)) throw new Error('I have no ears yet. Pick a "Hearing you" model in Models and settings (left menu).');
+  if (!stt.model || !fs.existsSync(stt.model)) throw new Error('I have no ears yet. Pick a "Hearing you" model in Get models (left menu).');
   const tmp = path.join(os.tmpdir(), `bob-${crypto.randomUUID()}.wav`);
   fs.writeFileSync(tmp, Buffer.from(wav));
   try {

@@ -28,7 +28,7 @@ export function handsApproval(ev, { add, answer }) {
     body = `<pre class="cmd"><code>${esc(ev.command)}</code></pre><p class="muted">In ${esc(ev.cwd || '')}</p>`;
   }
   const card = add('approval hands-card', `<p><strong>Bob wants to:</strong> ${esc(ev.text)}</p>${body}
-    <div class="row"><button type="button" class="yes big">${ev.plan ? 'Allow ticked' : 'Run it'}</button>${all}<button type="button" class="no big">Deny</button></div>`);
+    <div class="row"><button type="button" class="yes big">${ev.plan ? 'Allow ticked' : esc(ev.button || 'Run it')}</button>${all}<button type="button" class="no big">Deny</button></div>`);
   const rows = () => [...card.querySelectorAll('input[data-row]')].filter((i) => i.checked).map((i) => i.dataset.row);
   const tickAll = card.querySelector('.tick-all');
   if (tickAll) {
@@ -92,6 +92,7 @@ export function onHandsEvent(ev, { add, scrollDown, note }) {
     };
     return true;
   }
+  if (ev.type === 'apps-stopped') { add('hands-done', `<span>You ${esc(ev.why || 'took over')}, so Bob stopped using apps for this job.</span>`); return true; }
   if (ev.type === 'hands') { showStopAll(ev.settings?.enabled); return true; }
   return false;
 }
@@ -155,11 +156,14 @@ export async function mountHandsSettings(box) {
         <strong>Recent commands</strong>
         ${v.runs.length ? `<ul>${v.runs.map((r) => `<li>${esc(when(r.at))}: <code>${esc(r.line)}</code> <span class="muted">${r.why ? "didn't start" : r.killed ? esc(r.killed) : `exit ${r.code}`}</span></li>`).join('')}</ul>` : '<p class="muted">None yet.</p>'}
         <p class="muted">Every action is also in the logbook (inn\\logbook.md).</p></div>
+      <div class="hands-selftest"><strong>Self-test</strong> <span class="muted">Checks that Recycle Bin and Undo, tidying, running a program and Stop work on this PC. Uses a throwaway folder of dummy files, which is removed afterwards. Nothing of yours is touched, and no Hand needs to be on.</span>
+        <div class="row"><button type="button" data-hselftest>Run the self-test</button></div>
+        ${selftest ? `<ul class="selftest">${selftest.results.map((r) => `<li>${r.ok ? '✅' : '❌'} <strong>${esc(r.name)}</strong>: ${esc(r.says)}</li>`).join('')}</ul><p class="muted">${selftest.passed} of ${selftest.total} passed.${selftest.cleaned ? ' The throwaway folder is gone.' : ` Couldn't remove ${esc(selftest.folder)}.`}</p>` : ''}</div>
       <p class="muted hands-out" role="status"></p>`;
   };
   const say = (t) => { const o = box.querySelector('.hands-out'); if (o) o.textContent = t; };
   const set = async (patch, msg) => { v = await post('/api/hands/settings', patch); draw(); say(msg || 'Saved.'); showStopAll(v.settings.enabled); };
-  let sched = null;
+  let sched = null, selftest = null;
   const loadSched = async () => { try { sched = await (await fetch('/api/hands/schedules')).json(); } catch { sched = null; } };
   await loadSched();
   try { v = await (await fetch('/api/hands')).json(); draw(); } catch (e) { box.innerHTML = `<strong>Hands</strong><p class="muted">Couldn't load: ${esc(e.message)}</p>`; return; }
@@ -190,6 +194,7 @@ export async function mountHandsSettings(box) {
         say(v.settings.folders.length > before ? 'Added.' : 'That isn\'t a full folder path (like C:\\Users\\you\\Pictures).');
         return;
       }
+      if ('hselftest' in b.dataset) { b.disabled = true; say('Running the self-test (about 10 seconds)…'); selftest = await post('/api/hands/selftest'); draw(); say(`Self-test: ${selftest.passed} of ${selftest.total} passed.`); return; }
       if (b.dataset.hscheddel) { sched = await post('/api/hands/schedules', { remove: b.dataset.hscheddel }); draw(); say('Schedule removed.'); return; }
       if (b.dataset.hundo) { const r = await post('/api/hands/undo', { id: b.dataset.hundo }); v = r; draw(); say(`Undone.${r.manual?.length ? ` ${r.manual.length} thing(s) are in the Recycle Bin: restore from there.` : ''}${r.failed?.length ? ` Couldn't undo: ${r.failed.join('; ')}` : ''}`); return; }
       if (b.dataset.hrun) { await post('/api/hands/run-recipe', { name: b.dataset.hrun }); say('Running. The output is in the chat.'); return; }

@@ -454,8 +454,13 @@ export class ModelShop {
       const r = await fetch(f.url, { method: 'HEAD', redirect: 'manual', signal });
       const size = Number(r.headers.get('x-linked-size') || r.headers.get('content-length') || 0);
       if (r.status >= 400) throw new Error(linkError(fileNameOf(f.url), r.status));
-      const sha = f.sha256 || String(r.headers.get('x-linked-etag') || '').replace(/^W\//, '').replace(/"/g, '');
-      heads.push({ f, size, sha: /^[0-9a-f]{64}$/.test(sha) ? sha : null });
+      const linked = String(r.headers.get('x-linked-etag') || '').replace(/^W\//, '').replace(/"/g, '');
+      // Every catalog file is pinned (1.5.0): its size, and its sha256 unless marked sizeOnly. A file that changed
+      // upstream since this Bob was made is stopped here, before anything downloads.
+      if (f.sha256 && /^[0-9a-f]{64}$/.test(linked) && linked !== f.sha256) throw new Error(`${fileNameOf(f.url)} has changed on the website since this Bob was made, so I didn't download it. A newer Bob will have the new one.`);
+      if (f.bytes && size && size !== f.bytes) throw new Error(`${fileNameOf(f.url)} is a different size on the website than this Bob expects, so I didn't download it. A newer Bob will have the new one.`);
+      const sha = f.sha256 || (f.sizeOnly ? '' : linked);
+      heads.push({ f, size: size || f.bytes || 0, sha: /^[0-9a-f]{64}$/.test(sha) ? sha : null });
     }
     const total = heads.reduce((t, h) => t + h.size, 0);
     try {
@@ -499,6 +504,7 @@ export class ModelShop {
       pub.phase = 'checking';
       tick();
       const digest = hash.digest('hex');
+      if (h.f.bytes && got !== h.f.bytes) { fs.rmSync(part, { force: true }); throw new Error(`${name} came through the wrong size. I deleted it; try again.`); }
       if (h.sha && digest !== h.sha) { fs.rmSync(part, { force: true }); throw new Error(`${name} came through damaged (checksum didn't match). I deleted it; try again.`); }
       fs.renameSync(part, final);
       pub.done = base + got;

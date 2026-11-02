@@ -33,7 +33,7 @@ You can close Bob while things download. Unfinished downloads wait, paused, and 
 
 Bob's window has three parts:
 
-- **The menu on the left.** Chat, Tasks, Topics, References, Models and settings, and so on. Fold it down to icons with the ‹ button (or Ctrl+B).
+- **The menu on the left.** Chat, Tasks, Topics, References, Get models, Style, Settings, and so on. Fold it down to icons with the ‹ button (or Ctrl+B).
 - **The chat in the middle.** Type and press Enter. Shift+Enter starts a new line.
 - **Now running on the right.** What Bob is doing, what's downloading, and how full your graphics card is. Hide it with Ctrl+J.
 
@@ -44,13 +44,21 @@ Handy things in the chat:
 - 📎 attaches a picture, and 🎙 lets you talk instead of typing.
 - You can send as many messages as you like. Each one becomes a task, and Bob works through them in order. None get lost.
 
+### Settings, Get models and Style
+
+These open as a page in the middle of the window, in place of the chat. **← Back to chat** (or Esc, or Chat in the menu) takes you back. A bar along the top of the page, which stays put while you scroll, jumps between Equip Bob, the model pages, Style and Settings, so clicking Bob's picture gets you everywhere too.
+
+- **Get models:** Equip Bob, the model shops (Voice & conversation, Coding, Seeing pictures, Pictures & video) and **On this PC**.
+- **Settings** starts as one short page showing what's set now: Bob's voice (with **Play sample** and **Change**), his look, the colours, animations, the cat's name, one brain, launch on start-up and checking for updates (both off unless you turn them on), and the version, graphics card and disk space, with **Check for updates** and **Run first-time setup**.
+- **Show advanced settings** (off unless you turn it on, and remembered) adds a search box and the rest: Brains (model roles, session brains, context), Voice details, Look & feel extras, Engines & speed, Connections (ComfyUI, cloud helpers), Hands, Housekeeping and Remove Bob. Longer explanations fold behind **More**.
+
 ---
 
 ## 3. Equip Bob: choosing his models
 
 Bob uses different AI **models** for different jobs, the way a person might use a different tool for each task. **Equip Bob** shows them like a character sheet in a game: a picture of Bob with a slot for each job.
 
-**To open it**, click Bob's picture (or go to Models and settings, then Equip Bob).
+**To open it**, click Bob's picture (or click **Get models** in the left menu: it opens on Equip Bob).
 
 ### The slots
 
@@ -212,7 +220,7 @@ Hands are Bob's way of doing things for you on your PC rather than just talking 
 
 Hands are built to be careful:
 
-- **Every Hand is off** until you switch it on in Settings, and each one has an off switch you can flip at any time.
+- **Every Hand is off** until you switch it on in Settings (Show advanced settings, Hands), and each one has an off switch you can flip at any time.
 - **Bob shows you exactly what he's about to do** (a preview card) and waits for your click.
 - "**Allow for the rest of this job**" is something you have to choose, and it ends when the job ends.
 - File changes keep an **undo** list, and anything removed goes to the Recycle Bin.
@@ -222,11 +230,13 @@ Hands are built to be careful:
 
 Even without Hands, Bob **asks before doing anything outside his own folder**.
 
+**Self-test:** Settings → Show advanced settings → Hands → **Run the self-test** checks, in a throwaway folder of dummy files, that the Recycle Bin and Undo, tidying, running a program and Stop all work on your PC. It shows a pass or fail list in plain words and removes the folder afterwards. No Hand needs to be on, and nothing of yours is touched.
+
 ---
 
 ## 9. Voice
 
-- **Read aloud:** Bob can speak his replies. Kokoro is the recommended voice (22 voices, runs on the processor). Every voice has **Hear a sample** so you can choose before downloading.
+- **Read aloud:** Bob can speak his replies. Kokoro is the recommended voice (22 voices, runs on the processor). Every voice has a **Play** button with a short sample (the same line in each voice) that works before you download anything.
 - **Talk to Bob:** with the Ears slot filled, use 🎙 or say "Hey Bob" hands-free (if you turn that on).
 
 ---
@@ -245,9 +255,9 @@ Even without Hands, Bob **asks before doing anything outside his own folder**.
 
 ## 11. Updating and removing Bob
 
-**Updating:** Models and settings → Settings → Updates → **Check for a newer Bob**. If there is one, click **Update Bob** and watch the steps. Your chats, models and settings are kept. If Bob is busy, he asks whether to restart now, wait until he's finished, or leave it for later.
+**Updating:** Settings → **Check for updates**. If there is one, click **Update Bob** and watch the steps. Your chats, models and settings are kept. If Bob is busy, he asks whether to restart now, wait until he's finished, or leave it for later.
 
-**Removing:** Models and settings → Settings → **Remove Bob…**. Bob's program is removed. Two boxes, unticked unless you tick them, also remove his chats and settings and the models he downloaded. Those go to the Recycle Bin.
+**Removing:** Settings → Show advanced settings → Remove Bob → **Remove Bob…**. Bob's program is removed. Two boxes, unticked unless you tick them, also remove his chats and settings and the models he downloaded. Those go to the Recycle Bin.
 
 ---
 

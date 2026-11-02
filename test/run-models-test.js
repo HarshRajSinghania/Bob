@@ -27,7 +27,10 @@ fs.writeFileSync(path.join(man, '26b'), '{}');
 
 const dataDir = path.join(agent, 'inn', 'bob');
 fs.mkdirSync(dataDir, { recursive: true });
+// The fake Hugging Face here serves random bytes, so the tests use the catalog without its pins (1.5.0 pins every file).
+const unpinned = (dir) => { const c = JSON.parse(fs.readFileSync(new URL('../catalog.json', import.meta.url), 'utf8')); for (const m of c.models) for (const f of m.files || []) { delete f.sha256; delete f.bytes; delete f.sizeOnly; } const f = path.join(dir, 'catalog-unpinned.json'); fs.writeFileSync(f, JSON.stringify(c)); return f; };
 const cfg = {
+  catalogFile: unpinned(dataDir),
   agentDir: agent, dataDir, bobModelsDir: path.join(agent, 'models', 'bob'), settingsFile: path.join(dataDir, 'settings.json'),
   modelSearchRoots: [path.join(root, 'pinokio', 'api')], ollamaUrl: 'http://127.0.0.1:1', engine: 'ollama',
   models: { bob: 'gemma4:26b' }, painter: { engine: 'comfy', sdcpp: { exe: 'C:\\sd\\sd-cli.exe' } }, llamacpp: { exe: 'C:\\llama\\llama-server.exe' }

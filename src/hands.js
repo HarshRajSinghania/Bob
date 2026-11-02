@@ -16,6 +16,7 @@ import { insideAny, appDir } from './config.js';
 import { HANDS, handOn, handsSettings, cleanHands } from './hands-settings.js';
 import { planFiles, planCard, applyFiles, undoJob, loadJournal, handsRoots } from './hands-files.js';
 import { checkCommand, runCommand } from './hands-run.js';
+import { appsTools } from './hands-apps.js';
 
 const fn = (name, description, properties, required = Object.keys(properties)) => ({ type: 'function', function: { name, description, parameters: { type: 'object', properties, required } } });
 const str = (description, extra = {}) => ({ type: 'string', description, ...extra });
@@ -24,6 +25,14 @@ const list = (description) => ({ type: 'array', items: { type: 'string' }, descr
 // ---- What's running (so Stop and Stop everything can reach it) ----
 const running = new Map(); // runId -> { controller, line, cwd, started }
 export function runningNow() { return [...running.entries()].map(([id, r]) => ({ id, line: r.line, cwd: r.cwd, started: r.started })); }
+// Something else a Hand keeps running (the Apps helper and its red bar): Stop everything reaches it too.
+export function track({ line, stop }) {
+  const id = crypto.randomUUID().slice(0, 8);
+  const controller = new AbortController();
+  controller.signal.addEventListener('abort', () => { running.delete(id); try { stop(); } catch {} }, { once: true });
+  running.set(id, { controller, line, cwd: '', started: Date.now() });
+  return () => running.delete(id);
+}
 export function stopRun(id) { const r = running.get(id); if (!r) return false; r.controller.abort(); return true; }
 
 // "Stop everything": stops every running command, turns the master switch off, and tells the brain to deny
@@ -100,7 +109,7 @@ export async function runApproved(cfg, { cmd, args = [], cwd }, { emit = () => {
 const off = (cfg, id) => { if (!handOn(cfg, id)) throw new Error(`The ${HANDS[id].label} Hand is switched off. ${cfg.userName || 'The user'} can turn it on in Settings, Hands.`); };
 
 // The tools. brain is used for its logbook.
-export function handsTools(brain) {
+export function handsTools(brain, opts = {}) {
   const cfg = brain.cfg;
   const log = (k, t) => brain.log?.(k, t);
   const t = {};
@@ -207,6 +216,7 @@ export function handsTools(brain) {
     summary: ({ action, name }) => `recipe: ${action}${name ? ' ' + name : ''}`
   };
 
+  Object.assign(t, appsTools(brain, { track, ...(opts.apps || {}) }));
   return t;
 }
 
@@ -215,7 +225,7 @@ export function handsPrompt(cfg) {
   const on = Object.entries(HANDS).filter(([id]) => handOn(cfg, id));
   if (!on.length) return '';
   const roots = handsRoots(cfg);
-  return `\n\nHands ${cfg.userName || 'the user'} switched on: ${on.map(([, h]) => h.label).join('; ')}.${handOn(cfg, 'files') ? ` Files: only in ${roots.join('; ') || '(no folders ticked yet)'}.` : ''} Every action shows a card and waits for a click, so describe the plan briefly and call the tool; don't ask in words first. If ${cfg.userName || 'the user'} says no, don't try another way round.`;
+  return `\n\nHands ${cfg.userName || 'the user'} switched on: ${on.map(([, h]) => h.label).join('; ')}.${handOn(cfg, 'files') ? ` Files: only in ${roots.join('; ') || '(no folders ticked yet)'}.` : ''}${handOn(cfg, 'apps') ? ' Apps: open with open_app, read the window with app_look, then do one step at a time with app_act using the names app_look gave you.' : ''} Every action shows a card and waits for a click, so describe the plan briefly and call the tool; don't ask in words first. If ${cfg.userName || 'the user'} says no, don't try another way round.`;
 }
 
 // For the Settings page.

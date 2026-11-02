@@ -6,11 +6,13 @@
 //   POST /api/hands/stop-all   stop everything a Hand is doing, deny waiting Hand cards, all Hands off
 //   POST /api/hands/undo       { id? }    undo a file job (the user's own click is the approval)
 //   POST /api/hands/recipes    { save: { name, cmd, args, cwd } } or { remove: name }
+//   POST /api/hands/selftest   run the self-test in a throwaway folder (the user's click; nothing of theirs is touched)
 //   POST /api/hands/run-recipe { name }  run a recipe now (the user's click is the approval; output goes to the chat)
 import { handsView, stopRun, stopEverything, saveRecipe, removeRecipe, loadRecipes, runApproved } from './hands.js';
 import { handsSettings, cleanHands, HANDS, handOn } from './hands-settings.js';
 import fs from 'node:fs';
 import { undoJob } from './hands-files.js';
+import { selfTest } from './hands-selftest.js';
 const isDir = (f) => { try { return fs.statSync(f).isDirectory(); } catch { return false; } };
 
 export async function handsRoute({ req, p, isLocal, brain, cfg, body, send, res }) {
@@ -42,6 +44,7 @@ export async function handsRoute({ req, p, isLocal, brain, cfg, body, send, res 
       send(res, 200, { done: r.done, failed: r.failed, manual: r.manual, ...handsView(cfg) });
       return true;
     }
+    if (p === '/api/hands/selftest') { send(res, 200, await selfTest(cfg, { log: (k, t) => brain.log(k, t) })); return true; }
     if (p === '/api/hands/run-recipe') {
       if (!handOn(cfg, 'run')) throw new Error('The Run Hand is off. Turn on Hands and "Run programs and scripts" first.');
       const r = loadRecipes(cfg).find((x) => x.name.toLowerCase() === String(b.name || '').toLowerCase());

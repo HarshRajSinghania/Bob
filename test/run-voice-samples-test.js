@@ -62,7 +62,7 @@ have.set('kokoro-v1', { model: kModel, voices: kVoices });
 {
   const ui = fs.readFileSync('public/cellar.js', 'utf8');
   check('1.1.2: one Voice & conversation page (planning, hearing, voice) and one Pictures & video page', /id: 'talk', label: 'Voice & conversation'[^\n]*parts: \['chat', 'voice', 'speech'\]/.test(ui) && /id: 'media', label: 'Pictures & video'[^\n]*parts: \['images', 'video'\]/.test(ui));
-  check("1.1.2: Bob's voice settings live on the Voice page, Settings only links there", /id === 'speech' \? `<div class="settings voice-settings">\$\{voiceHtml\(\)\}/.test(ui) && (ui.match(/\$\{voiceHtml\(\)\}/g) || []).length === 1);
+  check("Bob's voice settings live on the Voice page, plus Advanced settings' Voice details (1.5.0)", /id === 'speech' \? `<div class="settings voice-settings">\$\{voiceHtml\(\)\}/.test(ui) && (ui.match(/\$\{voiceHtml\(\)\}/g) || []).length === 2 && /function voiceDetailsHtml/.test(ui));
 }
 audio.voicePython.kokoro = process.execPath;
 const [a, b] = await Promise.all([sampleFor(cfg, shop, 'kokoro', 'af_heart'), sampleFor(cfg, shop, 'kokoro', 'af_heart')]);

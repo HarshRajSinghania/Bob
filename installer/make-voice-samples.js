@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Makes the voice samples that ship with Bob (public/voice-samples/), using the Kokoro voice on this PC.
 // Bob must be running (it uses his own "Hear a sample" route, so nothing is downloaded).
-//   node installer/make-voice-samples.js          the six default voices
-//   node installer/make-voice-samples.js --all    all 22 Kokoro voices
+//   node installer/make-voice-samples.js          all 22 Kokoro voices (npm run voice-samples)
+//   node installer/make-voice-samples.js --only am_michael,bf_emma    just these
 // If ffmpeg is on PATH the clips are saved as small MP3s (about 40 KB each), otherwise as WAV.
 // Only Kokoro (Apache-2.0) clips are shipped; Piper voices have mixed data licences, so they play
 // from Piper's own sample page instead.
@@ -16,7 +16,8 @@ import { KOKORO_VOICES } from '../src/tts.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.resolve(here, '..', 'public', 'voice-samples');
 const port = Number(process.argv[process.argv.indexOf('--port') + 1]) || 7777;
-const list = process.argv.includes('--all') ? KOKORO_VOICES.map(([id]) => id) : BUNDLED_KOKORO;
+const only = process.argv.includes('--only') ? String(process.argv[process.argv.indexOf('--only') + 1] || '').split(',') : null;
+const list = only ? KOKORO_VOICES.map(([id]) => id).filter((id) => only.includes(id)) : BUNDLED_KOKORO;
 const ffmpeg = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
 fs.mkdirSync(out, { recursive: true });
 

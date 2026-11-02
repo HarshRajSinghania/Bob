@@ -1,5 +1,5 @@
 // Hands settings (no imports, so config.js can use it). Hands are the things Bob can do on the PC beyond chatting:
-// work with files, run commands, and (later) schedules and apps. Every Hand is OFF until the user turns it on,
+// work with files, run commands, schedules, and open and use apps. Every Hand is OFF until the user turns it on,
 // there is one master switch over all of them, and nothing here can make Bob skip asking.
 //
 // To add a Hand, add an entry to HANDS. Its switch, its line in Settings and its tool filtering all follow from it.
@@ -18,6 +18,11 @@ export const HANDS = {
     label: 'Schedules',
     what: 'Do a job by himself at set times (once, daily, weekly, or every so many minutes) while Bob is open. You approve each schedule, and every action inside a run still asks for your OK, so a run with nobody at the PC just waits and then does nothing. Waking Bob when he is closed is a separate switch.',
     tools: ['schedule_job', 'list_schedules', 'change_schedule']
+  },
+  apps: {
+    label: 'Open and use apps',
+    what: 'Open apps from your Start menu, read a window\'s buttons and fields, and click, type or press keys in it, one approved action at a time. A red "Bob is driving" bar shows while he does; move the mouse or press Esc to stop him at once. Never terminals, admin tools, password managers, password fields, sign-in or security prompts, or his own window.',
+    tools: ['open_app', 'app_look', 'app_act']
   }
 };
 

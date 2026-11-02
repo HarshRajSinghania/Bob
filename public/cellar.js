@@ -6,6 +6,7 @@ import { createSampler, sampleButton, sampleHint } from './voice-samples.js';
 import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks, starterPlan, slotValue } from './equip.js';
 import { drawBob } from './bob-sprite.js';
 import { handsSettingsHtml, mountHandsSettings } from './hands.js';
+import { findTheme } from './themes.js';
 import { attributesHtml, cleanPersonality, greeting, PRESETS, DEFAULTS, isDefault } from './personality.js';
 
 const $ = (id) => document.getElementById(id);
@@ -138,7 +139,7 @@ export function createCellar() {
     const cats = [], seen = new Set();
     for (const c of data.categories) { const g = groupOf(c.id); const item = g || c; if (!seen.has(item.id)) { seen.add(item.id); cats.push(item); } }
     const tabs = [{ id: 'roles', label: 'Equip Bob', icon: '🧰' }, ...cats, { id: 'found', label: 'On this PC', icon: '🔎' }, { id: 'style', label: 'Style', icon: '🎨' }, { id: 'settings', label: 'Settings', icon: '⚙' }];
-    const bar = `<nav class="tabs" role="tablist">${tabs.map((c) => `<button role="tab" aria-selected="${c.id === tab}" data-tab="${c.id}">${c.icon} ${esc(c.label)}</button>`).join('')}</nav>`;
+    const bar = `<nav class="tabs cellar-tabs" role="tablist" aria-label="Get models, Style and Settings pages">${tabs.map((c) => `<button role="tab" aria-selected="${c.id === tab}" data-tab="${c.id}">${c.icon} ${esc(c.label)}</button>`).join('')}</nav>`;
     let body = '';
     if (tab === 'settings') body = settingsHtml();
     else if (tab === 'style') body = stylePage.html(settings);
@@ -229,7 +230,7 @@ export function createCellar() {
     const KINDS = [['chats', 'Chats', 'summed up first, so the topic notes and a summary stay'], ['pictures', 'Pictures and clips Bob made', ''], ['sounds', 'Sounds and music Bob made', ''], ['tasks', 'Finished tasks', 'the chats keep what was said'], ['logs', 'Logbook and update logs', '']];
     const units = ['minutes', 'hours', 'days', 'weeks', 'months'];
     return `<div class="housekeeping"><strong>Housekeeping</strong> <span class="tag">off unless you turn it on</span>
-      <p class="muted">Bob tidies up after himself while he's idle: he sums up the older part of long chats, files what you talked about under Topics, moves lasting facts to his memory file, and offers to clear away things that haven't come up for a while. Removed things go to the Recycle Bin. Pinned chats, pictures and topics are never touched, and everything he does goes in the logbook.</p>
+      ${more('Bob tidies up after himself while he\'s idle: he sums up the older part of long chats, files what you talked about under Topics, moves lasting facts to his memory file, and offers to clear away things that haven\'t come up for a while. Removed things go to the Recycle Bin. Pinned chats, pictures and topics are never touched, and everything he does goes in the logbook.')}
       <label class="switch"><input type="checkbox" data-hk="enabled" ${hk.enabled ? 'checked' : ''}><span><strong>Let Bob keep house</strong><br><span class="muted">Only while he's idle (10 minutes quiet, nothing running). He mentions old things at most once a day.</span></span></label>
       <label class="switch"><input type="checkbox" data-hk="wakeBrain" ${hk.wakeBrain ? 'checked' : ''} ${hk.enabled ? '' : 'disabled'}><span><strong>Load a brain for it if none is loaded</strong><br><span class="muted">Off: he sums up and sorts topics only when his brain is already in memory, so a game keeps the graphics card.</span></span></label>
       <table class="hk-table"><thead><tr><th>What</th><th>When it hasn't come up for</th><th>Then</th></tr></thead><tbody>
@@ -240,45 +241,121 @@ export function createCellar() {
       <div class="row"><button data-opentidy>Open Tidy up</button><button data-hkrun>Tidy up now</button><span class="muted hk-out"></span></div></div>`;
   }
 
-  function settingsHtml() {
-    return `<section class="settings">
-      <p class="muted">Bob's look and the colours are on the <button class="link" data-tab="style">🎨 Style</button> tab.</p>
-      <div class="updates"><strong>Updates</strong><p class="muted">This is Bob ${esc(settings.version?.label || '')}. Update builds the newest Bob, shows every step, and asks before restarting. Your chats, notes, models and settings stay.</p>
-        <div class="row"><button data-checkupdate>Check for a newer Bob</button><span class="update-out muted"></span></div>
-        <div class="update-steps"></div>
-        <label class="switch"><input type="checkbox" data-set="autoCheck" ${settings.updates?.autoCheck ? 'checked' : ''}><span><strong>Check when Bob starts</strong><br><span class="muted">Off unless you turn it on. Bob only tells you; updating always takes your click.</span></span></label></div>
-      ${housekeepingHtml()}
-      ${handsSettingsHtml()}
-      <div><strong>Downloads</strong><p class="muted">Downloads run ${settings.downloads?.concurrent === 2 ? 'two' : 'one'} at a time. You can pause, resume, cancel or reorder them.</p><button data-opendl>Open Downloads</button></div>
-      <label class="switch"><input type="checkbox" data-set="oneBrain" ${settings.oneBrain ? 'checked' : ''}>
-        <span><strong>One brain (snappier)</strong><br><span class="muted">In the Normal session, every copy of Bob uses the main brain, so there's no 20-second brain swap. Specialist brains are better for long coding or review jobs.</span></span></label>
-      <label class="pick"><strong>Bob's cat</strong><input data-set="catName" maxlength="24" value="${esc(settings.catName || 'Patches')}" aria-label="Cat's name" style="width:12em"><span class="muted">The cat who ignores him in The Idle Process.</span></label>
-      <div><strong>Bob's voice</strong><p class="muted">Voice, speed and samples are on the <button class="link" data-tab="speech">💬 Voice &amp; conversation</button> page, with hearing you and his everyday brain.</p></div>
-      <label class="switch"><input type="checkbox" data-set="autostart" ${settings.autostart ? 'checked' : ''} ${settings.platform !== 'win32' ? 'disabled' : ''}>
-        <span><strong>Launch Bob on start-up</strong><br><span class="muted">Off unless you turn it on. Bob then waits quietly in the background.</span></span></label>
-      <label class="pick"><strong>Bob's engine</strong>
+  // Settings (1.5.0): an Everyday page of rows that show what's set now, and "Show advanced settings"
+  // for everything else, with a search box. Long help folds behind "More".
+  const more = (text) => `<details class="more"><summary>More</summary><p class="muted">${text}</p></details>`;
+  let advanced = (() => { try { return localStorage.getItem('bob-settings-advanced') === '1'; } catch { return false; } })();
+  let settingsQuery = '';
+  function voiceNow() {
+    const t = settings.tts || {};
+    if (t.provider === 'kokoro') { const k = (settings.kokoroVoices || []).find(([id]) => id === (t.voice || 'am_michael')); return { name: `${k ? k[1] : t.voice} (Kokoro)`, play: hear('kokoro', t.voice || 'am_michael', 'Play sample') }; }
+    if (t.provider === 'chatterbox') return { name: 'Chatterbox (copies voices\\bob.wav)', play: hear('chatterbox', 'bob', 'Play sample') };
+    if (t.provider === 'piper') { const v = voices.find((x) => x.engine === 'piper' && x.installed); return { name: v ? `${v.label} (Piper)` : 'Piper', play: v ? hear('piper', v.voice, 'Play sample') : '' }; }
+    return { name: 'The voice built into Windows', play: sampleButton('windows', 'default', 'Play sample', 'The voice built into Windows.') };
+  }
+  const srow = (label, value, actions = '', id = '') => `<div class="srow"${id ? ` id="${id}"` : ''}><span class="slabel">${label}</span><span class="svalue">${value}</span><span class="sact">${actions}</span></div>`;
+  const sswitch = (key, on, label, note = '', extra = '') => `<label class="switch srow-switch"><input type="checkbox" data-set="${key}" ${on ? 'checked' : ''} ${extra}><span><strong>${label}</strong>${note ? `<br><span class="muted">${note}</span>` : ''}</span></label>`;
+
+  function everydayHtml() {
+    const st = settings.style || {};
+    const v = voiceNow();
+    const lookName = (settings.lookText || '').split(/[:.,(]/)[0].replace(/["“”]/g, '').trim() || 'Sysop';
+    const theme = findTheme(st.theme || 'inn', st.custom || []);
+    const motion = st.motion || 'on';
+    const mopt = (val, label) => `<button type="button" role="radio" aria-checked="${motion === val}" data-motion="${val}">${label}</button>`;
+    return `<div class="everyday">
+      ${srow('Bob\'s voice', esc(v.name), `${v.play} <button type="button" class="mini" data-tab="speech">Change</button>`)}
+      ${srow('Bob\'s look', esc(lookName), '<button type="button" class="mini" data-tab="style">Change</button>')}
+      ${srow('Colours', esc(theme?.name || 'Bob\'s Inn'), '<button type="button" class="mini" data-tab="style">Change</button>')}
+      ${srow('Animations', `<span class="ttabs" role="radiogroup" aria-label="Animations">${mopt('on', 'On')}${mopt('system', 'Follow Windows')}${mopt('off', 'Off')}</span>`)}
+      ${srow('Bob\'s cat', `<input data-set="catName" maxlength="24" value="${esc(settings.catName || 'Patches')}" aria-label="Cat's name" style="width:12em">`)}
+      ${sswitch('oneBrain', settings.oneBrain, 'One brain (snappier)', 'Every copy of Bob uses the main brain, so there\'s no brain swap.')}
+      ${sswitch('autostart', settings.autostart, 'Launch Bob on start-up', 'Off unless you turn it on.', settings.platform !== 'win32' ? 'disabled' : '')}
+      ${sswitch('autoCheck', settings.updates?.autoCheck, 'Check for updates when Bob starts', 'Off unless you turn it on. Bob only tells you; updating always takes your click.')}
+      <div class="updates srow-foot"><span class="muted">Bob ${esc(settings.version?.label || '')} · Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'} · Free disk: ${hw?.freeGB ?? '?'} GB</span>
+        <div class="row"><button type="button" data-checkupdate>Check for updates</button><button type="button" data-welcome>Run first-time setup</button><span class="update-out muted"></span></div>
+        <div class="update-steps"></div></div>
+    </div>`;
+  }
+
+  function enginesHtml() {
+    return `<label class="pick"><strong>Bob's engine</strong>
         <select data-set="engine"><option value="ollama" ${settings.engine === 'ollama' ? 'selected' : ''}>Ollama (if you already have it)</option><option value="llamacpp" ${settings.engine === 'llamacpp' ? 'selected' : ''}>Bob's own (llama.cpp, nothing else needed)</option></select>
         <span class="muted">Takes effect next time Bob starts.</span></label>
-      <div><strong>Engines</strong><p class="muted">The programs that run the models, from their official GitHub pages, matched to your graphics card.</p>
+      <div><strong>Engine downloads</strong>${more('The programs that run the models, from their official GitHub pages, matched to your graphics card.')}
         ${(data.engines || []).map((e) => `<article class="model" id="m-engine:${esc(e.id)}"><header><strong>${esc(e.name)}</strong></header><p>${esc(e.what)}</p>
           <div class="act">${live.has('engine:' + e.id) ? progress(live.get('engine:' + e.id)) : e.installed ? `<div class="have">✓ Installed${e.version ? ` (${esc(e.version)})` : ''}</div>${e.pinned || settings.platform !== 'win32' ? '' : `<button data-checkengine="${esc(e.id)}">Check for a newer build</button>`}` : settings.platform !== 'win32' ? '<div class="muted">Windows only</div>' : `<button class="get" data-engine="${esc(e.id)}">Get ${esc(e.name)}</button>`}</div><div class="confirm" hidden></div></article>`).join('')}</div>
-      ${speedHtml()}
-      <div><strong>ComfyUI workflows</strong> <span class="tag">off unless you turn it on</span>
-        <p class="muted">For jobs Bob's own engines can't do (custom nodes, face fixers, long multi-step graphs). Bob drives ComfyUI for you; it just has to be running on this PC (for example from Pinokio). Add workflows to the workflows folder as Workflow > Export (API) files.</p>
+      ${speedHtml()}`;
+  }
+
+  function connectionsHtml() {
+    return `<div><strong>ComfyUI workflows</strong> <span class="tag">off unless you turn it on</span>
+        ${more('For jobs Bob\'s own engines can\'t do (custom nodes, face fixers, long multi-step graphs). Bob drives ComfyUI for you; it just has to be running on this PC (for example from Pinokio). Add workflows to the workflows folder as Workflow > Export (API) files.')}
         <label class="switch"><input type="checkbox" data-set="workshop" ${settings.workshop?.enabled ? 'checked' : ''}><span><strong>Let Bob use ComfyUI</strong><br><span class="muted">${settings.workshop?.enabled ? `Workflows folder: ${esc(settings.workshop.folder)} · ${settings.workshop.count} workflow${settings.workshop.count === 1 ? '' : 's'}` : 'Off.'}</span></span></label>
         <label class="pick"><strong>ComfyUI port</strong><input data-set="workshopPort" inputmode="numeric" value="${esc(settings.workshop?.port || 8188)}" aria-label="ComfyUI port" style="width:7em"></label></div>
       <div><strong>Cloud helpers</strong> <span class="tag">off unless you turn one on</span>
-        <p class="muted">Paid cloud AIs Bob can hand one job to, as a helper copy. He asks you every time, shows the rough cost and exactly what text would leave your PC. Bob never stores or sees your keys: you add a key as a Windows environment variable yourself (Settings, System, About, Advanced system settings, Environment Variables, under "User variables").</p>
+        ${more('Paid cloud AIs Bob can hand one job to, as a helper copy. He asks you every time, shows the rough cost and exactly what text would leave your PC. Bob never stores or sees your keys: you add a key as a Windows environment variable yourself (Settings, System, About, Advanced system settings, Environment Variables, under "User variables").')}
         ${cloud.map((c) => `<div class="cloud row${c.keyFound ? '' : ' dim'}">
           <label class="switch"><input type="checkbox" data-cloud="${esc(c.id)}" ${c.enabled ? 'checked' : ''} ${c.keyFound ? '' : 'disabled'}><span><strong>${esc(c.name)}</strong><br><span class="muted">${c.keyFound ? `Key found (${esc(c.apiKeyEnv)})` : `No key yet. Add a user variable named ${esc(c.apiKeyEnv)}.`}</span></span></label>
           ${c.models.length ? `<select data-cloudmodel="${esc(c.id)}" aria-label="${esc(c.name)} model" ${c.keyFound ? '' : 'disabled'}>${c.models.map((m) => `<option ${m === c.model ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>` : `<input data-cloudmodel="${esc(c.id)}" aria-label="${esc(c.name)} model" placeholder="model name" value="${esc(c.model)}" ${c.keyFound ? '' : 'disabled'}>`}
-        </div>`).join('')}</div>
-      <p class="muted">Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'} · Free disk: ${hw?.freeGB ?? '?'} GB</p>
-      <p><button data-welcome>Run the first-time setup again</button></p>
-      <div class="remove-bob"><strong>Remove Bob</strong><p class="muted">Takes off Bob's program, his Start menu shortcut and "Launch on start-up". His chats, settings and models stay unless you tick them below. Nothing else in the inn folder or in Windows is touched.</p>
-        <button data-removebob>Remove Bob…</button><div class="remove-confirm" hidden></div></div>
-      <p class="muted">Bob ${esc(settings.version?.label || '')}</p>
+        </div>`).join('')}</div>`;
+  }
+
+  function voiceDetailsHtml() {
+    const pressed = (id) => document.getElementById(id)?.getAttribute('aria-pressed') === 'true';
+    const prox = (id, label, note) => `<label class="switch"><input type="checkbox" data-proxy="${id}" ${pressed(id) ? 'checked' : ''}><span><strong>${label}</strong><br><span class="muted">${note}</span></span></label>`;
+    return `<div class="voice-settings">${voiceHtml()}</div>
+      ${prox('ear', 'Listen for "Hey Bob"', 'Only while this window is open. Same as Listen in the left menu.')}
+      ${prox('speak', 'Read replies aloud', 'Same as Read aloud in the left menu.')}
+      <p class="muted">Hearing you and the other voices are on the <button type="button" class="link" data-tab="speech">💬 Voice &amp; conversation</button> page.</p>`;
+  }
+
+  function lookExtrasHtml() {
+    const st = settings.style || {};
+    const opt = (val, label, on) => `<button type="button" role="radio" aria-checked="${on}" data-nowneed="${val}">${label}</button>`;
+    return `<div><strong>Now running</strong><div class="ttabs" role="radiogroup" aria-label="Open Now running when a task needs me">${opt('0', 'Leave Now running as it is', st.openNowOnNeed !== true)}${opt('1', 'Open Now running when a task needs me', st.openNowOnNeed === true)}</div></div>
+      <div><strong>Your own theme</strong><p class="muted">Make or edit a theme on the <button type="button" class="link" data-tab="style">🎨 Style</button> page (Make your own theme).</p></div>`;
+  }
+
+  const ADV = [
+    ['brains', '🧠 Brains', 'model roles session brains context thinking making', () => rolesHtml()],
+    ['voice', '🔊 Voice details', 'kokoro chatterbox speed hey bob read aloud listen', () => voiceDetailsHtml()],
+    ['look', '🎨 Look & feel extras', 'theme editor now running layout', () => lookExtrasHtml()],
+    ['engines', '⚙ Engines & speed', 'engine ollama llama.cpp downloads fit memory speculative decoding draft flags threads batch', () => enginesHtml()],
+    ['connections', '🔌 Connections', 'comfyui workflows port cloud helpers api', () => connectionsHtml()],
+    ['hands', '✋ Hands', 'files run commands schedules apps permission', () => handsSettingsHtml()],
+    ['housekeeping', '🧹 Housekeeping', 'tidy old chats pictures logs', () => housekeepingHtml()],
+    ['remove', '🗑 Remove Bob', 'uninstall remove', () => `<div class="remove-bob">${more('Takes off Bob\'s program, his Start menu shortcut and "Launch on start-up". His chats, settings and models stay unless you tick them. Nothing else in the inn folder or in Windows is touched.')}<button data-removebob>Remove Bob…</button><div class="remove-confirm" hidden></div></div>`]
+  ];
+
+  function settingsHtml() {
+    return `<section class="settings">
+      ${everydayHtml()}
+      <label class="switch adv-toggle"><input type="checkbox" data-advanced ${advanced ? 'checked' : ''}><span><strong>Show advanced settings</strong><br><span class="muted">Brains, voice details, engines and speed, connections, Hands, housekeeping.</span></span></label>
+      ${advanced ? `<div class="advanced">
+        <input type="search" data-ssearch placeholder="Search settings" aria-label="Search settings" value="${esc(settingsQuery)}">
+        <nav class="subnav" aria-label="Advanced sections">${ADV.map(([id, label]) => `<button type="button" data-jump="adv-${id}">${esc(label)}</button>`).join('')}</nav>
+        ${ADV.map(([id, label, words, body]) => `<section class="subsection adv-sec" id="sub-adv-${id}" data-words="${esc(words)}"><h3>${esc(label)}</h3>${body()}</section>`).join('')}
+        <p class="muted adv-none" hidden>No settings match that.</p>
+      </div>` : ''}
     </section>`;
+  }
+
+  // The search box: shows the sections (and inside them the blocks) whose words match.
+  function filterSettings() {
+    const q = settingsQuery.trim().toLowerCase();
+    let any = false;
+    for (const sec of dlg.querySelectorAll('.adv-sec')) {
+      const head = `${sec.querySelector('h3')?.textContent || ''} ${sec.dataset.words || ''}`.toLowerCase();
+      const whole = !q || head.includes(q);
+      let hit = whole;
+      for (const el of [...sec.children].slice(1)) {
+        const show = whole || el.textContent.toLowerCase().includes(q);
+        el.hidden = !show; if (show) hit = true;
+      }
+      sec.hidden = !hit; if (hit) any = true;
+    }
+    const none = dlg.querySelector('.adv-none'); if (none) none.hidden = any;
   }
 
   function welcomeHtml() {
@@ -292,7 +369,7 @@ export function createCellar() {
       <p>I'm Bob. Before I can help, I need a few models. Here's what I'd pick for this PC${hw.gpu ? ` (${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB)` : ''}:</p>
       <label class="pick"><strong>Setup</strong><select data-pack>${data.packs.map((p) => `<option value="${p.id}" ${p.id === pack.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
       <ul class="packlist">${items.map((m) => { const extra = covered(m); return `<li><label><input type="checkbox" data-pick="${esc(m.id)}" ${m.status.state === 'installed' ? 'checked disabled' : extra ? '' : suit(m).level === 'ok' ? 'checked' : suit(m).level === 'blocked' ? 'disabled' : ''}> ${esc(m.name)} <span class="muted">· ${esc(data.categories.find((c) => c.id === m.category)?.label)} · ${m.status.state === 'installed' ? 'already here' : gb(m.sizeGB)}${extra ? ` · ${esc(extra)}` : m.status.state !== 'installed' && suit(m).level !== 'ok' ? ' · not recommended for this PC' : ''}</span></label></li>`; }).join('')}</ul>
-      <p class="muted">${needed.length ? `About ${gb(total)} to download. Free disk: ${hw.freeGB ?? '?'} GB. You can change any of this later in Models and settings (left menu).` : items.some((m) => m.status.state !== 'installed') ? 'Everything you need is already here. The rest is optional: tick it if you want it.' : 'Everything is already on this PC.'}</p>
+      <p class="muted">${needed.length ? `About ${gb(total)} to download. Free disk: ${hw.freeGB ?? '?'} GB. You can change any of this later in Get models (left menu).` : items.some((m) => m.status.state !== 'installed') ? 'Everything you need is already here. The rest is optional: tick it if you want it.' : 'Everything is already on this PC.'}</p>
       ${job ? progress() : ''}
       <div class="row"><button class="get" data-getpack ${items.some((m) => m.status.state !== 'installed') ? '' : 'hidden'}>Download the checked ones</button><button data-skip>${needed.length ? 'Skip for now' : 'Done'}</button></div>
     </div>`;
@@ -308,6 +385,13 @@ export function createCellar() {
     if (mini) { const c = mini.getContext('2d'); c.imageSmoothingEnabled = false; try { drawBob(c, 64, {}, settings?.look); } catch {} }
     dlg.classList.toggle('wide', mode === 'shop' && tab === 'roles' && eqView !== 'list');
     mountHandsSettings(dlg.querySelector('.hands-box')); // loads its own data; does nothing off the Settings tab
+    const page = mode === 'welcome' ? 'Welcome' : tab === 'settings' ? 'Settings' : tab === 'style' ? 'Style' : 'Get models';
+    $('cellar-title').textContent = page;
+    for (const [id, on] of [['cellarBtn', page === 'Get models'], ['settingsBtn', page === 'Settings'], ['styleBtn', page === 'Style'], ['chatBtn', false]]) $(id)?.classList.toggle('on', on);
+    // The page tabs stay pinned under the title, so Settings, Style and every model page are one click away even after scrolling down to the paper doll.
+    const head = dlg.querySelector('.cellar-head'); if (head) dlg.style.setProperty('--cellar-head-h', head.offsetHeight + 'px');
+    const bar = dlg.querySelector('.cellar-tabs'); dlg.style.setProperty('--cellar-tabs-h', (bar ? bar.offsetHeight : 0) + 'px');
+    if (tab === 'settings' && settingsQuery) filterSettings();
     if (jumpTo) { const el = dlg.querySelector('#sub-' + CSS.escape(jumpTo)); jumpTo = ''; el?.scrollIntoView({ block: 'start' }); }
   }
 
@@ -407,7 +491,7 @@ export function createCellar() {
     const b = e.target.closest('button, input, select');
     if (!b) return;
     try {
-      if (tab === 'style' && mode === 'shop' && await stylePage.onClick(b, settings)) return;
+      if ((tab === 'style' || (tab === 'settings' && (b.dataset.motion || b.dataset.nowneed))) && mode === 'shop' && await stylePage.onClick(b, settings)) return;
       if (b.dataset.sampleEngine) { sampler.play(b); return; }
       if (b.dataset.userole) {
         const r = await api('/api/models/role', { job: b.dataset.userole, value: b.dataset.value });
@@ -470,7 +554,7 @@ export function createCellar() {
         return;
       }
       if (b.dataset.jump) { dlg.querySelector('#sub-' + CSS.escape(b.dataset.jump))?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
-      if (b.dataset.tab) { sampler.stop(); setTab(b.dataset.tab); draw(); }
+      if (b.dataset.tab) { sampler.stop(); setTab(b.dataset.tab); if (!jumpTo) dlg.scrollTop = 0; draw(); }
       else if (b.dataset.get) confirmBox(b.closest('.model'), data.models.find((m) => m.id === b.dataset.get));
       else if (b.dataset.anyway) confirmBox(b.closest('.model'), data.models.find((m) => m.id === b.dataset.anyway), true);
       else if (b.dataset.look) { await api('/api/settings', { look: b.dataset.look }); setLook(b.dataset.look); draw(); }
@@ -504,7 +588,7 @@ export function createCellar() {
         window.dispatchEvent(new Event('bob-update-started'));
         watchUpdate();
       }
-      else if ('opendl' in b.dataset) { dlg.close(); window.dispatchEvent(new Event('bob-downloads')); }
+      else if ('opendl' in b.dataset) { window.dispatchEvent(new Event('bob-downloads')); }
       else if (b.dataset.use) { const r = await api('/api/models/use', { id: b.dataset.use }); const at = b.parentElement; b.outerHTML = `<span class="have">Saved.</span>`; if (r.needsEngine) askEngine(at); }
       else if (b.dataset.checkengine) {
         b.textContent = 'Checking...';
@@ -558,11 +642,13 @@ export function createCellar() {
     const rb = dlg.querySelector('[data-resetbob]');
     if (rb) rb.disabled = isDefault(p);
   }
-  dlg.addEventListener('input', (e) => { if (tab === 'style') stylePage.onInput(e.target); if (e.target.dataset?.dial) showDials(dialValues()); });
+  dlg.addEventListener('input', (e) => { if (tab === 'style') stylePage.onInput(e.target); if (e.target.dataset?.ssearch !== undefined) { settingsQuery = e.target.value; filterSettings(); } if (e.target.dataset?.dial) showDials(dialValues()); });
 
   dlg.addEventListener('change', async (e) => {
     const el = e.target;
     try {
+      if ('advanced' in el.dataset) { advanced = el.checked; try { localStorage.setItem('bob-settings-advanced', advanced ? '1' : '0'); } catch {} draw(); return; }
+      if (el.dataset.proxy) { const side = $(el.dataset.proxy); if (side && (side.getAttribute('aria-pressed') === 'true') !== el.checked) side.click(); setTimeout(() => { el.checked = side?.getAttribute('aria-pressed') === 'true'; }, 300); return; }
       if (el.dataset.dial) { const p = dialValues(); const r = await api('/api/settings', { personality: p }); settings.personality = r.personality; showDials(r.personality); return; }
       if ('preset' in el.dataset) { const ps = PRESETS.find((x) => x.id === el.value); if (!ps) return; const r = await api('/api/settings', { personality: ps.set }); settings.personality = r.personality; draw(); return; }
       if ('callme' in el.dataset) { const r = await api('/api/settings', { callMe: el.value }); settings.userName = r.userName; settings.callMe = r.callMe; el.value = r.callMe; showDials(dialValues()); flash(el, `Saved. Bob calls you ${r.userName}.`); return; }
@@ -648,11 +734,14 @@ export function createCellar() {
   }
 
   $('cellar-close').onclick = () => dlg.close();
+  // A page in the main area (1.5.0), not a pop-up: the chat hides while it's open, Esc or ✕ goes back.
+  const mid = dlg.closest('.mid');
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && dlg.open && !e.defaultPrevented && !document.querySelector('dialog:modal') && !e.target.closest?.('dialog:not(#cellar), input, textarea, select')) { e.preventDefault(); dlg.close(); } });
   dlg.addEventListener('toggle', (e) => { if (e.target.classList?.contains('starter')) starterOpen = e.target.open; }, true);
-  dlg.addEventListener('close', () => { sampler.stop(); stylePage.closing(settings); window.dispatchEvent(new Event('bob-caps')); });
+  dlg.addEventListener('close', () => { mid?.classList.remove('paged'); for (const id of ['cellarBtn', 'settingsBtn', 'styleBtn']) $(id)?.classList.remove('on'); $('chatBtn')?.classList.add('on'); sampler.stop(); stylePage.closing(settings); window.dispatchEvent(new Event('bob-caps')); });
 
   return {
-    async open(which = 'shop', pickTab) { mode = which; if (pickTab) setTab(pickTab); dlg.showModal(); draw(); await load().catch((e) => { $('cellar-body').innerHTML = `<p class="error">${esc(e.message)}</p>`; }); },
+    async open(which = 'shop', pickTab) { mode = which; if (pickTab) setTab(pickTab); else if (which === 'settings') { mode = 'shop'; setTab('settings'); } if (!dlg.open) { mid?.classList.add('paged'); mid ? dlg.show() : dlg.showModal(); } dlg.scrollTop = 0; draw(); await load().catch((e) => { $('cellar-body').innerHTML = `<p class="error">${esc(e.message)}</p>`; }); },
     async firstRun() {
       try { const s = await api('/api/settings'); if (!s.setupDone) this.open('welcome'); } catch {}
     },

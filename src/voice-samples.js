@@ -14,8 +14,9 @@ import { appDir } from './config.js';
 export const SAMPLE_LINE = "Hello, I'm Bob. This is how I'll sound when I read my replies out loud.";
 export const PIPER_SAMPLES_PAGE = 'https://rhasspy.github.io/piper-samples/';
 export const KOKORO_VOICES_PAGE = 'https://huggingface.co/hexgrad/Kokoro-82M/blob/main/VOICES.md';
-// The Kokoro voices whose clips ship with Bob (installer/make-voice-samples.js makes them).
-export const BUNDLED_KOKORO = ['am_michael', 'am_onyx', 'bm_george', 'bm_lewis', 'af_heart', 'bf_emma'];
+// The Kokoro voices whose clips ship with Bob (installer/make-voice-samples.js makes them): all of them since 1.5.0,
+// so every voice plays its sample before anything is downloaded. Each clip says SAMPLE_LINE (about 5 seconds).
+export const BUNDLED_KOKORO = KOKORO_VOICES.map(([id]) => id);
 
 const AUDIO = ['.mp3', '.ogg', '.wav'];
 const safe = (s) => /^[a-z0-9_-]{1,64}$/i.test(String(s || ''));

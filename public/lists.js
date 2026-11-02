@@ -170,7 +170,7 @@ export function createDownloads({ api, post }) {
     const open = items.filter((d) => !['done', 'cancelled'].includes(d.state));
     const finished = items.filter((d) => ['done', 'cancelled'].includes(d.state));
     body.innerHTML = `<p class="muted">Everything you've said yes to downloading. ${settings.concurrent === 2 ? 'Two run' : 'One runs'} at a time, top first; drag one up to have it next. Pause keeps what has downloaded, so a 20 GB model doesn't start over. Cancel deletes the half-done file.</p>
-      <ol class="tlist">${open.map(downloadRow).join('') || '<li class="muted">Nothing downloading. Get models in Models and settings.</li>'}</ol>
+      <ol class="tlist">${open.map(downloadRow).join('') || '<li class="muted">Nothing downloading. Get them from Get models in the left menu.</li>'}</ol>
       ${finished.length ? `<div class="ttabs"><strong>Finished</strong><span class="spacer"></span><button type="button" data-clear>Clear finished</button></div><ol class="tlist">${finished.slice().reverse().map(downloadRow).join('')}</ol>` : ''}
       <div class="dl-settings">
         <strong>Settings</strong>

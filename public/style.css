@@ -569,3 +569,45 @@ button.big { padding: 9px 18px; font-size: 15px; min-height: 40px; }
 .hands-newrecipe { display: grid; gap: 6px; margin: 6px 0; }
 .hands-box > div, .hands-box > label { margin-top: 8px; }
 .hands-box button.stop-all, .composer button.stop-all { background: var(--bad); color: var(--on-accent); border: none; font-weight: 700; }
+
+/* ---------- 1.5.0: Settings, Get models and Style as a page in the main area ---------- */
+.mid.paged > :is(#log, #chips, #queue, #tray, #composer) { display: none !important; }
+.cellar.page { position: static; flex: 1; min-height: 0; width: auto; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; overflow: auto; background: var(--bg); }
+.cellar.page:not([open]) { display: none; }
+.cellar.page.wide { width: auto; }
+.cellar.page .cellar-head { background: var(--bg); }
+.cellar.page #cellar-body { max-width: 1400px; }
+.cellar .cellar-head .back { font: inherit; padding: 7px 12px; }
+.cellar .cellar-tabs { position: sticky; top: var(--cellar-head-h, 56px); z-index: 1; background: var(--bg); margin: -12px -14px 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.cellar:not(.page) .cellar-tabs { background: var(--panel); }
+.cellar .subsection, .cellar .kit-panel { scroll-margin-top: calc(var(--cellar-head-h, 56px) + var(--cellar-tabs-h, 0px) + 8px); }
+.everyday { display: grid; gap: 2px; max-width: 760px; }
+.srow { display: grid; grid-template-columns: 11em 1fr auto; gap: 10px; align-items: center; padding: 9px 10px; border-radius: var(--r); background: var(--card); }
+.srow .slabel { font-weight: 700; }
+.srow .sact { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.srow .ttabs { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.srow-switch { padding: 9px 10px; border-radius: var(--r); background: var(--card); margin: 0 !important; }
+.srow-foot { padding: 10px 2px 0; }
+.adv-toggle { margin-top: 16px !important; max-width: 760px; }
+.advanced { margin-top: 8px; }
+.advanced input[type="search"] { width: min(420px, 100%); margin: 6px 0 8px; }
+.adv-sec { border-top: 1px solid var(--line); padding-top: 4px; }
+.adv-sec[hidden], .adv-sec [hidden], .adv-none[hidden] { display: none !important; }
+details.more { margin: 2px 0 6px; }
+details.more > summary { cursor: pointer; color: var(--muted); font-size: 13px; width: max-content; }
+details.more > summary:hover { color: var(--accent); }
+@media (max-width: 640px) { .srow { grid-template-columns: 1fr; } .srow .sact { justify-content: flex-start; } }
+/* The page is narrower than the window (menu and Now running sit beside it), so Equip Bob folds by the page's own width. */
+.cellar.page #cellar-body { container-type: inline-size; }
+.cellar.page .equip-page .kit-panel { top: calc(var(--cellar-head-h, 56px) + var(--cellar-tabs-h, 0px) + 8px); }
+@container (max-width: 1100px) {
+  .equip-page { grid-template-columns: 1fr; }
+  .attributes { border-right: 0; padding-right: 0; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .attributes summary h3::after { content: " (tap to fold)"; text-transform: none; letter-spacing: 0; }
+  .equip-page .kit-panel { border-left: 0; padding-left: 0; position: static; max-height: none; border-top: 1px solid var(--line); padding-top: 8px; }
+}
+@container (max-width: 720px) {
+  .doll { grid-template-columns: 1fr; }
+  .doll-mid { order: -1; padding-top: 0; position: static; }
+  .srow { grid-template-columns: 1fr; } .srow .sact { justify-content: flex-start; }
+}

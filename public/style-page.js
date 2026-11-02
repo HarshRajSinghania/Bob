@@ -1,4 +1,4 @@
-// The Style tab in Models and settings: themes (MouseHole, MouseWurX, Bob's own, yours), a "make your own"
+// The Style page: themes (MouseHole, MouseWurX, Bob's own, yours), a "make your own"
 // editor with a live preview, and Bob's look, including every avatar in avatars.js.
 import { LOOKS, LOOK_ID, setLook, drawBob } from './bob-sprite.js';
 import { AVATAR_GROUPS, avatar } from './avatars.js';

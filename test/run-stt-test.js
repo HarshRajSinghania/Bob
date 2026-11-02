@@ -15,7 +15,7 @@ const text = await transcribe(cfg, wav);
 check('whisper.cpp transcript comes back clean (no timestamps)', text === 'Hey Bob, what\'s on my board?', JSON.stringify(text));
 check('temp audio file is cleaned up', !fs.readdirSync(os.tmpdir()).some((f) => /^bob-.*\.wav$/.test(f)));
 try { await transcribe({ ...cfg, stt: { ...cfg.stt, model: path.join(dir, 'missing.bin') } }, wav); check('missing ears model gives a friendly message', false); }
-catch (e) { check('missing ears model gives a friendly message', /Models and settings/.test(e.message)); }
+catch (e) { check('missing ears model gives a friendly message', /Get models/.test(e.message)); }
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

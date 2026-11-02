@@ -25,7 +25,8 @@
     <button id="topicsBtn" type="button" class="nav-item" title="Topics: what you've talked about, by project, with past chats and search" aria-label="Topics"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4h10l6 6v10H4z"/><path d="M8 10h6M8 14h8M8 18h5"/></svg><span class="lbl">Topics</span><span class="short" aria-hidden="true">Topics</span></button>
     <button id="tidyBtn" type="button" class="nav-item" title="Tidy up: old chats, pictures and logs Bob can clear away (asks first)" aria-label="Tidy up"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3l-2 8"/><path d="M6 13h12l-1 8H7z"/><path d="M9 17v2M12 17v2M15 17v2"/></svg><span class="lbl">Tidy up</span><span class="short" aria-hidden="true">Tidy</span><span class="badge" hidden></span></button>
     <div class="nav-head">Setup</div>
-    <button id="cellarBtn" type="button" class="nav-item" title="Models and settings" aria-label="Models &amp; settings"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg><span class="lbl">Models &amp; settings</span><span class="short" aria-hidden="true">Settings</span></button>
+    <button id="cellarBtn" type="button" class="nav-item" title="Get models: Equip Bob, the model shops and what's on this PC" aria-label="Get models"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7l8-4 8 4v10l-8 4-8-4z"/><path d="M4 7l8 4 8-4M12 11v10"/></svg><span class="lbl">Get models</span><span class="short" aria-hidden="true">Models</span></button>
+    <button id="settingsBtn" type="button" class="nav-item" title="Settings: everyday, plus advanced if you want it" aria-label="Settings"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg><span class="lbl">Settings</span><span class="short" aria-hidden="true">Settings</span></button>
     <button id="styleBtn" type="button" class="nav-item" title="Themes, avatars, animations, layout" aria-label="Style"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-4-4-7.4-9-7.4z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/></svg><span class="lbl">Style</span><span class="short" aria-hidden="true">Style</span></button>
     <button id="ear" type="button" class="nav-item" title="Listen for &quot;Hey Bob&quot; while this window is open" aria-label="Listen" aria-pressed="false"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span class="lbl">Listen</span><span class="short" aria-hidden="true">Listen</span><span class="st">Off</span></button>
     <button id="speak" type="button" class="nav-item" title="Bob reads his replies aloud" aria-label="Read aloud" aria-pressed="false"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg><span class="lbl">Read aloud</span><span class="short" aria-hidden="true">Read</span><span class="st">Off</span></button>
@@ -41,6 +42,10 @@
       <span class="ctx-fill"></span>
       <button id="foldRight" type="button" class="nav-item now-toggle" title="Show or hide Now running (Ctrl+J)" aria-label="Now running" aria-expanded="true" aria-controls="now"><span class="lbl">Now running</span><span class="badge" hidden></span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></button>
     </div>
+    <dialog id="cellar" class="cellar page" aria-labelledby="cellar-title">
+      <div class="cellar-head"><h2 id="cellar-title">Settings</h2><button id="cellar-close" type="button" class="back" title="Back to the chat (Esc)" aria-label="Back to the chat">← Back to chat</button></div>
+      <div id="cellar-body"></div>
+    </dialog>
   <main id="log" class="log" aria-live="polite"></main>
 
   <div id="chips" class="chips">
@@ -74,11 +79,6 @@
     <section><div class="now-sec">Graphics card</div><div id="nowGpu" class="muted now-gpu">Checking...</div></section>
   </aside>
   </div>
-
-  <dialog id="cellar" class="cellar" aria-labelledby="cellar-title">
-    <div class="cellar-head"><h2 id="cellar-title">Models and settings</h2><button id="cellar-close" class="icon" title="Close">✕</button></div>
-    <div id="cellar-body"></div>
-  </dialog>
 
   <dialog id="shelf" class="cellar" aria-labelledby="shelf-title">
     <div class="cellar-head"><h2 id="shelf-title">References</h2><button id="shelf-close" class="icon" title="Close">✕</button></div>

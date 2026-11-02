@@ -14,7 +14,9 @@ const until = async (fn, ms = 8000) => { const t = Date.now(); while (Date.now()
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-dl-'));
 const dataDir = path.join(root, 'inn', 'bob');
 fs.mkdirSync(dataDir, { recursive: true });
-const cfg = { agentDir: root, dataDir, bobModelsDir: path.join(root, 'models', 'bob'), settingsFile: path.join(dataDir, 'settings.json'), modelSearchRoots: [], ollamaUrl: 'http://127.0.0.1:1', engine: 'ollama', models: {} };
+// The fake Hugging Face here serves random bytes, so the tests use the catalog without its pins (1.5.0 pins every file).
+const unpinned = (dir) => { const c = JSON.parse(fs.readFileSync(new URL('../catalog.json', import.meta.url), 'utf8')); for (const m of c.models) for (const f of m.files || []) { delete f.sha256; delete f.bytes; delete f.sizeOnly; } const f = path.join(dir, 'catalog-unpinned.json'); fs.writeFileSync(f, JSON.stringify(c)); return f; };
+const cfg = { catalogFile: unpinned(dataDir), agentDir: root, dataDir, bobModelsDir: path.join(root, 'models', 'bob'), settingsFile: path.join(dataDir, 'settings.json'), modelSearchRoots: [], ollamaUrl: 'http://127.0.0.1:1', engine: 'ollama', models: {} };
 
 // A fake Hugging Face that streams slowly (so there's time to pause) and honours Range requests.
 const content = crypto.randomBytes(1_200_000);
