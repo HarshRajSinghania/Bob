@@ -17,10 +17,10 @@ export const careful = (job) => ['high', 'extreme'].includes(cleanEffort(job?.ef
 export const bigThinker = (job) => cleanEffort(job?.effort) !== 'low'; // drafts on the big brain
 
 // The brain that thinks at Medium, High and Extreme: Deep thinking if one is picked, otherwise the main Brain slot.
-// Always on the graphics card. Medium thinks normally; High and Extreme think hard.
+// Always on the graphics card. Medium thinks for a while (a budget on llama.cpp, 1.5.19); High and Extreme think hard.
 export function draftBrain(cfg, effort = 'high') {
   const model = cfg.sessionBrains?.deep || cfg.models?.bob;
-  return model ? { model, cpu: false, think: cleanEffort(effort) === 'medium' ? undefined : 'high', ctx: null } : null;
+  return model ? { model, cpu: false, think: cleanEffort(effort) === 'medium' ? 'medium' : 'high', ctx: null } : null;
 }
 // A helper copy at Medium and up: coding on the Coding slot, everything else on the big thinker, always on the card.
 // (Effort is the user's explicit choice, so it beats the session, e.g. Light / gaming keeping everything small.)

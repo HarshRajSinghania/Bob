@@ -5,6 +5,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 
+// 1.5.19: the context a brain gets when nothing else picks one. 32K fits a 26B brain on a 16 GB card.
+export const DEFAULT_CTX = 32768;
+// 1.5.19: Medium thinks, but only this long (tokens of thinking), then it is asked to answer.
+export const THINK_BUDGET = { medium: 1536 };
+
 // How long a brain may sit unused in memory: the shared setting ollamaKeepAlive ("10m", "30m", "1h", or "-1" for never).
 // Both engines use it: Ollama through keep_alive, Bob's own engine through the idle check below (1.5.2).
 export function keepAliveMs(cfg) {
@@ -120,6 +125,18 @@ export class LlamaCpp {
     try { return Boolean(this.resolve(model).mmproj) && this.lc.vision !== false; } catch { return false; }
   }
 
+  // Whether llama.cpp's --fit places the layers: on the card, unless a placement is pinned by hand or fit is off.
+  fitsItself(args, cpu) {
+    const pinned = args.some((a) => ['--n-cpu-moe', '-ncmoe', '--cpu-moe', '-ot', '--override-tensor', '--fit'].includes(a));
+    return !pinned && !cpu && this.fitOn();
+  }
+
+  // Layers on the card, when set outright: none on the processor, or a number set by hand (gpuLayers).
+  layerArgs(cpu) {
+    if (cpu) return ['-ngl', '0'];
+    return Number.isInteger(this.lc.gpuLayers) ? ['-ngl', String(this.lc.gpuLayers)] : [];
+  }
+
   // Everything llama-server is started with, in one place so it can be tested.
   buildArgs(model, { ctx, cpu = false } = {}) {
     const lc = this.lc;
@@ -128,7 +145,8 @@ export class LlamaCpp {
     const args = [
       ...(lc.preArgs || []),
       '-m', gguf, '--host', '127.0.0.1', '--port', String(this.port),
-      '-c', String(ctx || lc.ctx || 131072), '-ngl', cpu ? '0' : String(lc.gpuLayers ?? 999), '--jinja',
+      // 1.5.19: 32K by default (131072 spilled a 26B brain past a 16 GB card into system RAM and crawled at 5 tok/s).
+      '-c', String(ctx || lc.ctx || DEFAULT_CTX), ...this.layerArgs(cpu), '--jinja',
       ...(mmproj && lc.vision !== false ? ['--mmproj', mmproj] : []),
       ...(lc.args || ['-fa', 'on', '-ctk', 'q8_0', '-ctv', 'q8_0']),
       ...num(lc.threads, '-t'), ...num(lc.batch, '-b'), ...num(lc.ubatch, '-ub'),
@@ -138,8 +156,12 @@ export class LlamaCpp {
     ];
     // --fit: llama.cpp places layers to fit the card's free memory right now (other apps included), which
     // beat a fixed --n-cpu-moe on a 16 GB card. Used unless a placement is pinned by hand or fit is off.
-    const pinned = args.some((a) => ['--n-cpu-moe', '-ncmoe', '--cpu-moe', '-ot', '--override-tensor', '--fit'].includes(a));
-    if (!pinned && !cpu && this.fitOn()) args.push('--fit', 'on');
+    // 1.5.19: with --fit there is no -ngl, because a set -ngl stops fit from trimming (it then overfilled the card).
+    // Without fit, every layer goes on the card as before.
+    if (this.fitsItself(args, cpu)) args.push('--fit', 'on');
+    else if (!args.includes('-ngl')) args.push('-ngl', '999');
+    // 1.5.19: one conversation at a time, so it gets the whole context (more slots split it into small pieces).
+    if (!args.some((a) => ['-np', '--parallel'].includes(a))) args.push('-np', '1');
     // Speculative decoding: a small "draft" model guesses ahead and the big one checks, often 1.5-2x faster.
     const d = lc.draft;
     if (d?.model && d.model !== model && d.enabled !== false && !cpu) {
@@ -265,7 +287,24 @@ export class LlamaCpp {
     try { return await this.chatOnce(opts); } finally { this.active--; this.lastUse = this.now(); }
   }
 
-  async chatOnce({ model, messages, tools, signal, onToken, think }) {
+  // 1.5.19: Medium has a thinking budget. Once the brain has thought that long, the request stops and is asked again
+  // with thinking off and a note to answer now (llama-server keeps the prompt cached, so the retry starts quickly).
+  async chatOnce(opts) {
+    const budget = THINK_BUDGET[opts.think];
+    if (!budget) return this.chatStream(opts);
+    const stop = new AbortController();
+    const onAbort = () => stop.abort();
+    opts.signal?.addEventListener?.('abort', onAbort);
+    try {
+      return await this.chatStream({ ...opts, signal: stop.signal, budget, onOver: () => { stop.over = true; stop.abort(); } });
+    } catch (e) {
+      if (opts.signal?.aborted || !stop.over) throw e;
+      const messages = [...opts.messages, { role: 'system', content: 'Thinking time is up. Answer now, using what you have worked out so far.' }];
+      return this.chatStream({ ...opts, messages, think: false });
+    } finally { opts.signal?.removeEventListener?.('abort', onAbort); }
+  }
+
+  async chatStream({ model, messages, tools, signal, onToken, think, budget, onOver }) {
     const res = await fetch(this.url + '/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -276,6 +315,7 @@ export class LlamaCpp {
     });
     if (!res.ok) throw new Error(`llama-server returned ${res.status}: ${(await res.text()).slice(0, 300)}`);
     let content = '';
+    let thought = 0;
     const calls = [];
     let buf = '';
     const decoder = new TextDecoder();
@@ -291,6 +331,7 @@ export class LlamaCpp {
         const ev = JSON.parse(data);
         if (ev.error) throw new Error('llama-server: ' + (ev.error.message || JSON.stringify(ev.error)));
         const d = ev.choices?.[0]?.delta || {};
+        if (budget && d.reasoning_content && ++thought > budget && !content) onOver(); // stop.over marks it, so real errors aren't retried
         if (d.content) { content += d.content; onToken && onToken(d.content); }
         for (const tc of d.tool_calls || []) {
           const i = tc.index ?? calls.length;

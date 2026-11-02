@@ -79,6 +79,15 @@ check('llama.cpp: speculative decoding with the draft brain', at('-md') === smal
 check('llama.cpp: per-model flags', a.includes('--n-cpu-moe') && at('--n-cpu-moe') === '8');
 check('llama.cpp: the draft brain gets no draft of its own', !lc.buildArgs('small').includes('-md'));
 { const c = lc.buildArgs('big', { cpu: true }); check('llama.cpp on the processor: no layers on the card, no --fit, no draft brain', c[c.indexOf('-ngl') + 1] === '0' && !c.includes('--fit') && !c.includes('-md')); }
+{ const d = new LlamaCpp({ agentDir: tmp, dataDir: tmp, llamacpp: { models: { big }, fit: true } }).buildArgs('big');
+  const dat = (f) => d[d.indexOf(f) + 1];
+  check('llama.cpp (1.5.19): 32K context when nothing picks one', dat('-c') === '32768');
+  check('llama.cpp (1.5.19): with --fit, no -ngl (so fit can trim)', d.includes('--fit') && !d.includes('-ngl'));
+  check('llama.cpp (1.5.19): one slot, so the chat gets the whole context', dat('-np') === '1'); }
+{ const d = new LlamaCpp({ agentDir: tmp, dataDir: tmp, llamacpp: { models: { big }, fit: false } }).buildArgs('big');
+  check('llama.cpp: without fit, every layer on the card as before', d[d.indexOf('-ngl') + 1] === '999' && !d.includes('--fit')); }
+{ const d = new LlamaCpp({ agentDir: tmp, dataDir: tmp, llamacpp: { models: { big }, fit: true, gpuLayers: 30, args: ['-np', '2'] } }).buildArgs('big');
+  check('llama.cpp: layers and slots set by hand win', d[d.indexOf('-ngl') + 1] === '30' && d[d.indexOf('-np') + 1] === '2' && d.filter((x) => x === '-np').length === 1); }
 check('llama.cpp: settings changed later apply to the next load', (lcfg.llamacpp.threads = 4, at && lc.buildArgs('big')[lc.buildArgs('big').indexOf('-t') + 1] === '4'));
 const m = mergeSettings({ llamacpp: { exe: 'C:\\llama\\llama-server.exe' } }, { llamacpp: { exe: 'C:\\evil.exe', threads: -3, batch: 2048, modelArgs: { big: ['--n-cpu-moe', '8', '--log-file', 'C:\\Windows\\x.txt'] }, draft: { model: 'small', max: 999 } }, sessionCtx: { deep: 131072, art: 12345 } });
 check('speed settings: the program path can\'t be changed', m.llamacpp.exe === 'C:\\llama\\llama-server.exe');

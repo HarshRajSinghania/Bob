@@ -34,6 +34,29 @@ await lc.chatOnce({ model: 'gemma4:e4b', messages: [{ role: 'user', content: 'x'
 check('llama.cpp asks the template to skip thinking for a quick reply', bodies.at(-1).chat_template_kwargs?.enable_thinking === false);
 await lc.chatOnce({ model: 'gemma4:e4b', messages: [{ role: 'user', content: 'x' }] });
 check('llama.cpp sends nothing extra otherwise', !('chat_template_kwargs' in bodies.at(-1)));
+// 1.5.19: Medium's thinking budget. A brain that thinks past it is stopped and asked to answer with thinking off.
+{
+  const think = (n) => Array.from({ length: n }, () => 'data: {"choices":[{"delta":{"reasoning_content":"hm"}}]}\n\n').join('');
+  globalThis.fetch = async (url, init) => {
+    const b = JSON.parse(init.body); bodies.push(b);
+    if (b.chat_template_kwargs?.enable_thinking === false) return new Response('data: {"choices":[{"delta":{"content":"answer"}}]}\n\ndata: [DONE]\n\n');
+    // Endless thinking, until the request is stopped.
+    const stream = new ReadableStream({ async pull(c) { if (init.signal.aborted) { c.error(new DOMException('aborted', 'AbortError')); return; } c.enqueue(new TextEncoder().encode(think(50))); await new Promise((r) => setTimeout(r, 1)); } });
+    return new Response(stream);
+  };
+  bodies.length = 0;
+  const r = await lc.chatOnce({ model: 'gemma4:26b', messages: [{ role: 'user', content: 'x' }], think: 'medium' });
+  check('Medium thinking past its budget: stopped, then answered with thinking off', r.content === 'answer' && bodies.length === 2 && bodies[1].chat_template_kwargs?.enable_thinking === false && /Thinking time is up/.test(JSON.stringify(bodies[1].messages)), JSON.stringify(r));
+  globalThis.fetch = async (url, init) => { bodies.push(JSON.parse(init.body)); return new Response(think(20) + 'data: {"choices":[{"delta":{"content":"done"}}]}\n\ndata: [DONE]\n\n'); };
+  bodies.length = 0;
+  const r2 = await lc.chatOnce({ model: 'gemma4:26b', messages: [{ role: 'user', content: 'x' }], think: 'medium' });
+  check('Medium thinking within its budget: one request, untouched', r2.content === 'done' && bodies.length === 1);
+  const stopAll = new AbortController();
+  globalThis.fetch = async (url, init) => { bodies.push(JSON.parse(init.body)); stopAll.abort(); throw new DOMException('aborted', 'AbortError'); };
+  bodies.length = 0; let threw = false;
+  try { await lc.chatOnce({ model: 'gemma4:26b', messages: [{ role: 'user', content: 'x' }], think: 'medium', signal: stopAll.signal }); } catch { threw = true; }
+  check('Stop during Medium thinking: stops, no retry', threw && bodies.length === 1);
+}
 globalThis.fetch = realFetch;
 
 // Bob: Low turns thinking off; Medium and Deep thought keep it
@@ -46,7 +69,7 @@ const seen = [];
 brain.engine = { chat: async ({ model, think }) => { seen.push({ model, think }); return { role: 'assistant', content: 'ok' }; } };
 const ask = async (effort) => { seen.length = 0; await brain.runOn([], 'hi', () => {}, new AbortController().signal, [], { id: 'j', effort }, 's'); return seen[0]; };
 check('Low: the chat brain answers without thinking first', (await ask('low')).think === false);
-check('Medium: the big brain keeps its own thinking', (await ask('medium')).think === undefined);
+check('Medium: the big brain thinks, on a budget', (await ask('medium')).think === 'medium');
 cfg.session = 'deep';
 check('Deep thought session at Low: its "high" level is kept', (await ask('low')).think === 'high');
 fs.rmSync(tmp, { recursive: true, force: true });

@@ -64,7 +64,7 @@ async function turn(text, effort, s) {
 // ---------- Medium ----------
 {
   const r = await turn('write me a paragraph about cats', 'medium', { desk: [say(LONG)] });
-  check('Medium: one big brain (Deep thinking) on the graphics card, thinking normally', r.calls.length === 1 && r.calls[0].model === 'deep:latest' && !r.calls[0].cpu && r.calls[0].think === undefined, JSON.stringify(r.calls.map((c) => [c.model, c.cpu, c.think])));
+  check('Medium: one big brain (Deep thinking) on the graphics card, thinking on a budget (1.5.19)', r.calls.length === 1 && r.calls[0].model === 'deep:latest' && !r.calls[0].cpu && r.calls[0].think === 'medium', JSON.stringify(r.calls.map((c) => [c.model, c.cpu, c.think])));
   check('Medium: no moot, no reviewer, a short effort note', !r.calls.some((c) => c.w === 'reviewer') && !r.events.some((e) => e.type === 'announce' && /moot/.test(e.text)) && /Effort is Medium/.test(r.calls[0].sys) && effortPrompt('medium').length < 250);
   check('Medium is a real level', cleanEffort('medium') === 'medium');
   cfg.session = 'light';
