@@ -873,3 +873,20 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .pick-inline > span { font-weight: 600; }
 .pick-inline select { min-height: 36px; }
 .voice-head { display: grid; gap: 6px; margin-bottom: 8px; }
+
+/* 1.5.34: Settings in collapsible panels. The whole heading row is the (big) click target. */
+.spanel { border: 1px solid var(--line); border-radius: var(--r); margin: 0 0 8px; background: var(--card); }
+.spanel > summary { cursor: pointer; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 48px; padding: 8px 12px; }
+.spanel > summary::-webkit-details-marker { display: none; }
+.spanel > summary::before { content: '▸'; font-size: 18px; width: 1em; transition: transform .15s; }
+.spanel[open] > summary::before { transform: rotate(90deg); }
+.spanel > summary h3, .spanel-title { margin: 0; font-size: 16px; font-weight: 700; }
+.spanel-note { flex-basis: 100%; padding-left: calc(1em + 10px); font-size: 13px; }
+.spanel[open] .spanel-note { display: none; }
+.spanel-body, .adv-sec.spanel > :not(summary) { padding: 0 12px 10px; }
+.adv-sec.spanel { border-top: 1px solid var(--line); padding-top: 0; }
+@media (prefers-reduced-motion: reduce) { .spanel > summary::before { transition: none; } }
+/* 1.5.34 review: 32 px targets inside panels, and room below the last row so nothing hides behind the Effort bar. */
+.spanel .mini, .spanel button.link, .spanel input[type="text"], .spanel input:not([type]), .spanel select { min-height: 32px; }
+.spanel .mini { padding: 4px 12px; }
+.cellar .settings { padding-bottom: 160px; }

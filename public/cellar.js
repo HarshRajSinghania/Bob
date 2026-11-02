@@ -332,25 +332,43 @@ export function createCellar() {
   const srow = (label, value, actions = '', id = '') => `<div class="srow"${id ? ` id="${id}"` : ''}><span class="slabel">${label}</span><span class="svalue">${value}</span><span class="sact">${actions}</span></div>`;
   const sswitch = (key, on, label, note = '', extra = '') => `<label class="switch srow-switch"><input type="checkbox" data-set="${key}" ${on ? 'checked' : ''} ${extra}><span><strong>${label}</strong>${note ? `<br><span class="muted">${note}</span>` : ''}</span></label>`;
 
+  // 1.5.34: Settings in collapsible panels (there was a lot on one page). Which panels are open is remembered in this
+  // browser; Bob himself starts open, the rest closed. Searching opens the panels that match.
+  const OPEN_KEY = 'bob-settings-open';
+  let openPanels = (() => { try { const v = JSON.parse(localStorage.getItem(OPEN_KEY)); return Array.isArray(v) ? new Set(v) : new Set(['ev-bob']); } catch { return new Set(['ev-bob']); } })();
+  const saveOpen = () => { try { localStorage.setItem(OPEN_KEY, JSON.stringify([...openPanels])); } catch {} };
+  const panel = (id, label, note, body, help = '') => `<details class="spanel" data-panel="${esc(id)}" id="sub-${esc(id)}" ${openPanels.has(id) ? 'open' : ''}><summary><span class="spanel-title">${esc(label)}</span>${help}<span class="muted spanel-note">${esc(note)}</span></summary><div class="spanel-body">${body}</div></details>`;
+  // More everyday panels slot in here as [id, label, note, () => html] (for example Projects), between How Bob works and This PC.
+  const EVERY_EXTRA = [];
+
   function everydayHtml() {
     const st = settings.style || {};
     const lookName = (settings.lookText || '').split(/[:.,(]/)[0].replace(/["“”]/g, '').trim() || 'Sysop';
     const theme = findTheme(st.theme || 'inn', st.custom || []);
     const motion = st.motion || 'on';
     const mopt = (val, label) => `<button type="button" role="radio" aria-checked="${motion === val}" data-motion="${val}">${label}</button>`;
-    return `<div class="everyday">
+    // Closed panels show what's set now, not just what's inside.
+    const onoff = (v) => (v ? 'on' : 'off');
+    const t = settings.tts || {};
+    const voiceSum = t.provider === 'kokoro' ? `Kokoro, ${((settings.kokoroVoices || []).find(([id]) => id === (t.voice || 'am_michael'))?.[1] || t.voice).replace(/ \(.*$/, '')}` : t.provider === 'piper' ? 'Piper' : t.provider === 'chatterbox' ? 'Chatterbox' : 'Windows';
+    const bobSum = `Voice: ${voiceSum} · Look: ${lookName} · Theme: ${theme?.name || 'Bob\'s Inn'}`;
+    const howSum = `One brain: ${onoff(settings.oneBrain)} · Starts with Windows: ${onoff(settings.autostart)} · Web search: ${onoff(settings.webSearch === true)} · Update checks: ${onoff(settings.updates?.autoCheck)}`;
+    const pcSum = `Bob ${settings.version?.label || ''} · graphics card: ${hw?.gpu ? `${hw.gpu.name}, ${hw.gpu.vramGB} GB` : 'not detected'} · ${hw?.freeGB ?? '?'} GB free`;
+    return `<div class="everyday">${panel('ev-bob', '🙂 Bob himself', bobSum, `
       ${srow('Bob\'s voice', voicePickHtml(), '<button type="button" class="mini" data-tab="speech">More voice settings</button>')}
       ${srow('Bob\'s look', esc(lookName), '<button type="button" class="mini" data-tab="style">Change</button>')}
       ${srow('Theme', esc(theme?.name || 'Bob\'s Inn'), '<button type="button" class="mini" data-tab="style">Change</button>')}
       ${srow('Animations', `<span class="ttabs" role="radiogroup" aria-label="Animations">${mopt('on', 'On')}${mopt('system', 'Follow Windows')}${mopt('off', 'Off')}</span>`)}
       ${srow('Bob\'s cat', `<input data-set="catName" maxlength="24" value="${esc(settings.catName || 'Patches')}" aria-label="Cat's name" style="width:12em"> <span class="muted">The cat in Bob's stories.</span>`)}
+`)}${panel('ev-how', '⚡ How Bob works', howSum, `
       ${sswitch('oneBrain', settings.oneBrain, 'One brain (snappier)', 'Every copy of Bob uses the main brain, so he never stops to swap brains (about 20 seconds).')}
       ${sswitch('autostart', settings.autostart, 'Launch Bob on start-up', 'Off unless you turn it on.', settings.platform !== 'win32' ? 'disabled' : '')}
       ${sswitch('webSearch', settings.webSearch === true, 'Let Bob search the web', 'Off unless you turn it on. Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page addresses leave your PC.')}
       ${sswitch('autoCheck', settings.updates?.autoCheck, 'Check for updates when Bob starts', 'Off unless you turn it on. Bob only tells you; updating always takes your click.')}
+`)}${EVERY_EXTRA.map(([id, label, note, body]) => panel(id, label, note, body())).join('')}${panel('ev-pc', '💻 This PC and updates', pcSum, `
       <div class="updates srow-foot"><span class="muted">Bob ${esc(settings.version?.label || '')} · Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'} · Free disk: ${hw?.freeGB ?? '?'} GB</span>
         <div class="row"><button type="button" data-checkupdate>Check for updates</button><button type="button" data-welcome>Run first-time setup</button><button type="button" data-pccheck>Check this PC</button><span class="update-out muted"></span></div>
-        <div class="update-steps"></div><div class="pc-check" aria-live="polite"></div></div>
+        <div class="update-steps"></div><div class="pc-check" aria-live="polite"></div></div>`)}
     </div>`;
   }
 
@@ -462,8 +480,8 @@ export function createCellar() {
       <label class="switch adv-toggle"><input type="checkbox" data-advanced ${advanced ? 'checked' : ''}><span><strong>Show advanced settings</strong><br><span class="muted">Brains, voice details, engines and speed, connections, Hands, housekeeping.</span></span></label>
       ${advanced ? `<div class="advanced">
         <input type="search" data-ssearch placeholder="Search settings" aria-label="Search settings" value="${esc(settingsQuery)}">
-        <nav class="subnav" aria-label="Advanced sections">${ADV.map(([id, label]) => `<button type="button" data-jump="adv-${id}">${esc(label)}</button>`).join('')}</nav>
-        ${ADV.map(([id, label, words, body]) => `<section class="subsection adv-sec" id="sub-adv-${id}" data-words="${esc(words)}"><h3>${esc(label)} ${helpLink('settings-' + id, label)}</h3>${body()}</section>`).join('')}
+        <nav class="subnav" aria-label="Advanced sections">${ADV.map(([id, label]) => `<button type="button" data-jump="adv-${id}">${esc(label)}</button>`).join('')}<button type="button" data-panels="open">Open all</button><button type="button" data-panels="close">Close all</button></nav>
+        ${ADV.map(([id, label, words, body]) => `<details class="subsection adv-sec spanel" data-panel="adv-${id}" id="sub-adv-${id}" data-words="${esc(words)}" ${openPanels.has('adv-' + id) || settingsQuery.trim() ? 'open' : ''}><summary><h3>${esc(label)}</h3>${helpLink('settings-' + id, label)}</summary>${body()}</details>`).join('')}
         <p class="muted adv-none" hidden>No settings match that.</p>
       </div>` : ''}
     </section>`;
@@ -477,11 +495,12 @@ export function createCellar() {
       const head = `${sec.querySelector('h3')?.textContent || ''} ${sec.dataset.words || ''}`.toLowerCase();
       const whole = !q || head.includes(q);
       let hit = whole;
-      for (const el of [...sec.children].slice(1)) {
+      for (const el of [...sec.children].filter((c) => c.tagName !== 'SUMMARY')) {
         const show = whole || el.textContent.toLowerCase().includes(q);
         el.hidden = !show; if (show) hit = true;
       }
       sec.hidden = !hit; if (hit) any = true;
+      if (q && hit) sec.open = true; else if (!q) sec.open = openPanels.has(sec.dataset.panel);
     }
     const none = dlg.querySelector('.adv-none'); if (none) none.hidden = any;
   }
@@ -521,7 +540,7 @@ export function createCellar() {
     const head = dlg.querySelector('.cellar-head'); if (head) dlg.style.setProperty('--cellar-head-h', head.offsetHeight + 'px');
     const bar = dlg.querySelector('.cellar-tabs'); dlg.style.setProperty('--cellar-tabs-h', (bar ? bar.offsetHeight : 0) + 'px');
     if (tab === 'settings' && settingsQuery) filterSettings();
-    if (jumpTo) { const el = dlg.querySelector('#sub-' + CSS.escape(jumpTo)); jumpTo = ''; el?.scrollIntoView({ block: 'start' }); }
+    if (jumpTo) { const el = dlg.querySelector('#sub-' + CSS.escape(jumpTo)); jumpTo = ''; if (el?.tagName === 'DETAILS') el.open = true; el?.scrollIntoView({ block: 'start' }); }
   }
 
   async function load() {
@@ -614,6 +633,10 @@ export function createCellar() {
     box.innerHTML = `${anyway ? `<p class="error">Not recommended: ${esc(suit(m).why)}</p>` : ''}<p>Download <strong>${esc(m.name)}</strong>: about ${gb(m.sizeGB)} from ${hosts}. Licence: ${esc(m.license)}${m.commercial ? '' : ' (personal use only)'}.</p><div class="row"><button class="get" data-yes="${esc(m.id)}">Yes, download</button><button data-no>Cancel</button></div>`;
   }
 
+  // Remember which panels are open (not while a search opened them).
+  dlg.addEventListener('toggle', (e) => { const d = e.target; if (!d.dataset?.panel || settingsQuery.trim()) return; if (d.open) openPanels.add(d.dataset.panel); else openPanels.delete(d.dataset.panel); saveOpen();
+    // An everyday panel closing shows its summary of what's set now: draw again so it's up to date.
+    if (!d.open && d.dataset.panel.startsWith('ev-')) { const y = dlg.scrollTop; draw(); dlg.scrollTop = y; } }, true);
   dlg.addEventListener('click', async (e) => {
     const b = e.target.closest('button, input, select');
     if (!b) return;
@@ -624,6 +647,8 @@ export function createCellar() {
       if ('unsuitedsw' in b.dataset) { setShowUnsuited(!showUnsuited); draw(); return; }
       if ('lookcomments' in b.dataset) { const on = b.getAttribute('aria-checked') !== 'true'; const r = await api('/api/settings', { lookComments: on }); settings.lookComments = r.lookComments; b.setAttribute('aria-checked', String(r.lookComments)); b.querySelector('.st').textContent = r.lookComments ? 'On' : 'Off'; return; }
       if ('unsuited' in b.dataset) { setShowUnsuited(!showUnsuited); draw(); return; }
+      if (b.dataset.help && b.closest('summary')) e.preventDefault(); // a "?" in a panel heading opens Help, not the panel
+      if (b.dataset.panels) { for (const d of dlg.querySelectorAll('.adv-sec')) { d.open = b.dataset.panels === 'open'; if (d.open) openPanels.add(d.dataset.panel); else openPanels.delete(d.dataset.panel); } saveOpen(); return; }
       if (b.dataset.help) { window.dispatchEvent(new CustomEvent('bob-help', { detail: b.dataset.help })); return; }
       if (b.dataset.userole) {
         const r = await api('/api/models/role', { job: b.dataset.userole, value: b.dataset.value });
@@ -685,7 +710,7 @@ export function createCellar() {
         await eqReload(); draw();
         return;
       }
-      if (b.dataset.jump) { dlg.querySelector('#sub-' + CSS.escape(b.dataset.jump))?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+      if (b.dataset.jump) { const t = dlg.querySelector('#sub-' + CSS.escape(b.dataset.jump)); if (t?.tagName === 'DETAILS' && !t.open) { t.open = true; openPanels.add(t.dataset.panel); saveOpen(); } t?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
       if (b.dataset.tab) { sampler.stop(); setTab(b.dataset.tab); if (!jumpTo) dlg.scrollTop = 0; draw(); }
       else if (b.dataset.get) confirmBox(b.closest('.model'), data.models.find((m) => m.id === b.dataset.get));
       else if (b.dataset.anyway) confirmBox(b.closest('.model'), data.models.find((m) => m.id === b.dataset.anyway), true);

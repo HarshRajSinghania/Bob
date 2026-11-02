@@ -310,8 +310,9 @@ ${set('Alerts', 'Off', 'Pops up a Windows notification when I need you, for exam
 <p>Programs you installed yourself, such as Ollama, ComfyUI or Pinokio, are separate and have their own privacy policies. The full policy is PRIVACY.md on my GitHub page.</p>` },
 
   // ---------------- Settings ----------------
-  { id: 'settings-everyday', group: 'Settings', title: 'Settings: the everyday page', words: 'everyday voice look theme colours animations cat one brain launch start-up updates first-time setup check this pc version web search',
+  { id: 'settings-everyday', group: 'Settings', title: 'Settings: the everyday page', words: 'everyday panels fold collapse open close voice look theme colours animations cat one brain launch start-up updates first-time setup check this pc version web search',
     html: `<p>Settings opens on one short page that shows what's set now. Most people never need more than this.</p>
+<p>Settings come in panels you can fold away: click a panel's heading to open or close it. <strong>Bob himself</strong> (voice, look, theme, animations, cat) starts open; <strong>How Bob works</strong> and <strong>This PC and updates</strong> start closed, and so does every advanced section. I remember which ones you leave open. <strong>Search settings</strong> opens the panels that match, and <strong>Open all</strong> / <strong>Close all</strong> do just that for the advanced sections.</p>
 <dl>${set('Bob\'s voice', 'Windows voice', 'The voice I read replies in. First pick the <strong>Voice engine</strong> (Windows, Kokoro, a Piper voice or Chatterbox); right next to it, <strong>Voice</strong> picks the voice inside that engine (Kokoro has 22; Windows has whichever voices your Windows has), and <strong>Play sample</strong> lets you hear it. If the engine isn\'t set up yet, <strong>Set up Kokoro</strong> takes you straight to it. <strong>More voice settings</strong> opens Voice &amp; conversation (speed, and every Kokoro voice side by side).')}
 ${set('Bob\'s look', 'Sysop', 'My avatar. <strong>Change</strong> opens Style.')}
 ${set('Theme', 'Bob\'s Inn', 'The colours of the window. <strong>Change</strong> opens Style.')}
