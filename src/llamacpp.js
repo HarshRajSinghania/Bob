@@ -9,6 +9,39 @@ import { tidySchema } from './toolbox.js';
 import { tuning, cpuPlan, startDir, startFile, promptHash, tidyStarts } from './tuning.js';
 
 // 1.5.19: the context a brain gets when nothing else picks one. 32K fits a 26B brain on a 16 GB card.
+
+// 1.5.29: some brains write their tool calls as text instead of real calls on Bob's engine:
+//   qwen2.5-coder: a bare {"name": ..., "arguments": {...}} (sometimes in ```json fences or <tool_call> tags);
+//   gpt-oss: Harmony tokens, "<|channel|>commentary to=functions.NAME ... <|message|>{...}<|call|>".
+// When there is no real call and the text is one of these, naming a tool Bob offered, it becomes a real call.
+export const TEXT_CALL_START = /^(\{|```|<tool_call>|<\|)/;
+const parseJson = (t) => { try { return JSON.parse(t); } catch { return undefined; } };
+export function cleanHarmony(text) {
+  const final = String(text).match(/<\|channel\|>final<\|message\|>([\s\S]*?)(?:<\|(?:end|return)\|>|$)/);
+  if (final) return final[1].trim();
+  return String(text).replace(/<\|start\|>assistant/g, '').replace(/<\|channel\|>analysis<\|message\|>[\s\S]*?<\|end\|>/g, '').replace(/<\|[a-z]+\|>/g, '').trim();
+}
+export function textCalls(content, names) {
+  const text = String(content || '').trim();
+  if (!text) return null;
+  const calls = [];
+  const add = (name, args) => {
+    if (!names.has(name)) return;
+    const a = typeof args === 'string' ? parseJson(args) : args;
+    calls.push({ function: { name, arguments: a && typeof a === 'object' ? a : {} } });
+  };
+  // gpt-oss (Harmony)
+  for (const m of text.matchAll(/to=functions\.([\w.-]+)[^<]*?(?:<\|constrain\|>\s*\w+\s*)?<\|message\|>([\s\S]*?)(?:<\|call\|>|<\|end\|>|$)/g)) add(m[1], m[2].trim());
+  if (calls.length) return { calls, text: '' };
+  // <tool_call>{...}</tool_call>, possibly several
+  for (const m of text.matchAll(/<tool_call>\s*([\s\S]*?)\s*(?:<\/tool_call>|$)/g)) { const o = parseJson(m[1]); if (o?.name) add(o.name, o.arguments ?? o.parameters ?? {}); }
+  if (calls.length) return { calls, text: '' };
+  // A lone JSON object (or a list of them), maybe in ```json fences
+  const body = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  const o = parseJson(body);
+  for (const c of Array.isArray(o) ? o : [o]) if (c && typeof c === 'object' && typeof c.name === 'string') add(c.name, c.arguments ?? c.parameters ?? {});
+  return calls.length ? { calls, text: '' } : null;
+}
 export const DEFAULT_CTX = 32768;
 // 1.5.19: Medium thinks, but only this long (tokens of thinking), then it is asked to answer.
 export const THINK_BUDGET = { medium: 1536 };
@@ -386,6 +419,7 @@ export class LlamaCpp {
     });
     if (!res.ok) throw new Error(`llama-server returned ${res.status}: ${(await res.text()).slice(0, 300)}`);
     let content = '';
+    let held = null; // null: not decided yet; false: streaming normally; a string: held back
     let thought = 0;
     const calls = [];
     let buf = '';
@@ -403,7 +437,15 @@ export class LlamaCpp {
         if (ev.error) throw new Error('llama-server: ' + (ev.error.message || JSON.stringify(ev.error)));
         const d = ev.choices?.[0]?.delta || {};
         if (budget && d.reasoning_content && ++thought > budget && !content) onOver(); // stop.over marks it, so real errors aren't retried
-        if (d.content) { content += d.content; onToken && onToken(d.content); }
+        if (d.content) {
+          content += d.content;
+          // 1.5.29: a reply that starts like a tool call written as text is held back until the end, so a rescued
+          // call (textCalls below) never shows up in the chat as raw JSON.
+          if (!tools?.length) onToken && onToken(d.content);
+          else if (held === null) { if (content.trim()) { if (TEXT_CALL_START.test(content.trimStart())) held = content; else { held = false; onToken && onToken(content); } } }
+          else if (held === false) onToken && onToken(d.content);
+          else held += d.content;
+        }
         for (const tc of d.tool_calls || []) {
           const i = tc.index ?? calls.length;
           calls[i] = calls[i] || { name: '', args: '' };
@@ -417,6 +459,13 @@ export class LlamaCpp {
       try { args = c.args ? JSON.parse(c.args) : {}; } catch { args = {}; }
       return { function: { name: c.name, arguments: args } };
     });
+    if (!tool_calls.length && tools?.length) {
+      const names = new Set(tools.map((t) => t.function?.name).filter(Boolean));
+      const rescued = textCalls(content, names);
+      if (rescued) return { role: 'assistant', content: rescued.text, tool_calls: rescued.calls };
+    }
+    if (held) onToken && onToken(cleanHarmony(held)); // it wasn't a call after all: show it now
+    if (held && /<\|(channel|message|start|end)\|>/.test(content)) content = cleanHarmony(content);
     return { role: 'assistant', content, tool_calls: tool_calls.length ? tool_calls : undefined };
   }
 }
