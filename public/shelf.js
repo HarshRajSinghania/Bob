@@ -5,12 +5,62 @@ const ORDER = ['character', 'scene', 'style', 'object', 'chat'];
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
+// Phone photos are stored on their side with a "turn me" note that only viewers read; the painter reads the
+// raw pixels, so an edit would get a sideways person. Draw the photo the way it's shown and send that copy:
+// upright, at most 2048 pixels on the long side, and without the hidden camera details (like where it was taken).
+const LONG_SIDE = 2048;
+async function drawn(blob) {
+  try { return await createImageBitmap(blob, { imageOrientation: 'from-image' }); } catch {}
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return img;
+  } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+}
+export async function upright(blob, { always = false } = {}) {
+  const jpeg = /jpe?g/i.test(blob.type || '');
+  const pic = await drawn(blob);
+  const w = pic.naturalWidth || pic.width, h = pic.naturalHeight || pic.height;
+  const s = Math.min(1, LONG_SIDE / Math.max(w, h));
+  if (!always && !jpeg && s === 1) return { blob, width: w, height: h };
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * s); c.height = Math.round(h * s);
+  c.getContext('2d').drawImage(pic, 0, 0, c.width, c.height);
+  const type = jpeg ? 'image/jpeg' : 'image/png';
+  const out = await new Promise((ok) => c.toBlob(ok, type, 0.92));
+  return out ? { blob: out, width: c.width, height: c.height } : { blob, width: w, height: h };
+}
+
 export async function uploadRef(file, { name = '', kind = 'chat', notes = '' } = {}) {
   const q = new URLSearchParams({ name, kind, notes });
-  const r = await fetch('/api/refs?' + q, { method: 'POST', headers: { 'content-type': file.type || 'application/octet-stream', 'x-bob': '1' }, body: file });
+  let send = file;
+  try { send = (await upright(file)).blob; } catch {} // if the browser can't, the original still goes
+  const r = await fetch('/api/refs?' + q, { method: 'POST', headers: { 'content-type': send.type || file.type || 'application/octet-stream', 'x-bob': '1' }, body: send });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || 'Upload failed.');
   return j;
+}
+
+// Pictures saved before Bob turned photos upright: fix them once, quietly, when Bob's window opens.
+// The server says which are on their side (turn > 1) and how they should look; only a copy that
+// really came out that shape is sent back.
+// Returns { fixed, kept }: kept counts originals that couldn't go to the Recycle Bin and stayed next to the copy.
+export async function fixSideways() {
+  let refs = [];
+  try { refs = await (await fetch('/api/refs')).json(); } catch { return { fixed: 0, kept: 0 }; }
+  let fixed = 0, kept = 0;
+  for (const r of refs.filter((x) => x.turn > 1 && x.width && x.height)) {
+    try {
+      const pic = await (await fetch(r.url)).blob();
+      const up = await upright(pic, { always: true });
+      if ((up.width >= up.height) !== (r.width >= r.height)) continue; // this browser didn't turn it: leave it
+      const res = await fetch('/api/refs/upright?id=' + encodeURIComponent(r.id), { method: 'POST', headers: { 'content-type': up.blob.type, 'x-bob': '1' }, body: up.blob });
+      if (res.ok) { fixed++; if ((await res.json().catch(() => ({}))).original !== 'bin') kept++; }
+    } catch {}
+  }
+  return { fixed, kept };
 }
 
 async function postJSON(url, data) {

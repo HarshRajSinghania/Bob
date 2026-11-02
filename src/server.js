@@ -309,7 +309,18 @@ const server = http.createServer(async (req, res) => {
       catch (e) { return send(res, 502, { error: e.message }); }
     }
     // The reference shelf. Uploads are raw image bytes; name, kind and notes ride in the query string.
-    if (req.method === 'GET' && p === '/api/refs') return send(res, 200, brain.refs.list().map((r) => ({ ...r, url: `/refs/${r.file}` })));
+    if (req.method === 'GET' && p === '/api/refs') return send(res, 200, brain.refs.list().map((r) => ({ ...r, ...brain.refs.info(r), url: `/refs/${r.file}` })));
+    // An upright copy of a picture that was stored on its side (phone photos), made by Bob's window.
+    if (req.method === 'POST' && p === '/api/refs/upright') {
+      const chunks = [];
+      let size = 0;
+      for await (const c of req) { size += c.length; if (size > 15e6) return send(res, 413, { error: 'That picture is too big (15 MB max).' }); chunks.push(c); }
+      try {
+        const r = brain.refs.replace(String(url.searchParams.get('id') || ''), Buffer.concat(chunks));
+        brain.log('refs', `turned ${r.name} upright`);
+        return send(res, 200, { ...r, url: `/refs/${r.file}` });
+      } catch (e) { return send(res, 400, { error: e.message }); }
+    }
     if (req.method === 'POST' && p === '/api/refs') {
       const chunks = [];
       let size = 0;

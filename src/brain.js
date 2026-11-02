@@ -27,6 +27,7 @@ import { stampMessages, keepOlder, readSummary } from './chats.js';
 import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
 import { Made, madePaths, showMadeTool } from './made.js';
+import { imageInfoOf, sizeLike } from './imageinfo.js';
 import { scheduleTools } from './hands-schedules.js';
 import { toolsOff, HANDS, handOn, handOffWhy, freeOn } from './hands-settings.js';
 import { gate as qGate, after as qAfter, maybeAsk as qAsk, noteStrike, copyHeld } from './quarantine.js';
@@ -103,6 +104,13 @@ const MAX_HISTORY = 40;
 const APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
 
 // Plain names for the app's screens. Bob's own names for his hats (persona.js) stay as they are.
+// An edit instruction for a picture-edit model, with a line asking it to keep everything else (unless it already says what to keep).
+export function editPrompt(prompt) {
+  const p = String(prompt || '').trim();
+  if (/\bkeep\b|\bunchanged\b/i.test(p)) return p;
+  return `${p}${/[.!?]$/.test(p) ? '' : '.'} Keep everything else exactly as it is: faces and who people are, expressions, pose, lighting, background and framing.`;
+}
+
 const PLAIN_HATS = { tinker: 'Coding', ledger: 'Spreadsheets', scout: 'Research', painter: 'Images & video', reviewer: 'Review' };
 const BRAIN_NAMES = { bob: 'main', tinker: 'workbench', ledger: 'ledger', scout: 'scouting', painter: "painter's", reviewer: 'second-look', eyes: 'eyes' };
 
@@ -613,7 +621,7 @@ export class Brain {
     if (!loaded || allToolsOn(this.cfg) || Object.keys(HANDS).some((h) => loaded.has(h))) prompt += handsPrompt(this.cfg);
     if (loaded) prompt += realPcPrompt(this.cfg) + toolboxPrompt(this, loaded);
     // "Show me a picture of X" once got no answer at all (2026-11-02): say plainly that make_image is the way.
-    if ((!loaded || allToolsOn(this.cfg) || loaded.has('pictures')) && this.usable('make_image')) prompt += `\n\nWhen ${this.cfg.userName || 'the user'} asks to see, show, make, draw or paint a picture, call make_image yourself straight away with a good prompt.`;
+    if ((!loaded || allToolsOn(this.cfg) || loaded.has('pictures')) && this.usable('make_image')) prompt += `\n\nWhen ${this.cfg.userName || 'the user'} asks to see, show, make, draw or paint a picture, call make_image yourself straight away with a good prompt. To change a picture (one attached, or one you made: reference "last"), call make_image with it as the reference and a short instruction saying only what to change, like "Replace the hard hat with a silver tiara", not a description of a whole new picture.`;
     if (helpers.length) prompt += `\n\nCloud copies of you that ${this.cfg.userName || 'the user'} switched on (use ask_cloud only for jobs too big for you, or when asked; each use is approved and costs money): ${helpers.map((h) => `${h.id} = ${copyName(this.cfg, 'cloud:' + h.id, 'cloud helper')}, running on ${h.name} ${h.model}`).join('; ')}.`;
     const shelf = this.refs.describe();
     if (shelf) prompt += `\n\n${shelf}`;
@@ -1273,7 +1281,7 @@ export class Brain {
     const unloaded = await this.gate.need({ id: 'card' }, { signal: ctx.signal, emit: ctx.emit }); // the gate: the card really free first
     this.setState('painting', `Workshop: ${workflow}`, null);
     this.log('workshop', `unloaded ${unloaded.join(', ') || 'nothing'}; ComfyUI ${workflow}`);
-    const made = await runWorkflow(this.cfg, workflow, { prompt: prompt && this.withLooks(prompt, refs), negative, refs: refs.map((r) => this.refs.pathOf(r)) }, {
+    const made = await runWorkflow(this.cfg, workflow, { prompt: prompt && this.withLooks(prompt, refs), negative, refs: refs.map((r) => r.path) }, {
       signal: ctx.signal,
       onProgress: (secs) => this.setState('painting', `Workshop: ${workflow} (${secs} s)`, null)
     });
@@ -1282,10 +1290,34 @@ export class Brain {
     return `The workshop made ${made.length} file(s): ${made.map((m) => m.file).join(', ')}. The user can see them in the chat.`;
   }
 
-  // Reference names (from the shelf or this chat) to shelf entries. Unknown names are an error Bob can fix.
+  // Reference names to pictures: the shelf or this chat, "last" (the newest picture Bob made), or one of
+  // Bob's painted files by name. Each comes back with its path. Unknown names are an error Bob can fix.
   pickRefs(reference) {
     const names = [].concat(reference || []).flatMap((x) => String(x).split(/\s*[,;]\s*/)).filter(Boolean).slice(0, 4);
-    return names.map((n) => this.refs.find(n) || (() => { throw new Error(`There's no reference called "${n}". On the shelf: ${this.refs.list().filter((r) => r.kind !== 'chat').map((r) => r.name).join(', ') || 'nothing yet'}.`); })());
+    return names.map((n) => this.findPicture(n) || (() => { throw new Error(`There's no reference called "${n}". Use "last" for the newest picture you made, a painted file name, or a name on the shelf: ${this.refs.list().filter((r) => r.kind !== 'chat').map((r) => r.name).join(', ') || 'nothing yet'}.`); })());
+  }
+
+  findPicture(name) {
+    const n = String(name || '').trim().replace(/^["']|["']$/g, '');
+    if (/^(the )?(last|latest|newest|previous)( (picture|image|one|painting|pic))?$/i.test(n)) {
+      const last = this.made.list({ kind: 'image', limit: 1 })[0];
+      return last ? { name: last.name, path: last.path, painted: true } : null;
+    }
+    const base = path.basename(n.replace(/\\/g, '/'));
+    if (/\.(png|jpe?g|webp)$/i.test(base)) {
+      const file = path.join(this.cfg.painterDir, base);
+      if (fs.existsSync(file)) return { name: base, path: file, painted: true };
+    }
+    const r = this.refs.find(n);
+    return r ? { ...r, path: this.refs.pathOf(r) } : null;
+  }
+
+  // The shape to paint an edit at: the picture's own (as shown), about a megapixel, unless another size was asked for.
+  // 1024 x 1024 counts as "not asked": it's the default the chat brain copies from the tool description.
+  editSize(ref, { width, height }) {
+    if ((width || height) && !(Number(width) === 1024 && Number(height) === 1024)) return { width, height };
+    const i = ref.painted ? imageInfoOf(ref.path) : this.refs.info?.(ref) || imageInfoOf(ref.path);
+    return sizeLike(i?.width, i?.height) || { width, height };
   }
 
   // The look of each reference, in words, added to the prompt: helps every model, even ones that can't see.
@@ -1299,7 +1331,7 @@ export class Brain {
     if (this.cfg.maestro?.enabled && this.cfg.maestro?.video) return this.viaMaestro('video', args, ctx);
     if (!paintingAvailable(this.cfg, 'video')) throw new Error('Video isn\'t set up yet. Pick a video maker in Get models (left menu, Equip Bob, Video slot). I can write the video prompt instead.');
     // The first reference becomes the opening frame; the clip moves on from there.
-    if (refs.length) return this.paintOwn('video', { ...args, prompt: this.withLooks(args.prompt, refs), image: this.refs.pathOf(refs[0]) }, ctx);
+    if (refs.length) return this.paintOwn('video', { ...args, prompt: this.withLooks(args.prompt, refs), image: refs[0].path }, ctx);
     return this.paintOwn('video', args, ctx);
   }
 
@@ -1325,15 +1357,21 @@ export class Brain {
     // A picture is attached but none was named: never paint something new by mistake when an edit was meant.
     if (!refs.length && ctx.pics?.length && mode !== 'new') {
       const names = ctx.pics.map((r) => `"${r.name}"`).join(', ');
-      return `Didn't paint yet. A picture is attached to this message (${names}). To change or restyle it, call make_image again with reference [${ctx.pics.map((r) => `"${r.name}"`).join(', ')}]. To paint something new instead, call it with mode "new".`;
+      return `Didn't paint yet. A picture is attached to this message (${names}). To change or restyle it, call make_image again with reference [${ctx.pics.map((r) => `"${r.name}"`).join(', ')}] and a short instruction saying only what to change. To paint something new instead, call it with mode "new".`;
     }
     if (refs.length) {
       const can = capabilities(this.cfg);
-      const files = refs.map((r) => this.refs.pathOf(r));
-      if (can.edits && mode !== 'start_from') return this.paintOwn('edit', { prompt: this.withLooks(prompt, refs), width, height, refs: files }, ctx);
+      const files = refs.map((r) => r.path);
+      // Editing a picture (one attached in chat, or one Bob made) keeps its shape, and the instruction goes as it is
+      // (no "Reference look" description added) with a line to keep the rest: an edit model edits when it's told
+      // what to change and repaints when it's handed a description. Shelf characters and scenes keep their look
+      // in a new picture instead, so they get the description and the size asked for.
+      const editing = refs[0].painted || refs[0].kind === 'chat';
+      const size = editing || mode === 'start_from' ? this.editSize(refs[0], { width, height }) : { width, height };
+      if (can.edits && mode !== 'start_from') return this.paintOwn('edit', { prompt: editing ? editPrompt(prompt) : this.withLooks(prompt, refs), ...size, refs: files }, ctx);
       if (!can.edits && mode !== 'start_from') return this.noEditModel(refs.map((r) => `"${r.name}"`).join(', '));
       if (!paintingAvailable(this.cfg, 'image')) throw new Error('Painting from a reference needs Bob\'s own painter (a picture model from Get models).');
-      const out = await this.paintOwn('image', { prompt: this.withLooks(prompt, refs), width, height, image: files[0], strength: strength ?? (mode === 'start_from' ? 0.6 : 0.75) }, ctx);
+      const out = await this.paintOwn('image', { prompt: this.withLooks(prompt, refs), ...size, image: files[0], strength: strength ?? (mode === 'start_from' ? 0.6 : 0.75) }, ctx);
       return can.edits ? out : `${out} (Reworked from ${refs[0].name} without a picture-edit model, so the look can drift.)`;
     }
     if (this.cfg.maestro?.enabled && this.cfg.painter?.engine === 'maestro' && this.cfg.maestro?.image) return this.viaMaestro('image', { prompt, width, height }, ctx);

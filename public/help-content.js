@@ -95,7 +95,7 @@ export const HELP = [
 <p><strong>Tidy up</strong> in the menu does it now, by hand, with a tick or a cross for each item. Anything removed goes to the Recycle Bin, pinned things are never touched, and every action is in Bob's logbook.</p>` },
 
   { id: 'pictures', group: 'Using Bob', title: 'Pictures, edits and video', words: 'paint picture edit video clip references painter',
-    html: `<p>Just ask: "paint a lighthouse at dusk", or attach a picture with 📎 and say what to change. Keep characters, places and styles on the <strong>References</strong> shelf and ask Bob to use one. Clips are a few seconds long. While Bob paints he puts his chat brain away, so chat waits until the picture is done. If a slot is empty, Bob tells you which model would fill it.</p>` },
+    html: `<p>Just ask: "paint a lighthouse at dusk", or attach a picture with 📎 and say what to change. Keep characters, places and styles on the <strong>References</strong> shelf and ask Bob to use one. Clips are a few seconds long. While Bob paints he puts his chat brain away, so chat waits until the picture is done. If a slot is empty, Bob tells you which model would fill it.</p><p>Photos you attach are turned upright and resized to at most 2048 px. Hidden camera details, such as where a photo was taken, are removed. The file on your PC isn't changed.</p>` },
 
   { id: 'voice', group: 'Using Bob', title: 'Voice: listening and reading aloud', words: 'voice kokoro piper read aloud listen hey bob microphone ears sample',
     html: `<ul><li><strong>Read aloud</strong> (menu): Bob speaks his replies. Kokoro is the recommended voice (runs on the processor). Every voice has a <strong>Play</strong> button.</li>

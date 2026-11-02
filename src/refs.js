@@ -4,6 +4,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { imageInfo, imageInfoOf } from './imageinfo.js';
+import { recycle } from './recycle.js';
 
 export const KINDS = ['character', 'scene', 'style', 'object', 'chat'];
 const MAX_BYTES = 15e6;
@@ -15,8 +17,14 @@ function sniff(buf) {
   return null;
 }
 
+function shape(buf) {
+  const i = imageInfo(buf);
+  return i ? { width: i.width, height: i.height, turn: i.turn } : {};
+}
+
 export class RefShelf {
   constructor(cfg) {
+    this.cfg = cfg;
     this.dir = path.join(cfg.innDir, 'references');
     fs.mkdirSync(this.dir, { recursive: true });
     this.index = path.join(this.dir, 'refs.json');
@@ -40,7 +48,7 @@ export class RefShelf {
     if (list.some((r) => r.name.toLowerCase() === n.toLowerCase())) n = `${n} (${id.slice(0, 4)})`;
     const file = `${id}.${ext}`;
     fs.writeFileSync(path.join(this.dir, file), buf);
-    const ref = { id, name: n, kind: k, notes: String(notes || '').slice(0, 300), file, added: new Date().toISOString().slice(0, 10) };
+    const ref = { id, name: n, kind: k, notes: String(notes || '').slice(0, 300), file, added: new Date().toISOString().slice(0, 10), ...shape(buf) };
     list.push(ref);
     this.save(list);
     return ref;
@@ -68,6 +76,45 @@ export class RefShelf {
     if (!r) return;
     r.seen = String(text || '').slice(0, 1500);
     this.save(list);
+  }
+
+  // Swap a picture for an upright copy (Bob's window turns phone photos the right way up and sends them back).
+  // Same id and name, so chats that point at it still work. The sideways original goes to the Recycle Bin;
+  // if it can't, it stays next to the new one as <id>-original, never overwritten.
+  // original: 'bin' or the kept file's name.
+  replace(id, buf) {
+    const ext = sniff(buf || Buffer.alloc(0));
+    if (!ext) throw new Error('I can only keep PNG, JPEG or WebP pictures.');
+    if (buf.length > MAX_BYTES) throw new Error('That picture is too big (15 MB max).');
+    const list = this.list();
+    const r = list.find((x) => x.id === id);
+    if (!r) throw new Error('No such reference.');
+    const old = path.join(this.dir, r.file);
+    let original = 'bin';
+    if (fs.existsSync(old)) {
+      let binned = false;
+      try { binned = recycle(this.cfg, [old], { roots: [this.dir] }).gone.length > 0; } catch {}
+      if (!binned) {
+        original = `${r.id}-original${path.extname(r.file)}`;
+        fs.renameSync(old, path.join(this.dir, original));
+      }
+    }
+    const file = `${r.id}.${ext}`;
+    fs.writeFileSync(path.join(this.dir, file), buf);
+    Object.assign(r, { file, original }, shape(buf));
+    this.save(list);
+    return r;
+  }
+
+  // Size as shown and the EXIF turn (1 = upright). Worked out once for pictures saved before Bob kept it.
+  info(ref) {
+    if (ref.width && ref.turn) return { width: ref.width, height: ref.height, turn: ref.turn };
+    const i = imageInfoOf(this.pathOf(ref));
+    if (!i) return { width: 0, height: 0, turn: 1 };
+    const list = this.list();
+    const r = list.find((x) => x.id === ref.id);
+    if (r) { Object.assign(r, { width: i.width, height: i.height, turn: i.turn }); this.save(list); }
+    return { width: i.width, height: i.height, turn: i.turn };
   }
 
   // Keep one of Bob's own pictures (from the painter folder) on the shelf.

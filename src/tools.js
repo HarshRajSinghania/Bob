@@ -280,10 +280,10 @@ export function buildTools(cfg) {
 
   t.make_image = {
     schema: fn('make_image', "Paint a picture on {{USER}}'s PC. The chat brain steps out of the GPU while it paints.", {
-      prompt: str('The full image prompt.'),
-      width: { type: 'integer', description: 'Width in pixels, default 1024.' },
-      height: { type: 'integer', description: 'Height in pixels, default 1024.' },
-      reference: { type: 'array', items: { type: 'string' }, description: 'Optional: names of reference pictures (from the shelf, or attached in chat) to paint from. Up to 4.' },
+      prompt: str('A new picture: the full image prompt. An edit (with a reference): a short instruction saying only what to change, like "Replace his hard hat with a silver tiara and his coveralls with a pink gown". Don\'t describe the whole picture again, or it gets repainted.'),
+      width: { type: 'integer', description: 'Width in pixels, default 1024. Leave out for edits: they keep the picture\'s own shape.' },
+      height: { type: 'integer', description: 'Height in pixels, default 1024. Leave out for edits.' },
+      reference: { type: 'array', items: { type: 'string' }, description: 'Optional: pictures to edit or paint from. Up to 4. Names from the shelf or attached in chat, "last" for the newest picture you made, or a painted file name (like 2026-11-02-ab12cd34.png).' },
       mode: str('With a reference: keep_look = edit it or keep its look (same character or scene; needs a picture-edit model) (default); start_from = rework the reference picture itself (the look can drift). new = paint something new even though a picture is attached.', { enum: ['keep_look', 'start_from', 'new'] }),
       strength: { type: 'number', description: 'start_from only: how much may change, 0.1 (barely) to 0.95 (almost all). Default 0.6.' }
     }, ['prompt']),

@@ -5,7 +5,7 @@ applySavedStyle();
 import { startSwap } from './brain-swap.js';
 import { createVoice } from './voice.js';
 import { createCellar } from './cellar.js';
-import { createShelf, uploadRef } from './shelf.js';
+import { createShelf, uploadRef, fixSideways } from './shelf.js';
 import { summary, size } from './progress.js';
 import { createTasks, createDownloads, makeSortable, neighbour, taskRow } from './lists.js';
 import { createLayout } from './layout.js';
@@ -563,6 +563,12 @@ async function attachFiles(files) {
   }
 }
 const shelf = createShelf({ onUse: attachRef });
+// Old phone photos saved on their side get an upright copy, once, so picture edits see them the right way up.
+setTimeout(() => fixSideways().then(({ fixed, kept }) => {
+  if (!fixed) return; // nothing to fix: no note
+  const n = `${fixed} reference picture${fixed === 1 ? '' : 's'}`;
+  note(kept ? `Turned ${n} upright. The originals are kept next to them in References (named "-original").` : `Turned ${n} upright. The originals are in the Recycle Bin.`);
+}).catch(() => {}), 4000);
 $('shelfBtn').onclick = () => shelf.open();
 $('attach').onclick = () => $('attachFile').click();
 $('attachFile').onchange = (e) => { attachFiles(e.target.files); e.target.value = ''; };

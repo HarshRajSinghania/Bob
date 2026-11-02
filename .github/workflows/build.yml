@@ -1,4 +1,5 @@
-# Builds Bob on every version tag (v0.9.N) and on demand.
+# Builds Bob on every version tag (v1.N.N), on every new version pushed to main, and on demand.
+# A new version on main (or a run started by hand) also publishes its GitHub release, tag vX.Y.Z, marked Latest.
 #  1. Runs all of Bob's tests.
 #  2. Makes the release zip in the installed layout: Electron's official electron.exe, unchanged and
 #     renamed Bob.exe, with Bob's files in resources\app (installer\make-release.ps1).
@@ -13,7 +14,15 @@ name: Build
 on:
   push:
     tags: ['v*']
+    # A new version on main publishes its own release (the "Publish the release" step below).
+    branches: [main]
+    paths: ['package.json']
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Commit or branch to build and release (default: main)'
+        required: false
+        default: main
 
 permissions:
   contents: read
@@ -27,6 +36,8 @@ jobs:
       actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
@@ -52,6 +63,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ github.ref_name }}" (Get-ChildItem dist/Bob-*-win-x64.zip*).FullName --clobber -R "${{ github.repository }}"
+      - name: Publish the release
+        # A new version on main, or a run started by hand: release vX.Y.Z (from package.json) with the zip and
+        # checksum, marked Latest. Notes come from docs/releases/vX.Y.Z.md when there is one, else GitHub writes them.
+        # Nothing happens when that release already exists.
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = 'v' + (Get-Content package.json -Raw | ConvertFrom-Json).version
+          gh release view $v -R "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -eq 0) { Write-Host "$v is already released"; exit 0 }
+          $sha = git rev-parse HEAD
+          $files = (Get-ChildItem dist/Bob-*-win-x64.zip*).FullName
+          $notes = "docs/releases/$v.md"
+          if (Test-Path $notes) { gh release create $v $files --target $sha --title "Bob $($v.Substring(1))" --notes-file $notes --latest -R "${{ github.repository }}" }
+          else { gh release create $v $files --target $sha --title "Bob $($v.Substring(1))" --generate-notes --latest -R "${{ github.repository }}" }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   signed-build:
     # Off until SignPath Foundation has approved the project and the settings below are in place:
