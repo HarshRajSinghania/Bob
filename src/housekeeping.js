@@ -3,7 +3,7 @@
 //   - sums up the older part of long chats (instead of forgetting it) and moves lasting facts to his memory file,
 //   - sorts what was said into topics (topics.js), so old chats can go while "where we landed" stays,
 //   - looks for things that haven't come up for longer than the user's limit: chats, pictures and clips he made,
-//     sounds, finished tasks, old logbook lines, plus spare copies (the cached Electron download, repeated memory lines).
+//     sounds, finished tasks, old logbook lines, plus spare copies (repeated memory lines; the cached Electron download is left alone for rebuilds).
 // Each kind has its own age limit and its own mode: "ask me" (the default) or "tidy automatically" (opt-in).
 // Asking means a list with a tick and a cross per item; nothing goes without that click, unless the user chose
 // automatic for that kind. Everything removed goes to the Recycle Bin (recycle.js). Pinned chats, pictures
@@ -147,8 +147,8 @@ export class Housekeeper {
     }
 
     // Spare copies: always asked about, never tidied automatically.
-    const zip = this.spareElectron();
-    if (zip) add({ key: `spare:${path.basename(zip)}`, kind: 'spare', label: 'Saved Electron download', detail: 'Bob already runs on this version; it is downloaded and checked again only when Bob moves to a new Electron', bytes: sizeOf(zip), touched: mtime(zip), actions: ['delete'], def: 'delete', paths: [zip] });
+    // 1.5.7: the cached Electron download is never offered any more. "Double-click to build Bob" reuses it, and without
+    // it a rebuild has to download about 150 MB again (and fails offline). spareElectron() stays for anyone who wants it.
     try {
       const { repeats } = memoryRepeats(fs.readFileSync(cfg.memoryFile, 'utf8'));
       if (repeats) add({ key: 'memory-repeats', kind: 'spare', label: `${repeats} repeated line${repeats === 1 ? '' : 's'} in Bob's memory file`, detail: 'the first copy of each stays', bytes: 0, touched: mtime(cfg.memoryFile), actions: ['delete'], def: 'delete' });

@@ -200,5 +200,9 @@ const old = Date.now() - 400 * DAY;
 
 hk.stop();
 fs.rmSync(tmp, { recursive: true, force: true });
+{
+  const src = fs.readFileSync(new URL('../src/housekeeping.js', import.meta.url), 'utf8');
+  check('the cached Electron download (used by "Double-click to build Bob") is never offered for tidying', !/label: 'Saved Electron download'/.test(src) && !/add\(\{ key: `spare:\$\{path\.basename\(zip\)/.test(src));
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
