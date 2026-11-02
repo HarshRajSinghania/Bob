@@ -47,7 +47,7 @@ export function equipped(slot, { roles, brains, embed }) {
 export function kitFor(slot, { roles, models }) {
   const have = (roles?.options?.[slot.kind] || []).map((o) => ({ ...o, entry: entryOf(models, o.value), installed: true }));
   const haveIds = new Set(have.map((h) => h.entry?.id).filter(Boolean));
-  const shop = models.filter((m) => slot.cats.includes(m.category) && Boolean(m.use?.painter?.sdcpp?.edit) === Boolean(slot.editOnly) && m.status?.state !== 'installed' && !haveIds.has(m.id))
+  const shop = models.filter((m) => slot.cats.includes(m.category) && Boolean(m.use?.painter?.sdcpp?.edit) === Boolean(slot.editOnly) && m.status?.state !== 'installed' && !m.gated && !haveIds.has(m.id))
     .map((m) => ({ value: m.id, label: m.name, entry: m, installed: false }));
   return [...have, ...shop];
 }

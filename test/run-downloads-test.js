@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { ModelShop } from '../src/models.js';
+import { ModelShop, linkError } from '../src/models.js';
 import { mergeSettings } from '../src/config.js';
 
 let pass = 0, fail = 0;
@@ -25,6 +25,8 @@ let neterrDone = false;
 globalThis.fetch = async (url, opts = {}) => {
   const u = String(url);
   if (u.includes('127.0.0.1:1')) throw new Error('ECONNREFUSED');
+  if (opts.method === 'HEAD' && mode === 'gated') return new Response(null, { status: 401 });
+  if (opts.method === 'HEAD' && mode === 'gone') return new Response(null, { status: 404 });
   if (opts.method === 'HEAD') return new Response(null, { status: 302, headers: { 'x-linked-etag': `"${sha}"`, 'x-linked-size': String(content.length) } });
   const range = opts.headers?.range || '';
   gets.push({ url: u, range });
@@ -134,6 +136,31 @@ check('with "carry on when Bob starts" it queues up again', auto.dl.find((d) => 
 shop.cancel(B);
 await until(() => !shop.active.size);
 check('downloads events carry the whole list for the Downloads panel', events.some((e) => e.type === 'downloads' && Array.isArray(e.items) && e.items.some((d) => d.id === A)));
+
+// 8. 1.3.2: a gated or missing link says what's wrong and goes straight to failed (not back in the queue).
+for (const [m, re, label] of [['gated', /needs a Hugging Face account/, 'a 401 says a Hugging Face account is needed'], ['gone', /is broken \(404\)/, 'a 404 says the link is broken']]) {
+  mode = m;
+  fs.rmSync(fileOf(C), { force: true });
+  shop.dl = shop.dl.filter((d) => d.id !== C);
+  await shop.download(C);
+  await until(() => ['failed', 'done'].includes(item(C).state) && !shop.active.has(C));
+  check(`${label}, and it fails at once instead of waiting in the queue`, item(C).state === 'failed' && re.test(item(C).error) && (item(C).tries || 0) === 1, `${item(C).state} ${item(C).error}`);
+}
+mode = 'ok';
+check('403 counts as needing an account too', /Hugging Face account/.test(linkError('x.gguf', 403)) && /broken/.test(linkError('x.gguf', 404)));
+{
+  const cat = JSON.parse(fs.readFileSync(new URL('../catalog.json', import.meta.url), 'utf8'));
+  const flux = cat.models.find((m) => m.id === 'flux-schnell');
+  check('FLUX schnell is marked as needing an account', flux.gated === true && /account/.test(flux.gatedWhy));
+  let threw = '';
+  try { await shop.download('flux-schnell'); } catch (e) { threw = e.message; }
+  check('and Bob refuses to queue it, saying why', /needs a Hugging Face account/.test(threw) && !shop.dl.some((d) => d.id === 'flux-schnell'));
+  check('gated models are never in a starter set', cat.packs.every((p) => p.models.every((id) => !cat.models.find((m) => m.id === id)?.gated)));
+  const ltx = cat.models.find((m) => m.id === 'ltx-2.3-22b');
+  check('LTX-2.3: the text encoder comes from the qat repo, and every file has a pinned checksum', ltx.files.find((f) => f.role === 'llm').url === 'https://huggingface.co/unsloth/gemma-3-12b-it-qat-GGUF/resolve/main/gemma-3-12b-it-qat-UD-Q4_K_XL.gguf' && ltx.files.every((f) => /^[0-9a-f]{64}$/.test(f.sha256)) && ltx.sizeGB === 28);
+  const cel = fs.readFileSync(new URL('../public/cellar.js', import.meta.url), 'utf8');
+  check('the shop shows "needs a Hugging Face account" instead of a Download button', /if \(m\.gated\) return/.test(cel));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

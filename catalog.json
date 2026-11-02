@@ -413,7 +413,9 @@
             }
           }
         }
-      }
+      },
+      "gated": true,
+      "gatedWhy": "Black Forest Labs asks for a free Hugging Face account and accepting their terms before this one downloads, and Bob doesn't sign in for you."
     },
     {
       "id": "qwen-image-edit-2509",
@@ -556,7 +558,7 @@
       "category": "video",
       "name": "LTX-2.3 22B",
       "what": "Higher quality clips with sound, from words or a picture. Big and slow on a 16 GB card.",
-      "sizeGB": 24,
+      "sizeGB": 28,
       "vramGB": 16,
       "license": "LTX-2 Community License (free under $10M yearly revenue)",
       "commercial": true,
@@ -566,27 +568,37 @@
         {
           "url": "https://huggingface.co/unsloth/LTX-2.3-GGUF/resolve/main/ltx-2.3-22b-dev-UD-Q4_K_M.gguf",
           "role": "diffusionModel",
-          "verify": true
+          "verify": true,
+          "sha256": "a6983fcf16cda13ec6dc22711dae47fa7cf160204d5a3b42b0c09d1f13fc853b",
+          "bytes": 16506438688
         },
         {
           "url": "https://huggingface.co/unsloth/LTX-2.3-GGUF/resolve/main/vae/ltx-2.3-22b-dev_video_vae.safetensors",
           "role": "vae",
-          "verify": true
+          "verify": true,
+          "sha256": "8732bb70cf4343541815f45c9f90f5ff0519d679bd63483afc27bf79a08d3f4e",
+          "bytes": 1452256522
         },
         {
           "url": "https://huggingface.co/unsloth/LTX-2.3-GGUF/resolve/main/vae/ltx-2.3-22b-dev_audio_vae.safetensors",
           "role": "audioVae",
-          "verify": true
+          "verify": true,
+          "sha256": "d7711812d9387ce940c2cd5d65a4f5a1e57bf6087cf618d89b56dd3c722c4dea",
+          "bytes": 364853140
         },
         {
           "url": "https://huggingface.co/unsloth/LTX-2.3-GGUF/resolve/main/text_encoders/ltx-2.3-22b-dev_embeddings_connectors.safetensors",
           "role": "embeddingsConnectors",
-          "verify": true
+          "verify": true,
+          "sha256": "a5c5148788d8d9d5d1e650e4cbf3502a46a2f7f975ce70c59082732c8905a8ae",
+          "bytes": 2312144712
         },
         {
-          "url": "https://huggingface.co/unsloth/gemma-3-12b-it-GGUF/resolve/main/gemma-3-12b-it-qat-UD-Q4_K_XL.gguf",
+          "url": "https://huggingface.co/unsloth/gemma-3-12b-it-qat-GGUF/resolve/main/gemma-3-12b-it-qat-UD-Q4_K_XL.gguf",
           "role": "llm",
-          "verify": true
+          "verify": true,
+          "bytes": 7432229248,
+          "sha256": "da98f81c86916ed1c76b3eeda56b25cb7b8352b01093e2edb8028110fe2cb53b"
         }
       ],
       "use": {

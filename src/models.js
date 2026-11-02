@@ -85,6 +85,13 @@ export function ticker(pub, emit) {
   return { tick, stop: () => clearInterval(beat) };
 }
 
+// What a failed link means, in plain words. 401/403: the model is gated (an account and accepted terms);
+// 404: the file moved. Neither is worth retrying.
+export function linkError(name, status) {
+  if (status === 401 || status === 403) return `This model needs a Hugging Face account to download (${name}, ${status}). Bob doesn't sign in for you.`;
+  return `The link for ${name} is broken (${status}).`;
+}
+
 export class ModelShop {
   constructor(cfg, emit, engine) {
     this.cfg = cfg;
@@ -250,6 +257,7 @@ export class ModelShop {
     }
     const entry = this.catalog.models.find((m) => m.id === id);
     if (!entry) throw new Error('No such model in the catalog.');
+    if (entry.gated) throw new Error(`${entry.name} needs a Hugging Face account to download. ${entry.gatedWhy || ''}`.trim());
     return { id, name: entry.name, kind: 'model', total: Math.round(entry.sizeGB * 1e9), viaOllama: Boolean(entry.ollama) };
   }
 
@@ -311,7 +319,7 @@ export class ModelShop {
           d.tries = (d.tries || 0) + 1;
           d.error = String(e.message || e).slice(0, 300);
           // Network hiccups get two more tries, after 15 s and 1 min. A damaged file or a missing link doesn't.
-          const hopeless = /checksum|isn't one of those|no checksum|Not enough disk|No such|redirected|won't install|Python|Smart App Control/i.test(d.error);
+          const hopeless = /checksum|isn't one of those|no checksum|Not enough disk|No such|redirected|won't install|Python|Smart App Control|Hugging Face account|link .* is broken/i.test(d.error);
           if (!hopeless && d.tries < 3) { d.state = 'queued'; d.retryAt = Date.now() + (d.tries === 1 ? 15e3 : 60e3); pub.phase = 'retrying'; pub.error = `${d.error} Trying again in ${d.tries === 1 ? '15 seconds' : 'a minute'}.`; }
           else { d.state = 'failed'; d.doneAt = Date.now(); pub.phase = 'failed'; pub.error = d.error; }
         }
@@ -445,7 +453,7 @@ export class ModelShop {
       if (!hostAllowed(f.url)) throw new Error(`I only download from Hugging Face and GitHub. ${f.url} isn't one of those.`);
       const r = await fetch(f.url, { method: 'HEAD', redirect: 'manual', signal });
       const size = Number(r.headers.get('x-linked-size') || r.headers.get('content-length') || 0);
-      if (r.status >= 400) throw new Error(`The link for ${fileNameOf(f.url)} is broken (${r.status}).`);
+      if (r.status >= 400) throw new Error(linkError(fileNameOf(f.url), r.status));
       const sha = f.sha256 || String(r.headers.get('x-linked-etag') || '').replace(/^W\//, '').replace(/"/g, '');
       heads.push({ f, size, sha: /^[0-9a-f]{64}$/.test(sha) ? sha : null });
     }
@@ -476,7 +484,7 @@ export class ModelShop {
       if (!hostAllowed(res.url)) throw new Error('The download was redirected somewhere I don\'t trust. Stopped.');
       // The server ignored the Range request: start this file again from nothing.
       if (have && res.status === 200) { have = 0; hash.destroy?.(); fs.rmSync(part, { force: true }); return this.fetchFiles(entry, pub, signal, tick); }
-      if (!res.ok && res.status !== 206) throw new Error(`Download of ${name} failed (${res.status}).`);
+      if (!res.ok && res.status !== 206) throw new Error(res.status === 401 || res.status === 403 || res.status === 404 ? linkError(name, res.status) : `Download of ${name} failed (${res.status}).`);
       const out = fs.createWriteStream(part, { flags: have ? 'a' : 'w' });
       let last = 0, got = have;
       try {

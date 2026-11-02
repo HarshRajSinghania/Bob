@@ -68,6 +68,7 @@ export function createCellar() {
       const eng = m.needs && (data.engines || []).find((e) => e.name === m.needs);
       return `<div class="have">✓ ${where}</div>${m.use ? `<button data-use="${esc(m.id)}">Use this</button>` : ''}${engineStep(eng)}`;
     }
+    if (m.gated) return `<div class="muted"><span class="tag warn">needs a Hugging Face account</span> ${esc(m.gatedWhy || '')}</div>`;
     if (!s.canDownload) return `<div class="muted">Needs Ollama running to download.</div>`;
     const part = s.state === 'partial' ? ' (some files are already here)' : '';
     const fit = suit(m);
