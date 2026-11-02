@@ -18,7 +18,7 @@ export const HELP = [
 <ol><li>Open me from the Start menu, or double-click <strong>Bob.exe</strong> in the folder you unzipped me to.</li>
 <li>The first time, I ask what to call you. Then I read your graphics card and RAM and suggest a <strong>starter set</strong>: the models that suit your PC.</li>
 <li>Untick anything you don't want, then confirm. Each download shows its size, speed and time left. You can keep chatting, or close me: unfinished downloads wait and carry on when you press Resume.</li>
-<li>If you want me to look things up online, turn on <strong>Let Bob search the web</strong> in Settings. It's off until you do.</li>
+<li>If you want me to look things up online, click <strong>🌐 Web search</strong> next to Effort, under the chat (the same switch is in Settings). It's off until you do.</li>
 <li>When the downloads finish, say hello. And you can just ask me how to set anything up: I know all my settings and what's set right now.</li></ol>
 <p>Two promises I take seriously: <strong>nothing extra is switched on until you switch it on</strong>, and <strong>nothing downloads until you confirm it</strong>. ${go('privacy', 'What stays on your PC')} lists exactly when I go online.</p>
 <p>To see the first-time setup again: Settings, <strong>Run first-time setup</strong>. I won't mind meeting you twice.</p>` },
@@ -26,7 +26,7 @@ export const HELP = [
   { id: 'around', group: 'Getting started', title: 'Finding your way around', words: 'menu layout now running chat copy paste fold panel left right',
     html: `<p>My window has three parts. Think of it as a very small starship bridge.</p>
 <ul><li><strong>The menu on the left.</strong> My picture and what I'm doing right now, then New chat, Chat, Tasks, Downloads, References, Made by Bob, Topics and Tidy up. Under <em>Setup</em>: Get models, Settings, Style and Help. Then the Listen, Read aloud and Alerts switches, and the Session picker at the bottom. Fold the menu to icons with ‹ or Ctrl+B.</li>
-<li><strong>The chat in the middle.</strong> Along the top: my brain label, <strong>Free memory when Bob is idle</strong> and <strong>✋ Hands</strong>. Along the bottom: quick buttons (Plan my day, To-do list, Remind me…, Spreadsheet…, Look up…), Effort, and the message box with 🎙 and 📎.</li>
+<li><strong>The chat in the middle.</strong> Along the top: my brain label, <strong>Free memory when Bob is idle</strong> and <strong>✋ Hands</strong>. Along the bottom: quick buttons (Plan my day, To-do list, Remind me…, Spreadsheet…, Look up…), Effort with the <strong>🌐 Web search</strong> switch, and the message box with 🎙 and 📎.</li>
 <li><strong>Now running on the right:</strong> tasks, downloads, and how full your graphics card and RAM are. Hide it with Ctrl+J or <strong>Hide »</strong>, and drag its edge to make it wider or narrower.</li></ul>
 <p>I remember how you leave the menu and Now running, so you don't have to set them up every time.</p>` },
 
@@ -35,7 +35,7 @@ export const HELP = [
 <li><strong>Send as many messages as you like.</strong> Each one becomes a task, and I work through them in order. None get dropped. You can watch them in Tasks and in Now running.</li>
 <li><strong>Stop</strong> (next to Send, while I'm answering) ends the current reply. I won't sulk.</li>
 <li><strong>New chat</strong> (top of the menu) starts a fresh conversation. The old one stays in Topics, Past chats.</li>
-<li><strong>Quick buttons</strong> above the box: <em>Plan my day</em> and <em>To-do list</em> send straight away; <em>Remind me…</em>, <em>Spreadsheet…</em> and <em>Look up…</em> start the sentence for you to finish. <em>Look up…</em> needs <strong>Let Bob search the web</strong>.</li>
+<li><strong>Quick buttons</strong> above the box: <em>Plan my day</em> and <em>To-do list</em> send straight away; <em>Remind me…</em>, <em>Spreadsheet…</em> and <em>Look up…</em> start the sentence for you to finish. <em>Look up…</em> needs web search on: click <strong>🌐 Web search</strong> next to Effort.</li>
 <li>Every message and every piece of code has a <strong>Copy</strong> button, and so does each link. That helps over remote desktop apps such as Parsec, where right-click and Ctrl+C often don't get through.</li>
 <li><strong>Right-click</strong> in the chat for Copy, Copy link, Open link in browser, Copy image, Save image as…, and <strong>Search the web for "…"</strong> (opens DuckDuckGo in your normal browser with the words you selected).</li>
 <li><strong>Ask me about me.</strong> "How do I turn on web search?", "what does Gaming do?", "help me set you up": I look it up in this Help, check what's set right now, and tell you exactly where to click. I can't flip switches for you, though. That part's yours.</li></ul>` },
@@ -234,7 +234,7 @@ ${set('Alerts', 'Off', 'Pops up a Windows notification when I need you, for exam
 <p>All of these stay in my folders on your PC.</p>` },
 
   { id: 'research', group: 'Using Bob', title: 'Web research and the web search switch', words: 'web search research look up duckduckgo page sources links internet online switch let bob search the web off',
-    html: `<dl>${set('Let Bob search the web', 'Off', 'Settings, the everyday page. Off: I never go online to look things up. If a question needs the internet, I say so and tell you where this switch is. On: when a question needs it, I search DuckDuckGo and read the best pages by myself, without a card each time.')}</dl>
+    html: `<dl>${set('🌐 Web search (chat page) / Let Bob search the web (Settings)', 'Off', 'One setting in two places: the <strong>🌐 Web search</strong> switch next to Effort on the chat page, and the switch on the everyday Settings page. Flip either and both change. Off: I never go online to look things up. If a question needs the internet, I say so and tell you where the switch is. On: when a question needs it, I search DuckDuckGo and read the best pages by myself, without a card each time.')}</dl>
 <p>With it on, ask me to look something up, or press <strong>Look up…</strong>. My web research copy searches, reads the pages, and answers with a link for every claim, plus what it couldn't confirm. No link, no claim. That's the rule.</p>
 <p>Only the search words go to DuckDuckGo, and only the page address goes to the site I read. Nothing else from your chats is sent. I never open addresses on your home network.</p>` },
 
@@ -318,7 +318,7 @@ ${set('Animations', 'On', 'On, Follow Windows or Off. Off stops moving parts, su
 ${set('Bob\'s cat', 'Patches', 'The name of the cat in my stories and little moments. She won\'t come when called, whatever you pick.')}
 ${set('One brain (snappier)', 'Off', 'Every copy of me uses the main brain, so I never stop to swap brains (about 20 seconds). Turn on if swaps annoy you more than you need the specialist brains.')}
 ${set('Launch Bob on start-up', 'Off', 'I open when you sign in to Windows. It uses Windows\' own start-up apps list; turning it off removes me from it.')}
-${set('Let Bob search the web', 'Off', 'Lets me look things up on DuckDuckGo and read web pages when a question needs it. Only the search words and page address leave your PC. Off: I tell you when a question needs the internet. See ' + go('research', 'Web research') + '.')}
+${set('Let Bob search the web', 'Off', 'Lets me look things up on DuckDuckGo and read web pages when a question needs it. Only the search words and page address leave your PC. Off: I tell you when a question needs the internet. The same switch sits next to Effort on the chat page as <strong>🌐 Web search</strong>. See ' + go('research', 'Web research') + '.')}
 ${set('Check for updates when Bob starts', 'Off', 'I look at the folder I was built from for a newer build and tell you. I never go online for this, and updating always takes your click.')}</dl>
 <p>Along the bottom: my version, your graphics card and free disk space, and three buttons. <strong>Check for updates</strong> (see ${go('settings-remove', 'Updating and removing Bob')}), <strong>Run first-time setup</strong> (the welcome steps again) and <strong>Check this PC</strong> (see ${go('speed', 'Making Bob faster')}).</p>
 <dl>${set('Show advanced settings', 'Off', 'Adds a search box and the sections below: Brains, Voice details, Look &amp; feel, Engines &amp; speed, Connections, Hands, Housekeeping and Remove Bob. Remembered on this PC.')}</dl>` },
@@ -401,7 +401,7 @@ ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for ti
   { id: 'faq-online', group: 'FAQ', title: 'Does Bob send my chats anywhere?', words: 'faq privacy send chats online internet telemetry',
     html: `<p>No. I have no accounts and send no telemetry. The only things that can leave your PC are search words and page addresses (only if you turn on web search), downloads you confirm, and jobs you approve for a cloud helper. See ${go('privacy', 'What stays on your PC')}.</p>` },
   { id: 'faq-cant-look-up', group: 'FAQ', title: 'Bob says he can\'t look things up online', words: 'faq internet offline web search cant look up off switch',
-    html: `<p>Web search is off until you turn it on. Open Settings and turn on <strong>Let Bob search the web</strong> (on the everyday page), then ask again. If it's already on, check your internet connection. I can't fix the Wi-Fi from in here. I've tried.</p>` },
+    html: `<p>Web search is off until you turn it on. Click <strong>🌐 Web search</strong> next to Effort, under the chat (or turn on <strong>Let Bob search the web</strong> in Settings), then ask again. If it's already on, check your internet connection. I can't fix the Wi-Fi from in here. I've tried.</p>` },
   { id: 'faq-help-me-set-up', group: 'FAQ', title: 'Can Bob help me set him up?', words: 'faq set up setup help me ask bob settings where is',
     html: `<p>Yes, and I'd like to. Ask me, for example "help me set you up for gaming" or "where do I turn on Hands?". I read this Help, see what's set right now, and tell you exactly where to click. I can't change settings for you; you click the switch.</p>` },
   { id: 'faq-slow-first', group: 'FAQ', title: 'Why is the first reply slow?', words: 'faq slow first reply loading waking idle',
@@ -436,7 +436,7 @@ ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for ti
 <tr><td>Windows (Smart App Control) blocks me</td><td>Start me from the Start menu shortcut. Bob.exe is Electron's own program, only renamed, which Windows usually trusts. Leave Smart App Control on; check the Releases page notes.</td></tr>
 <tr><td>"Windows protected your PC" on the zip</td><td>Right-click the zip, Properties, tick <strong>Unblock</strong>, OK, then unzip again. Or click <strong>More info</strong>, then <strong>Run anyway</strong>.</td></tr>
 <tr><td>Copy and paste don't work over Parsec or remote desktop</td><td>Use the <strong>Copy</strong> buttons on messages, code, links and file cards.</td></tr>
-<tr><td>I say I can't look things up</td><td>Turn on <strong>Let Bob search the web</strong> in Settings (everyday page).</td></tr>
+<tr><td>I say I can't look things up</td><td>Click <strong>🌐 Web search</strong> next to Effort (or turn on <strong>Let Bob search the web</strong> in Settings).</td></tr>
 <tr><td>"Downloaded. One more step"</td><td>The model is here but its engine isn't. Press the <strong>Get …</strong> button right there (for Kokoro, about 100 MB).</td></tr>
 <tr><td>A download stopped or failed</td><td>Open <strong>Downloads</strong> and press <strong>Resume</strong>. It carries on from where it stopped.</td></tr>
 <tr><td>An update failed</td><td>The update window names the step that failed. I keep the previous version, so I still open. Try again from Settings, Check for updates.</td></tr>

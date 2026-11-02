@@ -16,7 +16,7 @@ Two promises run through everything Bob does:
 1. Download Bob's zip from the Releases page. Right-click it, choose Properties, tick **Unblock**, then unzip it somewhere you'll keep and double-click **Bob.exe**.
 2. Bob opens in his own window. The first time, he looks at your graphics card and suggests a **starter set**: the models that suit your PC.
 3. Click **Equip starter set**, look over the list, and confirm. Every download shows a progress bar, its size, its speed and how long is left.
-4. If you want Bob to look things up online, turn on **Let Bob search the web** in Settings. It's off until you do.
+4. If you want Bob to look things up online, click **🌐 Web search** next to Effort, under the chat (the same switch, **Let Bob search the web**, is in Settings). It's off until you do.
 5. When the downloads finish, say hello. You can ask Bob himself how to set anything up: he knows all his settings and what's set right now.
 
 You can close Bob while things download. Unfinished downloads wait, paused, and carry on when you press Resume.
@@ -279,7 +279,7 @@ Even without Hands, Bob **asks before doing anything outside his own folder**.
 
 ## 10. Optional extras (all off until you turn them on)
 
-- **Let Bob search the web**: Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page address leave your PC. Off: he tells you when a question needs the internet and where this switch is.
+- **Let Bob search the web**: Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page address leave your PC. Off: he tells you when a question needs the internet and where this switch is. The same setting is the **🌐 Web search** switch next to Effort on the chat page; flip either and both change.
 - **Launch on start-up**: Bob opens when Windows starts.
 - **Cloud helpers**: hand a very big job to a paid online AI, using your own key. Bob asks you each time, because it costs money and sends that job off your PC.
 - **Music and sound effects**: extra downloads for the audio tools.
@@ -306,7 +306,7 @@ Even without Hands, Bob **asks before doing anything outside his own folder**.
 |---|---|
 | A download stopped | Press **Resume** in Now running. It carries on from where it stopped. |
 | Pictures or video are very slow | Normal on small cards. Use the **Art** session, keep clips short, or turn on **Match picture settings to my graphics card**. Run **Check this PC**. |
-| Bob says he can't look things up | Turn on **Let Bob search the web** in Settings. |
+| Bob says he can't look things up | Click **🌐 Web search** next to Effort (or turn on **Let Bob search the web** in Settings). |
 | The memory numbers at the top and on the right differ | The top counts Bob's brain only; the meters on the right count the whole graphics card and RAM. The line under them shows Bob's share. |
 | "Out of graphics memory" | Close games or other graphics-heavy apps, or pick the smaller (6 GB) version of the model in Equip Bob. |
 | Bob can't hear you | Fill the 👂 Hearing you slot (Gemma 4 E4B does it). |

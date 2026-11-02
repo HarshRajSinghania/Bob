@@ -55,7 +55,7 @@ const missing = (labels) => [...new Set(labels)].filter((l) => !helpText.include
   check('only true turns it on when saved', mergeSettings({}, { webSearch: 'true' }).webSearch === false && mergeSettings({}, { webSearch: true }).webSearch === true);
   check('the web tools are the search and the page reader', WEB_TOOLS.includes('web_search') && WEB_TOOLS.includes('fetch_page'));
   check('when it is off Bob says where the switch is', /Let Bob search the web/.test(WEB_OFF) && /Settings/.test(WEB_OFF));
-  check('his prompt says so while it is off, and nothing while on', /Web search is OFF/.test(webPrompt({ userName: 'Sam' })) && /Sam can turn on/.test(webPrompt({ userName: 'Sam' })) && webPrompt({ webSearch: true }) === '');
+  check('his prompt says so while it is off, and nothing while on', /Web search is OFF/.test(webPrompt({ userName: 'Sam' })) && /Sam can click "🌐 Web search" next to Effort/.test(webPrompt({ userName: 'Sam' })) && webPrompt({ webSearch: true }) === '');
   const brain = read('src/brain.js');
   check('the web tools are taken out of his tools while off', /\.\.\.\(webOn\(this\.cfg\) \? \[\] : WEB_TOOLS\)/.test(brain));
   check('a web tool called by name gets the switch message', /WEB_TOOLS\.includes\(name\) && !webOn\(this\.cfg\)\) return \{ text: WEB_OFF \}/.test(brain));
@@ -71,6 +71,11 @@ const missing = (labels) => [...new Set(labels)].filter((l) => !helpText.include
 
 // ---- Bob knows his own settings ----
 {
+  const ix = read('public/index.html'), ws = read('public/web-switch.js'), appjs = read('public/app.js');
+  check('the chat page has the Web search switch in the Effort row, off to start', /<div id="effort"[\s\S]*id="webBtn"[^>]*role="switch" aria-checked="false"[\s\S]*<\/div>\s*<form id="composer"/.test(ix));
+  check('the chat switch saves the same webSearch setting', /webSearch: !on/.test(ws) && /createWebSwitch/.test(appjs));
+  check('Settings and the chat switch tell each other', /bob-web/.test(read('public/cellar.js')) && /addEventListener\('bob-web'/.test(ws));
+  check('Bob\'s off-message names the chat switch', /WEB_PILL/.test(read('src/web.js')) && /next to Effort/.test(read('src/web.js')));
   check('bob_help is one of his everyday tools', CORE.includes('bob_help'));
   check('bob_help finds the web switch', findHelp('web search switch')[0]?.id === 'research' || findHelp('web search switch').some((e) => e.id === 'research'));
   check('bob_help finds Gaming', findHelp('gaming session').some((e) => e.id === 'sessions'));

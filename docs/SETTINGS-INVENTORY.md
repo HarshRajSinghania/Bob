@@ -100,3 +100,4 @@ Update this file in the same handover as any change to settings.
 | Help | One section per feature and setting (66 entries), a glossary (33 words) and an FAQ (15 questions). test/run-help-coverage-test.js fails if a Settings label has no Help. | | ok (approved with edits) |
 | Settings > Advanced > Engines & speed | "Keep the graphics card free for quick answers" now ends "Applies in the Normal session; Gaming always does this." (was "Normal and Light sessions") | off | wording fix |
 | Session picker, Gaming | "…on the processor with a small brain, which usually starts answering within a few seconds." (was "about half a minute", out of date since 1.5.25) | | wording fix |
+| Chat page > Effort row | 🌐 Web search pill (OFF/ON badge), same setting as "Let Bob search the web" | off | ok (approved with edits, 1.5.28) |

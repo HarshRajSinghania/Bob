@@ -707,6 +707,8 @@ details.more > summary:hover { color: var(--accent); }
 .effort [data-effort][aria-checked="true"] small { color: inherit; opacity: .85; }
 .effort [data-effort]:disabled { opacity: .45; cursor: not-allowed; }
 .effort [data-effort]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.effort .web-btn { min-height: 40px; margin-left: 10px; position: relative; }
+.effort .web-btn::before { content: ""; position: absolute; left: -11px; top: 6px; bottom: 6px; border-left: 1px solid var(--line); }
 .effort-hint { flex: 1 1 220px; min-width: 0; font-size: 11px; }
 @media (forced-colors: active) { .effort [data-effort][aria-checked="true"] { border: 2px solid Highlight; } }
 
