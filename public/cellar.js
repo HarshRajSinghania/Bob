@@ -100,21 +100,46 @@ export function createCellar() {
     </article>`;
   }
 
-  function extrasHtml() {
-    const ex = data.extras.filter((f) => tab === 'found' || f.kind === tab);
+  function extrasHtml(kind = tab) {
+    const ex = data.extras.filter((f) => kind === 'found' || f.kind === kind);
     if (!ex.length) return '';
     return `<h3>Also on this PC</h3><p class="muted">Bob found these in other apps. He can use the ones his painter understands; Maestro's own video models still need Maestro.</p>
       <ul class="found">${ex.map((f) => `<li><span>${esc(f.name)}</span><span class="muted">${esc(f.owner)} · ${gb(f.size / 1e9)}</span></li>`).join('')}</ul>`;
   }
 
+  // Model categories that share a page, each as a subsection (1.1.2). The old tab ids still work:
+  // opening "speech" lands on Voice & conversation, at Bob's voice.
+  const GROUPS = [
+    { id: 'talk', label: 'Voice & conversation', icon: '💬', parts: ['chat', 'voice', 'speech'], what: 'How Bob talks, listens and plans: his everyday brain, hearing your voice, and his own voice.' },
+    { id: 'media', label: 'Pictures & video', icon: '🎨', parts: ['images', 'video'], what: 'The painter\'s corner: making and editing pictures, and short clips.' }
+  ];
+  const SUB_LABEL = { chat: 'Planning and talking (his everyday brain)', voice: 'Hearing you', speech: 'Talking (Bob\'s voice)', images: 'Pictures', video: 'Video' };
+  const groupOf = (id) => GROUPS.find((g) => g.parts.includes(id));
+  let jumpTo = '';
+  function setTab(id) { const g = groupOf(id); tab = g ? g.id : id; jumpTo = g ? id : ''; }
+  function catBody(id) {
+    const cat = data.categories.find((c) => c.id === id);
+    return `${data.models.filter((m) => m.category === id).map(card).join('')}${extrasHtml(id)}`.trim() || `<p class="muted">Nothing in ${esc(cat?.label || id)} yet.</p>`;
+  }
+  function groupHtml(g) {
+    const parts = g.parts.filter((id) => data.categories.some((c) => c.id === id));
+    return `<p class="muted">${esc(g.what)}</p>
+      <nav class="subnav" aria-label="Sections">${parts.map((id) => `<button type="button" data-jump="${id}">${esc(SUB_LABEL[id] || id)}</button>`).join('')}</nav>
+      ${parts.map((id) => { const cat = data.categories.find((c) => c.id === id); return `<section class="subsection" id="sub-${id}"><h3>${cat.icon || ''} ${esc(SUB_LABEL[id] || cat.label)}</h3><p class="muted">${esc(cat.what)}</p>${id === 'speech' ? `<div class="settings voice-settings">${voiceHtml()}</div>` : ''}${catBody(id)}</section>`; }).join('')}`;
+  }
+
   function shopHtml() {
-    const tabs = [{ id: 'roles', label: 'Model roles', icon: '🧭' }, ...data.categories, { id: 'found', label: 'On this PC', icon: '🔎' }, { id: 'style', label: 'Style', icon: '🎨' }, { id: 'settings', label: 'Settings', icon: '⚙' }];
+    if (groupOf(tab)) setTab(tab);
+    const cats = [], seen = new Set();
+    for (const c of data.categories) { const g = groupOf(c.id); const item = g || c; if (!seen.has(item.id)) { seen.add(item.id); cats.push(item); } }
+    const tabs = [{ id: 'roles', label: 'Model roles', icon: '🧭' }, ...cats, { id: 'found', label: 'On this PC', icon: '🔎' }, { id: 'style', label: 'Style', icon: '🎨' }, { id: 'settings', label: 'Settings', icon: '⚙' }];
     const bar = `<nav class="tabs" role="tablist">${tabs.map((c) => `<button role="tab" aria-selected="${c.id === tab}" data-tab="${c.id}">${c.icon} ${esc(c.label)}</button>`).join('')}</nav>`;
     let body = '';
     if (tab === 'settings') body = settingsHtml();
     else if (tab === 'style') body = stylePage.html(settings);
     else if (tab === 'roles') body = rolesHtml();
     else if (tab === 'found') body = `<p class="muted">Scanned ${data.scannedAt ? new Date(data.scannedAt).toLocaleString() : 'never'}. <button data-scan>Look again</button></p>${extrasHtml() || '<p>Nothing extra found.</p>'}`;
+    else if (GROUPS.some((g) => g.id === tab)) body = groupHtml(GROUPS.find((g) => g.id === tab));
     else {
       const cat = data.categories.find((c) => c.id === tab);
       body = `<p class="muted">${esc(cat?.what)}</p>${data.models.filter((m) => m.category === tab).map(card).join('')}${extrasHtml()}`;
@@ -161,7 +186,7 @@ export function createCellar() {
     if (!list.length) return '';
     const cur = settings.tts?.voice;
     return `<details class="voices"><summary>Hear all ${list.length} Kokoro voices</summary>
-      ${list[0].installed ? '' : list[0].filesHere ? engineStep(engineById('kokoro'), 'Voices downloaded') + '<p class="muted">Until then only the voices that come with Bob can play.</p>' : '<p class="muted">Kokoro isn\'t set up yet: it needs the voice pack (Speech tab) and the Kokoro engine (Settings, Engines). Until then only the voices that come with Bob can play.</p>'}
+      ${list[0].installed ? '' : list[0].filesHere ? engineStep(engineById('kokoro'), 'Voices downloaded') + '<p class="muted">Until then only the voices that come with Bob can play.</p>' : '<p class="muted">Kokoro isn\'t set up yet: it needs the voice pack (below) and the Kokoro engine (Settings, Engines). Until then only the voices that come with Bob can play.</p>'}
       <ul class="voice-grid">${list.map((v) => `<li class="sample-row"><span>${esc(v.label)}${canUse && v.voice === cur ? ' <span class="tag good">Bob\'s voice</span>' : ''}</span>${v.have === 'none' ? `<span class="muted">${v.filesHere ? 'after the Kokoro engine' : 'needs Kokoro'}</span>` : hear('kokoro', v.voice, 'Play')}${canUse && v.voice !== cur ? `<button type="button" class="link" data-usevoice="${esc(v.voice)}">Use</button>` : ''}</li>`).join('')}</ul></details>`;
   }
 
@@ -222,7 +247,7 @@ export function createCellar() {
       <label class="switch"><input type="checkbox" data-set="oneBrain" ${settings.oneBrain ? 'checked' : ''}>
         <span><strong>One brain (snappier)</strong><br><span class="muted">In the Normal session, all of Bob's copies use his main brain, so he never stops to swap brains (about 20 seconds each). Specialist brains are better for long coding or review jobs.</span></span></label>
       <label class="pick"><strong>Bob's cat</strong><input data-set="catName" maxlength="24" value="${esc(settings.catName || 'Patches')}" aria-label="Cat's name" style="width:12em"><span class="muted">The cat who ignores him in The Idle Process.</span></label>
-      ${voiceHtml()}
+      <div><strong>Bob's voice</strong><p class="muted">Voice, speed and samples are on the <button class="link" data-tab="speech">💬 Voice &amp; conversation</button> page, with hearing you and his everyday brain.</p></div>
       <label class="switch"><input type="checkbox" data-set="autostart" ${settings.autostart ? 'checked' : ''} ${settings.platform !== 'win32' ? 'disabled' : ''}>
         <span><strong>Launch Bob on start-up</strong><br><span class="muted">Off unless you turn it on. Bob then waits quietly in the background.</span></span></label>
       <label class="pick"><strong>Bob's engine</strong>
@@ -270,6 +295,7 @@ export function createCellar() {
     if (!data) { $('cellar-body').innerHTML = '<p class="muted">Loading...</p>'; return; }
     $('cellar-body').innerHTML = mode === 'welcome' ? welcomeHtml() : shopHtml();
     stylePage.paintPreviews(dlg);
+    if (jumpTo) { const el = dlg.querySelector('#sub-' + CSS.escape(jumpTo)); jumpTo = ''; el?.scrollIntoView({ block: 'start' }); }
   }
 
   async function load() {
@@ -320,7 +346,8 @@ export function createCellar() {
       if ('opentidy' in b.dataset) { dlg.close(); window.dispatchEvent(new Event('bob-tidy')); return; }
       if ('hkrun' in b.dataset) { const r = await api('/api/hk/run', {}); b.parentElement.querySelector('.hk-out').textContent = r.busy ? 'Bob is already on it.' : 'Started. Bob tells you in the chat when he\'s done; chats are summed up only with a brain loaded.'; return; }
       if (b.dataset.usevoice) { const r = await api('/api/settings', { tts: { voice: b.dataset.usevoice } }); settings.tts = { ...settings.tts, ...r.tts }; draw(); return; }
-      if (b.dataset.tab) { sampler.stop(); tab = b.dataset.tab; draw(); }
+      if (b.dataset.jump) { dlg.querySelector('#sub-' + CSS.escape(b.dataset.jump))?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+      if (b.dataset.tab) { sampler.stop(); setTab(b.dataset.tab); draw(); }
       else if (b.dataset.get) confirmBox(b.closest('.model'), data.models.find((m) => m.id === b.dataset.get));
       else if (b.dataset.anyway) confirmBox(b.closest('.model'), data.models.find((m) => m.id === b.dataset.anyway), true);
       else if (b.dataset.look) { await api('/api/settings', { look: b.dataset.look }); setLook(b.dataset.look); draw(); }
@@ -458,7 +485,7 @@ export function createCellar() {
   dlg.addEventListener('close', () => { sampler.stop(); stylePage.closing(settings); window.dispatchEvent(new Event('bob-caps')); });
 
   return {
-    async open(which = 'shop', pickTab) { mode = which; if (pickTab) tab = pickTab; dlg.showModal(); draw(); await load().catch((e) => { $('cellar-body').innerHTML = `<p class="error">${esc(e.message)}</p>`; }); },
+    async open(which = 'shop', pickTab) { mode = which; if (pickTab) setTab(pickTab); dlg.showModal(); draw(); await load().catch((e) => { $('cellar-body').innerHTML = `<p class="error">${esc(e.message)}</p>`; }); },
     async firstRun() {
       try { const s = await api('/api/settings'); if (!s.setupDone) this.open('welcome'); } catch {}
     },

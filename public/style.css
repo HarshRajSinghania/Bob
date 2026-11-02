@@ -462,3 +462,10 @@ button.danger { background: #a8432f; color: #fff; border-color: #a8432f; }
 /* "One more step" engine prompt (1.1.1) */
 .model.engine-step { border: 1px dashed var(--accent); border-radius: var(--r); padding: 6px 8px; margin-top: 6px; background: transparent; }
 .model.engine-step p { margin: 0 0 6px; }
+
+/* Grouped settings pages (1.1.2) */
+.subnav { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.subnav button { color: var(--accent); padding: 3px 10px; font-size: 13px; }
+.subsection { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 14px; scroll-margin-top: 8px; }
+.subsection > h3 { margin: 0 0 4px; }
+.voice-settings { margin-bottom: 10px; }

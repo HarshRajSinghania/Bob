@@ -41,8 +41,8 @@ export const ENGINES = [
     ready: (cfg) => { const a = audioReady(cfg); return a.music || a.sfx; }
   },
   {
-    // Same uv as the audio tools; only the small Kokoro package is added. The voice files come from Bob's voice tab.
-    id: 'kokoro', name: 'Kokoro voices', what: 'Bob\'s voice: Kokoro-82M (Apache-2.0), natural-sounding and small, runs on the processor. About 100 MB, plus a 330 MB voice pack from the Bob\'s voice tab. Needs Python 3.12 or 3.11.',
+    // Same uv as the audio tools; only the small Kokoro package is added. The voice files come from Voice & conversation, Talking.
+    id: 'kokoro', name: 'Kokoro voices', what: 'Bob\'s voice: Kokoro-82M (Apache-2.0), natural-sounding and small, runs on the processor. About 100 MB, plus a 330 MB voice pack from Voice & conversation, Talking. Needs Python 3.12 or 3.11.',
     repo: 'astral-sh/uv', dir: 'audio-workshop', exe: 'uv.exe',
     nvidia: [], other: [/^uv-x86_64-pc-windows-msvc\.zip$/],
     runtime: () => null,
