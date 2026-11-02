@@ -24,7 +24,7 @@ import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
 import { scheduleTools } from './hands-schedules.js';
 import { toolsOff, HANDS, handOffWhy } from './hands-settings.js';
-import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUseTools, STICKY_TURNS } from './toolbox.js';
+import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUseTools, STICKY_TURNS, toolboxPrompt, saysCant } from './toolbox.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
 
 const MAX_STEPS = 8;
@@ -44,6 +44,7 @@ export function claimsPcAction(text) {
 }
 export const CLAIM_CORRECTION = 'Nothing was actually done on the PC in that reply. Bob said he did, but no action ran.';
 const CLAIM_NUDGE = 'You just said you did something on the PC, but no tool did it in this turn. Never claim that. If it should be done, call the right tool now; if you cannot, say plainly that you have not done it and why (the tool\'s own words if it gave an error).';
+const CANT_NUDGE = 'You now have every tool you can use on this PC. If one of them does what was asked, call it now. If none does, say so in one line; don\'t repeat yourself.';
 const MAX_HISTORY = 40;
 const APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -407,6 +408,7 @@ export class Brain {
     const helpers = cloudHelpers(this.cfg);
     // The Hands line only when a Hand group is added (or for hats and "all tools at once"); otherwise use_tools lists them.
     if (!loaded || allToolsOn(this.cfg) || Object.keys(HANDS).some((h) => loaded.has(h))) prompt += handsPrompt(this.cfg);
+    if (loaded) prompt += toolboxPrompt(this, loaded);
     if (helpers.length) prompt += `\n\nCloud copies of you that ${this.cfg.userName || 'the user'} switched on (use ask_cloud only for jobs too big for you, or when asked; each use is approved and costs money): ${helpers.map((h) => `${h.id} = ${copyName(this.cfg, 'cloud:' + h.id, 'cloud helper')}, running on ${h.name} ${h.model}`).join('; ')}.`;
     const shelf = this.refs.describe();
     if (shelf) prompt += `\n\n${shelf}`;
@@ -724,6 +726,19 @@ export class Brain {
         msgs.push({ role: 'system', content: CLAIM_NUDGE, hidden: true });
         this.log('honesty', 'Bob claimed a PC action with no tool result; corrected and asked to retry');
         continue;
+      }
+      // "I can't..." with groups still not added: add them all and give him one more go (router test fix).
+      if (!reply.tool_calls && !ctx.cantRetried && !allToolsOn(this.cfg) && saysCant(reply.content)) {
+        const missing = Object.keys(groupsFor(this)).filter((g) => !ctx.loaded.has(g));
+        if (missing.length) {
+          ctx.cantRetried = true;
+          missing.forEach((g) => ctx.loaded.add(g));
+          emit({ type: 'tool', name: 'use_tools', summary: 'tools: all' });
+          msgs.push({ role: 'system', content: CANT_NUDGE, hidden: true });
+          this.log('toolbox', 'Bob said he could not; added every tool group and asked again');
+          emit({ type: 'token', text: '\n\n' });
+          continue;
+        }
       }
       if (!reply.tool_calls) { this.keepGroups(sessionId, used); return; }
       let ended = false;

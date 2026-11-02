@@ -63,6 +63,19 @@ const size = (step) => JSON.stringify(step.tools).length;
   check('use_tools on a Hand that is off says how to turn it on', bad.length === 2);
 }
 
+// ---------- Router-test fixes: name the groups, and one more go after "I can't" ----------
+{
+  const [s] = await turn('hello there', [], 'r1');
+  check('the prompt names the groups he can add, and says he CAN do them', /More you CAN do/.test(s.sys) && /files = /.test(s.sys) && /documents = /.test(s.sys), s.sys.slice(-400));
+  check('the picture group says only what this PC can make (no picture model: no "make pictures")', !/More you CAN do[^\n]*make pictures/.test(s.sys) && /More you CAN do[^\n]*save reference pictures/.test(s.sys));
+  const steps = await turn('hmm', [{ role: 'assistant', content: "Sorry, I can't tidy folders yet." }], 'r2');
+  check('"I can\'t" with no tool call: every group is added and he gets one more go', steps.length === 2 && names(steps[1]).includes('file_hands') && names(steps[1]).includes('write_file'), steps.map((x) => names(x).length).join('/'));
+  const twice = await turn('hmm', [{ role: 'assistant', content: "I can't do that." }, { role: 'assistant', content: "I still can't." }], 'r3');
+  check('...only once per message', twice.length === 2);
+  const fine = await turn('hmm', [{ role: 'assistant', content: 'Sure, here you go: 36.' }], 'r4');
+  check('a normal answer is not retried', fine.length === 1);
+}
+
 // ---------- Sticky groups ----------
 {
   await turn('ok', [call('use_tools', { group: 'documents' })], 'chat');
@@ -82,6 +95,9 @@ const size = (step) => JSON.stringify(step.tools).length;
   saveSettings(cfg, { allTools: true });
   const [s] = await turn('hi', [], 's8');
   check('with it on, every usable tool is sent and use_tools is not', names(s).includes('write_file') && names(s).includes('file_hands') && !names(s).includes('use_tools'));
+  check('...and the groups line is left out', !/More you CAN do/.test(s.sys));
+  const c = await turn('hmm', [{ role: 'assistant', content: "I can't do that." }], 's9');
+  check('...and "I can\'t" is not retried', c.length === 1);
   saveSettings(cfg, { allTools: false });
 }
 

@@ -13,22 +13,22 @@ export const CORE = ['notice_board', 'remember', 'reminders', 'list_folder', 're
 // Groups Bob can add. `what` is what Bob reads in use_tools; `words` is the cheap pre-check on the user's message.
 const WORK_GROUPS = {
   pictures: {
-    what: 'make pictures, video clips, music and sound effects; save reference pictures; ComfyUI workflows',
+    what: 'make pictures, video clips, music and sound effects; save reference pictures; ComfyUI workflows', // narrowed to what this PC has, see groupsFor
     tools: ['make_image', 'make_video', 'save_reference', 'make_music', 'make_sound', 'workshop_list', 'workshop_run'],
-    words: /\b(pic|pics|picture|image|photo|draw|drawing|paint|painting|render|artwork|art|portrait|wallpaper|logo|icon|sprite|concept|illustrat\w*|video|clip|animat\w*|music|song|tune|melody|beat|sound|sfx|workflow|comfy\w*|reference|character sheet)s?\b/i
+    words: /\b(pic|pics|picture|image|photo|draw|drawing|paint|painting|render|sketch|artwork|art|portrait|wallpaper|logo|icon|sprite|concept|illustrat\w*|video|clip|animat\w*|music|song|tune|melody|beat|chiptune|soundtrack|jingle|sound|sfx|workflow|comfy\w*|reference|character sheet)s?\b/i
   },
   documents: {
     what: 'write or edit files, save spreadsheets, search inside files',
     tools: ['write_file', 'edit_file', 'save_spreadsheet', 'search_files'],
-    words: /\b(save|write|edit|document|txt|csv|spreadsheet|excel|search (?:my|the|in|for)|find (?:in|where)|grep)\b/i
+    words: /\b(save|write|edit|document|txt|csv|xlsx|spreadsheet|excel|search (?:my|the|in|for)|find (?:in|where)|grep)\b/i
   },
   memory: {
-    what: 'forget a topic Bob keeps notes on',
+    what: 'forget a topic you keep notes on',
     tools: ['forget_topic'],
     words: /\b(forget|erase|delete (?:the |that |your )?(?:note|topic|memory))\b/i
   },
   cloud: {
-    what: 'hand one job to a paid cloud helper (asks first, costs money)',
+    what: 'hand a job to a paid cloud helper',
     tools: ['ask_cloud'],
     words: /\b(cloud|claude|gpt|openai|gemini|anthropic|online model|bigger model)\b/i
   }
@@ -38,21 +38,32 @@ const WORK_GROUPS = {
 const HAND_WORDS = {
   files: /\b(move|copy|rename|zip|unzip|extract|tidy|organi[sz]e|sort|clean ?up|downloads|undo|folder|folders)\b/i,
   run: /\b(run|execute|command|script|terminal|powershell|cmd|install|build|npm|python|node|git|recipe)\b/i,
-  schedules: /\b(schedules?|scheduled|every (?:day|morning|night|week|hour|\d+)|daily|weekly|hourly|at \d|each (?:day|morning|week))\b/i,
-  apps: /\b(open|launch|click|press|app|apps|notepad|browser|chrome|explorer|blender|paint\.net)\b/i
+  schedules: /\b(schedules?|scheduled|every (?:day|morning|afternoon|evening|night|week|weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|month|hour|\d+)|each (?:day|morning|evening|night|week|weekday|hour)|daily|nightly|weekly|hourly|on a timer)\b/i,
+  apps: /\b(open|launch|click|press|button|type (?:in|into)|app|apps|notepad|browser|chrome|explorer|blender|paint\.net)\b/i
 };
+
+const HAND_WHAT = {
+  files: 'move, copy, rename, zip, unzip, tidy files and folders, undo',
+  run: 'run commands, scripts, programs',
+  schedules: 'repeat a job at set times (every morning...)',
+  apps: 'open apps and click, type or press keys in them'
+};
+// What each picture-group tool adds, so the group says only what this PC can really make.
+const PICTURE_WHAT = { make_image: 'make pictures', make_video: 'make video clips', make_music: 'make music', make_sound: 'make sound effects', save_reference: 'save reference pictures', workshop_run: 'run ComfyUI workflows' };
 
 export function groupsFor(brain) {
   const g = {};
   for (const [id, x] of Object.entries(WORK_GROUPS)) g[id] = { ...x };
   for (const [id, hand] of Object.entries(HANDS)) {
-    g[id] = { what: `Hands, ${hand.label.toLowerCase()}`, tools: hand.tools, words: HAND_WORDS[id] || /$^/, hand: id };
+    g[id] = { what: HAND_WHAT[id] || `Hands, ${hand.label.toLowerCase()}`, tools: hand.tools, words: HAND_WORDS[id] || /$^/, hand: id };
   }
   // Only groups with at least one tool Bob can use on this PC right now.
   const out = {};
   for (const [id, x] of Object.entries(g)) {
     const usable = x.tools.filter((n) => brain.usable(n));
-    if (usable.length) out[id] = { ...x, tools: usable };
+    if (!usable.length) continue;
+    out[id] = { ...x, tools: usable };
+    if (id === 'pictures') out[id].what = usable.map((n) => PICTURE_WHAT[n]).filter(Boolean).join(', ');
   }
   return out;
 }
@@ -101,7 +112,22 @@ export function fillUseTools(schema, groups, loaded) {
   const open = Object.entries(groups).filter(([id]) => !loaded.has(id));
   if (!open.length) return null; // everything's already here; no need for the tool
   const s = JSON.parse(JSON.stringify(schema));
-  s.function.description = s.function.description.replace('{{GROUPS}}', open.map(([id, x]) => `${id} = ${x.what}`).join('; '));
+  // The groups are described once, in the prompt line (toolboxPrompt); here just the names.
+  s.function.description = s.function.description.replace('{{GROUPS}}', open.map(([id]) => id).join(', '));
   s.function.parameters.properties.group.enum = open.map(([id]) => id);
   return s;
+}
+
+// One line in the front desk's prompt naming the groups not added yet (router test, 2026-11-02: without it,
+// small brains said "I can't make pictures yet" instead of calling use_tools). About 80 tokens.
+export function toolboxPrompt(brain, loaded) {
+  if (allToolsOn(brain.cfg)) return '';
+  const open = Object.entries(groupsFor(brain)).filter(([id]) => !loaded.has(id));
+  if (!open.length) return '';
+  return `\n\nMore you CAN do: call use_tools with a group, then its tool. ${open.map(([id, x]) => `${id} = ${x.what}`).join('; ')}. Never say you can't do these.`;
+}
+
+// "I can't do that" with no tool call: worth one more go with every tool (router test fix). Kept narrow.
+export function saysCant(text) {
+  return /\b(?:I\s*(?:can(?:'|\u2019)?t|cannot|am not able to|'m not able to|am unable to|'m unable to)|I\s+don(?:'|\u2019)?t\s+have\s+(?:a|the|any)\s+(?:tool|way|ability|access))\b/i.test(String(text || ''));
 }
