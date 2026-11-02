@@ -70,7 +70,7 @@ async function turn(text, effort, s) {
   cfg.session = 'light';
   // 1.5.23: Gaming keeps the card free. Medium jobs wait in Tasks (see run-sessions-test); Low chats on the Gaming brain, on the processor.
   const l = await turn('hello there', 'low', { desk: [say('Hi.')] });
-  check('Low in the Gaming session: the Gaming brain on the processor', l.calls[0].model === 'qwen3:4b' && l.calls[0].cpu, l.calls[0].model);
+  check('Low in the Gaming session: the Gaming brain on the processor', l.calls[0].model === 'qwen3-4b' && l.calls[0].cpu, l.calls[0].model);
   delete cfg.session;
 }
 

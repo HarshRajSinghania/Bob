@@ -84,6 +84,13 @@ export class Ollama {
     return secs;
   }
 
+  // 1.5.24 "Get Bob ready while you type": read the instructions now; Ollama keeps the reading while the brain is
+  // loaded, so the next message only reads itself. Same options as the load, or Ollama would reload the model.
+  async prime(model, { ctx, cpu = false, messages, tools } = {}) {
+    await this.json('/api/chat', { model, messages: [...messages, { role: 'user', content: '.' }], tools: tools?.length ? tools : undefined, stream: false, keep_alive: this.keepAlive(model), think: await this.thinkField(model, false), options: { ...this.opts(cpu, ctx), num_predict: 1 } });
+    return 'read';
+  }
+
   async unloadAll() {
     const models = await this.loaded();
     for (const m of models) {

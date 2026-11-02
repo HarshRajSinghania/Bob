@@ -20,9 +20,10 @@ export function sessionBrains(cfg) {
   const s = cfg.sessionBrains || {};
   return {
     small: s.small || 'gemma4:e4b',
-    // 1.5.23: Gaming chats on the processor, so a smaller brain answers sooner. qwen3:4b scored 23/25 in the router test
-    // (qwen3:1.7b faked tool calls). If it isn't installed, the brain hand-off falls back to the main brain.
-    gaming: s.gaming || 'qwen3:4b',
+    // 1.5.23: Gaming chats on the processor, so a smaller brain answers sooner. 1.5.25: Qwen3 4B Instruct 2507 (Get models
+    // id "qwen3-4b"), picked on time to first word and to a full answer: about 0.1-2 s / 2-7 s on the processor. Ollama's
+    // qwen3:4b thinks first even when asked not to (about 30 s for "hi"). If it isn't on the PC, the hand-off falls back.
+    gaming: s.gaming || 'qwen3-4b',
     coding: s.coding || m.tinker || m.bob,
     office: s.office || m.ledger || m.bob,
     deep: s.deep || m.reviewer || m.bob

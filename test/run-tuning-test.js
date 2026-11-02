@@ -1,0 +1,133 @@
+// Tests "Speed for this PC" (1.5.24): the three switches, the PC check tips and the speed test.
+// Run: node test/run-tuning-test.js
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { tuning, cpuPlan, paintFlags, pictureFitFailed, pictureFitReset, SAFE_PAINT, startFile, promptHash } from '../src/tuning.js';
+import { tipsFrom, ratedSpeed } from '../src/pc-check.js';
+import { LlamaCpp } from '../src/llamacpp.js';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+let failures = 0;
+const check = (ok, name) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}`); if (!ok) failures++; };
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+// ---------- switches ----------
+check(same(tuning({}), { readyWhileTyping: false, gamesFirst: false, pictureFit: false }), 'all three switches are off unless turned on');
+check(tuning({ gamesFirst: 'yes' }).gamesFirst === false, 'only a real true turns a switch on');
+
+// ---------- Let games go first ----------
+const cpus = (model, n) => Array.from({ length: n }, () => ({ model }));
+check(cpuPlan({}, { cpus: cpus('AMD Ryzen 7 9800X3D 8-Core Processor', 16) }) === null, 'games first off: no change to cores or priority');
+const one = cpuPlan({ gamesFirst: true }, { cpus: cpus('AMD Ryzen 7 9800X3D 8-Core Processor', 16) });
+check(one.threads === 6 && one.range === null && one.lowPriority, 'one-chip 8-core: 6 cores at lower priority');
+const two = cpuPlan({ gamesFirst: true }, { cpus: cpus('AMD Ryzen 9 7950X3D 16-Core Processor', 32) });
+check(two.threads === 8 && two.range === '16-31' && two.twoChips, 'two-chip Ryzen 9: the second chip only, leaving the cache chip to games');
+check(cpuPlan({ gamesFirst: true, llamacpp: { threads: 4 } }, { cpus: cpus('AMD Ryzen 7 9800X3D', 16) }).threads === 4, 'threads set by hand still win');
+check(cpuPlan({ gamesFirst: true }, { cpus: cpus('Intel(R) Core(TM) i5', 4) }).threads === 2, 'small processors keep at least 2 cores');
+
+// ---------- Match picture settings ----------
+const sd = (extra = {}) => ({ painter: { sdcpp: { ...extra } } });
+check(same(paintFlags(sd(), 'image', {}, { gb: 16, files: 11 }).extra, SAFE_PAINT), 'switch off: small-card settings on every card');
+check(same(paintFlags({ ...sd(), pictureFit: true }, 'image', {}, { gb: 16, files: 11 }).extra, ['--diffusion-fa']), '16 GB card with an 11 GB picture model: all on the card, no tiles');
+check(same(paintFlags({ ...sd(), pictureFit: true }, 'image', {}, { gb: 16, files: 19 }).extra, ['--offload-to-cpu', '--diffusion-fa']), '16 GB card with a 19 GB model: still swapped in, but no tiles');
+const small = paintFlags({ ...sd(), pictureFit: true }, 'image', {}, { gb: 6, files: 11 });
+check(small.size === 768 && small.clipOnCpu === true && same(small.extra, SAFE_PAINT), '6 GB card: 768-pixel pictures, text reader on the processor');
+check(same(paintFlags({ ...sd(), pictureFit: true }, 'video', {}, { gb: 16, files: 11 }).extra, SAFE_PAINT), 'clips keep the small-card settings');
+check(same(paintFlags({ ...sd({ extraArgs: ['--diffusion-fa'] }) }, 'image', {}, { gb: 6, files: 1 }).extra, ['--diffusion-fa']), 'flags set by hand are kept as they are');
+check(paintFlags({ ...sd(), pictureFit: true }, 'image', {}, { gb: 0, files: 11 }).fit === 'safe', 'unknown card: small-card settings');
+pictureFitFailed();
+check(paintFlags({ ...sd(), pictureFit: true }, 'image', {}, { gb: 16, files: 11 }).fit === 'safe', 'after a failure: back to the small-card settings');
+pictureFitReset();
+
+// ---------- Check this PC ----------
+check(ratedSpeed('UD5-6000') === 6000 && ratedSpeed('CMK32GX5M2B6000C36') === 6000 && ratedSpeed('F5-6000J3038F16G') === 6000 && ratedSpeed('M425R1GB4BB0') === 0, 'rated memory speed is read from part numbers');
+const today = new Date('2026-11-02');
+const slow = tipsFrom({ memory: [{ speed: 4800, configured: 4800, part: 'UD5-6000' }, { speed: 4800, configured: 4800, part: 'UD5-6000' }] }, { today });
+check(slow.tips.some((t) => t.id === 'memory-speed' && /4800.*6000/.test(t.title) && /MT\/s/.test(t.title) && /^This is a BIOS setting.*Bob can't change it/.test(t.steps[0])), 'memory below its rated speed: EXPO tip that says Bob can\'t change it');
+const fast = tipsFrom({ memory: [{ speed: 4800, configured: 6000, part: 'UD5-6000' }] }, { today });
+check(!fast.tips.length && fast.fine.some((f) => /6000/.test(f)), 'memory at its rated speed: listed as fine');
+check(tipsFrom({ battery: [{ status: 1 }] }, { today }).tips.some((t) => t.id === 'battery'), 'laptop on battery: plug-in tip');
+check(!tipsFrom({ battery: [{ status: 2 }] }, { today }).tips.length, 'laptop plugged in: no battery tip');
+check(tipsFrom({ video: [{ name: 'NVIDIA GeForce RTX 3060 Laptop GPU', date: '2025-12-01' }] }, { today }).tips.some((t) => t.id === 'driver'), 'old NVIDIA driver: update tip');
+check(!tipsFrom({ video: [{ name: 'NVIDIA GeForce RTX 5070 Ti', date: '2026-09-15' }] }, { today }).tips.length, 'recent driver: no tip');
+check(tipsFrom({ disk: { media: 'HDD', bus: 'SATA' }, drive: 'D' }, { today }).tips.some((t) => t.id === 'disk'), 'models on a hard drive: move tip');
+check(!tipsFrom({ disk: { media: 'SSD', bus: 'NVMe' }, drive: 'C' }, { today }).tips.length, 'models on an SSD: no tip');
+const busy = tipsFrom({ nvidia: { totalGB: 16, usedGB: 9, apps: [{ name: 'python.exe', gb: 6 }] } }, { today });
+check(busy.tips.some((t) => t.id === 'card-busy' && /python\.exe/.test(t.steps[0])), 'other apps holding graphics memory: named, with sizes');
+check(busy.tips.some((t) => t.id === 'sysmem-fallback' && t.level === 'optional'), 'the NVIDIA fallback setting is offered as optional');
+check(!tipsFrom({}, { today }).tips.length, 'nothing known: no tips');
+
+// ---------- Get ready while you type (with a fake llama-server) ----------
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bob tune '));
+const models = path.join(tmp, 'models');
+const add = (name, tag, hex) => {
+  const dir = path.join(models, 'manifests', 'registry.ollama.ai', 'library', name);
+  fs.mkdirSync(dir, { recursive: true }); fs.mkdirSync(path.join(models, 'blobs'), { recursive: true });
+  fs.writeFileSync(path.join(models, 'blobs', `sha256-${hex}`), 'GGUF');
+  fs.writeFileSync(path.join(dir, tag), JSON.stringify({ layers: [{ mediaType: 'application/vnd.ollama.image.model', digest: `sha256:${hex}` }] }));
+};
+add('qwen3', '4b', 'ccc333');
+const lcCfg = (extra = {}) => ({ dataDir: path.join(tmp, 'data'), agentDir: tmp, llamacpp: { exe: process.execPath, preArgs: [path.join(here, 'mock-llama-server.js')], ollamaModelsDir: models, port: 18095, fit: false }, ...extra });
+fs.mkdirSync(path.join(tmp, 'data'), { recursive: true });
+{
+  const lc = new LlamaCpp(lcCfg());
+  const a = lc.buildArgs('qwen3:4b', { cpu: true });
+  check(!a.includes('--slot-save-path') && !a.includes('--cpu-range'), 'switches off: the engine starts as before');
+  clearInterval(lc.idleTimer);
+}
+{
+  const lc = new LlamaCpp(lcCfg({ readyWhileTyping: true, gamesFirst: true }));
+  const cpuArgs = lc.buildArgs('qwen3:4b', { cpu: true, ctx: 8192 });
+  check(cpuArgs.includes('--slot-save-path') && cpuArgs.includes('-t'), 'on the processor: saved readings and fewer cores');
+  check(!lc.buildArgs('qwen3:4b', { cpu: false }).includes('--slot-save-path'), 'on the graphics card: no saved readings (reading ahead is fast enough)');
+  const start = { messages: [{ role: 'system', content: 'You are Bob.' }], tools: [] };
+  await lc.preload('qwen3:4b', undefined, { cpu: true, ctx: 8192 });
+  check(await lc.prime('qwen3:4b', { cpu: true, ctx: 8192, ...start }) === 'saved', 'first wake on the processor: reads ahead and saves the reading');
+  const saved = path.join(tmp, 'data', 'chat-start', startFile('qwen3:4b', 8192));
+  check(fs.existsSync(saved) && fs.existsSync(saved.replace(/\.bin$/, '.json')), 'the reading is saved in Bob\'s data folder');
+  await lc.stopServer();
+  await lc.preload('qwen3:4b', undefined, { cpu: true, ctx: 8192 });
+  check(lc.primedHash === promptHash(start.messages, start.tools), 'next load: the saved reading comes back');
+  check(await lc.prime('qwen3:4b', { cpu: true, ctx: 8192, ...start }) === 'ready', 'and nothing has to be read again');
+  check(await lc.prime('qwen3:4b', { cpu: true, ctx: 8192, messages: [{ role: 'system', content: 'Changed.' }], tools: [] }) === 'saved', 'changed instructions are read and saved again');
+  await lc.stopServer();
+  clearInterval(lc.idleTimer);
+}
+
+// ---------- Settings, speed test and PC check through the app ----------
+const cfg = { ...JSON.parse(fs.readFileSync(path.join(here, '..', 'config.example.json'), 'utf8')), userName: 'Sam', engine: 'llamacpp', models: { bob: 'qwen3:4b' }, stt: { provider: 'ollama', model: 'qwen3:4b' } };
+cfg.llamacpp = { ...cfg.llamacpp, exe: process.execPath, preArgs: [path.join(here, 'mock-llama-server.js')], ollamaModelsDir: models, port: 18096 };
+cfg.readRoots = []; cfg.readOnlyRoots = [];
+fs.writeFileSync(path.join(tmp, 'config.json'), JSON.stringify(cfg));
+const PORT = 7811;
+const bob = spawn(process.execPath, [path.join(here, '..', 'src', 'server.js')], {
+  env: { ...process.env, BOB_CONFIG: path.join(tmp, 'config.json'), BOB_AGENT_DIR: path.join(tmp, 'Agent 00'), BOB_PORT: String(PORT) },
+  stdio: ['ignore', 'pipe', 'inherit']
+});
+await new Promise((r) => bob.stdout.once('data', r));
+const base = `http://127.0.0.1:${PORT}`;
+const post = (p, b) => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-bob': '1' }, body: JSON.stringify(b) }).then(async (r) => ({ status: r.status, ...(await r.json()) }));
+try {
+  let s = await (await fetch(base + '/api/settings')).json();
+  check(s.readyWhileTyping === false && s.gamesFirst === false && s.pictureFit === false, 'settings page: all three off at first');
+  s = await post('/api/settings', { readyWhileTyping: true, pictureFit: 'yes' });
+  check(s.readyWhileTyping === true && s.pictureFit === undefined, 'a switch turns on; a bad value is ignored');
+  check((await (await fetch(base + '/api/settings')).json()).readyWhileTyping === true, 'the switch is kept');
+  const before = await (await fetch(base + '/api/speed-test')).json();
+  check(Array.isArray(before.history) && before.history.length === 0, 'speed test: no results yet');
+  const t = await post('/api/speed-test', {});
+  check(t.status === 200 && t.result?.first?.firstWord >= 0 && t.result.first.full >= t.result.first.firstWord && t.result.switches.readyWhileTyping === true, 'speed test: times the first word and the full answer, with the switches that were on');
+  check(t.history.length === 1, 'speed test: the result is kept for comparing');
+  const pc = await (await fetch(base + '/api/pc-check')).json();
+  check(Array.isArray(pc.tips) && Array.isArray(pc.fine), 'Check this PC answers with tips and what looked fine');
+} finally {
+  bob.kill();
+}
+const html = fs.readFileSync(path.join(here, '..', 'public', 'cellar.js'), 'utf8');
+check(/Get Bob ready while you type/.test(html) && /Let games go first/.test(html) && /Match picture settings to my graphics card/.test(html) && /Test Bob's speed/.test(html) && /Check this PC/.test(html) && /<th>Load<\/th>/.test(html) && /<th>Second reply<\/th>/.test(html), 'the settings page has the switches and both buttons');
+
+console.log(failures ? `\n${failures} failed` : '\nAll tuning tests passed');
+process.exit(failures ? 1 : 0);

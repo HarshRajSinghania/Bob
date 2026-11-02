@@ -86,5 +86,8 @@ Update this file in the same handover as any change to settings.
 | Session picker | 🎮 Gaming (was Light / gaming, id still `light`): "Keeps the graphics card completely free for games. Bob chats and listens on the processor (replies start slower, about half a minute). Pictures and big jobs wait until you switch back." | off (Normal) | ok |
 | Chat page, Effort | In Gaming, Medium/High/Extreme are greyed out: "Gaming keeps the graphics card free. Switch session to use more effort." | Low | ok |
 | Tasks | In Gaming, picture/clip/music and Medium-and-up jobs wait: "Waiting · Gaming is on", "Switch the session to Normal to run it." | — | ok |
-| Settings > Equip, Session brains | Gaming session brain (`sessionBrains.gaming`), default Qwen3 4B (router test 23/25) | qwen3:4b | ok |
+| Settings > Equip, Session brains | Gaming session brain (`sessionBrains.gaming`), default Qwen3 4B Instruct 2507 (1.5.25: picked on time to first word and to a full answer on the processor) | qwen3-4b | ok |
 | Help, Sessions and Effort | "Session: what the graphics card is kept for. Effort: how hard Bob works on each message." | — | ok |
+| Settings > Advanced > Engines & speed > Speed for this PC | Get Bob ready while you type · Let games go first · Match picture settings to my graphics card | all off | ok (approved with edits, hw tuning) |
+| Settings > Advanced > Engines & speed | Test Bob's speed (button + last 6 results) | | ok (approved with edits) |
+| Settings > Everyday footer | Check this PC (read-only tips) | | ok (approved with edits) |

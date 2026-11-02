@@ -25,6 +25,7 @@ async function api(url, data) {
 export function createCellar() {
   const dlg = $('cellar');
   let speedModel = '';
+  let speedRuns = [];
   let data = null, hw = null, settings = null, roles = null, cloud = [], caps = {}, tab = 'roles', job = null, mode = 'shop', voices = [];
   const sampler = createSampler();
   const live = new Map(); // downloads running now (one or two), by id
@@ -209,7 +210,7 @@ export function createCellar() {
       <h3>Thinking (writes, plans, codes, writes prompts)</h3><table class="roles">${thinkers.map(row).join('')}</table>
       <h3>Making (does the actual work)</h3><table class="roles">${makers.map(row).join('')}</table>
       <h3>Session brains</h3><p class="muted">Pick a session from the menu next to Bob's name. Each one keeps a set of brains that fit in your graphics card together, so there are no swaps. Art runs the small brain on the processor so the painter keeps the card.</p>
-      <table class="roles">${[['small', 'Small brain', 'The Art session'], ['gaming', 'Gaming session', 'Chats on the processor, so keep it small (Qwen3 4B)'], ['coding', 'Coding session', 'Does everything in a Coding session'], ['office', 'Office session', 'Does everything in an Office session']].map(([k, label, what]) => {
+      <table class="roles">${[['small', 'Small brain', 'The Art session'], ['gaming', 'Gaming session', 'Chats on the processor, so keep it small (Qwen3 4B Instruct 2507)'], ['coding', 'Coding session', 'Does everything in a Coding session'], ['office', 'Office session', 'Does everything in an Office session']].map(([k, label, what]) => {
         const cur = settings.sessionBrains?.[k] || '';
         const list = roles.options.llm || [];
         return `<tr><th scope="row">${esc(label)}<span class="muted">${esc(what)}</span></th><td><select data-sbrain="${k}" aria-label="${esc(label)}">${list.some((o) => o.value === cur) || !cur ? '' : `<option value="${esc(cur)}" selected>${esc(cur)} (not found)</option>`}${list.map((o) => `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select></td></tr>`;
@@ -311,8 +312,8 @@ export function createCellar() {
       ${sswitch('autostart', settings.autostart, 'Launch Bob on start-up', 'Off unless you turn it on.', settings.platform !== 'win32' ? 'disabled' : '')}
       ${sswitch('autoCheck', settings.updates?.autoCheck, 'Check for updates when Bob starts', 'Off unless you turn it on. Bob only tells you; updating always takes your click.')}
       <div class="updates srow-foot"><span class="muted">Bob ${esc(settings.version?.label || '')} · Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'} · Free disk: ${hw?.freeGB ?? '?'} GB</span>
-        <div class="row"><button type="button" data-checkupdate>Check for updates</button><button type="button" data-welcome>Run first-time setup</button><span class="update-out muted"></span></div>
-        <div class="update-steps"></div></div>
+        <div class="row"><button type="button" data-checkupdate>Check for updates</button><button type="button" data-welcome>Run first-time setup</button><button type="button" data-pccheck>Check this PC</button><span class="update-out muted"></span></div>
+        <div class="update-steps"></div><div class="pc-check" aria-live="polite"></div></div>
     </div>`;
   }
 
@@ -325,6 +326,7 @@ export function createCellar() {
         <span class="muted">${held ? 'Not used right now: "Free memory when Bob is idle" on the chat page is off, so his small brain stays loaded.' : 'Used while "Free memory when Bob is idle" on the chat page is on.'} Big brains (Coding, Deep thought) are freed after 2 minutes, or sooner if you pick less.</span></label>
       ${sswitch('pictureNoWait', settings.pictureNoWait !== false, 'Show pictures without waiting for Bob\'s brain', 'Bob shows a finished picture or clip straight away with a short line, instead of loading his brain back just to talk about it. Turn off if you want him to comment on each one.')}
       ${sswitch('quickOnCpu', settings.quickOnCpu === true, 'Keep the graphics card free for quick answers', 'Low effort answers run on the processor, so games and pictures keep the card. Replies start much slower (about half a minute). Applies in the Normal and Light sessions.')}
+      ${tuneHtml()}
       <label class="pick"><strong>Bob's engine</strong>
         <select data-set="engine"><option value="ollama" ${settings.engine === 'ollama' ? 'selected' : ''}>Ollama (if you already have it)</option><option value="llamacpp" ${settings.engine === 'llamacpp' ? 'selected' : ''}>Bob's own (llama.cpp, nothing else needed)</option></select>
         <span class="muted">Takes effect next time Bob starts.</span></label>
@@ -334,6 +336,29 @@ export function createCellar() {
       ${sswitch('resumeJobs', settings.resumeJobs, 'Pick up unfinished jobs after a restart', 'If Bob closes mid-job, he starts it again next time. Jobs that had already changed something wait in Tasks for you to press Retry.')}
       ${sswitch('allTools', settings.allTools, 'Give Bob all his tools at once', 'Sends every tool with each message, which leaves less room for the chat. Leave off to keep chats light.')}
       ${speedHtml()}`;
+  }
+
+  // 1.5.24: speed for this PC. Three switches (off unless turned on) and a before-and-after speed test.
+  function tuneHtml() {
+    const sw = (on, name) => `${on ? '✓' : '–'} ${name}`;
+    const rows = speedRuns.slice(-6).reverse().map((r) => `<tr><td>${esc(new Date(r.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</td><td>${esc(r.model)}<br><span class="muted">${esc(r.where)}</span></td><td>${r.wake} s</td><td><strong>${r.first.firstWord} s</strong></td><td>${r.first.full} s</td><td>${r.next.firstWord} s</td><td class="muted">${sw(r.switches?.readyWhileTyping, 'Ready while typing')} · ${sw(r.switches?.gamesFirst, 'Games first')} · ${sw(r.switches?.pictureFit, 'Matched pictures')}</td></tr>`).join('');
+    return `<div class="tune"><strong>Speed for this PC</strong> <span class="tag">off unless you turn it on</span>
+        ${more('Try one switch at a time: run the speed test, turn the switch on, and run it again. The table keeps your last results so you can compare. Bob never changes Windows or driver settings; Check this PC (on the Everyday page) only suggests them.')}
+        ${sswitch('readyWhileTyping', settings.readyWhileTyping === true, 'Get Bob ready while you type', 'He reads his instructions as soon as you start typing, so replies start sooner.')}
+        ${sswitch('gamesFirst', settings.gamesFirst === true, 'Let games go first', 'When Bob works on the processor, he uses fewer cores at lower priority. His replies may be a little slower.')}
+        ${sswitch('pictureFit', settings.pictureFit === true, 'Match picture settings to my graphics card', 'Big cards keep the picture model in graphics memory, which is faster. On cards with 8 GB or less, pictures are made at 768 px so they fit.')}
+        <div class="row"><button type="button" data-speedtest>Test Bob's speed</button><span class="speed-out muted">Takes about a minute. Bob frees his brain and wakes it, as when you start typing.</span></div>
+        ${rows ? `<div class="speed-table"><table><thead><tr><th>When</th><th>Brain</th><th>Load</th><th>First word</th><th>Full answer</th><th>Second reply</th><th>Switches</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+      </div>`;
+  }
+
+  function pcCheckHtml(r) {
+    const tip = (t) => `<article class="pc-tip"><header><strong>${t.level === 'optional' ? '' : '⚠ '}${esc(t.title)}</strong></header><p class="muted">${esc(t.why)}</p><ol>${t.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol></article>`;
+    const fixes = r.tips.filter((t) => t.level !== 'optional'), opts = r.tips.filter((t) => t.level === 'optional');
+    return `<p><strong>${fixes.length ? `${fixes.length} thing${fixes.length === 1 ? '' : 's'} could make Bob faster` : 'Nothing slowing Bob down was found.'}</strong> <span class="muted">Bob only looked; he changed nothing.</span></p>
+      ${fixes.map(tip).join('')}
+      ${r.fine.length ? `<ul class="pc-fine">${r.fine.map((f) => `<li>✓ ${esc(f)}</li>`).join('')}</ul>` : ''}
+      ${opts.map(tip).join('')}`;
   }
 
   function connectionsHtml() {
@@ -449,6 +474,7 @@ export function createCellar() {
 
   async function load() {
     [data, hw, settings, roles, cloud, caps] = await Promise.all([api('/api/models'), api('/api/hardware'), api('/api/settings'), api('/api/roles'), api('/api/cloud'), api('/api/capabilities').catch(() => ({}))]);
+    speedRuns = (await api('/api/speed-test').catch(() => ({}))).history || [];
     voices = (await api('/api/voice/samples').catch(() => ({}))).voices || [];
     job = data.job;
     await applyStarter().catch(() => {});
@@ -627,6 +653,18 @@ export function createCellar() {
       else if (b.dataset.yes) { job = await api('/api/models/download', { id: b.dataset.yes }); draw(); }
       else if ('cancel' in b.dataset) await api('/api/models/cancel', b.dataset.cancel ? { id: b.dataset.cancel } : {});
       else if (b.dataset.pausedl) await api('/api/models/pause', { id: b.dataset.pausedl });
+      else if ('pccheck' in b.dataset) {
+        const box = b.closest('.updates').querySelector('.pc-check');
+        b.disabled = true; box.innerHTML = '<p class="muted">Checking this PC...</p>';
+        try { box.innerHTML = pcCheckHtml(await api('/api/pc-check')); } catch (e) { box.innerHTML = `<p>Couldn't check this PC: ${esc(e.message)}</p>`; }
+        b.disabled = false;
+      }
+      else if ('speedtest' in b.dataset) {
+        const out = b.parentElement.querySelector('.speed-out');
+        b.disabled = true; out.textContent = 'Testing... (about a minute)';
+        try { const r = await api('/api/speed-test', {}); speedRuns = r.history || speedRuns; draw(); }
+        catch (e) { out.textContent = e.message; b.disabled = false; }
+      }
       else if ('checkupdate' in b.dataset) {
         const out = b.parentElement.querySelector('.update-out');
         out.textContent = 'Checking...';
@@ -731,6 +769,7 @@ export function createCellar() {
       if (el.dataset.sctx) { const v = el.value ? Number(el.value) : null; const r = await api('/api/settings', { sessionCtx: { [el.dataset.sctx]: v } }); settings.sessionCtx = r.sessionCtx; flash(el, 'Saved. Applies when the brain next loads.'); return; }
       if (el.dataset.sbrain) { const r = await api('/api/settings', { sessionBrains: { [el.dataset.sbrain]: el.value } }); settings.sessionBrains = r.sessionBrains; flash(el, 'Saved.'); return; }
       if (el.dataset.set === 'pictureNoWait') { const r = await api('/api/settings', { pictureNoWait: el.checked }); settings.pictureNoWait = r.pictureNoWait; el.checked = r.pictureNoWait; return; }
+      if (['readyWhileTyping', 'gamesFirst', 'pictureFit'].includes(el.dataset.set)) { const k = el.dataset.set; const r = await api('/api/settings', { [k]: el.checked }); settings[k] = r[k]; el.checked = r[k]; flash(el, 'Saved. Applies when the brain or picture model next loads.'); return; }
       if (el.dataset.set === 'quickOnCpu') { const r = await api('/api/settings', { quickOnCpu: el.checked }); settings.quickOnCpu = r.quickOnCpu; el.checked = r.quickOnCpu; return; }
       if (el.dataset.set === 'resumeJobs') { const r = await api('/api/settings', { resumeJobs: el.checked }); settings.resumeJobs = r.resumeJobs; el.checked = r.resumeJobs; return; }
       if (el.dataset.set === 'allTools') { const r = await api('/api/settings', { allTools: el.checked }); settings.allTools = r.allTools; el.checked = r.allTools; return; }

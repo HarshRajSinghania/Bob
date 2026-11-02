@@ -100,7 +100,7 @@ export const VERSION = (() => {
   } catch { return { release: '0.9', branch: '', build: 0, label: '0.9.0' }; }
 })();
 
-export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask', 'brainMode', 'allTools', 'quickOnCpu', 'quarantine', 'resumeJobs', 'pictureNoWait'];
+export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask', 'brainMode', 'allTools', 'quickOnCpu', 'quarantine', 'resumeJobs', 'pictureNoWait', 'readyWhileTyping', 'gamesFirst', 'pictureFit'];
 const LOCKED_LLAMACPP = ['exe', 'preArgs'];
 
 function deepMerge(into, from) {
@@ -127,6 +127,7 @@ function clean(patch) {
   if ('allTools' in out) out.allTools = out.allTools === true;
   if ('resumeJobs' in out) out.resumeJobs = out.resumeJobs === true; // 1.5.16, off unless switched on
   if ('quickOnCpu' in out) out.quickOnCpu = out.quickOnCpu === true;
+  for (const k of ['readyWhileTyping', 'gamesFirst', 'pictureFit']) if (k in out) out[k] = out[k] === true; // 1.5.24, off unless switched on
   if ('pictureNoWait' in out) out.pictureNoWait = out.pictureNoWait !== false; // 1.5.20, on unless switched off
   if ('updates' in out) out.updates = { autoCheck: out.updates?.autoCheck === true };
   if ('housekeeping' in out) out.housekeeping = cleanHousekeeping(out.housekeeping || {});

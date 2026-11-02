@@ -27,6 +27,14 @@ export const HELP = [
 <tr><td>F1</td><td>Opens this Help</td></tr><tr><td>Ctrl+B</td><td>Folds or opens the left menu</td></tr><tr><td>Ctrl+J</td><td>Shows or hides Now running</td></tr><tr><td>Esc (in the side panel)</td><td>Closes the side panel</td></tr>
 <tr><td>Esc</td><td>Back to the chat from Settings, Get models, Style or Help</td></tr><tr><td>Enter / Shift+Enter</td><td>Send / new line</td></tr></table>` },
 
+  { id: 'speed', group: 'Getting started', title: 'Making Bob faster on your PC', words: 'speed fast slow tune check this pc test speed benchmark games priority memory expo driver graphics card ready while typing before after',
+    html: `<p>Two buttons and three switches help Bob run well on your PC. The switches are off until you turn them on.</p>
+<ul><li><strong>Check this PC</strong> (Settings, at the bottom of the Everyday page) looks for things that slow Bob down: memory running below its rated speed, an old NVIDIA driver, a laptop on battery, models on a slow drive, other apps holding graphics memory. It shows the steps to fix each one. Bob only looks; he never changes Windows or driver settings.</li>
+<li><strong>Test Bob's speed</strong> (Settings, Show advanced settings, Engines &amp; speed) frees his brain, wakes it as if you started typing, and times the first word and the full answer. Your last results stay in a table, so run it before and after changing a switch.</li>
+<li><strong>Get Bob ready while you type:</strong> he reads his instructions as soon as you start typing, so replies start sooner. On the processor he also keeps a copy of that reading on disk.</li>
+<li><strong>Let games go first:</strong> when Bob works on the processor, he uses fewer cores at lower priority.</li>
+<li><strong>Match picture settings to my graphics card:</strong> big cards keep the picture model in graphics memory; on cards with 8 GB or less, pictures are made at 768 px so they fit. If a picture fails with these settings, Bob goes back to the usual ones.</li></ul>` },
+
   { id: 'recommended', group: 'Models', title: 'How Bob picks models for your PC', words: 'recommended fits your card does not suit star badge show models that don\'t suit compatible slot job score',
     html: `<p>On <strong>Get models</strong> and in <strong>Equip Bob</strong>, each model can carry one of these:</p>
 <ul><li><span class="tag rec">★ Recommended for your PC</span> Bob's pick for that job on your PC. In Equip Bob it reads <em>Recommended for this job on your PC</em>, because the best pick depends on the job.</li>
@@ -76,7 +84,7 @@ export const HELP = [
 
   { id: 'sessions', group: 'Using Bob', title: 'Sessions', words: 'session normal art coding office gaming games light graphics card free',
     html: `<p>The <strong>Session</strong> picker at the bottom of the menu tells Bob how to share your PC with you.</p>
-<ul><li><strong>Normal:</strong> everyday use.</li><li><strong>Art:</strong> Bob chats on his Quick brain so painting and video get the graphics card.</li><li><strong>Coding:</strong> the Coding brain leads.</li><li><strong>Office:</strong> documents, spreadsheets and planning.</li><li><strong>🎮 Gaming:</strong> keeps the graphics card completely free for games. Bob chats and listens on the processor with a small brain (Qwen3 4B), so replies start slower, about half a minute. Pictures, clips, music and Medium-or-higher jobs wait in Tasks ("Waiting · Gaming is on") until you switch back. Effort stays on Low.</li></ul>
+<ul><li><strong>Normal:</strong> everyday use.</li><li><strong>Art:</strong> Bob chats on his Quick brain so painting and video get the graphics card.</li><li><strong>Coding:</strong> the Coding brain leads.</li><li><strong>Office:</strong> documents, spreadsheets and planning.</li><li><strong>🎮 Gaming:</strong> keeps the graphics card completely free for games. Bob chats and listens on the processor with a small brain (Qwen3 4B Instruct 2507), so replies start slower, about half a minute. Pictures, clips, music and Medium-or-higher jobs wait in Tasks ("Waiting · Gaming is on") until you switch back. Effort stays on Low.<br>Tip: turn on <strong>Let games go first</strong> (Settings, Show advanced settings, Engines &amp; speed) so Bob uses fewer cores while you play.</li></ul>
 <p>Session: what the graphics card is kept for. Effort: how hard Bob works on each message.</p>
 <p>Bob may suggest a session, but he never switches by himself.</p>` },
 

@@ -26,6 +26,7 @@ import { EventEmitter } from 'node:events';
 import { spawn, execFile } from 'node:child_process';
 import { paint as paintCli, modelArgs, sizeFor, framesFor, checkOutput } from './painter.js';
 import { bigGraceMs } from './brain-mode.js';
+import { paintFlags, pictureFitFailed } from './tuning.js';
 
 export const CODES = ['painter_unavailable', 'painter_load_failed', 'painter_timeout', 'stopped'];
 export const STATES = ['off', 'loading', 'ready', 'busy', 'error', 'unavailable'];
@@ -140,17 +141,19 @@ export class PainterServer extends EventEmitter {
     const s = this.s;
     const spec = s[kind];
     if (!spec) throw fail('painter_unavailable', `No ${kind} model is set for the painter.`);
-    const extra = (spec.extraArgs || s.extraArgs || ['--offload-to-cpu', '--diffusion-fa', '--vae-tiling']).filter((a) => a !== '-M' && a !== 'vid_gen');
+    const flags = paintFlags(this.cfg, kind, spec);
+    this.fitUsed = flags.fit;
+    const extra = flags.extra.filter((a) => a !== '-M' && a !== 'vid_gen');
     return [
       ...(s.serverPreArgs || []),
       ...modelArgs(spec),
       ...extra,
-      ...((spec.clipOnCpu ?? s.clipOnCpu) ? ['--clip-on-cpu'] : []),
+      ...(flags.clipOnCpu ? ['--clip-on-cpu'] : []),
       ...(s.serverArgs || []),
       '--listen-ip', '127.0.0.1', '--listen-port', String(port)
     ];
   }
-  signature(kind) { const s = this.s; const spec = s[kind] || {}; return JSON.stringify([this.serverExe(), kind, spec, s.extraArgs, s.clipOnCpu, s.serverArgs]); }
+  signature(kind) { const s = this.s; const spec = s[kind] || {}; const f = paintFlags(this.cfg, kind, spec); return JSON.stringify([this.serverExe(), kind, spec, f.extra, f.clipOnCpu, s.serverArgs]); }
 
   async getJson(p, { timeout = 3000, signal } = {}) {
     const t = AbortSignal.timeout(timeout);
@@ -350,9 +353,10 @@ export class PainterServer extends EventEmitter {
   requestFor(kind, { prompt, negative, width, height, seconds, image, strength, refs }) {
     const s = this.s, spec = s[kind];
     const video = kind === 'video';
-    const { W, H } = sizeFor(kind, { width, height });
+    const flags = paintFlags(this.cfg, kind, spec);
+    const { W, H } = sizeFor(kind, { width: width || flags.size, height: height || flags.size });
     const b64 = (f) => fs.readFileSync(f).toString('base64');
-    const extra = spec.extraArgs || s.extraArgs || ['--offload-to-cpu', '--diffusion-fa', '--vae-tiling'];
+    const extra = flags.extra;
     const neg = negative ? String(negative).slice(0, 1000) : spec.negative || '';
     const sample = {
       sample_steps: spec.steps || (video ? 10 : 8),
@@ -458,6 +462,8 @@ export class PainterServer extends EventEmitter {
             if (e.code === 'stopped' || signal?.aborted) { if (this.alive()) this.setState('ready'); throw fail('stopped', 'Stopped.'); }
             lastErr = e;
             this.log('painter', `sd-server: ${e.message}`);
+            // 1.5.24: a matched card setting that failed goes back to the small-card settings for the retry.
+            if (this.fitUsed && this.fitUsed !== 'safe' && !e.busy) { pictureFitFailed(); this.log('painter', 'going back to the small-card picture settings until Bob restarts'); }
             if (e.code === 'painter_unavailable' || e.code === 'painter_timeout') break;
             if (e.busy) { await sleep(2000, signal); continue; }
             // Crashed, hung or refused: start fresh once.

@@ -55,6 +55,12 @@ These open as a page in the middle of the window, in place of the chat. **← Ba
 
 ---
 
+### Making Bob faster on your PC
+
+- **Check this PC** (Settings, bottom of the Everyday page) looks for things that slow Bob down and shows how to fix each one: memory below its rated speed (turn on EXPO or XMP in the BIOS), an old NVIDIA driver, a laptop on battery, models on a slow drive, other apps holding graphics memory. Bob only looks; he never changes Windows or driver settings.
+- **Test Bob's speed** (Advanced, Engines & speed) times the first word and the full answer, and keeps your last results so you can compare before and after a change.
+- Three switches, off until you turn them on: **Get Bob ready while you type**, **Let games go first** and **Match picture settings to my graphics card**.
+
 ## 3. Equip Bob: choosing his models
 
 Bob uses different AI **models** for different jobs, the way a person might use a different tool for each task. **Equip Bob** shows them like a character sheet in a game: a picture of Bob with a slot for each job.
@@ -164,7 +170,7 @@ Next to Bob's name is the **session** picker. A session tells Bob how to share y
 - **Art:** Bob keeps chatting on his Quick brain so the big graphics work (painting, video) gets the card.
 - **Coding:** the Coding brain leads.
 - **Office:** documents, spreadsheets and planning.
-- **Gaming:** keeps the graphics card completely free for games. Bob chats and listens on the processor (replies start slower, about half a minute). Pictures and big jobs wait until you switch back, and Effort stays on Low.
+- **Gaming:** keeps the graphics card completely free for games. Bob chats and listens on the processor (replies start slower, about half a minute). Pictures and big jobs wait until you switch back, and Effort stays on Low. Tip: turn on **Let games go first** (Settings, Show advanced settings, Engines & speed) so Bob uses fewer cores while you play.
 
 Session: what the graphics card is kept for. Effort: how hard Bob works on each message.
 

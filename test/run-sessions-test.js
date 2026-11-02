@@ -26,7 +26,7 @@ check('Office: the ledger brain does every hat', modelFor(cfg({ session: 'office
 // 1.5.23: Deep thought is gone (a saved one becomes Normal); Light is now Gaming and keeps the card completely free.
 check('Deep thought is gone: a saved "deep" is Normal', currentSession(cfg({ session: 'deep' })).id === 'normal' && !SESSIONS.deep && mergeSettings({}, { session: 'deep' }).session === 'normal');
 check('Gaming: the label and wording', SESSIONS.light.label === 'Gaming' && SESSIONS.light.icon === '🎮' && /completely free for games/.test(SESSIONS.light.what));
-check('Gaming: chat on the small Gaming brain (Qwen3 4B), always on the processor', (() => { const m = modelFor(cfg({ session: 'light' }), 'bob'); return m.model === 'qwen3:4b' && m.cpu; })());
+check('Gaming: chat on the small Gaming brain (Qwen3 4B Instruct 2507), always on the processor', (() => { const m = modelFor(cfg({ session: 'light' }), 'bob'); return m.model === 'qwen3-4b' && m.cpu; })());
 check('Gaming: every hat on the processor too', ['tinker', 'reviewer', 'eyes', 'ledger'].every((h) => modelFor(cfg({ session: 'light' }), h).cpu));
 check('Gaming: a Gaming brain picked in Equip is used', modelFor(cfg({ session: 'light', sessionBrains: { gaming: 'qwen3:1.7b' } }), 'bob').model === 'qwen3:1.7b' && mergeSettings({}, { sessionBrains: { gaming: 'qwen3:1.7b' } }).sessionBrains.gaming === 'qwen3:1.7b');
 { const g = cfg({ session: 'light' });
@@ -95,6 +95,13 @@ check('llama.cpp: the draft brain gets no draft of its own', !lc.buildArgs('smal
   check('llama.cpp: without fit, every layer on the card as before', d[d.indexOf('-ngl') + 1] === '999' && !d.includes('--fit')); }
 { const d = new LlamaCpp({ agentDir: tmp, dataDir: tmp, llamacpp: { models: { big }, fit: true, gpuLayers: 30, args: ['-np', '2'] } }).buildArgs('big');
   check('llama.cpp: layers and slots set by hand win', d[d.indexOf('-ngl') + 1] === '30' && d[d.indexOf('-np') + 1] === '2' && d.filter((x) => x === '-np').length === 1); }
+{ // 1.5.25: a Get models id that was downloaded but never picked in a slot is found in Bob's models folder.
+  const md = path.join(tmp, 'bobmodels'); fs.mkdirSync(path.join(md, 'chat'), { recursive: true });
+  const f = path.join(md, 'chat', 'Qwen3-4B-Instruct-2507-Q4_K_M.gguf'); fs.writeFileSync(f, 'x');
+  const l2 = new LlamaCpp({ agentDir: tmp, dataDir: tmp, bobModelsDir: md, llamacpp: {} });
+  check('llama.cpp: the Gaming brain (catalog id qwen3-4b) is found in Bob\'s models folder', l2.resolve('qwen3-4b').gguf === f);
+  let miss = ''; try { l2.resolve('no-such-id'); } catch (e) { miss = e.message; }
+  check('llama.cpp: an unknown name still reports the missing files', /can't find the model files/.test(miss)); }
 check('llama.cpp: settings changed later apply to the next load', (lcfg.llamacpp.threads = 4, at && lc.buildArgs('big')[lc.buildArgs('big').indexOf('-t') + 1] === '4'));
 const m = mergeSettings({ llamacpp: { exe: 'C:\\llama\\llama-server.exe' } }, { llamacpp: { exe: 'C:\\evil.exe', threads: -3, batch: 2048, modelArgs: { big: ['--n-cpu-moe', '8', '--log-file', 'C:\\Windows\\x.txt'] }, draft: { model: 'small', max: 999 } }, sessionCtx: { deep: 131072, art: 12345 } });
 check('speed settings: the program path can\'t be changed', m.llamacpp.exe === 'C:\\llama\\llama-server.exe');

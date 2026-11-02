@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { paintFlags } from './tuning.js';
 
 const FLAG = {
   diffusionModel: '--diffusion-model', highNoiseDiffusionModel: '--high-noise-diffusion-model', model: '-m',
@@ -63,7 +64,8 @@ export function paint(cfg, kind, { prompt, negative, width, height, seconds, ima
   const spec = s[kind];
   const name = `${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID().slice(0, 8)}.${kind === 'video' ? (s.videoFormat || 'webm') : 'png'}`;
   const out = path.join(cfg.painterDir, name);
-  const { W, H } = sizeFor(kind, { width, height });
+  const flags = paintFlags(cfg, kind, spec);
+  const { W, H } = sizeFor(kind, { width: width || flags.size, height: height || flags.size });
   const args = [
     ...(s.preArgs || []),
     ...(kind === 'video' ? ['-M', 'vid_gen'] : []),
@@ -90,8 +92,9 @@ export function paint(cfg, kind, { prompt, negative, width, height, seconds, ima
   }
   // Flash attention and tiled VAE decoding cut graphics memory a lot with no visible change.
   // clipOnCpu keeps the text encoder (the biggest part of Z-Image) off the card.
-  args.push(...(spec.extraArgs || s.extraArgs || ['--offload-to-cpu', '--diffusion-fa', '--vae-tiling']));
-  if (spec.clipOnCpu ?? s.clipOnCpu) args.push('--clip-on-cpu');
+  // 1.5.24: "Match picture settings to my graphics card" can drop the swapping and tiling on big cards (tuning.js).
+  args.push(...flags.extra);
+  if (flags.clipOnCpu) args.push('--clip-on-cpu');
 
   return new Promise((resolve, reject) => {
     const child = spawn(s.exe, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });

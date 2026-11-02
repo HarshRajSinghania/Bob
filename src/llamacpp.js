@@ -3,7 +3,9 @@
 // Models are found by Ollama name in Ollama's model folder (no duplicate downloads), or set by path in config.
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
+import { tuning, cpuPlan, startDir, startFile, promptHash, tidyStarts } from './tuning.js';
 
 // 1.5.19: the context a brain gets when nothing else picks one. 32K fits a 26B brain on a 16 GB card.
 export const DEFAULT_CTX = 32768;
@@ -44,10 +46,25 @@ export class LlamaCpp {
     for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { stop(); process.exit(0); });
   }
 
+  catalogFile(id) {
+    if (!/^[\w.-]+$/.test(id)) return null;
+    try {
+      const cat = JSON.parse(fs.readFileSync(this.cfg.catalogFile || new URL('../catalog.json', import.meta.url), 'utf8'));
+      const e = cat.models.find((m) => m.id === id);
+      const f = e?.files?.find((x) => x.role === 'gguf');
+      if (!f) return null;
+      const file = path.join(this.cfg.bobModelsDir || path.join(this.cfg.agentDir, 'models', 'bob'), e.category, decodeURIComponent(f.url.split('/').pop().split('?')[0]));
+      return fs.existsSync(file) ? { gguf: file } : null;
+    } catch { return null; }
+  }
+
   // Ollama name -> GGUF file (+ vision projector), by reading Ollama's manifest.
   resolve(model) {
     const override = this.lc.models?.[model];
     if (override) return typeof override === 'string' ? { gguf: override } : override;
+    // 1.5.25: a Get models id (like "qwen3-4b") that was downloaded but never picked in a slot: its file in Bob's models folder.
+    const own = this.catalogFile(model);
+    if (own) return own;
     const dir = this.lc.ollamaModelsDir || path.join(this.cfg.agentDir, 'models');
     let [name, tag = 'latest'] = model.split(':');
     const parts = name.includes('/') ? name.split('/') : ['library', name];
@@ -149,7 +166,10 @@ export class LlamaCpp {
       '-c', String(ctx || lc.ctx || DEFAULT_CTX), ...this.layerArgs(cpu), '--jinja',
       ...(mmproj && lc.vision !== false ? ['--mmproj', mmproj] : []),
       ...(lc.args || ['-fa', 'on', '-ctk', 'q8_0', '-ctv', 'q8_0']),
-      ...num(lc.threads, '-t'), ...num(lc.batch, '-b'), ...num(lc.ubatch, '-ub'),
+      ...(cpu && cpuPlan(this.cfg) ? ['-t', String(cpuPlan(this.cfg).threads), ...(cpuPlan(this.cfg).range ? ['--cpu-range', cpuPlan(this.cfg).range] : [])] : num(lc.threads, '-t')),
+      ...num(lc.batch, '-b'), ...num(lc.ubatch, '-ub'),
+      // 1.5.24 "Get Bob ready while you type": on the processor, his reading of the instructions is kept on disk.
+      ...(cpu && tuning(this.cfg).readyWhileTyping ? ['--slot-save-path', startDir(this.cfg)] : []),
       ...(modelArgs || lc.modelArgs?.[model] || []),
       // Mixture-of-experts models: keep this many layers' experts in system RAM so the rest fits the card.
       ...(Number.isInteger(lc.nCpuMoe?.[model]) ? ['--n-cpu-moe', String(lc.nCpuMoe[model])] : [])
@@ -170,6 +190,50 @@ export class LlamaCpp {
       args.push('-md', draft, ...num(d.max ?? 16, '--draft-max'), ...num(d.min ?? 1, '--draft-min'), '-ngld', String(d.ngld ?? 99));
     }
     return args;
+  }
+
+  // ---------- Get Bob ready while you type (1.5.24) ----------
+  async slotAction(action, filename) {
+    const res = await fetch(`${this.url}/slots/0?action=${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ filename }), signal: AbortSignal.timeout(60000) });
+    if (!res.ok) throw new Error(`slot ${action}: ${res.status}`);
+  }
+
+  // Loads the saved reading for this brain, if there is one. Pictures-capable brains can't save one (llama-server).
+  async restoreStart(model, ctx) {
+    const name = startFile(model, ctx || this.lc.ctx || DEFAULT_CTX);
+    const file = path.join(startDir(this.cfg), name);
+    if (!fs.existsSync(file) || (await this.hasVision(model))) return false;
+    try {
+      await this.slotAction('restore', name);
+      this.primedHash = JSON.parse(fs.readFileSync(file.replace(/\.bin$/, '.json'), 'utf8')).hash || null;
+      return true;
+    } catch { this.primedHash = null; return false; }
+  }
+
+  // Reads the instructions (system prompt and tools) now, so the next message only has to read itself.
+  // The reply is one word, thrown away; llama-server keeps the reading for the next request. On the processor the
+  // reading is also saved to disk. Returns 'ready' (already read), 'read' or 'saved'.
+  async prime(model, { ctx, cpu = false, messages, tools } = {}) {
+    if (this.current !== model || !this.child || this.child.exitCode !== null) return null;
+    const hash = promptHash(messages, tools);
+    if (this.primedHash === hash) return 'ready';
+    this.active++;
+    try {
+      const res = await fetch(this.url + '/v1/chat/completions', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model, messages: [...LlamaCpp.toOpenAI(messages), { role: 'user', content: '.' }], tools: tools?.length ? tools : undefined, max_tokens: 1, stream: false, cache_prompt: true, chat_template_kwargs: { enable_thinking: false } }),
+        signal: AbortSignal.timeout(600000)
+      });
+      if (!res.ok) throw new Error(`llama-server returned ${res.status}`);
+      await res.text();
+      this.primedHash = hash;
+      if (!cpu || !tuning(this.cfg).readyWhileTyping || (await this.hasVision(model))) return 'read';
+      const name = startFile(model, ctx || this.lc.ctx || DEFAULT_CTX);
+      await this.slotAction('save', name);
+      try { fs.writeFileSync(path.join(startDir(this.cfg), name.replace(/\.bin$/, '.json')), JSON.stringify({ hash, model, ctx, saved: new Date().toISOString() })); } catch {}
+      tidyStarts(startDir(this.cfg), model, name);
+      return 'saved';
+    } finally { this.active--; this.lastUse = this.now(); }
   }
 
   async estimateLoad(model) {
@@ -218,7 +282,10 @@ export class LlamaCpp {
     // The exact command, so speed settings can be checked (e.g. that the draft model really went in).
     try { fs.writeFileSync(path.join(this.cfg.dataDir, 'llama-server-args.txt'), [exe, ...args].map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ') + '\n'); } catch {}
     let log = '';
+    if (args.includes('--slot-save-path')) { try { fs.mkdirSync(startDir(this.cfg), { recursive: true }); } catch {} }
     const child = spawn(exe, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    // 1.5.24 "Let games go first": on the processor, the engine yields to games (below normal priority).
+    if (cpu && cpuPlan(this.cfg)?.lowPriority) { try { os.setPriority(child.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {} }
     child.stdout.on('data', (d) => { log = (log + d).slice(-4000); });
     child.stderr.on('data', (d) => { log = (log + d).slice(-4000); });
     const started = new Promise((_, reject) => {
@@ -246,6 +313,9 @@ export class LlamaCpp {
       throw e;
     }
     started.catch(() => {}); // later exits are handled by isLoaded()
+    this.primedHash = null;
+    // A saved reading of this brain's instructions comes back in about a second instead of being read again.
+    if (cpu && tuning(this.cfg).readyWhileTyping) await this.restoreStart(model, ctx);
     const secs = (Date.now() - t0) / 1000;
     this.loadTimes[model] = secs;
     try { fs.writeFileSync(this.timesFile, JSON.stringify(this.loadTimes, null, 2)); } catch {}

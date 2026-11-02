@@ -191,6 +191,13 @@ export class Brain {
       if (!cpu && this.painter?.yieldFor) await this.painter.yieldFor(model, { bytes: this.gate.brainBytes(model, { ctx }) }).catch(() => {});
       const took = await this.engine.preload(model, undefined, { cpu, ctx });
       this.log('model', `woke ${model} in ${took.toFixed(1)} s (${reason})`);
+      // 1.5.24 "Get Bob ready while you type": read the instructions while the user is still typing.
+      if (this.cfg.readyWhileTyping === true && this.engine.prime) {
+        const t0 = Date.now();
+        this.engine.prime(model, { ctx, cpu, ...this.startPrompt() })
+          .then((how) => how && this.log('model', `read his instructions ahead (${how}, ${((Date.now() - t0) / 1000).toFixed(1)} s)`))
+          .catch((e) => this.log('model', `couldn't read ahead: ${e.message}`));
+      }
       return true;
     })();
     try { return await this.waking; }
@@ -687,6 +694,13 @@ export class Brain {
 
   backstory() {
     try { return fs.readFileSync(path.join(this.cfg.dataDir, 'backstory.md'), 'utf8').slice(0, 4000); } catch { return ''; }
+  }
+
+  // The start of every front-desk chat: the system prompt and core tools, as a turn with no tool groups sends them.
+  startPrompt() {
+    const loaded = new Set();
+    const sys = { role: 'system', content: this.withLimits(systemPrompt({ now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName, look: lookPrompt(this.cfg), dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') }), loaded) };
+    return { messages: [sys], tools: this.frontDeskTools(loaded) };
   }
 
   // Tell Bob plainly what this PC can't do yet, so he offers the prompt and points to the cellar instead.

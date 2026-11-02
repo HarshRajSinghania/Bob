@@ -12,6 +12,16 @@ http.createServer(async (req, res) => {
   let body = '';
   for await (const c of req) body += c;
   if (req.url === '/health') { res.writeHead(Date.now() > readyAt ? 200 : 503); return res.end('{}'); }
+  // Saved readings (1.5.24): /slots/0?action=save|restore with a plain file name under --slot-save-path.
+  if (req.url.startsWith('/slots/0?action=')) {
+    const dir = arg('--slot-save-path');
+    const action = req.url.split('=')[1];
+    const name = JSON.parse(body || '{}').filename || '';
+    const fs = await import('node:fs');
+    if (!dir || !/^[\w.-]+$/.test(name)) { res.writeHead(400); return res.end('{}'); }
+    if (action === 'save') { fs.writeFileSync(path.join(dir, name), 'KV'); res.writeHead(200); return res.end('{"n_saved":10}'); }
+    if (action === 'restore') { const ok = fs.existsSync(path.join(dir, name)); res.writeHead(ok ? 200 : 400); return res.end(ok ? '{"n_restored":10}' : '{}'); }
+  }
   if (req.url === '/v1/chat/completions') {
     const j = JSON.parse(body);
     res.writeHead(200, { 'content-type': 'text/event-stream' });

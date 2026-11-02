@@ -29,6 +29,9 @@ import { handsRoute } from './hands-routes.js';
 import { quarantineRoute } from './quarantine-routes.js';
 import { schedulesRoute, startSchedules } from './hands-schedules.js';
 import { handsSettings } from './hands-settings.js';
+import { tuning, TUNING_KEYS, pictureFitReset } from './tuning.js';
+import { gatherFacts, tipsFrom } from './pc-check.js';
+import { speedTest, speedHistory } from './speed-test.js';
 
 const cfg = loadConfig();
 const publicDir = path.join(appDir, 'public');
@@ -47,6 +50,8 @@ function broadcast(ev) {
 
 const brain = new Brain(cfg, broadcast);
 const shop = new ModelShop(cfg, broadcast, brain.engine);
+// 1.5.24: the card's size, for picture settings matched to it (only used when that switch is on).
+if (!cfg.gpuVramGB) shop.hardware().then((h) => { if (h?.gpu?.vramGB) cfg.cardGB = h.gpu.vramGB; }).catch(() => {});
 brain.shop = shop; // so Bob can tell when a model is on the PC but not assigned to a job
 startSchedules(brain); // ticks once a minute; nothing is ever due while the Schedules hand is off
 if (!shop.found.at) shop.scan().catch(() => {});
@@ -205,9 +210,19 @@ const server = http.createServer(async (req, res) => {
       try { if (brain.engine.show) caps = (await brain.engine.show(name)).capabilities || []; } catch {}
       return send(res, 200, { name, caps });
     }
+    // 1.5.24: Check this PC (reads only, suggests fixes) and Test Bob's speed (before and after a change).
+    if (req.method === 'GET' && p === '/api/pc-check') {
+      const bobPids = [brain.engine?.child?.pid, brain.painter?.child?.pid].filter(Boolean);
+      return send(res, 200, tipsFrom(await gatherFacts(cfg, { bobPids })));
+    }
+    if (req.method === 'GET' && p === '/api/speed-test') return send(res, 200, { history: speedHistory(cfg), running: Boolean(brain.speedTesting) });
+    if (req.method === 'POST' && p === '/api/speed-test') {
+      try { return send(res, 200, { result: await speedTest(brain), history: speedHistory(cfg) }); }
+      catch (e) { return send(res, 409, { error: e.message }); }
+    }
     if (req.method === 'GET' && p === '/api/hardware') return send(res, 200, await shop.hardware());
     if (req.method === 'GET' && p === '/api/settings') {
-      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, lookText: lookText(cfg.look), personality: cleanPersonality(cfg.personality), lookComments: cfg.lookComments !== false, userName: cfg.userName || '', callMe: cfg.callMe || '', windowsName: cfg.windowsName || '', engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, allTools: cfg.allTools === true, resumeJobs: cfg.resumeJobs === true, quickOnCpu: cfg.quickOnCpu === true, pictureNoWait: cfg.pictureNoWait !== false, downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: keepTime(cfg), brainMode: brainMode(cfg), tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg), hands: handsSettings(cfg)  });
+      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, lookText: lookText(cfg.look), personality: cleanPersonality(cfg.personality), lookComments: cfg.lookComments !== false, userName: cfg.userName || '', callMe: cfg.callMe || '', windowsName: cfg.windowsName || '', engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, allTools: cfg.allTools === true, resumeJobs: cfg.resumeJobs === true, quickOnCpu: cfg.quickOnCpu === true, pictureNoWait: cfg.pictureNoWait !== false, ...tuning(cfg), downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: keepTime(cfg), brainMode: brainMode(cfg), tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg), hands: handsSettings(cfg)  });
     }
     if (req.method === 'POST' && p.startsWith('/api/models/') || req.method === 'POST' && p === '/api/settings') {
       if (!isLocal) return send(res, 403, { error: 'Downloads and settings can only be changed on the PC itself.' });
@@ -279,6 +294,7 @@ const server = http.createServer(async (req, res) => {
           if (typeof b.allTools === 'boolean') { saveSettings(cfg, { allTools: b.allTools }); out.allTools = cfg.allTools === true; }
           if (typeof b.resumeJobs === 'boolean') { saveSettings(cfg, { resumeJobs: b.resumeJobs }); out.resumeJobs = cfg.resumeJobs === true; }
           if (typeof b.pictureNoWait === 'boolean') { saveSettings(cfg, { pictureNoWait: b.pictureNoWait }); out.pictureNoWait = cfg.pictureNoWait !== false; }
+          for (const k of TUNING_KEYS) if (typeof b[k] === 'boolean') { saveSettings(cfg, { [k]: b[k] }); out[k] = cfg[k] === true; if (k === 'pictureFit') pictureFitReset(); }
           if (typeof b.quickOnCpu === 'boolean') { saveSettings(cfg, { quickOnCpu: b.quickOnCpu }); out.quickOnCpu = cfg.quickOnCpu === true; brain.applyBrainMode?.().catch?.(() => {}); }
           if (b.housekeeping && typeof b.housekeeping === 'object') {
             const cur = hkSettings(cfg), h = b.housekeeping, next = { ...cur };

@@ -135,6 +135,13 @@ fakeBrain.paintOwn = async () => { routed = 'own'; };
 try { await fakeBrain.makeVideo({ prompt: 'x' }, {}); } catch {}
 check('make_video never goes to Maestro when it\'s switched off', routed !== 'maestro', routed);
 
+// 1.5.25: a catalog entry's Ollama name must be the same model as its file. "qwen3:4b" in Ollama is the older thinking
+// Qwen3 4B, so the Instruct 2507 entry pulled the wrong brain. It now always downloads its pinned file.
+{ const c = JSON.parse(fs.readFileSync(new URL('../catalog.json', import.meta.url), 'utf8'));
+  const q = c.models.find((m) => m.id === 'qwen3-4b');
+  check('Qwen3 4B Instruct 2507 downloads its own file, not Ollama\'s older qwen3:4b', q && !q.ollama && /Instruct-2507/.test(q.files[0].url));
+  const bad = c.models.filter((m) => m.ollama && (m.files || []).some((f) => /2507/i.test(f.url)) && !/2507/.test(m.ollama));
+  check('no other entry pairs a 2507 file with an older Ollama name', bad.length === 0, bad.map((m) => m.id).join()); }
 globalThis.fetch = realFetch;
 fs.rmSync(root, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
