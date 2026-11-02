@@ -23,7 +23,8 @@ import { stampMessages, keepOlder, readSummary } from './chats.js';
 import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
 import { scheduleTools } from './hands-schedules.js';
-import { toolsOff, HANDS } from './hands-settings.js';
+import { toolsOff, HANDS, handOffWhy } from './hands-settings.js';
+import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUseTools, STICKY_TURNS } from './toolbox.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
 
 const MAX_STEPS = 8;
@@ -80,6 +81,8 @@ export class Brain {
     this.housekeeper = new Housekeeper(cfg, this);
     this.tools.forget_topic = forgetTopicTool(this);
     Object.assign(this.tools, handsTools(this), scheduleTools(this)); // Hands: off until the user turns them on (see hands-settings.js)
+    this.tools.use_tools = useToolsTool(this); // the toolbox (toolbox.js): groups added only when a job needs them
+    this.stickyGroups = new Map(); // chat id -> Map(group -> messages left)
     this.handApprovals = new Set(); // approvals waiting that came from a Hand, so Stop everything can deny them
     // Always on: load the small brain shortly after start-up. Wake when I type (the default) loads nothing.
     if (holdsChatBrain(cfg)) { const t = setTimeout(() => this.wake('always on').catch(() => {}), 4000); t.unref?.(); }
@@ -353,6 +356,10 @@ export class Brain {
   async runTool(name, args, ctx) {
     const tool = this.tools[name];
     if (!tool) return { text: `Error: there is no tool called ${name}.` };
+    if (!this.usable(name)) {
+      const hand = Object.entries(HANDS).find(([, h]) => h.tools.includes(name))?.[0];
+      return { text: hand ? handOffWhy(this.cfg, hand) : `Error: ${name} can't be used on this PC right now.` };
+    }
     if (typeof args === 'string') { try { args = JSON.parse(args); } catch { args = {}; } }
     args = args || {};
     ctx.emit({ type: 'tool', name, summary: tool.summary ? tool.summary(args) : name });
@@ -394,11 +401,12 @@ export class Brain {
   }
 
   // Tell Bob plainly what this PC can't do yet, so he offers the prompt and points to the cellar instead.
-  withLimits(prompt) {
+  withLimits(prompt, loaded = null) {
     const can = capabilities(this.cfg);
     const missing = [!can.pictures && 'make pictures', !can.video && 'make video clips', !can.music && 'make music', !can.sfx && 'make sound effects', !can.hearing && 'hear voice input'].filter(Boolean);
     const helpers = cloudHelpers(this.cfg);
-    prompt += handsPrompt(this.cfg);
+    // The Hands line only when a Hand group is added (or for hats and "all tools at once"); otherwise use_tools lists them.
+    if (!loaded || allToolsOn(this.cfg) || Object.keys(HANDS).some((h) => loaded.has(h))) prompt += handsPrompt(this.cfg);
     if (helpers.length) prompt += `\n\nCloud copies of you that ${this.cfg.userName || 'the user'} switched on (use ask_cloud only for jobs too big for you, or when asked; each use is approved and costs money): ${helpers.map((h) => `${h.id} = ${copyName(this.cfg, 'cloud:' + h.id, 'cloud helper')}, running on ${h.name} ${h.model}`).join('; ')}.`;
     const shelf = this.refs.describe();
     if (shelf) prompt += `\n\n${shelf}`;
@@ -406,11 +414,48 @@ export class Brain {
     return missing.length ? `${prompt}\n\nOn this PC you can't ${missing.join(', ')} yet. If asked, say so in one line, offer to write the prompt or plan instead, and mention Get models (left menu) where the right model can be added.` : prompt;
   }
 
+  // Tools this PC can't use right now (no picture model, Hand switched off, no cloud helper...).
+  offTools() {
+    let can = {};
+    try { can = capabilities(this.cfg); } catch {}
+    return new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud', ...toolsOff(this.cfg)].filter(Boolean));
+  }
+  usable(name, off = this.offTools()) { return Boolean(this.tools[name]) && !off.has(name); }
+
   toolSchemas(names) {
     const who = this.cfg.userName || 'the user';
-    const can = capabilities(this.cfg);
-    const off = new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud', ...toolsOff(this.cfg)].filter(Boolean));
-    return names.filter((n) => this.tools[n] && !off.has(n)).map((n) => JSON.parse(JSON.stringify(this.tools[n].schema).replaceAll('{{USER}}', who)));
+    const off = this.offTools();
+    return names.filter((n) => n !== 'use_tools' && this.usable(n, off)).map((n) => JSON.parse(JSON.stringify(this.tools[n].schema).replaceAll('{{USER}}', who)));
+  }
+
+  // The front desk's tools for this step: the core, plus the groups added so far this turn (toolbox.js).
+  // With "Give Bob all his tools at once" on, every usable tool, the way it was before.
+  frontDeskTools(loaded) {
+    if (allToolsOn(this.cfg)) return this.toolSchemas(Object.keys(this.tools));
+    const groups = groupsFor(this);
+    const names = [...CORE, ...[...loaded].flatMap((g) => groups[g]?.tools || [])];
+    const list = this.toolSchemas([...new Set(names)]);
+    const use = fillUseTools(this.tools.use_tools.schema, groups, loaded);
+    if (use) list.push(use);
+    return list;
+  }
+
+  // Which groups start loaded this turn: the ones the user's words point at, plus ones this chat used lately.
+  startGroups(sessionId, text) {
+    const loaded = new Set(guessGroups(this, text));
+    const sticky = this.stickyGroups.get(sessionId);
+    if (sticky) for (const [g, left] of sticky) { if (left > 0) loaded.add(g); }
+    return loaded;
+  }
+
+  // After a turn: groups used this turn stay for the next few messages; the rest count down.
+  keepGroups(sessionId, used) {
+    if (!sessionId) return;
+    const sticky = this.stickyGroups.get(sessionId) || new Map();
+    for (const [g, left] of sticky) { if (left <= 1) sticky.delete(g); else sticky.set(g, left - 1); }
+    for (const g of used) sticky.set(g, STICKY_TURNS);
+    this.stickyGroups.set(sessionId, sticky);
+    if (this.stickyGroups.size > 50) this.stickyGroups.delete(this.stickyGroups.keys().next().value);
   }
 
   // ---- The queue: every message is its own job, run in the order sent. Nothing is dropped or cut off. ----
@@ -648,7 +693,8 @@ export class Brain {
     this.log('chat', `${this.cfg.userName || 'User'}: ${text}`);
     // The turn's pictures travel with it, so a hat Bob hands the job to can see them too.
     const ctx = { emit, signal, brain: this, cfg: this.cfg, allowAll: new Set(), pics, picNote, msgs, turnText: text, job };
-    const tools = this.toolSchemas(Object.keys(this.tools));
+    ctx.loaded = this.startGroups(sessionId, text); // toolbox groups this turn (use_tools adds more)
+    const used = new Set();
     const { model, cpu, think, ctx: wantCtx } = modelFor(this.cfg, 'bob');
     const brainCtx = await this.fitCtx(model, wantCtx);
     if (!model) throw new Error('I don\'t have a brain yet. Open Get models (in the menu on the left) and pick one; the first-time setup suggests the right one for this PC.');
@@ -658,7 +704,8 @@ export class Brain {
     for (let step = 0; step < MAX_STEPS; step++) {
       await this.ensureModel(model, emit, signal, 'bob', { cpu, ctx: brainCtx });
       this.setState('thinking', '', model);
-      const sys = { role: 'system', content: this.withLimits(systemPrompt({ now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName, look: lookPrompt(this.cfg), dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') })) + (earlier ? `\n\n${earlier}` : '') };
+      const tools = this.frontDeskTools(ctx.loaded);
+      const sys = { role: 'system', content: this.withLimits(systemPrompt({ now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName, look: lookPrompt(this.cfg), dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') }), ctx.loaded) + (earlier ? `\n\n${earlier}` : '') };
       const reply = await this.engine.chat({
         model, messages: [sys, ...staleHandErrors(msgs, turnStart)], tools, signal, cpu, think, ctx: brainCtx,
         onToken: (t) => emit({ type: 'token', text: t })
@@ -669,6 +716,8 @@ export class Brain {
       if (!reply.tool_calls && !ctx.handsDid && !ctx.claimChecked && claimsPcAction(reply.content)) {
         // Said he did something on the PC that no tool did: say so to the user, and give him one go to really do it.
         ctx.claimChecked = true;
+        // His retry needs the Hands that are switched on, so add their tool groups now (toolbox.js).
+        for (const id of Object.keys(HANDS)) if (groupsFor(this)[id]) ctx.loaded.add(id);
         // Shown by the app as its own note line under the reply (not as Bob's words), and kept with the reply for reloads.
         emit({ type: 'correction', text: CLAIM_CORRECTION });
         reply.correction = CLAIM_CORRECTION;
@@ -676,11 +725,15 @@ export class Brain {
         this.log('honesty', 'Bob claimed a PC action with no tool result; corrected and asked to retry');
         continue;
       }
-      if (!reply.tool_calls) return;
+      if (!reply.tool_calls) { this.keepGroups(sessionId, used); return; }
       let ended = false;
       for (const call of reply.tool_calls) {
         const name = call.function?.name;
+        // A tool from a group that isn't added yet: small brains sometimes call it straight away. Add its group and run it.
+        const g = name === 'use_tools' ? null : groupOf(this, name);
+        if (g) { ctx.loaded.add(g); used.add(g); }
         const res = await this.runTool(name, call.function?.arguments, ctx);
+        if (name === 'use_tools') { let a = call.function?.arguments; if (typeof a === 'string') { try { a = JSON.parse(a); } catch { a = {}; } } const id = String(a?.group || '').toLowerCase().trim(); if (ctx.loaded.has(id)) used.add(id); }
         msgs.push({ role: 'tool', tool_name: name, content: res.text });
         if (HAND_TOOLS.has(name) && !/^Error:|said no/.test(String(res.text))) ctx.handsDid = true;
         if (res.endsTurn) ended = true;
@@ -690,10 +743,12 @@ export class Brain {
         const last = msgs.at(-1);
         msgs.push({ role: 'assistant', content: last.content });
         if (ctx.hatNotes) { last.content = `${last.content}\n\n${ctx.hatNotes}`; ctx.hatNotes = ''; }
+        this.keepGroups(sessionId, used);
         return;
       }
       emit({ type: 'token', text: '\n\n' });
     }
+    this.keepGroups(sessionId, used);
     emit({ type: 'token', text: '\n\n(I went round in circles there. Could you say that another way?)' });
   }
 

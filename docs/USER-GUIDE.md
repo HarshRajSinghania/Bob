@@ -91,7 +91,7 @@ Each slot only lists models that can do its job: a brain that can't see pictures
 
 ### Recommended, Fits your card, Doesn't suit this PC
 
-- **★ Recommended for this job on your PC:** Bob's pick for that slot. For brains, a model scores higher the more jobs it covers (fewer brain swaps) and the less graphics memory it takes, and much lower if it would spill into RAM. Bigger brains get a bonus for jobs that need careful thinking. For pictures, video and voices, the pick comes from the starter set for your card.
+- **★ Recommended for this job on your PC:** Bob's pick for that slot. For brains, a model scores higher the more jobs it covers (fewer brain swaps) and the less graphics memory it takes, and much lower if it would spill into RAM. Bigger brains get a bonus for jobs that need careful thinking. On small cards (8 GB or less), a brain that fills most of the card scores lower, because it leaves no room for longer chats. For pictures, video and voices, the pick comes from the starter set for your card.
 - **Fits your card:** runs well here too, just not the first pick.
 - **Doesn't suit this PC:** needs more graphics memory or RAM than you have. These are hidden until you turn on **Show models that don't suit this PC** (off unless you turn it on), and each says why.
 
@@ -117,7 +117,7 @@ With just these, Bob can chat, plan, research the web, read pictures, hear you a
 
 | Job | 16 GB card or more | 8 GB card | 6 GB card (most laptops) |
 |---|---|---|---|
-| Brain | Gemma 4 26B | Gemma 4 E4B | Gemma 4 E4B |
+| Brain | Gemma 4 26B | Gemma 4 E4B | Qwen3 4B (light, leaves room for longer chats; Gemma 4 E4B still sees pictures and hears you) |
 | Coding | Qwen3 Coder 30B | Qwen3 Coder 30B (slower, runs mostly in RAM) | Qwen2.5 Coder 7B |
 | Painter | Z-Image Turbo | Z-Image Turbo, 8 GB version | Z-Image Turbo, 6 GB version |
 | Picture editor | Qwen Image Edit | FLUX.2 klein 4B | FLUX.2 klein 4B, 6 GB version |

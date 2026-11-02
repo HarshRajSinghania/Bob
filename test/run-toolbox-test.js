@@ -1,0 +1,97 @@
+// 1.5.5 toolbox: Bob starts each chat with a small core of tools and adds groups only when a message needs them.
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { Brain } from '../src/brain.js';
+import { CORE, groupsFor, guessGroups } from '../src/toolbox.js';
+import { saveSettings } from '../src/config.js';
+
+let pass = 0, fail = 0;
+const check = (name, ok, extra = '') => { ok ? pass++ : fail++; console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra && !ok ? ' -> ' + extra : ''}`); };
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-toolbox-'));
+const agentDir = path.join(tmp, 'Agent'), innDir = path.join(agentDir, 'inn'), dataDir = path.join(innDir, 'bob'), work = path.join(tmp, 'Downloads');
+for (const d of [dataDir, work]) fs.mkdirSync(d, { recursive: true });
+const cfg = { agentDir, innDir, dataDir, settingsFile: path.join(dataDir, 'settings.json'), readRoots: [innDir, work], readOnlyRoots: [], recycleBin: false, userName: 'Sam',
+  models: { bob: 'small:latest' }, engine: 'ollama', ollamaUrl: 'http://127.0.0.1:1', hands: { enabled: true, files: { on: true }, run: { on: false }, folders: [work] } };
+const brain = new Brain(cfg, () => {});
+clearInterval(brain.reminderTimer);
+brain.ensureModel = async () => {}; brain.fitCtx = async () => 8192; brain.recall = async () => '';
+
+// A fake small brain: it answers with a script of replies and records the tools it was handed at each step.
+const seen = [];
+let script = [];
+brain.engine = { chat: async ({ tools, messages }) => { seen.push({ names: tools.map((t) => t.function.name), tools, sys: messages[0].content }); return script.shift() || { role: 'assistant', content: 'done' }; }, unloadAll: async () => {} };
+const call = (name, args = {}) => ({ role: 'assistant', content: '', tool_calls: [{ function: { name, arguments: args } }] });
+const turn = async (text, replies, sessionId = 's1') => { seen.length = 0; script = replies; await brain.runOn([], text, () => {}, new AbortController().signal, [], null, sessionId); return [...seen]; };
+const names = (step) => step.names;
+const size = (step) => JSON.stringify(step.tools).length;
+
+// ---------- Starting small ----------
+{
+  const [s] = await turn('hi Bob, how are you?', []);
+  check('a plain chat starts with only the core tools plus use_tools', names(s).every((n) => CORE.includes(n)) && names(s).includes('use_tools'), names(s).join(','));
+  check('no Hands, picture or file-writing tools at the start', !names(s).some((n) => ['file_hands', 'make_image', 'write_file', 'run_command'].includes(n)));
+  const all = brain.toolSchemas(Object.keys(brain.tools));
+  check('the starting tool list is well under half the old one', size(s) < JSON.stringify(all).length / 2, `${size(s)} vs ${JSON.stringify(all).length}`);
+  console.log(`  (starting tools ~${Math.round(size(s) / 3.6)} tokens, all tools ~${Math.round(JSON.stringify(all).length / 3.6)} tokens)`);
+  const use = s.tools.find((t) => t.function.name === 'use_tools');
+  check('use_tools lists only groups Bob can add here (Files hand on, Run hand off; no picture model, so no make_image)', use.function.parameters.properties.group.enum.includes('files') && !use.function.parameters.properties.group.enum.includes('run') && !groupsFor(brain).pictures?.tools.includes('make_image'), use.function.parameters.properties.group.enum.join(','));
+  check('the Hands line stays out of the prompt until a Hand group is added', !/Hands Sam switched on/.test(s.sys));
+}
+
+// ---------- Adding groups ----------
+{
+  const steps = await turn('ok', [call('use_tools', { group: 'documents' })], 's2');
+  check('use_tools adds its group on the next step', steps.length === 2 && names(steps[1]).includes('write_file') && !names(steps[0]).includes('write_file'), steps.map((x) => names(x).length).join('/'));
+  const g = await turn('tidy my downloads folder please', [], 's3');
+  check('the user\'s words add a group without an extra step (tidy downloads -> Files hand)', names(g[0]).includes('file_hands'));
+  check('with a Hand group added, the Hands line is in the prompt', /Hands Sam switched on/.test(g[0].sys));
+  const w = await turn('save that as a spreadsheet', [], 's4');
+  check('"spreadsheet" adds the documents group', names(w[0]).includes('save_spreadsheet'));
+  const run = await turn('please run npm install', [], 's5');
+  check('a Hand that is off is never added, even when the words match', !names(run[0]).includes('run_command'));
+}
+
+// ---------- Small brains that skip use_tools ----------
+{
+  const target = path.join(innDir, 'note.txt');
+  const steps = await turn('hmm', [call('write_file', { path: target, content: 'x' })], 's6');
+  check('calling a tool from a group not added yet still works (the group is added)', steps.length === 2 && names(steps[1]).includes('write_file'));
+  const off = await brain.runTool('run_command', { cmd: 'echo', args: ['hi'] }, { emit: () => {}, signal: new AbortController().signal, allowAll: new Set() });
+  check('a tool from a Hand that is off is refused with how to turn it on', /(switched off|is off).*Settings, Show advanced settings, Hands/.test(off.text), off.text);
+  const bad = await turn('hmm', [call('use_tools', { group: 'run' })], 's7');
+  check('use_tools on a Hand that is off says how to turn it on', bad.length === 2);
+}
+
+// ---------- Sticky groups ----------
+{
+  await turn('ok', [call('use_tools', { group: 'documents' })], 'chat');
+  const next = await turn('and another', [], 'chat');
+  check('a group used in a chat stays for its next message', names(next[0]).includes('write_file'));
+  await turn('x', [], 'chat'); await turn('y', [], 'chat'); const later = await turn('z', [], 'chat');
+  check('...and drops off after a few messages without it', !names(later[0]).includes('write_file'));
+  const other = await turn('hello', [], 'other-chat');
+  check('another chat doesn\'t get it', !names(other[0]).includes('write_file'));
+}
+
+// ---------- The old way, as a setting ----------
+{
+  check('"Give Bob all his tools at once" is off by default', cfg.allTools === undefined);
+  saveSettings(cfg, { allTools: 'yes' });
+  check('junk can\'t switch it on', cfg.allTools === false);
+  saveSettings(cfg, { allTools: true });
+  const [s] = await turn('hi', [], 's8');
+  check('with it on, every usable tool is sent and use_tools is not', names(s).includes('write_file') && names(s).includes('file_hands') && !names(s).includes('use_tools'));
+  saveSettings(cfg, { allTools: false });
+}
+
+// ---------- Hats keep their own lists ----------
+{
+  check('word check: "draw me a fox" points at pictures', guessGroups({ usable: () => true, tools: brain.tools }, 'draw me a fox').includes('pictures'));
+  check('hats still get their own tool lists (tinker can edit)', brain.toolSchemas(['list_folder', 'read_file', 'search_files', 'edit_file']).length === 4);
+  check('every non-core tool is in exactly one group', (() => { const g = groupsFor({ usable: () => true, cfg }); const all = Object.values(g).flatMap((x) => x.tools); return Object.keys(brain.tools).filter((n) => !CORE.includes(n)).every((n) => all.filter((x) => x === n).length === 1); })());
+}
+
+fs.rmSync(tmp, { recursive: true, force: true });
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

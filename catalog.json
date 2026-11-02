@@ -1038,6 +1038,7 @@
       "label": "6 GB card (most laptops)",
       "minVramGB": 5,
       "models": [
+        "qwen3-4b",
         "gemma4-e4b",
         "kokoro-v1",
         "nomic-embed-text",
@@ -1047,9 +1048,11 @@
         "wan2.2-ti2v-5b-q4"
       ],
       "slots": {
-        "gemma4-e4b": [
+        "qwen3-4b": [
           "bob",
-          "small",
+          "small"
+        ],
+        "gemma4-e4b": [
           "eyes",
           "voice"
         ],
@@ -1073,7 +1076,8 @@
         ]
       },
       "notes": {
-        "gemma4-e4b": "one model for chat, quick brain, eyes and ears",
+        "qwen3-4b": "the everyday brain: small and quick, and leaves room on the card for longer chats",
+        "gemma4-e4b": "sees pictures and hears you; it loads only for those jobs",
         "qwen2.5-coder-7b": "small, quick coder that fits the card",
         "z-image-turbo-q4": "a version of the painter made to fit 6 GB cards",
         "flux2-klein-4b-q4": "a small editor made to fit 6 GB cards",

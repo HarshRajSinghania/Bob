@@ -57,3 +57,4 @@ Update this file in the same handover as any change to settings.
 |---|---|---|---|
 | Get models / Equip Bob | Show models that don't suit this PC | off (remembered) | Approved with edits: use the pill switch style |
 | Help (menu, F1) | Search Help | | ok |
+| Settings > Advanced > Engines & speed | Give Bob all his tools at once: "Sends every tool with each message, which leaves less room for the chat. Leave off to keep chats light." | off | ok (approved with edits, slim tools) |

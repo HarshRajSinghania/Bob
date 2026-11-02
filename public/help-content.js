@@ -24,7 +24,7 @@ export const HELP = [
 <li><span class="tag">Fits your card</span> It runs well here too. It just isn't the first pick.</li>
 <li><span class="tag warn">Doesn't suit this PC</span> It wants more graphics memory or RAM than this PC has, so it would be slow or wouldn't run. A one-line reason sits under it.</li>
 <li><span class="tag bad">Can't install on this PC</span> Not enough free disk space, or it needs Windows.</li></ul>
-<p><strong>How the pick is made, for brains:</strong> a model scores higher the more jobs it can cover, because one brain doing several jobs means Bob stops to swap brains less. It also scores higher the less it takes from your PC, and much lower if it would spill out of the graphics card into RAM. Bigger brains get a bonus for jobs that need careful thinking (Brain, Deep thinking, Coding, Review). The Quick brain only cares about being light.</p>
+<p><strong>How the pick is made, for brains:</strong> a model scores higher the more jobs it can cover, because one brain doing several jobs means Bob stops to swap brains less. It also scores higher the less it takes from your PC, and much lower if it would spill out of the graphics card into RAM. Bigger brains get a bonus for jobs that need careful thinking (Brain, Deep thinking, Coding, Review). The Quick brain only cares about being light. On small cards (8 GB or less), Bob prefers brains that leave room for longer chats. On a 6 GB card, like many laptops, that makes the light Qwen3 4B the Brain, and Gemma 4 E4B loads only to see pictures and hear you.</p>
 <p><strong>For pictures, video and voices</strong>, the pick comes from the starter set for your graphics card.</p>
 <p><strong>Each slot only lists models that can do that job.</strong> A brain that can't see pictures never shows under Seeing pictures, and a big brain never shows under Quick brain. Models that don't suit this PC are hidden until you turn on <strong>Show models that don't suit this PC</strong> (off unless you turn it on). Models already on your PC always show.</p>
 <p>Bob judges your PC by the graphics card and RAM shown at the top of each model page.</p>` },
@@ -53,12 +53,13 @@ export const HELP = [
     html: `<p>A starter set is a ready-made selection for your kind of graphics card: 16 GB or more, 8 GB, 6 GB (most laptops), or no graphics card. Bob picks the set by reading your card, and marks it <em>(this PC)</em>. You can pick another set and untick anything before you confirm.</p>
 <p>Everything in the starter sets is free to use, including for commercial work. The "8 GB" and "6 GB" versions are the same models squeezed to fit smaller cards: pictures lose a little fine detail but look much the same.</p>` },
 
-  { id: 'memory-brains', group: 'Models', title: 'Memory, brains and swaps', words: 'free memory idle unload small brain big brain swap one brain context graphics memory ram keep light',
+  { id: 'memory-brains', group: 'Models', title: 'Memory, brains and swaps', words: 'free memory idle unload small brain big brain swap one brain context graphics memory ram keep light tools all tools at once',
     html: `<ul><li><strong>Free memory when Bob is idle</strong> (top of the chat, on unless you turn it off): while Bob is quiet nothing stays on your graphics card. Typing loads his small brain again in a few seconds.</li>
 <li><strong>Big brains</strong> (Coding, Deep thought) load only for their job and go about 2 minutes later.</li>
 <li><strong>Brain swaps:</strong> when a job needs a different brain, Bob puts one away and loads the other, usually 10 to 20 seconds. Using one brain for several jobs avoids that.</li>
 <li><strong>One brain (snappier)</strong> in Settings makes every copy of Bob use the main brain, so he never swaps.</li>
 <li><strong>Context</strong> (how much Bob keeps in mind): more lets him read longer files and chats, but uses more graphics memory and loads slower. Set it per session in Settings, Brains.</li>
+<li><strong>Tools only when needed:</strong> Bob starts each chat with a few everyday tools, and adds the picture, file and Hands ones when a message needs them. That leaves more room for your chat. To send them all every time, turn on <strong>Give Bob all his tools at once</strong> in Settings, Show advanced settings, Engines &amp; speed.</li>
 <li><strong>Now running, Memory</strong> shows how full the graphics card and RAM are, and which brain is loaded.</li></ul>` },
 
   { id: 'sessions', group: 'Using Bob', title: 'Sessions', words: 'session normal art coding office deep thought light gaming',

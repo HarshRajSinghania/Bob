@@ -65,8 +65,11 @@ export function suit(m, hw = {}, platform = '') {
 // badly (bigger brains think better; the Quick brain only cares about being light). Only models that run well
 // here take part; if none do, there's no pick for that job. Pictures, video and voices use the starter set for the
 // card, since lightness alone would always pick the most squeezed picture model.
+// Small cards (8 GB or less): a brain that fills most of the card leaves no room for longer chats, so it pays
+// extra. On a 6 GB laptop that makes the light Qwen3 4B the Brain and Quick brain, and Gemma 4 E4B the one that
+// sees pictures and hears you.
 const QUALITY = { bob: 4, deep: 5, tinker: 5, reviewer: 4, eyes: 2, ledger: 1, scout: 2, painter: 1, small: 0 };
-export const W = { cover: 2, weight: 6, spill: 10 };
+export const W = { cover: 2, weight: 6, spill: 10, room: 12, smallCard: 8 };
 
 export function scoreFor(m, slotId, hw = {}) {
   const jobs = (m.jobs || []).length;
@@ -74,7 +77,8 @@ export function scoreFor(m, slotId, hw = {}) {
   const card = hw.vramGB || 0;
   const weight = card ? (m.vramGB || 0) / card : (m.sizeGB || 0) / (hw.ramGB || 16);
   const spill = card && m.vramGB > card ? W.spill : 0;
-  return W.cover * jobs + (QUALITY[slotId] ?? 1) * Math.log2(p) - W.weight * weight - spill;
+  const room = card && card <= W.smallCard ? W.room * Math.max(0, weight - 0.7) : 0;
+  return W.cover * jobs + (QUALITY[slotId] ?? 1) * Math.log2(p) - W.weight * weight - spill - room;
 }
 
 // Bob's pick for a job on this PC: { id, why } or null.
@@ -87,7 +91,9 @@ export function pickFor(slotId, models, ctx = {}) {
     const best = pool.map((m) => ({ m, s: scoreFor(m, slotId, hw) })).sort((a, b) => b.s - a.s)[0].m;
     const n = (best.jobs || []).length;
     const load = best.vramGB ? `${gb(best.vramGB)} of graphics memory` : 'runs on the processor';
-    return { id: best.id, why: `${n > 1 ? `Covers ${n} jobs, so fewer brain swaps` : 'Made for this job'} · ${load}` };
+    // Won over a model that covers more jobs: it was picked for being light.
+    const light = pool.some((m) => (m.jobs || []).length > n);
+    return { id: best.id, why: `${light ? 'Light, so it leaves room on your card for longer chats' : n > 1 ? `Covers ${n} jobs, so fewer brain swaps` : 'Made for this job'} · ${load}` };
   }
   const pack = ctx.packs?.length ? packFor(ctx.packs, ctx.vramGB) : null;
   const id = Object.entries(pack?.slots || {}).find(([, slots]) => slots.includes(slotId))?.[0];
