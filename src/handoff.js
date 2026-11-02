@@ -148,7 +148,7 @@ export class Gate {
   // need({ id: 'brain', model, opts }, { signal, emit, who, announce }) -> the model that's loaded (it can be a fallback).
   // need({ id: 'painter', kind }) and need({ id: 'card' }) -> the names that were let go to make room.
   async need(dep, { signal, emit = () => {}, who = 'bob', announce } = {}) {
-    // 1.5.23: Gaming keeps the card completely free. Brains run on the processor; the painter and workshop don't start.
+    // 1.5.23: Gaming keeps the card for games (1.5.32: the brain may borrow a little, see gaming-card.js). Brains run on the processor; the painter and workshop don't start.
     if (this.brain?.cfg && gaming(this.brain.cfg)) {
       if (dep.id === 'brain') dep = { ...dep, opts: { ...(dep.opts || {}), cpu: true } };
       else { const e = new Error('Gaming is on, so the graphics card is kept free for the game. Tell the user it will be made after they switch the session to Normal; don\'t try again now.'); e.code = 'gaming'; throw e; }

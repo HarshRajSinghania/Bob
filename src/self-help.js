@@ -4,6 +4,7 @@
 import { HELP } from '../public/help-content.js';
 import { webOn } from './web.js';
 import { currentSession } from './sessions.js';
+import { gamingCard } from './gaming-card.js';
 import { brainMode } from './brain-mode.js';
 import { handsSettings, HANDS } from './hands-settings.js';
 
@@ -49,6 +50,7 @@ export function settingsNow(cfg) {
     `ComfyUI: ${onOff(cfg.workshop?.enabled === true)}`,
     `Cloud helpers on: ${cloud.length ? cloud.join(', ') : 'none'}`,
     `Keep the graphics card free for quick answers: ${onOff(cfg.quickOnCpu === true)}`,
+    `Gaming session: graphics card: ${{ auto: 'Automatic', never: 'Never use the card', always: 'Always borrow a little' }[gamingCard(cfg)]}`,
     `Speed for this PC: Get Bob ready while you type ${onOff(cfg.readyWhileTyping === true)}, Let games go first ${onOff(cfg.gamesFirst === true)}, Match picture settings to my graphics card ${onOff(cfg.pictureFit === true)}`
   ].join('\n');
 }

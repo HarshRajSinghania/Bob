@@ -11,6 +11,8 @@ const readyAt = Date.now() + 800;
 http.createServer(async (req, res) => {
   let body = '';
   for await (const c of req) body += c;
+  // 1.5.32 tests: whether the card was hidden from this server (Gaming, "Never use the card").
+  if (req.url === '/test-env') { res.writeHead(200); return res.end(JSON.stringify({ cuda: process.env.CUDA_VISIBLE_DEVICES ?? null })); }
   if (req.url === '/health') { res.writeHead(Date.now() > readyAt ? 200 : 503); return res.end('{}'); }
   // Saved readings (1.5.24): /slots/0?action=save|restore with a plain file name under --slot-save-path.
   if (req.url.startsWith('/slots/0?action=')) {

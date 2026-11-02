@@ -318,6 +318,20 @@ export function createCellar() {
     </div>`;
   }
 
+  // 1.5.32: a three-position switch for how the Gaming session uses the graphics card.
+  const GCARD_NOW = { none: 'processor only', borrow: 'borrowing about 0.6 GB', whole: 'small brain on the card (processor busy)' };
+  function gamingCardHtml() {
+    const cur = settings.gamingCard || 'auto';
+    const opts = [['auto', 'Automatic', 'Bob borrows about 0.6 GB of the card only when your game leaves room, and none while the game needs it. If your processor is maxed out, Bob\'s small brain (about 3.5 GB) moves onto the card instead, but only when it fits with room to spare.'],
+      ['never', 'Never use the card', 'Processor only: the card is all yours. Bob\'s first reply after loading can take about half a minute, sometimes longer.'],
+      ['always', 'Always borrow a little', 'About 0.6 GB of the card for reading your messages, even while a game is using it (how Bob worked before 1.5.32).']];
+    return `<fieldset class="seg3"><legend><strong>Gaming session: graphics card</strong></legend>
+      <div class="seg3-row" role="radiogroup" aria-label="Gaming session: graphics card">${opts.map(([v, label]) => `<label class="seg3-btn${v === cur ? ' on' : ''}"><input type="radio" name="gamingCard" data-gcard="${v}" value="${v}" ${v === cur ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div>
+      <span class="muted" data-gcard-note>${esc((opts.find(([v]) => v === cur) || opts[0])[2])}</span>
+      ${cur === 'auto' ? `<span class="muted" data-gcard-now><strong>Right now:</strong> ${esc(GCARD_NOW[settings.gamingCardNow] || (settings.session?.id === 'light' ? 'the Gaming brain isn\'t loaded; Bob decides when it loads' : 'not in the Gaming session'))}</span>` : ''}
+      <span class="muted">Only matters in the 🎮 Gaming session. Applies the next time the Gaming brain loads.</span></fieldset>`;
+  }
+
   function enginesHtml() {
     const ka = settings.ollamaKeepAlive || '5m';
     const kaOpts = [['1m', '1 minute'], ['2m', '2 minutes'], ['150s', '2½ minutes'], ['5m', '5 minutes'], ['10m', '10 minutes'], ['15m', '15 minutes'], ['30m', '30 minutes'], ['1h', '1 hour']];
@@ -327,6 +341,7 @@ export function createCellar() {
         <span class="muted">${held ? 'Not used right now: "Free memory when Bob is idle" on the chat page is off, so his small brain stays loaded.' : 'Used while "Free memory when Bob is idle" on the chat page is on.'} Big brains (Coding, and Medium effort and up) are freed after 2 minutes, or sooner if you pick less.</span></label>
       ${sswitch('pictureNoWait', settings.pictureNoWait !== false, 'Show pictures without waiting for Bob\'s brain', 'Bob shows a finished picture or clip straight away with a short line, instead of loading his brain back just to talk about it. Turn off if you want him to comment on each one.')}
       ${sswitch('quickOnCpu', settings.quickOnCpu === true, 'Keep the graphics card free for quick answers', 'Low effort answers run on the processor, so games and pictures keep the card. Replies start much slower (about half a minute). Applies in the Normal session; Gaming always does this.')}
+      ${gamingCardHtml()}
       ${tuneHtml()}
       <label class="pick"><strong>Bob's engine</strong>
         <select data-set="engine"><option value="ollama" ${settings.engine === 'ollama' ? 'selected' : ''}>Ollama (if you already have it)</option><option value="llamacpp" ${settings.engine === 'llamacpp' ? 'selected' : ''}>Bob's own (llama.cpp, nothing else needed)</option></select>
@@ -395,7 +410,7 @@ export function createCellar() {
     ['brains', '🧠 Brains', 'model roles session brains context thinking making', () => rolesHtml()],
     ['voice', '🔊 Voice details', 'kokoro chatterbox speed hey bob read aloud listen', () => voiceDetailsHtml()],
     ['look', '🎨 Look & feel', 'theme editor now running layout', () => lookExtrasHtml()],
-    ['engines', '⚙ Engines & speed', 'unload idle keep alive graphics memory vram engine ollama llama.cpp downloads fit memory speculative decoding draft flags threads batch', () => enginesHtml()],
+    ['engines', '⚙ Engines & speed', 'unload idle keep alive graphics memory vram engine ollama llama.cpp downloads fit memory speculative decoding draft flags threads batch gaming graphics card borrow automatic never always', () => enginesHtml()],
     ['connections', '🔌 Connections', 'comfyui workflows port cloud helpers api', () => connectionsHtml()],
     ['hands', '✋ Hands', 'files run commands schedules apps permission quarantine reviewer', () => handsSettingsHtml() + quarantineSettingsHtml()],
     ['housekeeping', '🧹 Housekeeping', 'tidy old chats pictures logs', () => housekeepingHtml()],
@@ -772,6 +787,12 @@ export function createCellar() {
       if (el.dataset.set === 'pictureNoWait') { const r = await api('/api/settings', { pictureNoWait: el.checked }); settings.pictureNoWait = r.pictureNoWait; el.checked = r.pictureNoWait; return; }
       if (['readyWhileTyping', 'gamesFirst', 'pictureFit'].includes(el.dataset.set)) { const k = el.dataset.set; const r = await api('/api/settings', { [k]: el.checked }); settings[k] = r[k]; el.checked = r[k]; flash(el, 'Saved. Applies when the brain or picture model next loads.'); return; }
       if (el.dataset.set === 'webSearch') { const r = await api('/api/settings', { webSearch: el.checked }); settings.webSearch = r.webSearch; el.checked = r.webSearch; window.dispatchEvent(new CustomEvent('bob-web', { detail: { webSearch: r.webSearch } })); flash(el, r.webSearch ? 'On. Bob can search the web when a question needs it.' : 'Off. Bob won\'t go online to look things up.'); return; }
+      if (el.dataset.gcard) {
+        const r = await api('/api/settings', { gamingCard: el.dataset.gcard }); settings.gamingCard = r.gamingCard; settings.gamingCardNow = r.gamingCardNow;
+        const box = el.closest('.seg3');
+        box.outerHTML = gamingCardHtml();
+        flash(dlg.querySelector('.seg3'), 'Saved.'); return;
+      }
       if (el.dataset.set === 'quickOnCpu') { const r = await api('/api/settings', { quickOnCpu: el.checked }); settings.quickOnCpu = r.quickOnCpu; el.checked = r.quickOnCpu; return; }
       if (el.dataset.set === 'resumeJobs') { const r = await api('/api/settings', { resumeJobs: el.checked }); settings.resumeJobs = r.resumeJobs; el.checked = r.resumeJobs; return; }
       if (el.dataset.set === 'allTools') { const r = await api('/api/settings', { allTools: el.checked }); settings.allTools = r.allTools; el.checked = r.allTools; return; }

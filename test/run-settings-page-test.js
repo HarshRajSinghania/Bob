@@ -60,6 +60,8 @@ let headSha = sha, headSize = content.length, gets = 0, served = content;
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url, opts = {}) => {
   if (opts.method === 'HEAD') return new Response(null, { status: 302, headers: { 'x-linked-etag': `"${headSha}"`, 'x-linked-size': String(headSize) } });
+  // 1.5.32: on a mismatch Bob also asks Hugging Face's file list (not a download); here it agrees with the website.
+  if (String(url).includes('/api/models/')) return new Response('[]', { status: 200 });
   gets++;
   const r = new Response(served, { status: 200 }); Object.defineProperty(r, 'url', { value: String(url) }); return r;
 };

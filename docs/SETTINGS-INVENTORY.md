@@ -83,7 +83,7 @@ Update this file in the same handover as any change to settings.
 | Where | What | Default | Review |
 |---|---|---|---|
 | Session picker | Deep thought removed (Medium/High effort does that job); a saved "deep" becomes Normal. The Deep thinking slot in Equip stays (Medium and up use it) | Normal | ok |
-| Session picker | 🎮 Gaming (was Light / gaming, id still `light`): "Keeps the graphics card completely free for games. Bob chats and listens on the processor (replies start slower, about half a minute). Pictures and big jobs wait until you switch back." | off (Normal) | ok |
+| Session picker | 🎮 Gaming (was Light / gaming, id still `light`): "Keeps the graphics card for your games. Bob chats and listens on the processor with a small brain, which usually starts answering within a few seconds. Pictures and big jobs wait until you switch back. How much of the card he may borrow is set in Settings, Engines & speed (Automatic to start with)." | off (Normal) | ok |
 | Chat page, Effort | In Gaming, Medium/High/Extreme are greyed out: "Gaming keeps the graphics card free. Switch session to use more effort." | Low | ok |
 | Tasks | In Gaming, picture/clip/music and Medium-and-up jobs wait: "Waiting · Gaming is on", "Switch the session to Normal to run it." | — | ok |
 | Settings > Equip, Session brains | Gaming session brain (`sessionBrains.gaming`), default Qwen3 4B Instruct 2507 (1.5.25: picked on time to first word and to a full answer on the processor) | qwen3-4b | ok |

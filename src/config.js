@@ -11,6 +11,9 @@ export const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 // keeps them unpacked next to it.
 export const unpackedDir = appDir.replace(/app\.asar(?=$|[\\/])/, 'app.asar.unpacked');
 
+// 1.5.32: config.json's llamacpp.ctx above this is from before 1.5.19 and is set aside (see loadConfig).
+export const LEGACY_CTX_CAP = 32768;
+
 export function loadConfig() {
   const file = process.env.BOB_CONFIG || path.join(appDir, 'config.json');
   // A fresh copy of the source has no config.json (it's never published): start from the example.
@@ -66,6 +69,15 @@ export function loadConfig() {
   }
   // Choices made in Bob's window (models, painter, voice, autostart) live in inn\bob\settings.json,
   // so config.json stays as installed. Only these keys can be changed from the window.
+  // 1.5.32: an older config.json can carry llamacpp.ctx 131072 from before 1.5.19. Staging never touches config.json, so
+  // that old number made every brain start with a 131K context (slow, and a 26B brain spills off a 16 GB card). Anything
+  // above the 32K default in config.json is set aside (kept as legacyCtx, and logged). A context picked in Bob's window
+  // (Settings, Engines & speed, saved in settings.json) still wins, because it is applied just below.
+  if (Number(cfg.llamacpp?.ctx) > LEGACY_CTX_CAP) {
+    cfg.llamacpp.legacyCtx = cfg.llamacpp.ctx;
+    delete cfg.llamacpp.ctx;
+    console.log(`config.json asks for a ${cfg.llamacpp.legacyCtx}-token context for every brain; using each session's own size instead (pick one in Settings, Engines & speed to override).`);
+  }
   cfg.settingsFile = path.join(cfg.dataDir, 'settings.json');
   try { mergeSettings(cfg, JSON.parse(fs.readFileSync(cfg.settingsFile, 'utf8'))); } catch {}
   // "What should Bob call you?" (Attributes, first-run). Kept in inn\bob\settings.json, never in config.json.
@@ -100,7 +112,7 @@ export const VERSION = (() => {
   } catch { return { release: '0.9', branch: '', build: 0, label: '0.9.0' }; }
 })();
 
-export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask', 'brainMode', 'allTools', 'quickOnCpu', 'quarantine', 'resumeJobs', 'pictureNoWait', 'readyWhileTyping', 'gamesFirst', 'pictureFit', 'webSearch'];
+export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask', 'brainMode', 'allTools', 'quickOnCpu', 'quarantine', 'resumeJobs', 'pictureNoWait', 'readyWhileTyping', 'gamesFirst', 'pictureFit', 'webSearch', 'gamingCard'];
 const LOCKED_LLAMACPP = ['exe', 'preArgs'];
 
 function deepMerge(into, from) {
@@ -128,6 +140,7 @@ function clean(patch) {
   if ('resumeJobs' in out) out.resumeJobs = out.resumeJobs === true; // 1.5.16, off unless switched on
   if ('quickOnCpu' in out) out.quickOnCpu = out.quickOnCpu === true;
   if ('webSearch' in out) out.webSearch = out.webSearch === true;
+  if ('gamingCard' in out) out.gamingCard = ['auto', 'never', 'always'].includes(out.gamingCard) ? out.gamingCard : 'auto'; // 1.5.32
   for (const k of ['readyWhileTyping', 'gamesFirst', 'pictureFit']) if (k in out) out[k] = out[k] === true; // 1.5.24, off unless switched on
   if ('pictureNoWait' in out) out.pictureNoWait = out.pictureNoWait !== false; // 1.5.20, on unless switched off
   if ('updates' in out) out.updates = { autoCheck: out.updates?.autoCheck === true };

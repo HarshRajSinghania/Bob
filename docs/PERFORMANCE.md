@@ -32,13 +32,13 @@ A few words used below:
 | Task queue file after a long day | 6.8 MB | **0.23 MB** |
 | Graphics memory Bob holds while idle | a whole brain, all day | **nothing** (Free memory when Bob is idle, on by default) |
 
-In the Gaming session the brain lives in system RAM and thinks on the processor. The engine still borrows about 0.6 GB of graphics memory to read your message quickly, and nothing else of Bob's is on the card.
+In the Gaming session the brain lives in system RAM and thinks on the processor. With **Gaming session: graphics card** on Automatic (the starting position), the engine borrows about 0.6 GB of graphics memory to read your message quickly, but only while your game leaves room; while the game needs the card, Bob stays off it entirely.
 
 ---
 
 ## Picking the Gaming brain
 
-The Gaming session's promise is simple: **the graphics card belongs to your game.** Bob's brain stays off it; the only thing on the card is about 0.6 GB the engine uses to read messages quickly. He still chats and listens, but on the processor (CPU), with a small brain in system RAM. Pictures, clips, music and anything at Medium effort or higher wait in Tasks until you switch back. Nothing is dropped.
+The Gaming session's promise is simple: **the graphics card belongs to your game.** Bob's brain stays off it; at most he borrows about 0.6 GB to read messages quickly, and only while the game leaves room (1.5.32). If the processor is maxed out, his small brain moves onto the card when it fits with room to spare, because a maxed processor took 56 s to say hi. He still chats and listens, but on the processor (CPU), with a small brain in system RAM. Pictures, clips, music and anything at Medium effort or higher wait in Tasks until you switch back. Nothing is dropped.
 
 A brain on the processor is much slower than on the card, so the choice of brain decides whether Gaming feels alive or broken.
 
@@ -62,7 +62,7 @@ Seconds to the first word / to the full answer, on the processor:
 
 The older Qwen3 4B starts quickly, then thinks to itself for half a minute before it says anything useful, even when told not to. That's the 29 to 39 s the 2507 version got rid of.
 
-**What about hiding the graphics card completely?** We also ran every brain with the card hidden from the engine. Warm replies are about as fast, but a cold start is far slower, because the processor then has to read the whole 2,300-token prompt by itself: 2507 takes about **26 s** to its first word instead of 1.7 s, and a cold 4K chat about 81 s. Lending the engine about 0.6 GB of the card is what keeps Gaming chat feeling alive.
+**What about hiding the graphics card completely?** We also ran every brain with the card hidden from the engine. Warm replies are about as fast, but a cold start is far slower, because the processor then has to read the whole 2,300-token prompt by itself: 2507 takes about **26 s** to its first word instead of 1.7 s, and a cold 4K chat about 81 s. Lending the engine about 0.6 GB of the card is what keeps Gaming chat feeling alive, so Automatic lends it whenever the game leaves room, and **Never use the card** is there if you'd rather wait.
 
 ### Can it use tools?
 
@@ -139,9 +139,30 @@ Where each brain runs, in plain terms:
 | Art | the processor | The card is kept for pictures, video and sound, so Bob can keep talking while a picture paints. |
 | Coding | the graphics card | One big coding brain with a long memory. Small side jobs go to the processor. |
 | Office | the graphics card | One all-rounder brain, no swaps. |
-| Gaming | the processor, always | The card belongs to your game. |
+| Gaming | the processor (borrows a little of the card only when it's free) | The card belongs to your game. |
 
 **Why not run everything on the processor all the time?** Because long prompts are where the processor hurts. With a 4,300-token prompt, Gemma 4 E4B takes about **31 s** to the first word on the processor and about **4.4 s** on the card. Short chats on a small instruct brain are fine on the processor; long ones on a bigger brain are not. So in Normal it's a choice: **Keep the graphics card free for quick answers** (Settings, Engines & speed) moves Low-effort replies to the processor, and it is off by default.
+
+### Gaming and the graphics card
+
+Borrowing 0.6 GB is great when the card is idle-ish, and rude when a game is using every bit of it. Hiding the card entirely is polite, but slow. And when the *processor* is flat out (a game hammering all 8 cores), running the brain there gets painful: on the reference PC, with a stand-in "game" keeping all 16 logical cores busy, the processor brain was starved:
+
+| Gaming brain (2507) placed on | "hi" cold | "hi" warm | One-line question, warm | Writing speed | Game kept its speed | Graphics memory |
+|---|---|---|---|---|---|---|
+| Processor (card reads the prompt) | 8.2 / 55.9 s | 3.6 / 82 s | 2.7 / 257 s | 0 to 0.4 tok/s | about 100% | 0.6 GB |
+| Graphics card | 1.8 / 1.9 s | 0.0 / 0.2 s | 0.0 / 0.7 s | 171 to 178 tok/s | 96% | 3.6 GB |
+
+The game wins every fight for the processor, so a processor brain under full load is useless: over four minutes for a one-line answer. On the card, the same brain answers in about 2 seconds and costs the game 2 to 4%. When it's the card that's busy and the processor has room, the processor brain is fine (the idle tables above).
+
+So since Bob 1.5.32, **Gaming session: graphics card** (Settings, Show advanced settings, Engines & speed) is a three-position switch:
+
+| Position | What Bob does |
+|---|---|
+| **Automatic** (to start with) | Card busy (80% use or more, or under 1.5 GB free): processor only, and the card is hidden from the engine. Card has room: borrows about 0.6 GB to read messages. Processor at 90% or more and room on the card for the brain plus 2 GB: puts the whole small brain on the card (about 3.6 GB for the 2507 brain), because the processor would crawl. No NVIDIA card, or no reading: borrows, as before. |
+| **Never use the card** | Processor only. The card is all yours; the first reply after loading is much slower (about 26 s cold on the reference PC). |
+| **Always borrow a little** | About 0.6 GB, even while a game is using the card. How Gaming worked before 1.5.32. |
+
+Automatic checks each time the Gaming brain loads and again every quiet minute. If the answer changes, Bob unloads the brain and the next chat loads it the new way (about 1.5 s). He never switches mid-reply.
 
 ---
 

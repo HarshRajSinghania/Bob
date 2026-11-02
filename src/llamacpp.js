@@ -7,6 +7,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
 import { tidySchema } from './toolbox.js';
+import { gaming } from './sessions.js';
+import { gamingCard, decideCard } from './gaming-card.js';
 import { tuning, cpuPlan, startDir, startFile, promptHash, tidyStarts } from './tuning.js';
 
 // 1.5.19: the context a brain gets when nothing else picks one. 32K fits a 26B brain on a 16 GB card.
@@ -148,6 +150,12 @@ export class LlamaCpp {
     let busy = false;
     try { busy = Boolean(this.isBusy()); } catch {}
     if (busy) { this.lastUse = this.now(); return false; }
+    // 1.5.32: Gaming on Automatic: when the right use of the card has changed (a game started or stopped using it, or the
+    // processor filled up), stop the brain. The next chat loads it the new way (about a second for the Gaming brain).
+    if (this.currentCard && gaming(this.cfg) && gamingCard(this.cfg) === 'auto') {
+      const now = await this.gamingCardPlan(this.current);
+      if (now !== this.currentCard && this.active === 0) { this.cardFlip = { from: this.currentCard, to: now, at: this.now() }; await this.stopServer(); return true; }
+    }
     let hold = null;
     try { hold = this.holdModel(); } catch {}
     if (hold && hold === this.current) { this.lastUse = this.now(); return false; }
@@ -155,6 +163,13 @@ export class LlamaCpp {
     this.idleUnloaded = this.current;
     await this.stopServer();
     return true;
+  }
+
+  // 1.5.32: 'none', 'borrow' or 'whole' for the Gaming brain (see gaming-card.js). Tests replace readCard / readCpu.
+  async gamingCardPlan(model) {
+    let brainMB = 0;
+    try { brainMB = Math.round(fs.statSync(this.resolve(model).gguf).size / 1048576); } catch {}
+    return decideCard(this.cfg, { brainMB, ...(this.cardReaders ? { read: this.cardReaders } : {}) });
   }
 
   // ctx: the session's context size. A different size means restarting llama-server with it.
@@ -184,13 +199,15 @@ export class LlamaCpp {
   }
 
   // Layers on the card, when set outright: none on the processor, or a number set by hand (gpuLayers).
-  layerArgs(cpu) {
+  // 1.5.32: card 'whole' (Gaming, Automatic, processor at full load) puts the whole small brain on the card.
+  layerArgs(cpu, card) {
+    if (cpu && card === 'whole') return ['-ngl', '999'];
     if (cpu) return ['-ngl', '0'];
     return Number.isInteger(this.lc.gpuLayers) ? ['-ngl', String(this.lc.gpuLayers)] : [];
   }
 
   // Everything llama-server is started with, in one place so it can be tested.
-  buildArgs(model, { ctx, cpu = false } = {}) {
+  buildArgs(model, { ctx, cpu = false, card } = {}) {
     const lc = this.lc;
     const { gguf, mmproj, args: modelArgs } = this.resolve(model);
     const num = (v, flag) => (Number.isInteger(v) && v > 0 ? [flag, String(v)] : []);
@@ -198,7 +215,7 @@ export class LlamaCpp {
       ...(lc.preArgs || []),
       '-m', gguf, '--host', '127.0.0.1', '--port', String(this.port),
       // 1.5.19: 32K by default (131072 spilled a 26B brain past a 16 GB card into system RAM and crawled at 5 tok/s).
-      '-c', String(ctx || lc.ctx || DEFAULT_CTX), ...this.layerArgs(cpu), '--jinja',
+      '-c', String(ctx || lc.ctx || DEFAULT_CTX), ...this.layerArgs(cpu, card), '--jinja',
       ...(mmproj && lc.vision !== false ? ['--mmproj', mmproj] : []),
       ...(lc.args || ['-fa', 'on', '-ctk', 'q8_0', '-ctv', 'q8_0']),
       ...(cpu && cpuPlan(this.cfg) ? ['-t', String(cpuPlan(this.cfg).threads), ...(cpuPlan(this.cfg).range ? ['--cpu-range', cpuPlan(this.cfg).range] : [])] : num(lc.threads, '-t')),
@@ -301,6 +318,7 @@ export class LlamaCpp {
     this.current = null;
     this.currentCtx = null;
     this.currentCpu = false;
+    this.currentCard = null;
     if (!c || c.exitCode !== null) return;
     await new Promise((r) => { c.once('exit', r); c.kill(); setTimeout(r, 5000); });
   }
@@ -308,7 +326,9 @@ export class LlamaCpp {
   async preload(model, signal, { ctx, cpu = false } = {}) {
     const t0 = Date.now();
     this.lastUse = this.now();
-    const args = this.buildArgs(model, { ctx, cpu });
+    // 1.5.32: in the Gaming session the "Gaming: graphics card" switch decides how much of the card the brain may use.
+    const card = cpu && gaming(this.cfg) ? await this.gamingCardPlan(model) : null;
+    const args = this.buildArgs(model, { ctx, cpu, card });
     await this.stopServer();
     // A llama-server left over from a crash would hold the port: stop it first.
     const pidFile = path.join(this.cfg.dataDir, 'llama-server.pid');
@@ -318,7 +338,8 @@ export class LlamaCpp {
     try { fs.writeFileSync(path.join(this.cfg.dataDir, 'llama-server-args.txt'), [exe, ...args].map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ') + '\n'); } catch {}
     let log = '';
     if (args.includes('--slot-save-path')) { try { fs.mkdirSync(startDir(this.cfg), { recursive: true }); } catch {} }
-    const child = spawn(exe, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const env = card === 'none' ? { ...process.env, CUDA_VISIBLE_DEVICES: '-1' } : process.env; // 'none': llama.cpp can't see the card at all
+    const child = spawn(exe, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env });
     // 1.5.24 "Let games go first": on the processor, the engine yields to games (below normal priority).
     if (cpu && cpuPlan(this.cfg)?.lowPriority) { try { os.setPriority(child.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {} }
     child.stdout.on('data', (d) => { log = (log + d).slice(-4000); });
@@ -331,6 +352,7 @@ export class LlamaCpp {
     this.current = model;
     this.currentCtx = ctx || null;
     this.currentCpu = Boolean(cpu);
+    this.currentCard = card;
     try { fs.writeFileSync(pidFile, String(child.pid)); } catch {}
     const deadline = Date.now() + (this.lc.loadTimeoutSeconds || 300) * 1000;
     const ready = (async () => {

@@ -93,6 +93,39 @@ export function linkError(name, status) {
   return `The link for ${name} is broken (${status}).`;
 }
 
+// 1.5.32: HEAD a download link, following up to 5 same-site redirects (301/302/307/308, relative or not) until a hop
+// carries x-linked-size or answers 200. A redirect to another host (the file storage) stops there: that hop's headers
+// already describe the file.
+export async function headFile(url, signal) {
+  let u = url, r;
+  for (let hop = 0; hop < 6; hop++) {
+    r = await fetch(u, { method: 'HEAD', redirect: 'manual', signal });
+    if (![301, 302, 307, 308].includes(r.status) || r.headers.get('x-linked-size')) return r;
+    const loc = r.headers.get('location');
+    if (!loc) return r;
+    const next = new URL(loc, u);
+    if (next.host !== new URL(u).host || !hostAllowed(next.href)) return r;
+    u = next.href;
+  }
+  return r;
+}
+
+// 1.5.32: { size, sha256 } of a Hugging Face file from its repo's file list (the same host), or null if it can't be read.
+export async function hfFileInfo(url, signal) {
+  const m = String(url).match(/^https:\/\/huggingface\.co\/([\w.-]+\/[\w.-]+)\/resolve\/([\w.-]+)\/(.+)$/);
+  if (!m) return null;
+  const [, repo, rev, file] = m;
+  const dir = file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : '';
+  try {
+    const r = await fetch(`https://huggingface.co/api/models/${repo}/tree/${rev}${dir ? '/' + dir.split('/').map(encodeURIComponent).join('/') : ''}`, { signal });
+    if (!r.ok) return null;
+    const hit = (await r.json()).find((x) => x.path === decodeURIComponent(file));
+    if (!hit) return null;
+    const size = Number(hit.lfs?.size ?? hit.size);
+    return Number.isFinite(size) && size > 0 ? { size, sha256: /^[0-9a-f]{64}$/.test(hit.lfs?.oid || '') ? hit.lfs.oid : null } : null;
+  } catch { return null; }
+}
+
 export class ModelShop {
   constructor(cfg, emit, engine) {
     this.cfg = cfg;
@@ -321,7 +354,7 @@ export class ModelShop {
           d.tries = (d.tries || 0) + 1;
           d.error = String(e.message || e).slice(0, 300);
           // Network hiccups get two more tries, after 15 s and 1 min. A damaged file or a missing link doesn't.
-          const hopeless = /checksum|isn't one of those|no checksum|Not enough disk|No such|redirected|won't install|Python|Smart App Control|Hugging Face account|link .* is broken/i.test(d.error);
+          const hopeless = /checksum|isn't one of those|different size on the website|changed on the website|no checksum|Not enough disk|No such|redirected|won't install|Python|Smart App Control|Hugging Face account|link .* is broken/i.test(d.error);
           if (!hopeless && d.tries < 3) { d.state = 'queued'; d.retryAt = Date.now() + (d.tries === 1 ? 15e3 : 60e3); pub.phase = 'retrying'; pub.error = `${d.error} Trying again in ${d.tries === 1 ? '15 seconds' : 'a minute'}.`; }
           else { d.state = 'failed'; d.doneAt = Date.now(); pub.phase = 'failed'; pub.error = d.error; }
         }
@@ -453,10 +486,20 @@ export class ModelShop {
     const heads = [];
     for (const f of todo) {
       if (!hostAllowed(f.url)) throw new Error(`I only download from Hugging Face and GitHub. ${f.url} isn't one of those.`);
-      const r = await fetch(f.url, { method: 'HEAD', redirect: 'manual', signal });
-      const size = Number(r.headers.get('x-linked-size') || r.headers.get('content-length') || 0);
+      // 1.5.32: follow a renamed repo's redirect (Hugging Face answers 307 with a relative address and no file details)
+      // until a hop names the file's size; the storage hop itself (another host) isn't asked.
+      const r = await headFile(f.url, signal);
+      // 1.5.32: a redirect's content-length is the size of the redirect itself, not the file. Only x-linked-size, or the
+      // length of a plain 200 answer, is the file's size.
+      let size = Number(r.headers.get('x-linked-size') || (r.status === 200 ? r.headers.get('content-length') : 0) || 0);
       if (r.status >= 400) throw new Error(linkError(fileNameOf(f.url), r.status));
-      const linked = String(r.headers.get('x-linked-etag') || '').replace(/^W\//, '').replace(/"/g, '');
+      let linked = String(r.headers.get('x-linked-etag') || '').replace(/^W\//, '').replace(/"/g, '');
+      // 1.5.32: when the quick check disagrees with the pin, ask Hugging Face's file list before giving up. Some storage
+      // answers with headers that don't describe the file (a Wan 2.2 file was refused although it had not changed).
+      if ((f.bytes && size && size !== f.bytes) || (f.sha256 && /^[0-9a-f]{64}$/.test(linked) && linked !== f.sha256)) {
+        const info = await hfFileInfo(f.url, signal);
+        if (info) { size = info.size; linked = info.sha256 || linked; }
+      }
       // Every catalog file is pinned (1.5.0): its size, and its sha256 unless marked sizeOnly. A file that changed
       // upstream since this Bob was made is stopped here, before anything downloads.
       if (f.sha256 && /^[0-9a-f]{64}$/.test(linked) && linked !== f.sha256) throw new Error(`${fileNameOf(f.url)} has changed on the website since this Bob was made, so I didn't download it. A newer Bob will have the new one.`);

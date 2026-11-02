@@ -856,3 +856,12 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .now-gpu .g-key .g-mem::before { background: #4f9dde; }
 .now-gpu .g-key .g-gpu::before { background: #e0a03a; }
 .now-gpu .g-key .g-cpu::before { background: #6cbf6c; }
+
+/* 1.5.32: three-position switch (Gaming session: graphics card). Big targets for remote desktop. */
+.seg3 { border: 0; padding: 9px 10px; margin: 0; border-radius: var(--r); background: var(--card); display: grid; gap: 6px; }
+.seg3 legend { padding: 0; float: left; width: 100%; }
+.seg3-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg3-btn { flex: 1 1 9em; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 12px; border: 2px solid var(--line, #8884); border-radius: var(--r); cursor: pointer; text-align: center; }
+.seg3-btn input { position: absolute; opacity: 0; pointer-events: none; }
+.seg3-btn.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); font-weight: 600; }
+.seg3-btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }

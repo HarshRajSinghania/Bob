@@ -25,7 +25,7 @@ check('Coding: the coder does every hat', modelFor(cfg({ session: 'coding' }), '
 check('Office: the ledger brain does every hat', modelFor(cfg({ session: 'office' }), 'tinker').model === 'gemma4:26b');
 // 1.5.23: Deep thought is gone (a saved one becomes Normal); Light is now Gaming and keeps the card completely free.
 check('Deep thought is gone: a saved "deep" is Normal', currentSession(cfg({ session: 'deep' })).id === 'normal' && !SESSIONS.deep && mergeSettings({}, { session: 'deep' }).session === 'normal');
-check('Gaming: the label and wording', SESSIONS.light.label === 'Gaming' && SESSIONS.light.icon === '🎮' && /completely free for games/.test(SESSIONS.light.what));
+check('Gaming: the label and wording', SESSIONS.light.label === 'Gaming' && SESSIONS.light.icon === '🎮' && /card for your games/.test(SESSIONS.light.what) && !/completely free/.test(SESSIONS.light.what));
 check('Gaming: chat on the small Gaming brain (Qwen3 4B Instruct 2507), always on the processor', (() => { const m = modelFor(cfg({ session: 'light' }), 'bob'); return m.model === 'qwen3-4b' && m.cpu; })());
 check('Gaming: every hat on the processor too', ['tinker', 'reviewer', 'eyes', 'ledger'].every((h) => modelFor(cfg({ session: 'light' }), h).cpu));
 check('Gaming: a Gaming brain picked in Equip is used', modelFor(cfg({ session: 'light', sessionBrains: { gaming: 'qwen3:1.7b' } }), 'bob').model === 'qwen3:1.7b' && mergeSettings({}, { sessionBrains: { gaming: 'qwen3:1.7b' } }).sessionBrains.gaming === 'qwen3:1.7b');

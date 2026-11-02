@@ -1,0 +1,40 @@
+// 1.5.32: an old config.json with llamacpp.ctx 131072 (from before 1.5.19) must not force every brain to a 131K context.
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+let pass = 0, fail = 0;
+const check = (name, ok, extra = '') => { ok ? pass++ : fail++; console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' ' + extra : ''}`); };
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-ctx-'));
+const agent = path.join(tmp, 'Agent 00');
+fs.mkdirSync(agent, { recursive: true });
+const file = path.join(tmp, 'config.json');
+process.env.BOB_CONFIG = file; process.env.BOB_AGENT_DIR = agent;
+const { loadConfig } = await import('../src/config.js');
+const { LlamaCpp } = await import('../src/llamacpp.js');
+const log = console.log; const said = []; console.log = (m) => said.push(String(m));
+const load = (lc, settings) => {
+  fs.writeFileSync(file, JSON.stringify({ engine: 'ollama', models: { bob: 'gemma4:26b' }, llamacpp: lc }));
+  const sf = path.join(agent, 'inn', 'bob', 'settings.json');
+  fs.mkdirSync(path.dirname(sf), { recursive: true });
+  if (settings) fs.writeFileSync(sf, JSON.stringify(settings)); else fs.rmSync(sf, { force: true });
+  return loadConfig();
+};
+const ctxOf = (cfg, ctx = null) => { const e = new LlamaCpp(cfg); e.resolve = () => ({ gguf: 'x.gguf' }); clearInterval(e.idleTimer); const a = e.buildArgs('gemma4:26b', { ctx }); return Number(a[a.indexOf('-c') + 1]); };
+let cfg = load({ ctx: 131072 });
+console.log = log;
+check('an old config.json with ctx 131072: set aside, kept as legacyCtx', cfg.llamacpp.ctx === undefined && cfg.llamacpp.legacyCtx === 131072);
+check('and said so in the log', said.some((m) => /131072-token context/.test(m)));
+check('a brain with no session size (draft, review) now starts at 32K, not 131K', ctxOf(cfg) === 32768);
+check('a session size still wins (Office 64K)', ctxOf(cfg, 65536) === 65536);
+console.log = () => {};
+cfg = load({ ctx: 131072 }, { llamacpp: { ctx: 131072 } });
+console.log = log;
+check('131K picked in Bob\'s window (settings.json) is still honoured', cfg.llamacpp.ctx === 131072 && ctxOf(cfg) === 131072);
+cfg = load({ ctx: 16384 });
+check('a smaller number in config.json is left alone', cfg.llamacpp.ctx === 16384 && ctxOf(cfg) === 16384);
+cfg = load({});
+check('no number at all: 32K', ctxOf(cfg) === 32768);
+fs.rmSync(tmp, { recursive: true, force: true });
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

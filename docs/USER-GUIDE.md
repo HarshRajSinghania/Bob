@@ -173,7 +173,7 @@ At the bottom of the menu is the **session** picker. A session tells Bob how to 
 - **Art:** Bob keeps chatting on his Quick brain so the big graphics work (painting, video) gets the card.
 - **Coding:** the Coding brain leads.
 - **Office:** documents, spreadsheets and planning.
-- **Gaming:** keeps the graphics card completely free for games. Bob chats and listens on the processor with a small brain (Qwen3 4B Instruct 2507 to start with), which usually starts answering within a few seconds. Now and then he adds a short, sleepy scripted aside. Pictures and big jobs wait until you switch back, and Effort stays on Low. Tip: turn on **Let games go first** (Settings, Show advanced settings, Engines & speed) so Bob uses fewer cores while you play.
+- **Gaming:** keeps the graphics card for your games. How much of it Bob may borrow is set in **Gaming session: graphics card** (Settings, Show advanced settings, Engines & speed): Automatic (the starting position), Never use the card, or Always borrow a little. Bob chats and listens on the processor with a small brain (Qwen3 4B Instruct 2507 to start with), which usually starts answering within a few seconds. Now and then he adds a short, sleepy scripted aside. Pictures and big jobs wait until you switch back, and Effort stays on Low. Tip: turn on **Let games go first** (Settings, Show advanced settings, Engines & speed) so Bob uses fewer cores while you play.
 
 Session: what the graphics card is kept for. Effort: how hard Bob works on each message.
 
