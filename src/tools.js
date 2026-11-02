@@ -377,7 +377,7 @@ export function buildTools(cfg) {
 
   t.ask_specialist = {
     schema: fn('ask_specialist', "Put on a different hat (and brain) for a focused job. The answer goes straight to {{USER}}.", {
-      hat: str('tinker = coding, ledger = data and spreadsheets, scout = web research with sources, painter = image/video prompts, reviewer = careful second look', { enum: Object.keys(HATS) }),
+      hat: str('tinker = coding, including fixing a crash, error or bug in a project, ledger = data and spreadsheets, scout = web research with sources, painter = image/video prompts, reviewer = careful second look', { enum: Object.keys(HATS) }),
       task: str('Everything the job needs: the request and any details or pasted text from the chat.')
     }),
     async run({ hat, task }, ctx) { return ctx.brain.runHat(hat, task, ctx); },
