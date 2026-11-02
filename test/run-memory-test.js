@@ -63,5 +63,11 @@ check('the Session menu has its own line, so its name is not cut off', /\.side \
   check('stopping works from anywhere; carrying on only at the PC', r.indexOf("p === '/api/hands/hold' && b.held === true") < r.indexOf('if (!isLocal)') && r.indexOf("if (p === '/api/hands/hold') { holdHands(brain, false)") > r.indexOf('if (!isLocal)'));
 }
 
+{
+  // 1.5.11: the user saw "a very small box with nothing in it" where a new picture should be.
+  const app = read('public/app.js'), css = read('public/style.css');
+  check('a new picture goes into the same bubble as the reply words, and words arriving later keep it', /case 'image': \{ addMedia\(ev, 'image'\)/.test(app) && /function drawReply\(r\) \{ r\.el\.innerHTML = render\([^\n]*\+ mediaHtml\(r\.media\)/.test(app) && /r\.text \+= ev\.text;\s*drawReply\(r\);/.test(app));
+  check('pictures have a real width, so an image-only bubble cannot collapse to an empty box', /\.msg\.bob:has\(> img\)[^{]*\{ width: min\(540px, 92%\); \}/.test(css));
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

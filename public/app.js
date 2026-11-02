@@ -94,9 +94,13 @@ function note(text, kind = '') { return add(`note ${kind}`, esc(text)); }
 
 function ensureReply(ev) {
   const k = ev?.turnId || '-';
-  if (!replies.has(k)) replies.set(k, { el: add('msg bob', ''), text: '' });
+  if (!replies.has(k)) replies.set(k, { el: add('msg bob', ''), text: '', media: [] });
   return replies.get(k);
 }
+// 1.5.11: a reply's pictures, sounds and clips live in the same bubble as its words (as history shows them), so
+// the words arriving later never wipe them and an image-only bubble never collapses to an empty box.
+function drawReply(r) { r.el.innerHTML = render(r.text.replace(/^\s+/, '').replace(/\s+$/, '')) + mediaHtml(r.media); }
+function addMedia(ev, type) { const r = ensureReply(ev); r.media.push({ type, url: ev.url, name: ev.file || '' }); drawReply(r); scrollDown(); return r; }
 function endReply(ev) { replies.delete(ev?.turnId || '-'); }
 
 // ---------- Status, badge, notifications ----------
@@ -356,7 +360,7 @@ function onEvent(ev) {
       if (!replies.has(ev.turnId || '-') && !ev.text.trim()) break;
       const r = ensureReply(ev);
       r.text += ev.text;
-      r.el.innerHTML = render(r.text.replace(/^\s+/, '').replace(/\s+$/, ''));
+      drawReply(r);
       talkingUntil = Date.now() + 400;
       scrollDown();
       break;
@@ -374,36 +378,9 @@ function onEvent(ev) {
       if (!/^hat:/.test(ev.summary)) note(`· ${ev.summary}`);
       endReply(ev);
       break;
-    case 'image': {
-      const r = ensureReply(ev);
-      const img = document.createElement('img');
-      img.src = ev.url; img.alt = 'Picture Bob painted';
-      r.el.appendChild(img);
-      scrollDown();
-      ping('Bob finished a picture', ev.file || '');
-      break;
-    }
-    case 'audio': {
-      const r = ensureReply(ev);
-      const a = document.createElement('audio');
-      a.src = ev.url; a.controls = true; a.preload = 'auto';
-      a.setAttribute('aria-label', 'Sound Bob made');
-      a.style.cssText = 'display:block;width:100%;margin-top:6px';
-      r.el.appendChild(a);
-      scrollDown();
-      ping('Bob finished a sound', ev.file || '');
-      break;
-    }
-    case 'video': {
-      const r = ensureReply(ev);
-      const v = document.createElement('video');
-      v.src = ev.url; v.controls = true; v.loop = true; v.muted = true; v.autoplay = true;
-      v.setAttribute('aria-label', 'Clip Bob made');
-      r.el.appendChild(v);
-      scrollDown();
-      ping('Bob finished a clip', ev.file || '');
-      break;
-    }
+    case 'image': { addMedia(ev, 'image'); ping('Bob finished a picture', ev.file || ''); break; }
+    case 'audio': { addMedia(ev, 'audio'); ping('Bob finished a sound', ev.file || ''); break; }
+    case 'video': { addMedia(ev, 'video'); ping('Bob finished a clip', ev.file || ''); break; }
     case 'approval': {
       endReply(ev);
       // Hands cards: rows to tick (files) or the exact command (run).

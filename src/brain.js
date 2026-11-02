@@ -3,13 +3,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { Ollama } from './ollama.js';
 import { LlamaCpp } from './llamacpp.js';
 import { buildTools, today, loadReminders, saveReminders } from './tools.js';
 import { systemPrompt, HATS } from './persona.js';
 import { lookPrompt } from './look.js';
 import { personalityPrompt, cleanPersonality } from '../public/personality.js';
-import { catPrompt } from '../public/patches.js';
+import { catPrompt, catMoment } from '../public/patches.js';
 import { cleanEffort, careful, draftBrain, effortPrompt, mootOpening, runMoot, checkpoint } from './moot.js';
 import { saveSettings } from './config.js';
 import { paint, paintingAvailable } from './painter.js';
@@ -43,6 +44,20 @@ export function staleHandErrors(msgs, turnStart) {
 // "I've opened Notepad" with no Hands tool done this turn.
 export function claimsPcAction(text) {
   return /\bI(?:'ve| have|)\s+(?:just\s+|now\s+|already\s+|successfully\s+)?(?:opened|launched|started|typed|clicked|pressed|moved|copied|renamed|zipped|unzipped|ran|deleted|saved|closed)\b[^.!?\n]{0,60}\b(?:notepad|paint|app|application|window|program|file|folder|script|command|document|tab|\w+\.\w{2,4}|it for you)/i.test(String(text || ''));
+}
+// 1.5.11: "I was just observing a subtle loop in the file handle caching" with no tool run this turn: a made-up observation.
+export function claimsObservation(text) {
+  const t = String(text || '');
+  if (/\b(?:earlier|last time|yesterday|before you asked)\b/i.test(t)) return false; // talking about a past turn, where a tool may have run
+  return /\bI(?:'ve| have|'m| am| was|'d| had|)\s+(?:just\s+|been\s+|also\s+|quietly\s+)*(?:observ|notic|monitor|scout|measur|watch|analy[sz]|profil|scann|investigat|benchmark|keeping an eye|looking into|checking|checked|poking at|digging into)\w*\b[^.!?\n]{0,100}\b(?:system|cpu|gpu|vram|memory|ram|files?|cache|caching|loop|process(?:es)?|threads?|disk|network|logs?|queue|code|performance|utili[sz]ation|handles?|drivers?|registry|pc|computer|server|kernel|latency|throughput|background)\b/i.test(t)
+    || /\b(?:CPU|GPU|VRAM|RAM|disk|network) (?:utili[sz]ation|usage|load|temperature|temps?) (?:is|are|looks?|has been|seems?)\b/i.test(t);
+}
+export const OBSERVE_CORRECTION = 'Nothing was actually checked in that reply. Bob said he checked, but no check ran.';
+const OBSERVE_NUDGE = 'You described noticing, watching or checking something on the PC, but no tool ran this turn, so it was invented. Answer again in a line or two, using only the "Right now" line, the chat, or what {{USER}} said. No made-up system details, and no question unless you need the answer.';
+// The only things he knows about the PC without a tool, so small talk has something true to stand on.
+export function realState({ model, session, waiting = 0, cat, turn = 0, mem = { free: os.freemem(), total: os.totalmem() } }) {
+  const gb = (b) => (b / 1e9).toFixed(1);
+  return `Right now (real, from the app): you're thinking on ${model || 'no brain'}${session ? ` in the ${session} session` : ''}; ${waiting ? `${waiting} more message${waiting === 1 ? '' : 's'} waiting` : 'nothing else waiting'}; the PC's RAM is ${gb(mem.total - mem.free)} of ${gb(mem.total)} GB in use; ${catMoment(cat, turn)}.`;
 }
 export const CLAIM_CORRECTION = 'Nothing was actually done on the PC in that reply. Bob said he did, but no action ran.';
 const CLAIM_NUDGE = 'You just said you did something on the PC, but no tool did it in this turn. Never claim that. If it should be done, call the right tool now; if you cannot, say plainly that you have not done it and why (the tool\'s own words if it gave an error).';
@@ -725,7 +740,8 @@ export class Brain {
     const { model, cpu, think, ctx: wantCtx } = (careful(job) && draftBrain(this.cfg)) || modelFor(this.cfg, 'bob');
     // Small extras, only on some turns: the effort note (High/Extreme) and now and then a moment with the cat.
     const turnNo = msgs.filter((m) => m.role === 'user').length;
-    const extras = [effortPrompt(job?.effort), catPrompt({ cat: this.cfg.catName, turn: turnNo, dials: cleanPersonality(this.cfg.personality), user: this.cfg.userName || 'the user' })].filter(Boolean).map((x) => `\n\n${x.replaceAll('{{USER}}', this.cfg.userName || 'the user')}`).join('');
+    const state = realState({ model, session: currentSession(this.cfg).label, waiting: this.queue.filter((j) => j.state === 'waiting').length, cat: this.cfg.catName, turn: turnNo });
+    const extras = [state, effortPrompt(job?.effort), catPrompt({ cat: this.cfg.catName, turn: turnNo, dials: cleanPersonality(this.cfg.personality), user: this.cfg.userName || 'the user' })].filter(Boolean).map((x) => `\n\n${x.replaceAll('{{USER}}', this.cfg.userName || 'the user')}`).join('');
     const brainCtx = await this.fitCtx(model, wantCtx);
     if (!model) throw new Error('I don\'t have a brain yet. Open Get models (in the menu on the left) and pick one; the first-time setup suggests the right one for this PC.');
     this.setState('thinking', '', this.state.model);
@@ -753,6 +769,15 @@ export class Brain {
         reply.correction = CLAIM_CORRECTION;
         msgs.push({ role: 'system', content: CLAIM_NUDGE, hidden: true });
         this.log('honesty', 'Bob claimed a PC action with no tool result; corrected and asked to retry');
+        continue;
+      }
+      if (!reply.tool_calls && !ctx.observeChecked && !msgs.slice(turnStart).some((m) => m.role === 'tool') && claimsObservation(reply.content)) {
+        // Said he noticed or checked something on the PC with no tool behind it: flag it, and one go to answer from real things.
+        ctx.observeChecked = true;
+        emit({ type: 'correction', text: OBSERVE_CORRECTION });
+        reply.correction = OBSERVE_CORRECTION;
+        msgs.push({ role: 'system', content: OBSERVE_NUDGE.replaceAll('{{USER}}', this.cfg.userName || 'the user'), hidden: true });
+        this.log('honesty', 'Bob described an observation with no tool result; corrected and asked to answer again');
         continue;
       }
       // "I can't..." with groups still not added: add them all and give him one more go (router test fix).

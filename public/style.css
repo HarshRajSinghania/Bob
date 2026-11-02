@@ -56,7 +56,9 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent);
 .msg.bob pre { background: #00000055; padding: 8px; border-radius: calc(var(--r) * 0.75); overflow-x: auto; white-space: pre; }
 .msg.bob pre code { background: none; padding: 0; }
 .msg.bob a { color: var(--accent); }
-.msg img { max-width: 100%; border-radius: calc(var(--r) * 1); display: block; margin-top: 6px; }
+.msg img { width: 100%; max-width: 512px; height: auto; border-radius: calc(var(--r) * 1); display: block; margin-top: 6px; }
+/* 1.5.11: a bubble holding a picture gets a real width (a shrink-to-fit bubble around a 100%-wide image collapsed to an empty box). */
+.msg.bob:has(> img), .msg.bob:has(> video) { width: min(540px, 92%); }
 .msg { user-select: text; -webkit-user-select: text; }
 .msg .mini { font-size: 12px; padding: 1px 7px; margin: 0 2px; line-height: 1.5; background: transparent; color: var(--muted); vertical-align: baseline; white-space: nowrap; }
 .msg .mini:hover, .msg .mini:focus-visible { color: var(--text); border-color: var(--accent); }

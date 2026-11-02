@@ -7,6 +7,7 @@ import { Brain } from '../src/brain.js';
 import { cleanEffort, effortPrompt, verdict, mootMinutes, draftBrain, reviewBrain } from '../src/moot.js';
 import { systemPrompt, HATS, CORE } from '../src/persona.js';
 import { catPrompt, catMoment, MOMENTS } from '../public/patches.js';
+import { personalityPrompt } from '../public/personality.js';
 import { readRoll } from '../src/clan.js';
 
 let pass = 0, fail = 0;
@@ -114,7 +115,7 @@ check('minutes say plainly when points are still open', /not finished/.test(moot
 check('without a Review brain, the main brain checks its own work', reviewBrain({ models: { bob: 'm' } }).model === 'm' && draftBrain({ models: { bob: 'm' } }).model === 'm');
 check('the scout cross-checks: two sources for important claims, then re-reads the draft', /two independent sources/.test(HATS.scout.prompt) && /re-read your draft/.test(HATS.scout.prompt));
 check('the front desk outlines, drafts and re-reads longer writing', /outline, draft, then re-read/.test(systemPrompt({ now: 'now' })));
-check('drives are in his personality, as things he says, never acts on alone', /Your drives \(say them, never act on them alone\)/.test(CORE) && /only \{\{USER\}\}'s yes starts work/.test(CORE));
+check('drives live in the Ambition dial (middle = Bob as he was), as things he says, never acts on alone', !/drives/i.test(CORE) && /never act on alone/.test(personalityPrompt({ drive: 3 }, 'Sam')));
 check('the persona no longer names Bub', !/Bub\b/.test(CORE));
 // The cat
 check('cat moments use the cat\'s name and are original lines', MOMENTS.length >= 12 && catMoment('Miso', 3).startsWith('Miso') && !catMoment('Miso', 3).includes('{{'));
