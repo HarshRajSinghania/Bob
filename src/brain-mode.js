@@ -8,7 +8,7 @@
 import { currentSession, modelFor, sessionBrains } from './sessions.js';
 
 export const BRAIN_MODES = ['wake', 'always'];
-export const BIG_SESSIONS = ['coding', 'deep'];
+export const BIG_SESSIONS = ['coding'];
 export const BIG_GRACE_MS = 2 * 60_000;
 
 // One setting, two places: the chat page switch "Free memory when Bob is idle" (on = wake) and the Advanced row

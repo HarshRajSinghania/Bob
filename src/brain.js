@@ -22,7 +22,7 @@ import { copyName } from './clan.js';
 import { RefShelf } from './refs.js';
 import { makeAudio } from './audio.js';
 import { runWorkflow } from './workshop.js';
-import { currentSession, modelFor, laneOf, suggestSession, SESSIONS, sessionBrains } from './sessions.js';
+import { currentSession, modelFor, laneOf, suggestSession, SESSIONS, sessionBrains, waitsForGaming, GAMING_TAG, GAMING_HINT } from './sessions.js';
 import { stampMessages, keepOlder, readSummary } from './chats.js';
 import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
@@ -86,6 +86,14 @@ const isLook = (name) => ['app_look', 'list_schedules'].includes(name);
 // the painter and nothing else was asked for. null = reply the usual way (brain loads back and talks about it).
 // Setting pictureNoWait (Settings, on): off brings back the old way.
 const PAINT_TOOLS = new Set(['make_image', 'make_video']);
+const NUM_WORDS = { a: 1, an: 1, one: 1, two: 2, both: 2, pair: 2, couple: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, few: 3, several: 3, some: 2 };
+// How many creations the message asks for: "3 pictures", "a few images", "pictures of a fox" (plural = at least 2).
+export function askedCount(text) {
+  const t = String(text || '').toLowerCase().replace(/\ba (few|couple|pair)\b/g, '$1');
+  const m = t.match(/\b(\d{1,2}|a|an|one|two|both|pair|couple|three|four|five|six|seven|eight|nine|ten|few|several|some)\b(?:\s+(?:of\s+)?(?:\w+\s+){0,3}?)(pictures?|images?|photos?|drawings?|paintings?|versions?|variations?|options?|clips?|videos?|wallpapers?|icons?|logos?)\b/);
+  if (m) { const n = /^\d+$/.test(m[1]) ? Number(m[1]) : NUM_WORDS[m[1]]; if (n) return /s$/.test(m[2]) ? Math.max(n, 2) : n; }
+  return /\b(pictures|images|photos|drawings|paintings|versions|variations|clips|videos|wallpapers|icons|logos)\b/.test(t) ? 2 : 1;
+}
 export function quickHandBack(cfg, ctx, reply) {
   if (cfg?.pictureNoWait === false) return null;
   const calls = reply?.tool_calls || [];
@@ -94,6 +102,8 @@ export function quickHandBack(cfg, ctx, reply) {
   if (!p?.brainLeft || p.count !== calls.length) return null; // a call failed, or the brain never left: talk as usual
   const ex = ctx.ledger?.expect;
   if (!ex || !['picture', 'show', 'video'].includes(ex.kind) || ex.also?.length) return null; // more was asked for
+  if (p.total < askedCount(ctx.turnText)) return null; // "make 3 pictures" painted one at a time: let him finish
+  if (p.total > 1) return p.kind === 'video' ? 'Here are the clips. Tell me what to change, or ask for more.' : 'Here are the pictures. Tell me what to change, or ask for more.';
   return p.kind === 'video' ? "Here's the clip. Tell me what to change, or ask for another." : "Here's the picture. Tell me what to change, or ask for another.";
 }
 const callKey = (name, args) => { let a = args; if (typeof a === 'string') { try { a = JSON.parse(a); } catch {} } return `${name}|${JSON.stringify(a ?? {})}`; };
@@ -101,6 +111,7 @@ const CANT_NUDGE = 'You now have every tool you can use on this PC. If one of th
 const EMPTY_NUDGE = 'Your last reply was empty. You now have every tool you can use on this PC. Do what was asked: call the right tool now (for a picture, make_image), or answer in words.';
 export const EMPTY_NOTE = 'Bob didn\'t answer that one. Send it again, or put it another way.';
 const MAX_HISTORY = 40;
+const MORE_SECONDS = 10; // how long "Make another picture?" waits
 const APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
 
 // Plain names for the app's screens. Bob's own names for his hats (persona.js) stay as they are.
@@ -214,7 +225,14 @@ export class Brain {
       }, bigGraceMs(this.cfg));
       this.graceTimer.unref?.();
     }
+    // "Make another picture?" is showing, or was answered Yes: the picture engine keeps the card. The answer (No, or no
+    // answer in 10 s) brings the brain back, not this.
+    if (this.morePictures) { this.broadcast({ type: 'brain' }); return gone; }
     if (holdsChatBrain(this.cfg) && !this.turns.size) await this.wake('always on');
+    // 1.5.21: after any job (a picture, a big brain, a helper) Bob goes back to his quick chat brain in the
+    // background, so a follow-up is answered fast instead of waiting for the next message to load it. The usual
+    // idle timer still frees it once he's been quiet. Not in Coding / Deep thought, whose chat brain is a big one.
+    else if (!bigSession(this.cfg) && !this.turns.size) await this.wake('back to the quick brain after a job');
     this.broadcast({ type: 'brain' });
     return gone;
   }
@@ -362,6 +380,58 @@ export class Brain {
     return `${phrase} (${nice})`;
   }
 
+  // ---------- "Make another picture?" ----------
+  // After a picture shown without the brain coming back, the chat box asks for 10 seconds. Yes: the picture engine
+  // stays loaded for the next one (another full grace, 2 minutes or the idle time). No, no answer, or a new job: the
+  // picture engine lets go and the quick brain comes back. Only when the engine is really still loaded.
+  offerMore(sessionId, kind = 'image') {
+    if (!this.painter?.alive?.()) return null;
+    this.endMore(null, 'replaced');
+    const id = crypto.randomUUID();
+    const seconds = MORE_SECONDS;
+    const timer = setTimeout(() => this.answerMore(id, false, 'no answer'), seconds * 1000);
+    timer.unref?.();
+    this.morePictures = { id, sessionId, timer, asked: true };
+    this.broadcast({ type: 'more-pictures', id, sessionId, seconds, kind: kind === 'video' ? 'video' : 'image' });
+    this.log('painter', 'asked "make another?"');
+    return id;
+  }
+
+  // more: true (Yes), false (No). how: 'click', 'no answer', 'new job'. Returns false for an old or unknown card.
+  answerMore(id, more, how = 'click') {
+    const m = this.morePictures;
+    if (!m || !id || m.id !== id || !m.asked) return false;
+    clearTimeout(m.timer);
+    this.broadcast({ type: 'more-pictures-done', id: m.id, sessionId: m.sessionId, more: Boolean(more) });
+    this.log('painter', `"make another?": ${more ? 'yes' : 'no'} (${how})`);
+    if (more) {
+      // Held for the next picture: a fresh grace on the engine, and the brain stays away until then.
+      this.painter?.armIdle?.();
+      const until = setTimeout(() => this.endMore(m.id, 'grace over'), this.painter?.graceMs?.() || 120000);
+      until.unref?.();
+      this.morePictures = { id: m.id, sessionId: m.sessionId, timer: until, asked: false };
+      return true;
+    }
+    this.endMore(m.id, how);
+    return true;
+  }
+
+  // Let go of the picture engine and bring the brain back (No, no answer, Yes's grace over).
+  endMore(id, why) {
+    const m = this.morePictures;
+    if (!m || (id && m.id !== id)) return;
+    clearTimeout(m.timer);
+    this.morePictures = null;
+    if (m.asked) this.broadcast({ type: 'more-pictures-done', id: m.id, sessionId: m.sessionId, more: false });
+    if (why === 'replaced' || why === 'new job') return; // the next job loads what it needs through the gate
+    (async () => {
+      if (this.turns.size) return;
+      await this.painter?.unload?.('done making pictures').catch?.(() => {});
+      if (!this.turns.size && !bigSession(this.cfg)) await this.wake('back to the quick brain after pictures');
+      this.broadcast({ type: 'brain' });
+    })().catch(() => {});
+  }
+
   // The brain a job falls back to when another brain won't load.
   fallbackBrain() { return chatBrain(this.cfg); }
 
@@ -459,6 +529,8 @@ export class Brain {
     this.lastActivity = Date.now(); // for /api/idle
     if (!this.turns.size) { await this.engine.unloadAll().catch(() => {}); await this.painter?.unload?.('session switch', { force: true }).catch?.(() => {}); }
     this.log('session', `now ${id}`);
+    this.saveQueue(); // 1.5.23: the Gaming wait tags change with the session
+    setTimeout(() => this.pump(), 0); // jobs that waited for Gaming to end can start
     if (holdsChatBrain(this.cfg)) this.wake('always on').catch(() => {});
     this.broadcast({ type: 'session', session: currentSession(this.cfg) });
     return currentSession(this.cfg);
@@ -708,7 +780,7 @@ export class Brain {
       // Plain status for the Tasks panel: Queued, In progress, Delegated (to which copy), Completed...
       const status = state === 'waiting' ? 'queued' : state === 'working' ? (out ? 'delegated' : 'in progress') : state === 'done' ? 'completed' : state;
       return { id, sessionId, kind, text: text.slice(0, 140), state, status, at, startedAt, doneAt, error, pics: (refs || []).length,
-        delegatedTo: out ? { hat: out.hat, label: out.label, copy: out.copy } : null, steps: (steps || []).slice(-8), effort: effort || 'low' };
+        delegatedTo: out ? { hat: out.hat, label: out.label, copy: out.copy } : null, gaming: state === 'waiting' && waitsForGaming(this.cfg, { kind, effort }) ? { tag: GAMING_TAG, hint: GAMING_HINT } : undefined, steps: (steps || []).slice(-8), effort: effort || 'low' };
     });
   }
 
@@ -757,6 +829,7 @@ export class Brain {
   enqueue(sessionId, text, attach = [], effort = 'low') {
     this.lastActivity = Date.now();
     this.housekeeper?.pause(); // anything the housekeeper was asking the brain gives way at once
+    this.endMore(null, 'new job'); // a new message answers "Make another picture?"; the job loads what it needs
     const job = { id: crypto.randomUUID(), sessionId, text, refs: [].concat(attach || []).slice(0, 4), state: 'waiting', at: Date.now(), kind: Brain.guessKind(text, [].concat(attach || []).length > 0), effort: cleanEffort(effort) };
     this.queue.push(job);
     this.saveQueue();
@@ -793,6 +866,7 @@ export class Brain {
     const seen = new Set();
     for (const job of this.queue) {
       if (job.state !== 'waiting') continue;
+      if (waitsForGaming(this.cfg, job)) continue; // 1.5.23: waits in Tasks until the session isn't Gaming
       const lane = laneOf(this.cfg, job);
       if (seen.has(lane)) continue;
       seen.add(lane);
@@ -1055,12 +1129,13 @@ export class Brain {
       }
       // 1.5.20: a picture or clip that was all the user asked for is shown with a short line, instead of loading the
       // brain back onto the card (6 s for the quick brain, 20-30 s for a big one) just to say "here it is".
-      // The brain loads again when the user starts typing (or right away with "Free memory when Bob is idle" off).
+      // The quick brain then loads again in the background once the turn lets go of the card (settle).
       const quick = !ended && quickHandBack(this.cfg, ctx, reply);
       if (quick) {
         emit({ type: 'token', text: `${String(reply.content || '').trim() ? '\n\n' : ''}${quick}` });
         msgs.push({ role: 'assistant', content: quick });
         this.log('handoff', 'showed the result without loading the brain back (it loads when typing starts)');
+        this.offerMore(sessionId, ctx.painted?.kind);
         this.checkTurn(ctx, msgs.at(-1), false);
         this.keepGroups(sessionId, used);
         return;
@@ -1236,6 +1311,8 @@ export class Brain {
     });
     ctx.emit({ type, url: `/images/${encodeURIComponent(name)}`, file });
     ctx.painted = { kind, count: (ctx.painted?.count || 0) + 1, brainLeft: Boolean(ctx.painted?.brainLeft || unloaded.length) };
+    ctx.paintedTotal = (ctx.paintedTotal || 0) + 1; // the whole turn, across rounds
+    ctx.painted.total = ctx.paintedTotal;
     this.setState('thinking', '', null);
     return `${video ? 'Made a clip' : 'Painted a picture'}, saved as ${file}. The user can see it in the chat.`;
   }

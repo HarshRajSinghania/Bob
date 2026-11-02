@@ -187,6 +187,9 @@ async function turn(text, script) {
   // 1.5.20 quick hand-back: the picture was all that was asked, so the brain isn't loaded back just to say so.
   const loadsAfter = (job) => { const st = job.handoff.steps; const i = st.findIndex((s) => /painter/.test(s.what || '')); return st.slice(i + 1).filter((s) => s.kind === 'load').length; };
   check('...the picture goes through the gate, and the brain is NOT loaded back after it (quick hand-back)', r.job.handoff.steps.some((s) => /painter/.test(s.what || '') && s.state === 'done') && loadsAfter(r.job) === 0 && replies.length === 1, JSON.stringify(r.job.handoff.steps.map((s) => `${s.kind}:${s.what}:${s.state}`)));
+  await tick(5); eng.loadedNow = null; eng.loads = [];
+  await brain.settle();
+  check('...and right after, the quick brain loads again in the background for a fast follow-up', eng.loads.includes('main:latest'), JSON.stringify(eng.loads));
   check('...Bob\'s reply is the short hand-back line, kept with the picture', r.hist.some((m) => m.role === 'assistant' && /^Here's the picture\. Tell me what to change/.test(m.content) && m.media?.some((x) => x.type === 'image')), JSON.stringify(r.hist.map((m) => [m.role, m.content])));
 }
 {
@@ -258,6 +261,17 @@ async function turn(text, script) {
   check('quick hand-back: a clip gets its own line', /^Here's the clip/.test(quickHandBack({}, { ledger: { expect: { kind: 'video' } }, painted: { kind: 'video', count: 1, brainLeft: true } }, { tool_calls: [{ function: { name: 'make_video' } }] }) || ''));
   check('quick hand-back: a picture next to another tool call -> usual reply', quickHandBack({}, { ...ask, painted: { kind: 'image', count: 1, brainLeft: true } }, { tool_calls: [...pic.tool_calls, { function: { name: 'web_search' } }] }) === null);
   check('quick hand-back: Bob painted without being asked -> usual reply', quickHandBack({}, { ledger: { expect: null }, painted: { kind: 'image', count: 1, brainLeft: true } }, pic) === null);
+}
+{
+  const r = await turn('make 3 pictures of a fox', [call('make_image', { prompt: 'fox 1' }), call('make_image', { prompt: 'fox 2' }), call('make_image', { prompt: 'fox 3' }), say('Three foxes.')]);
+  check('"make 3 pictures" painted one at a time: no hand-back until all three are done', paints.length === 3 && r.events.filter((e) => e.type === 'image').length === 3, `${paints.length}`);
+  check('...then the short line, without loading the brain back for it', r.hist.some((m) => /^Here are the pictures\./.test(m.content)) && replies.length === 1, JSON.stringify(r.hist.map((m) => m.content)));
+}
+{
+  const { askedCount } = await import('../src/brain.js');
+  const cases = [['make me a picture of a fox', 1], ['make 3 pictures of a fox', 3], ['give me a few images of cats', 3], ['a couple of pictures', 2], ['pictures of foxes please', 2], ['a picture of two dogs', 1], ['make a clip', 1]];
+  const bad = cases.filter(([t, n]) => askedCount(t) !== n);
+  check('how many pictures were asked for is read from the words', !bad.length, JSON.stringify(bad.map(([t]) => [t, askedCount(t)])));
 }
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);

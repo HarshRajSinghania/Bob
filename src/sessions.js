@@ -7,8 +7,10 @@ export const SESSIONS = {
   art: { label: 'Art', icon: '🎨', what: 'The graphics card is kept for pictures, video and sound. Bob chats on his small brain on the processor, so he keeps talking while a picture paints.', brain: 'small', cpu: true, parallel: true },
   coding: { label: 'Coding', icon: '🛠', what: 'The coding brain does everything, with its full memory for long files. Small side jobs run on the processor.', brain: 'coding' },
   office: { label: 'Office', icon: '📊', what: 'One all-rounder brain for writing, spreadsheets, research and planning. No swaps.', brain: 'office' },
-  deep: { label: 'Deep thought', icon: '🧠', what: 'The strongest thinker, thinking hard, with nothing else loaded. Slower, more careful answers.', brain: 'deep', think: 'high' },
-  light: { label: 'Light / gaming', icon: '🎮', what: 'Only the small brain (about 5 GB), so games keep the graphics card.', brain: 'small' }
+  // 1.5.23: Deep thought is gone (Effort Medium/High does that job); Light is now Gaming, and keeps Effort on Low.
+  // Gaming (some games use 14 of 16 GB): nothing loads on the card. Chat and hearing run on the processor;
+  // pictures, video, music and Medium-and-up jobs wait in Tasks until the session changes.
+  light: { label: 'Gaming', icon: '🎮', what: 'Keeps the graphics card completely free for games. Bob chats and listens on the processor (replies start slower, about half a minute). Pictures and big jobs wait until you switch back.', brain: 'gaming', cpu: true, effortLow: true }
 };
 
 // Which model each session's brain is. the user can change these on the Sessions tab; the defaults come
@@ -18,6 +20,9 @@ export function sessionBrains(cfg) {
   const s = cfg.sessionBrains || {};
   return {
     small: s.small || 'gemma4:e4b',
+    // 1.5.23: Gaming chats on the processor, so a smaller brain answers sooner. qwen3:4b scored 23/25 in the router test
+    // (qwen3:1.7b faked tool calls). If it isn't installed, the brain hand-off falls back to the main brain.
+    gaming: s.gaming || 'qwen3:4b',
     coding: s.coding || m.tinker || m.bob,
     office: s.office || m.ledger || m.bob,
     deep: s.deep || m.reviewer || m.bob
@@ -33,7 +38,7 @@ export function currentSession(cfg) {
 // How much a brain can keep in mind (context, in tokens) per session. Empty means the engine's default.
 export const CTX_CHOICES = [8192, 16384, 32768, 65536, 131072, 262144];
 // Measured on a 16 GB RTX card (gemma4:26b, llama.cpp b12032): 32K is about 15% faster than 128K for chat.
-// Coding and Deep thought keep the engine's full default; 256K is for one-off whole-project reads (slow).
+// Coding keeps the engine's full default; 256K is for one-off whole-project reads (slow).
 export const DEFAULT_CTX = { normal: 32768, light: 32768, art: 32768, office: 65536 };
 export function sessionCtx(cfg, id, hat) {
   const v = cfg.sessionCtx?.[id];
@@ -44,17 +49,27 @@ export function sessionCtx(cfg, id, hat) {
 }
 
 // The model a hat runs on right now, and whether it must stay off the graphics card.
-// 1.5.12: Low effort in the Normal and Light sessions chats on the Quick brain, on the processor, so the graphics card stays free.
+// 1.5.12: Low effort in the Normal session (Gaming always does, 1.5.23) chats on the Quick brain, on the processor, so the graphics card stays free.
 // Setting quickOnCpu (Settings > Everyday): OFF unless switched on. Measured 2026-11-02 on a 9800X3D (gemma4:e4b, 4.3K-token
 // prompt): about 31 s to the first word on the processor vs about 4 s on the card, because reading the prompt is slow there.
 export const quickOnCpu = (cfg) => cfg?.quickOnCpu === true;
 export function modelFor(cfg, hat) {
   const s = currentSession(cfg);
   const ctx = sessionCtx(cfg, s.id, hat);
-  if (['normal', 'light'].includes(s.id) && hat === 'bob' && quickOnCpu(cfg)) return { model: sessionBrains(cfg).small, cpu: true, ctx };
+  if (s.id === 'normal' && hat === 'bob' && quickOnCpu(cfg)) return { model: sessionBrains(cfg).small, cpu: true, ctx };
   if (s.id === 'normal') return { model: cfg.oneBrain ? cfg.models.bob : (cfg.models[hat] || cfg.models.bob), cpu: false, ctx };
   const model = sessionBrains(cfg)[s.brain] || cfg.models.bob;
   return { model, cpu: Boolean(s.cpu), think: s.think, ctx };
+}
+
+// 1.5.23: the Gaming session keeps the graphics card completely free.
+export const gaming = (cfg) => cfg?.session === 'light';
+export const GAMING_TAG = 'Waiting · Gaming is on';
+export const GAMING_HINT = 'Switch the session to Normal to run it.';
+// A job that needs the card waits while Gaming is on: pictures, video, music, and Medium effort and up. Never dropped.
+export function waitsForGaming(cfg, job) {
+  if (!gaming(cfg) || !job) return false;
+  return ['picture', 'video', 'music'].includes(job.kind) || (job.effort && job.effort !== 'low');
 }
 
 // Pictures, video and sound go in their own lane during an Art session, so chat doesn't wait for them.

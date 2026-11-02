@@ -133,11 +133,11 @@ function clean(patch) {
   if ('hands' in out) out.hands = cleanHands(out.hands || {});
   if ('quarantine' in out) out.quarantine = { on: out.quarantine?.on === true };
   if ('downloads' in out) { const d = out.downloads || {}; out.downloads = { concurrent: Number(d.concurrent) === 2 ? 2 : 1, resumeOnStart: d.resumeOnStart === true }; }
-  if ('session' in out) out.session = ['normal', 'art', 'coding', 'office', 'deep', 'light'].includes(out.session) ? out.session : 'normal';
+  if ('session' in out) out.session = ['normal', 'art', 'coding', 'office', 'light'].includes(out.session) ? out.session : 'normal'; // 1.5.23: a saved 'deep' becomes Normal
   if ('sessionBrains' in out) {
     const sb = out.sessionBrains || {};
     out.sessionBrains = {};
-    for (const k of ['small', 'coding', 'office', 'deep']) if (typeof sb[k] === 'string' && /^[\w.:/-]{1,100}$/.test(sb[k])) out.sessionBrains[k] = sb[k];
+    for (const k of ['small', 'gaming', 'coding', 'office', 'deep']) if (typeof sb[k] === 'string' && /^[\w.:/-]{1,100}$/.test(sb[k])) out.sessionBrains[k] = sb[k];
   }
   if ('style' in out) out.style = cleanStyle(out.style);
   if ('catName' in out) out.catName = typeof out.catName === 'string' && /^[\p{L}\p{N}' .-]{1,24}$/u.test(out.catName.trim()) ? out.catName.trim() : undefined;

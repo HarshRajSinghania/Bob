@@ -10,19 +10,28 @@ export const HINTS = {
   extreme: 'Like High, and for code the Review brain also checks the research and the plan before anything changes. Slowest: every check swaps brains (about 20 seconds each).'
 };
 const LEVELS = Object.keys(HINTS);
+// 1.5.23: the Gaming session keeps Effort on Low; the other levels are greyed out with this hint.
+export const GAMING_HINT = 'Gaming keeps the graphics card free. Switch session to use more effort.';
 
 export function createEffort() {
   const box = $('effort');
   const btns = [...box.querySelectorAll('[data-effort]')];
   let level = 'low';
+  let locked = false;
   try { const v = sessionStorage.getItem(KEY); if (LEVELS.includes(v)) level = v; } catch {}
   function draw() {
-    for (const b of btns) { const on = b.dataset.effort === level; b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; }
-    $('effortHint').textContent = HINTS[level];
-    box.dataset.level = level;
+    const now = locked ? 'low' : level;
+    for (const b of btns) {
+      const on = b.dataset.effort === now;
+      b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1;
+      const off = locked && b.dataset.effort !== 'low';
+      b.disabled = off; b.title = off ? GAMING_HINT : '';
+    }
+    $('effortHint').textContent = locked ? GAMING_HINT : HINTS[level];
+    box.dataset.level = now;
   }
   function set(v, focus = false) {
-    if (!LEVELS.includes(v)) return;
+    if (!LEVELS.includes(v) || (locked && v !== 'low')) return;
     level = v;
     try { sessionStorage.setItem(KEY, v); } catch {}
     draw();
@@ -35,5 +44,7 @@ export function createEffort() {
     if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); set(LEVELS[Math.max(0, i - 1)], true); }
   });
   draw();
-  return { get: () => level, set };
+  // Gaming session on: Effort stays on Low. Off again: the level picked before comes back.
+  function lock(on) { locked = Boolean(on); draw(); }
+  return { get: () => (locked ? 'low' : level), set, lock, locked: () => locked };
 }

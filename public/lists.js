@@ -58,9 +58,11 @@ const ICON = { chat: '💬', picture: '🎨', video: '🎬', research: '🔎', c
 
 export function taskRow(j, { movable, full }) {
   const status = j.status || j.state;
-  const tag = `<span class="tag ${status.replace(' ', '-')}">${esc(STATUS[status] || status)}${status === 'delegated' && j.delegatedTo ? `: ${esc(j.delegatedTo.copy)}` : ''}</span>`;
+  // 1.5.23: a job that needs the graphics card waits while the Gaming session is on.
+  const tag = j.gaming ? `<span class="tag queued gaming">${esc(j.gaming.tag)}</span>` : `<span class="tag ${status.replace(' ', '-')}">${esc(STATUS[status] || status)}${status === 'delegated' && j.delegatedTo ? `: ${esc(j.delegatedTo.copy)}` : ''}</span>`;
   const sub = status === 'delegated' && j.delegatedTo ? `${esc(j.delegatedTo.copy)} (${esc(j.delegatedTo.label)}) is on it`
     : status === 'completed' ? `Completed ${when(j.doneAt)}`
+    : j.gaming ? esc(j.gaming.hint)
     : status === 'queued' ? `Added ${when(j.at)}`
     : status === 'in progress' ? `Started ${when(j.startedAt)}`
     : status === 'needs you' ? 'Bob is waiting for your OK in the chat'

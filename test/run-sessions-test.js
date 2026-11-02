@@ -1,6 +1,6 @@
 // Sessions (which brains stay loaded), parallel lanes, and Style settings cleaning.
 import { Brain } from '../src/brain.js';
-import { modelFor, laneOf, suggestSession, currentSession, sessionBrains } from '../src/sessions.js';
+import { modelFor, laneOf, suggestSession, currentSession, sessionBrains, SESSIONS, waitsForGaming } from '../src/sessions.js';
 import { cleanStyle } from '../src/config.js';
 import { ENGINES, findRelease, pickAsset } from '../src/engines.js';
 import { explainSetupError } from '../src/audio.js';
@@ -23,9 +23,16 @@ check('Normal + One brain: every hat on the main brain', modelFor(cfg({ oneBrain
 check('Art: chat on the small brain, on the processor', (() => { const m = modelFor(cfg({ session: 'art' }), 'bob'); return m.model === 'gemma4:e4b' && m.cpu; })());
 check('Coding: the coder does every hat', modelFor(cfg({ session: 'coding' }), 'ledger').model === 'qwen3-coder:30b');
 check('Office: the ledger brain does every hat', modelFor(cfg({ session: 'office' }), 'tinker').model === 'gemma4:26b');
-check('Deep thought: reviewer brain, thinking high', (() => { const m = modelFor(cfg({ session: 'deep' }), 'bob'); return m.model === 'gpt-oss:20b' && m.think === 'high'; })());
-check('Light: small brain on the card by default (the processor switch is off unless turned on)', (() => { const m = modelFor(cfg({ session: 'light' }), 'bob'); return m.model === 'gemma4:e4b' && !m.cpu; })());
-check('Light with "Keep the graphics card free" on: chat on the processor', (() => { const m = modelFor(cfg({ session: 'light', quickOnCpu: true }), 'bob'); return m.model === 'gemma4:e4b' && m.cpu; })());
+// 1.5.23: Deep thought is gone (a saved one becomes Normal); Light is now Gaming and keeps the card completely free.
+check('Deep thought is gone: a saved "deep" is Normal', currentSession(cfg({ session: 'deep' })).id === 'normal' && !SESSIONS.deep && mergeSettings({}, { session: 'deep' }).session === 'normal');
+check('Gaming: the label and wording', SESSIONS.light.label === 'Gaming' && SESSIONS.light.icon === '🎮' && /completely free for games/.test(SESSIONS.light.what));
+check('Gaming: chat on the small Gaming brain (Qwen3 4B), always on the processor', (() => { const m = modelFor(cfg({ session: 'light' }), 'bob'); return m.model === 'qwen3:4b' && m.cpu; })());
+check('Gaming: every hat on the processor too', ['tinker', 'reviewer', 'eyes', 'ledger'].every((h) => modelFor(cfg({ session: 'light' }), h).cpu));
+check('Gaming: a Gaming brain picked in Equip is used', modelFor(cfg({ session: 'light', sessionBrains: { gaming: 'qwen3:1.7b' } }), 'bob').model === 'qwen3:1.7b' && mergeSettings({}, { sessionBrains: { gaming: 'qwen3:1.7b' } }).sessionBrains.gaming === 'qwen3:1.7b');
+{ const g = cfg({ session: 'light' });
+  check('Gaming: pictures, clips, music and Medium-and-up jobs wait', ['picture', 'video', 'music'].every((kind) => waitsForGaming(g, { kind, effort: 'low' })) && ['medium', 'high', 'extreme'].every((effort) => waitsForGaming(g, { kind: 'chat', effort })));
+  check('Gaming: a Low chat or code question runs (on the processor)', !waitsForGaming(g, { kind: 'chat', effort: 'low' }) && !waitsForGaming(g, { kind: 'code', effort: 'low' }));
+  check('Normal: nothing waits for Gaming', !waitsForGaming(cfg(), { kind: 'picture', effort: 'high' })); }
 check('Normal with it on: chat on the Quick brain on the processor; hats keep their own brains on the card', (() => { const m = modelFor(cfg({ quickOnCpu: true }), 'bob'); const t = modelFor(cfg({ quickOnCpu: true }), 'tinker'); return m.model === 'gemma4:e4b' && m.cpu && t.model === 'qwen3-coder:30b' && !t.cpu; })());
 check('Normal by default: the main Brain on the card, as before 1.5.14', (() => { const m = modelFor(cfg(), 'bob'); return m.model === 'gemma4:26b' && !m.cpu; })());
 check('session brains can be changed', sessionBrains(cfg({ sessionBrains: { small: 'qwen2.5-coder:7b' } })).small === 'qwen2.5-coder:7b');
@@ -94,7 +101,7 @@ check('speed settings: the program path can\'t be changed', m.llamacpp.exe === '
 check('speed settings: bad numbers dropped', m.llamacpp.threads === null && m.llamacpp.batch === 2048 && m.llamacpp.draft.max === 16);
 check('speed settings: flags kept, file paths dropped', JSON.stringify(m.llamacpp.modelArgs.big) === JSON.stringify(['--n-cpu-moe', '8', '--log-file']), JSON.stringify(m.llamacpp.modelArgs.big));
 check('session context: only the offered sizes', m.sessionCtx.deep === 131072 && m.sessionCtx.art === null);
-check('session context reaches the brain', modelFor({ ...cfg({ session: 'deep' }), sessionCtx: { deep: 131072 } }, 'bob').ctx === 131072 && modelFor(cfg({ session: 'deep' }), 'bob').ctx === null);
+check('session context reaches the brain', modelFor({ ...cfg({ session: 'coding' }), sessionCtx: { coding: 131072 } }, 'bob').ctx === 131072 && modelFor(cfg({ session: 'coding' }), 'bob').ctx === null);
 check('Normal chat defaults to 32K; coding copies keep the long default', modelFor(cfg(), 'bob').ctx === 32768 && modelFor(cfg(), 'tinker').ctx === null);
 check('--fit is off on an old llama.cpp (no version file)', !lc.buildArgs('small').includes('--fit'));
 fs.mkdirSync(path.join(tmp, 'llama.cpp'), { recursive: true });

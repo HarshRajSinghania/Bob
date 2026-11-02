@@ -20,6 +20,7 @@ import { quarantineCard, quarantineResult, createQuarantineBanner } from './quar
 import { createEffort } from './effort.js';
 import { createCatAntics } from './cat-antics.js';
 import { createViewer, outCard, fillPeeks } from './viewer.js';
+import { moreBar } from './more-bar.js';
 
 const cellar = createCellar();
 const api = async (url, data) => {
@@ -133,7 +134,7 @@ const STATUS_TEXT = {
 const sessionSel = $('sessionSel');
 function drawSessions(list, cur) {
   if (list) sessionSel.innerHTML = list.map((x) => `<option value="${esc(x.id)}" title="${esc(x.what)}">${x.icon} ${esc(x.label)}</option>`).join('');
-  if (cur) { sessionSel.value = cur.id; sessionSel.title = `${cur.label} session: ${cur.what}`; }
+  if (cur) { sessionSel.value = cur.id; sessionSel.title = `${cur.label} session: ${cur.what}`; effort.lock(cur.effortLow === true); }
 }
 async function switchSession(id) {
   const r = await post('/api/settings', { session: id });
@@ -172,7 +173,10 @@ function showSwap(from, to) {
   c.setAttribute('role', 'img');
   c.setAttribute('aria-label', 'A contraption swaps Bob\'s brain');
   swapEl.appendChild(c);
-  log.appendChild(swapEl);
+  // 1.5.21: if Bob's newest post is something he made, the animation goes above it, so the creation stays in view.
+  const last = log.lastElementChild;
+  if (last?.classList.contains('bob') && last.querySelector('.out-card')) log.insertBefore(swapEl, last);
+  else log.appendChild(swapEl);
   scrollDown();
   swapStop = startSwap(c, { from, to });
 }
@@ -342,6 +346,7 @@ function onEvent(ev) {
   if (ev.type === 'brain') return;
   if (ev.type === 'status') return setStatus(ev);
   if (ev.sessionId && ev.sessionId !== sessionId && ev.type !== 'reminder') return;
+  if (ev.type === 'more-pictures' || ev.type === 'more-pictures-done') return more.handle(ev);
   if (ev.type === 'hands') handsSwitch.update(ev.settings);
   if (ev.type === 'quarantine') return qBanner.update(ev.active);
   if (quarantineResult(ev)) return;
@@ -506,7 +511,7 @@ function drawQueue(jobs) {
   countBadge($('tasksBtn'), open.length);
   for (const j of jobs) {
     const tag = jobBubbles.get(j.id)?.querySelector('.qtag');
-    if (tag) { const st = j.status || STATE_LABEL[j.state] || j.state; tag.textContent = (st === 'delegated' && j.delegatedTo ? `delegated to ${j.delegatedTo.copy}` : st) + (j.effort && j.effort !== 'low' ? ` · ${j.effort[0].toUpperCase()}${j.effort.slice(1)} effort` : ''); tag.className = `qtag ${j.state}`; }
+    if (tag) { const st = j.status || STATE_LABEL[j.state] || j.state; tag.textContent = (j.gaming ? j.gaming.tag : st === 'delegated' && j.delegatedTo ? `delegated to ${j.delegatedTo.copy}` : st) + (j.effort && j.effort !== 'low' ? ` · ${j.effort[0].toUpperCase()}${j.effort.slice(1)} effort` : ''); tag.className = `qtag ${j.state}`; }
   }
   const show = jobs.filter((j) => j.state === 'waiting' || j.state === 'working' || ((j.state === 'failed' || j.state === 'interrupted') && Date.now() - j.at < 3600e3));
   qbox.hidden = !show.length;
@@ -586,7 +591,13 @@ document.addEventListener('drop', (e) => {
 // Each one is a card with a preview (a thumbnail, the player, or the first lines); a click opens the side panel.
 function mediaHtml(media) {
   if (!media?.length) return '';
-  return media.map((m) => outCard({ ...m, kind: m.kind || (m.type === 'file' ? 'file' : m.type) })).join('');
+  const items = media.map((m) => ({ ...m, kind: m.kind || (m.type === 'file' ? 'file' : m.type) }));
+  // 1.5.21: two or more pictures or clips sit in a grid sized to fit the window, so all of them show without scrolling.
+  const visual = items.filter((m) => m.kind === 'image' || m.kind === 'video');
+  if (visual.length < 2) return items.map(outCard).join('');
+  const cols = Math.ceil(Math.sqrt(visual.length)), rows = Math.ceil(visual.length / cols);
+  const grid = `<div class="media-grid" style="--cols:${cols};--rows:${rows}">${visual.map(outCard).join('')}</div>`;
+  return grid + items.filter((m) => !visual.includes(m)).map(outCard).join('');
 }
 // ---------- Copy buttons and file cards (right-click and Ctrl+C often don't get through remote desktop) ----------
 const rawText = new WeakMap();
@@ -673,6 +684,7 @@ function picsHtml(pics) {
 
 // Every message is its own job in Bob's queue: send as many as you like, none get dropped.
 const jobBubbles = new Map();
+const more = moreBar({ composer: $('composer'), post, focus: () => $('input').focus() });
 $('composer').onsubmit = async (e) => {
   e.preventDefault();
   const text = input.value.trim() || (pending.length ? 'Have a look at this.' : '');

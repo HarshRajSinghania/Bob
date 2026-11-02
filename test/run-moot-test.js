@@ -68,11 +68,9 @@ async function turn(text, effort, s) {
   check('Medium: no moot, no reviewer, a short effort note', !r.calls.some((c) => c.w === 'reviewer') && !r.events.some((e) => e.type === 'announce' && /moot/.test(e.text)) && /Effort is Medium/.test(r.calls[0].sys) && effortPrompt('medium').length < 250);
   check('Medium is a real level', cleanEffort('medium') === 'medium');
   cfg.session = 'light';
-  const c = await turn('fix a.js', 'medium', { desk: [call('ask_specialist', { hat: 'tinker', task: 'fix it' })], tinker: [say('Done, not run.')] });
-  const t = c.calls.find((x) => x.w === 'tinker');
-  check('Medium beats the Light session: coding still goes to the Coding brain on the card', t && t.model === 'coder:latest' && !t.cpu, t && t.model);
+  // 1.5.23: Gaming keeps the card free. Medium jobs wait in Tasks (see run-sessions-test); Low chats on the Gaming brain, on the processor.
   const l = await turn('hello there', 'low', { desk: [say('Hi.')] });
-  check('Low in the Light session: the Quick brain on the processor', l.calls[0].model === 'quick:latest' && l.calls[0].cpu, l.calls[0].model);
+  check('Low in the Gaming session: the Gaming brain on the processor', l.calls[0].model === 'qwen3:4b' && l.calls[0].cpu, l.calls[0].model);
   delete cfg.session;
 }
 

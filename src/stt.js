@@ -27,7 +27,7 @@ async function viaOllama(cfg, stt, wav) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       model, messages: [msg], stream: false, keep_alive: stt.keepAlive || '10m',
-      options: { temperature: 0, ...(stt.cpuOnly !== false ? { num_gpu: 0 } : {}) }
+      options: { temperature: 0, ...(stt.cpuOnly !== false || cfg.session === 'light' ? { num_gpu: 0 } : {}) }
     }),
     signal: AbortSignal.timeout(90000)
   });
@@ -58,7 +58,7 @@ async function viaWhisperCpp(cfg, stt, wav) {
   fs.writeFileSync(tmp, Buffer.from(wav));
   try {
     const out = await new Promise((resolve, reject) => execFile(exe,
-      [...(stt.preArgs || []), '-m', stt.model, '-f', tmp, '-l', stt.language || 'en', '-nt', '-np', '-t', String(stt.threads || Math.min(8, os.cpus().length)), ...(stt.gpu ? [] : ['-ng'])],
+      [...(stt.preArgs || []), '-m', stt.model, '-f', tmp, '-l', stt.language || 'en', '-nt', '-np', '-t', String(stt.threads || Math.min(8, os.cpus().length)), ...(stt.gpu && cfg.session !== 'light' ? [] : ['-ng'])], // 1.5.23: -ng (processor) always while Gaming is on
       { windowsHide: true, timeout: 60000, maxBuffer: 1e6 },
       (err, stdout) => (err ? reject(new Error(`Couldn't hear that (whisper.cpp: ${err.message})`)) : resolve(stdout))));
     return clean(String(out).replace(/\[[^\]]*\]/g, ' ').replace(/\s+/g, ' '));

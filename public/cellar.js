@@ -209,7 +209,7 @@ export function createCellar() {
       <h3>Thinking (writes, plans, codes, writes prompts)</h3><table class="roles">${thinkers.map(row).join('')}</table>
       <h3>Making (does the actual work)</h3><table class="roles">${makers.map(row).join('')}</table>
       <h3>Session brains</h3><p class="muted">Pick a session from the menu next to Bob's name. Each one keeps a set of brains that fit in your graphics card together, so there are no swaps. Art runs the small brain on the processor so the painter keeps the card.</p>
-      <table class="roles">${[['small', 'Small brain', 'Art and Light / gaming sessions'], ['coding', 'Coding session', 'Does everything in a Coding session'], ['office', 'Office session', 'Does everything in an Office session'], ['deep', 'Deep thought session', 'The strongest thinker (gpt-oss thinks hardest)']].map(([k, label, what]) => {
+      <table class="roles">${[['small', 'Small brain', 'The Art session'], ['gaming', 'Gaming session', 'Chats on the processor, so keep it small (Qwen3 4B)'], ['coding', 'Coding session', 'Does everything in a Coding session'], ['office', 'Office session', 'Does everything in an Office session']].map(([k, label, what]) => {
         const cur = settings.sessionBrains?.[k] || '';
         const list = roles.options.llm || [];
         return `<tr><th scope="row">${esc(label)}<span class="muted">${esc(what)}</span></th><td><select data-sbrain="${k}" aria-label="${esc(label)}">${list.some((o) => o.value === cur) || !cur ? '' : `<option value="${esc(cur)}" selected>${esc(cur)} (not found)</option>`}${list.map((o) => `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select></td></tr>`;

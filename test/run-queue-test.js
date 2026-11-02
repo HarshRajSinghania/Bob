@@ -33,5 +33,29 @@ const f3 = { queue: [job('f', 'failed'), job('w1', 'waiting')], saveQueue() {}, 
 P.retryJob.call(f3, 'f');
 check('"Try again" puts a task at the back of the line', f3.queue.map((j) => j.id).join(',') === 'w1,f' && f3.queue[1].state === 'waiting');
 
+// 1.5.23: Gaming keeps the graphics card free. Jobs that need it wait (never dropped) and start when the session changes.
+{
+  const started = [];
+  const g = { cfg: { session: 'light' }, turns: new Map(), queue: [job('pic', 'waiting', { kind: 'picture' }), job('med', 'waiting', { effort: 'medium' }), job('hi', 'waiting')], saveQueue() {}, startTurn(s, t, r, j) { started.push(j.id); this.turns.set('talk', {}); } };
+  P.pump.call(g);
+  check('Gaming: a Low chat starts past the picture and Medium jobs waiting for the card', started.join() === 'hi' && g.queue[0].state === 'waiting' && g.queue[1].state === 'waiting', started.join());
+  const gv = P.queueView.call(g);
+  check('Gaming: Tasks shows "Waiting · Gaming is on" and how to run it', gv[0].gaming?.tag === 'Waiting · Gaming is on' && /Switch the session to Normal/.test(gv[0].gaming.hint) && gv[0].status === 'queued' && !gv[2].gaming);
+  g.cfg.session = 'normal'; g.turns.clear(); started.length = 0;
+  P.pump.call(g);
+  check('back to Normal: the waiting picture job starts', started.join() === 'pic', started.join());
+}
+{
+  const { Gate } = await import('../src/handoff.js').catch(() => ({}));
+  if (Gate) {
+    const gate = Object.create(Gate.prototype); gate.brain = { cfg: { session: 'light' } };
+    let err = null; try { await gate.need({ id: 'painter', kind: 'image' }, {}); } catch (e) { err = e; }
+    check('Gaming: the picture engine never starts (a plain reason for Bob)', err?.code === 'gaming' && /switch the session to Normal/.test(err.message));
+    let seen = null; gate.needBrain = async (dep) => { seen = dep; return 'x'; };
+    await gate.need({ id: 'brain', model: 'big', opts: { cpu: false } }, {});
+    check('Gaming: a brain asked for on the card runs on the processor instead', seen?.opts?.cpu === true);
+  } else check('handoff exports the gate', false);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

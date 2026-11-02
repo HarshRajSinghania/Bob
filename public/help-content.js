@@ -42,8 +42,8 @@ export const HELP = [
     html: `<p>Bob uses a different model for each kind of job. <strong>Equip Bob</strong> shows them like a character sheet: Bob in the middle, with a slot for each job. Click Bob's picture, or Get models in the menu, to open it.</p>
 <table><tr><th>Slot</th><th>What it does</th></tr>
 <tr><td>🧠 Brain</td><td>Thinks, chats and plans. Everything else hangs off this one.</td></tr>
-<tr><td>⚡ Quick brain</td><td>A small, fast brain for the Art and Light / gaming sessions.</td></tr>
-<tr><td>🔭 Deep thinking</td><td>The strongest thinker, for the Deep thought session.</td></tr>
+<tr><td>⚡ Quick brain</td><td>A small, fast brain for quick answers and the Art session.</td></tr>
+<tr><td>🔭 Deep thinking</td><td>The strongest thinker, for Medium, High and Extreme effort.</td></tr>
 <tr><td>🔨 Coding</td><td>Writes and fixes code. Empty means the Brain codes.</td></tr>
 <tr><td>🧐 Review</td><td>Checks code and plans before you rely on them.</td></tr>
 <tr><td>👁 Seeing pictures</td><td>Looks at pictures and screenshots you attach.</td></tr>
@@ -64,18 +64,20 @@ export const HELP = [
 
   { id: 'memory-brains', group: 'Models', title: 'Memory, brains and swaps', words: 'free memory idle unload picture wait small brain big brain swap one brain context graphics memory ram keep light tools all tools at once',
     html: `<ul><li><strong>Free memory when Bob is idle</strong> (top of the chat, on unless you turn it off): while Bob is quiet nothing stays on your graphics card. Typing loads his small brain again in a few seconds.</li>
-<li><strong>Big brains</strong> (Coding, Deep thought) load only for their job and go about 2 minutes later.</li>
+<li><strong>Big brains</strong> (Coding, and Medium effort and up) load only for their job and go about 2 minutes later.</li>
 <li><strong>Brain swaps:</strong> when a job needs a different brain, Bob puts one away and loads the other, usually 10 to 20 seconds. Using one brain for several jobs avoids that.</li>
-<li><strong>Show pictures without waiting for Bob's brain</strong> (Settings, Advanced, on unless you turn it off): after a picture or clip, Bob shows it straight away with a short line instead of loading his brain back first. His brain loads again when you start typing.</li>
+<li><strong>Show pictures without waiting for Bob's brain</strong> (Settings, Advanced, on unless you turn it off): after a picture or clip, Bob shows it straight away with a short line instead of loading his brain back first. His Quick brain then loads back right away, so a follow-up is answered fast.</li>
+<li><strong>Make another picture?</strong> After a picture, the chat box asks for a few seconds. Make another keeps the picture model ready for the next one; No thanks (or letting it go away) lets Bob go back to his Quick brain.</li>
 <li><strong>One brain (snappier)</strong> in Settings makes every copy of Bob use the main brain, so he never swaps.</li>
 <li><strong>Context</strong> (how much Bob keeps in mind): more lets him read longer files and chats, but uses more graphics memory and loads slower. Set it per session in Settings, Brains.</li>
 <li><strong>Tools only when needed:</strong> Bob starts each chat with a few everyday tools, and adds the picture, file and Hands ones when a message needs them. That leaves more room for your chat. To send them all every time, turn on <strong>Give Bob all his tools at once</strong> in Settings, Show advanced settings, Engines &amp; speed.</li>
 <li><strong>Now running, Memory</strong> shows how full the graphics card and RAM are, and which brain is loaded.</li></ul>
 <p>Effort (above the chat box): Low answers from one quick brain on the graphics card (or on the processor, if you switch that on in Settings). Medium uses one big brain. High and Extreme add a second check by the Review brain, which is slower. It goes back to Low when Bob restarts.</p>` },
 
-  { id: 'sessions', group: 'Using Bob', title: 'Sessions', words: 'session normal art coding office deep thought light gaming',
+  { id: 'sessions', group: 'Using Bob', title: 'Sessions', words: 'session normal art coding office gaming games light graphics card free',
     html: `<p>The <strong>Session</strong> picker at the bottom of the menu tells Bob how to share your PC with you.</p>
-<ul><li><strong>Normal:</strong> everyday use.</li><li><strong>Art:</strong> Bob chats on his Quick brain so painting and video get the graphics card.</li><li><strong>Coding:</strong> the Coding brain leads.</li><li><strong>Office:</strong> documents, spreadsheets and planning.</li><li><strong>Deep thought:</strong> the strongest brain, for hard questions. Slower.</li><li><strong>Light / gaming:</strong> Bob uses as little of your PC as he can.</li></ul>
+<ul><li><strong>Normal:</strong> everyday use.</li><li><strong>Art:</strong> Bob chats on his Quick brain so painting and video get the graphics card.</li><li><strong>Coding:</strong> the Coding brain leads.</li><li><strong>Office:</strong> documents, spreadsheets and planning.</li><li><strong>🎮 Gaming:</strong> keeps the graphics card completely free for games. Bob chats and listens on the processor with a small brain (Qwen3 4B), so replies start slower, about half a minute. Pictures, clips, music and Medium-or-higher jobs wait in Tasks ("Waiting · Gaming is on") until you switch back. Effort stays on Low.</li></ul>
+<p>Session: what the graphics card is kept for. Effort: how hard Bob works on each message.</p>
 <p>Bob may suggest a session, but he never switches by himself.</p>` },
 
   { id: 'personality', group: 'Using Bob', title: 'Bob\'s personality', words: 'attributes dials wit puns presets reset',
@@ -83,7 +85,8 @@ export const HELP = [
 
   { id: 'effort', group: 'Using Bob', title: 'Effort: Low, Medium, High and Extreme', words: 'effort low medium high extreme processor cpu moot review second look check careful quick slow reviewer',
     html: `<p>Above the chat box, <strong>Effort</strong> sets how hard Bob works on your next messages.</p>
-<ul><li><strong>Low</strong> (the default): a quick answer from the Quick brain. If you switch on "Keep the graphics card free for quick answers" (Settings, Advanced, Engines & speed), it runs on the processor in the Normal and Light sessions, so games and pictures keep the card, but replies take about half a minute to start.</li><li><strong>Medium</strong>: one big brain (Deep thinking, or the main Brain if that slot is empty) thinks it through on the graphics card. No second check.</li><li><strong>High</strong>: Bob calls a <em>moot</em>, a meeting with his copies. A big brain drafts the answer, then his reviewer copy checks it on the Review brain. Code problems go back to the workbench for one fix.</li><li><strong>Extreme</strong>: like High, and coding goes in three steps, research, plan, then the changes, with the reviewer checking after each one. He also checks the fixes again. Slowest: on one graphics card every check swaps brains.</li></ul>
+<p>Session: what the graphics card is kept for. Effort: how hard Bob works on each message. In the Gaming session Effort stays on Low, because the bigger levels need the graphics card.</p>
+<ul><li><strong>Low</strong> (the default): a quick answer from the Quick brain. If you switch on "Keep the graphics card free for quick answers" (Settings, Advanced, Engines & speed), it runs on the processor in the Normal session, so games and pictures keep the card (the Gaming session always does this), but replies take about half a minute to start.</li><li><strong>Medium</strong>: one big brain (Deep thinking, or the main Brain if that slot is empty) thinks it through on the graphics card. No second check.</li><li><strong>High</strong>: Bob calls a <em>moot</em>, a meeting with his copies. A big brain drafts the answer, then his reviewer copy checks it on the Review brain. Code problems go back to the workbench for one fix.</li><li><strong>Extreme</strong>: like High, and coding goes in three steps, research, plan, then the changes, with the reviewer checking after each one. He also checks the fixes again. Slowest: on one graphics card every check swaps brains.</li></ul>
 <p>At the end you see the <strong>moot minutes</strong>: who checked what, and whether anything is still open. The big brains are freed when the job ends. Effort goes back to Low each time Bob starts.</p>` },
 
   { id: 'topics', group: 'Using Bob', title: 'Topics, past chats and forgetting', words: 'topics search past chats forget pin merge rename',
@@ -175,7 +178,7 @@ export const HELP = [
 <dt>Context</dt><dd>How much Bob keeps in mind at once.</dd>
 <dt>Squeezed version</dt><dd>A smaller copy of a model (GGUF) that fits small cards, with a little less detail.</dd>
 <dt>Engine</dt><dd>The program that runs a kind of model. Bob offers it when a model needs it.</dd>
-<dt>Session</dt><dd>How Bob shares your PC with you: Normal, Art, Coding, Office, Deep thought, Light.</dd>
+<dt>Session</dt><dd>What the graphics card is kept for: Normal, Art, Coding, Office, Gaming.</dd>
 <dt>Hands</dt><dd>Bob doing things on your PC (files, programs, schedules, apps). Off until you turn them on.</dd>
 <dt>Equip Bob</dt><dd>The page where you choose which model does each job.</dd>
 <dt>Now running</dt><dd>The right-hand panel: tasks, downloads and memory.</dd>

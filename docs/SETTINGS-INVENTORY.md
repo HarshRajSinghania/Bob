@@ -78,3 +78,13 @@ Update this file in the same handover as any change to settings.
 | Settings > Advanced > Engines & speed (above "Keep the graphics card free for quick answers") | Show pictures without waiting for Bob's brain: "Bob shows a finished picture or clip straight away with a short line, instead of loading his brain back just to talk about it. Turn off if you want him to comment on each one." | on (1.5.20: skips the 6 s quick-brain / 22-29 s big-brain reload after a picture) | ok (approved with edits) |
 | Settings > Advanced > Hands > Quarantine | Let the reviewer quarantine Bob ("If Bob or one of his copies goes off track, <reviewer> (his reviewer) stops him and asks you whether to quarantine him. Nothing happens without your click." + More) | off | ok (approved with edits, quarantine) |
 | Chat page | 🔒 quarantine banner (only while someone is in quarantine): what happened + Release <name> | hidden | ok (approved with edits, quarantine) |
+
+## Changed in 1.5.23 (Sessions and Effort, sharper split) — approved by the settings thread (the user picked "Keep both, sharper split")
+| Where | What | Default | Review |
+|---|---|---|---|
+| Session picker | Deep thought removed (Medium/High effort does that job); a saved "deep" becomes Normal. The Deep thinking slot in Equip stays (Medium and up use it) | Normal | ok |
+| Session picker | 🎮 Gaming (was Light / gaming, id still `light`): "Keeps the graphics card completely free for games. Bob chats and listens on the processor (replies start slower, about half a minute). Pictures and big jobs wait until you switch back." | off (Normal) | ok |
+| Chat page, Effort | In Gaming, Medium/High/Extreme are greyed out: "Gaming keeps the graphics card free. Switch session to use more effort." | Low | ok |
+| Tasks | In Gaming, picture/clip/music and Medium-and-up jobs wait: "Waiting · Gaming is on", "Switch the session to Normal to run it." | — | ok |
+| Settings > Equip, Session brains | Gaming session brain (`sessionBrains.gaming`), default Qwen3 4B (router test 23/25) | qwen3:4b | ok |
+| Help, Sessions and Effort | "Session: what the graphics card is kept for. Effort: how hard Bob works on each message." | — | ok |

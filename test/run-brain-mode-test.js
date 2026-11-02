@@ -21,7 +21,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 check('default is "Free memory when Bob is idle" on', brainMode({}) === 'wake' && !holdsChatBrain({ models: { bob: 'a' } }));
 check('off keeps the small brain', brainMode({ brainMode: 'always' }) === 'always' && holdsChatBrain({ brainMode: 'always', models: { bob: 'a' } }));
 check('Advanced "Never" (an old -1 keep-alive) is the same as the switch off', brainMode({ ollamaKeepAlive: '-1' }) === 'always');
-check('off does not hold a big brain: Coding and Deep thought sessions still free it', !holdsChatBrain({ brainMode: 'always', session: 'deep', models: { bob: 'a' } }) && !holdsChatBrain({ brainMode: 'always', session: 'coding', models: { bob: 'a' } }) && holdsChatBrain({ brainMode: 'always', session: 'light', models: { bob: 'a' } }));
+check('off does not hold a big brain: the Coding session still frees it', !holdsChatBrain({ brainMode: 'always', session: 'coding', models: { bob: 'a' } }) && holdsChatBrain({ brainMode: 'always', session: 'light', models: { bob: 'a' } }));
 check('the label says the idle time in words', sleepAfterText({}) === '5 minutes' && sleepAfterText({ ollamaKeepAlive: '1h' }) === '1 hour' && sleepAfterText({ ollamaKeepAlive: '30m' }) === '30 minutes' && sleepAfterText({ ollamaKeepAlive: '-1' }) === null);
 {
   const { msText, bigGraceMs, keepTime } = await import('../src/brain-mode.js');
@@ -99,13 +99,13 @@ check('off: after a big job, the big brain goes and the small brain is loaded ag
 check('off: the engines are told to hold the small brain (and only it)', real0.engine.holdModel() === 'small:4b' && real0.engine.keepFor('small:4b') === -1 && real0.engine.keepFor('coder:30b') === undefined);
 check('label says off', (await brain.brainStatus()).mode === 'always' && (await brain.brainStatus()).holds === true);
 
-// Deep thought: the chat brain is big; off doesn't hold it, a 2-minute grace does
-cfg.session = 'deep'; cfg.sessionBrains = { deep: 'thinker:20b' };
+// Coding: the chat brain is big; off doesn't hold it, a 2-minute grace does
+cfg.session = 'coding'; cfg.sessionBrains = { coding: 'thinker:20b' };
 loaded.clear(); loaded.set('thinker:20b', 13);
 preloads.length = 0;
 await brain.settle();
-check('Deep thought: its big brain is kept for a follow-up (2-minute grace), not reloaded as the small one', loaded.has('thinker:20b') && preloads.length === 0 && brain.graceTimer);
-check('label: Deep thought says it is a big-brain session', (await brain.brainStatus()).bigSession === true && (await brain.brainStatus()).holds === false);
+check('Coding: its big brain is kept for a follow-up (2-minute grace), not reloaded as the small one', loaded.has('thinker:20b') && preloads.length === 0 && brain.graceTimer);
+check('label: Coding says it is a big-brain session', (await brain.brainStatus()).bigSession === true && (await brain.brainStatus()).holds === false);
 clearTimeout(brain.graceTimer);
 delete cfg.session; delete cfg.sessionBrains; cfg.brainMode = 'wake';
 

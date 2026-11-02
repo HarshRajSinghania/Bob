@@ -41,7 +41,7 @@ Verdicts are **Approved**, **Approved with edits** (make the listed edits, no se
 | Now running | activity, status panel |
 | Tasks | queue, notice board, jobs list |
 | Downloads | download manager |
-| Session (Normal, Art, Coding, Office, Deep thought, Light) | mode, profile |
+| Session (Normal, Art, Coding, Office, Gaming) | mode, profile |
 | Colours | theme (on Everyday pages; "theme" is fine in the theme editor) |
 | Bob's look | avatar, sprite |
 | Hands | tools, actions |

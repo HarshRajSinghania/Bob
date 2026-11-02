@@ -23,7 +23,7 @@ export function draftBrain(cfg, effort = 'high') {
   return model ? { model, cpu: false, think: cleanEffort(effort) === 'medium' ? 'medium' : 'high', ctx: null } : null;
 }
 // A helper copy at Medium and up: coding on the Coding slot, everything else on the big thinker, always on the card.
-// (Effort is the user's explicit choice, so it beats the session, e.g. Light / gaming keeping everything small.)
+// (Effort is the user's explicit choice, so it beats the session, except in the Gaming session, where bigger jobs wait until the session changes.)
 export function hatBrain(cfg, hat, effort) {
   if (hat === 'tinker' && cfg.models?.tinker) return { model: cfg.models.tinker, cpu: false, think: undefined, ctx: null };
   return draftBrain(cfg, effort);

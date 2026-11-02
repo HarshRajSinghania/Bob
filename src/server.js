@@ -158,6 +158,12 @@ const server = http.createServer(async (req, res) => {
     }
     // Keep Bob light (1.5.2): the Brain label on the chat page, and waking the small brain when someone types.
     if (req.method === 'GET' && p === '/api/brain') return send(res, 200, await brain.brainStatus());
+    if (req.method === 'POST' && p === '/api/more-pictures') {
+      // "Make another picture?" in the chat box: { id, more }. An old card (timed out, replaced) just says so.
+      const b = await body(req);
+      const ok = brain.answerMore(String(b.id || ''), b.more === true, 'click');
+      return send(res, 200, { ok });
+    }
     if (req.method === 'POST' && p === '/api/wake') { brain.lastActivity = Date.now(); brain.wake('typing').catch(() => {}); return send(res, 200, { ok: true }); }
     if (req.method === 'GET' && p === '/api/status') return send(res, 200, { ...(await brain.status()), version: VERSION });
     if (req.method === 'GET' && p === '/api/history') {

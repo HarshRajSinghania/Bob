@@ -9,6 +9,7 @@
 // No model calls in here.
 import fs from 'node:fs';
 import { sameModel } from './brain-mode.js';
+import { gaming } from './sessions.js';
 import { describe } from './verify.js';
 
 const sleep = (ms, signal) => new Promise((resolve, reject) => {
@@ -147,6 +148,11 @@ export class Gate {
   // need({ id: 'brain', model, opts }, { signal, emit, who, announce }) -> the model that's loaded (it can be a fallback).
   // need({ id: 'painter', kind }) and need({ id: 'card' }) -> the names that were let go to make room.
   async need(dep, { signal, emit = () => {}, who = 'bob', announce } = {}) {
+    // 1.5.23: Gaming keeps the card completely free. Brains run on the processor; the painter and workshop don't start.
+    if (this.brain?.cfg && gaming(this.brain.cfg)) {
+      if (dep.id === 'brain') dep = { ...dep, opts: { ...(dep.opts || {}), cpu: true } };
+      else { const e = new Error('Gaming is on, so the graphics card is kept free for the game. Tell the user it will be made after they switch the session to Normal; don\'t try again now.'); e.code = 'gaming'; throw e; }
+    }
     if (dep.id === 'brain') return this.needBrain(dep, { signal, emit, who, announce });
     if (dep.id === 'painter' || dep.id === 'card') return this.needCard(dep, { signal, emit });
     throw new Error(`Unknown dependency ${dep.id}.`);

@@ -11,8 +11,8 @@ const gb = (n) => (n == null ? '' : n >= 1 ? `${(+n).toFixed(n >= 10 ? 0 : 1)} G
 // embed = housekeeping's topic matcher). cats: catalog categories that fit. off: can it be emptied, and what then.
 export const SLOTS = [
   { id: 'bob', name: 'Brain', icon: '🧠', side: 'L', how: 'job', kind: 'llm', cats: ['chat', 'coding'], does: 'Thinks, chats and plans. Everything else hangs off this.', empty: "No brain: Bob can't think or chat" },
-  { id: 'small', name: 'Quick brain', icon: '⚡', side: 'L', how: 'brain', kind: 'llm', cats: ['chat'], does: 'A small, fast brain for the Art and Light / gaming sessions, so games and the painter keep the card.', empty: 'No quick brain: Art and Light sessions have nothing small to run' },
-  { id: 'deep', name: 'Deep thinking', icon: '🔭', side: 'L', how: 'brain', kind: 'llm', cats: ['chat', 'coding'], does: 'The strongest thinker, for the Deep thought session.', empty: 'Uses the Review or main brain' },
+  { id: 'small', name: 'Quick brain', icon: '⚡', side: 'L', how: 'brain', kind: 'llm', cats: ['chat'], does: 'A small, fast brain for quick answers and the Art session, so games and the painter keep the card.', empty: 'No quick brain: Art and Light sessions have nothing small to run' },
+  { id: 'deep', name: 'Deep thinking', icon: '🔭', side: 'L', how: 'brain', kind: 'llm', cats: ['chat', 'coding'], does: 'The strongest thinker, for Medium, High and Extreme effort.', empty: 'Uses the Review or main brain' },
   { id: 'tinker', name: 'Coding', icon: '🔨', side: 'L', how: 'job', kind: 'llm', cats: ['coding', 'chat'], does: 'Writes and fixes code.', empty: 'No coding brain: the main brain codes', off: true },
   { id: 'reviewer', name: 'Review', icon: '🧐', side: 'L', how: 'job', kind: 'llm', cats: ['chat', 'coding'], does: 'Checks code and plans carefully before you rely on them.', empty: 'Empty: the main brain checks its own work', off: true },
   { id: 'eyes', name: 'Seeing pictures', icon: '👁', side: 'L', how: 'job', kind: 'llm', cats: ['vision'], does: 'Looks at pictures and screenshots you attach.', empty: "Empty: the main brain must see pictures itself, or Bob can't", off: true },

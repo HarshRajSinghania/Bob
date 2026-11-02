@@ -70,8 +70,8 @@ brain.engine = { chat: async ({ model, think }) => { seen.push({ model, think })
 const ask = async (effort) => { seen.length = 0; await brain.runOn([], 'hi', () => {}, new AbortController().signal, [], { id: 'j', effort }, 's'); return seen[0]; };
 check('Low: the chat brain answers without thinking first', (await ask('low')).think === false);
 check('Medium: the big brain thinks, on a budget', (await ask('medium')).think === 'medium');
-cfg.session = 'deep';
-check('Deep thought session at Low: its "high" level is kept', (await ask('low')).think === 'high');
+cfg.session = 'light';
+check('Gaming session at Low: still no thinking first', (await ask('low')).think === false);
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

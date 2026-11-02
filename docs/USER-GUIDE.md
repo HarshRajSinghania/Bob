@@ -164,8 +164,9 @@ Next to Bob's name is the **session** picker. A session tells Bob how to share y
 - **Art:** Bob keeps chatting on his Quick brain so the big graphics work (painting, video) gets the card.
 - **Coding:** the Coding brain leads.
 - **Office:** documents, spreadsheets and planning.
-- **Deep thought:** the strongest brain, for hard questions. Slower.
-- **Light / gaming:** Bob uses as little of your PC as he can, so your games run well.
+- **Gaming:** keeps the graphics card completely free for games. Bob chats and listens on the processor (replies start slower, about half a minute). Pictures and big jobs wait until you switch back, and Effort stays on Low.
+
+Session: what the graphics card is kept for. Effort: how hard Bob works on each message.
 
 Bob may suggest a session, but he never switches by himself.
 

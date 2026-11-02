@@ -704,6 +704,7 @@ details.more > summary:hover { color: var(--accent); }
 .effort [data-effort] small { font-size: 10px; color: var(--muted); }
 .effort [data-effort][aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .effort [data-effort][aria-checked="true"] small { color: inherit; opacity: .85; }
+.effort [data-effort]:disabled { opacity: .45; cursor: not-allowed; }
 .effort [data-effort]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .effort-hint { flex: 1 1 220px; min-width: 0; font-size: 11px; }
 @media (forced-colors: active) { .effort [data-effort][aria-checked="true"] { border: 2px solid Highlight; } }
@@ -808,3 +809,19 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .q-trail code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .q-card .yes { background: var(--danger-bg); border-color: var(--bad); }
 .q-box { margin-top: 14px; }
+
+/* 1.5.21: several pictures or clips in one reply: a grid that fits the window (no scrolling to see them all). */
+.media-grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 6px; margin-top: 6px;
+  width: min(100%, calc((100vh - 230px - var(--rows) * 40px) * var(--cols) / var(--rows))); min-width: min(100%, 240px); }
+.media-grid .out-card { width: auto; margin-top: 0; padding: 4px; min-width: 0; }
+.media-grid .out-thumb img, .media-grid .out-media { width: 100%; height: auto; max-height: none; aspect-ratio: 1; object-fit: contain; display: block; margin: 0 0 4px; }
+.media-grid .out-head { font-size: 0.85em; }
+.media-grid .out-what, .media-grid .out-tools .mini[data-reveal] { display: none; }
+
+/* 1.5.21: "Make another picture?" takes the chat box's place for a few seconds. */
+.composer.asking > :not(.more-bar) { display: none !important; }
+.more-bar { display: flex; align-items: center; gap: 10px; flex: 1; min-height: 44px; flex-wrap: wrap; }
+.more-bar .more-q { font-weight: 600; }
+.more-bar .more-left { margin-left: auto; }
+.more-bar .more-btn { min-height: 32px; min-width: 120px; padding: 6px 14px; border-radius: var(--r); border: 1px solid var(--line); background: var(--panel); color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+.more-bar .more-btn:hover, .more-bar .more-btn:focus-visible { border-color: var(--accent); }
