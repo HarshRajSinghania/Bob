@@ -646,6 +646,7 @@ export class ModelShop {
     // Brains not in Bob's list: ask the engine what each can do (vision, tools...), so Equip Bob only offers
     // them for jobs they can do. Asked once per name.
     await Promise.all(llms.filter((o) => !this.catalog.models.some((x) => x.ollama === o.value)).map(async (o) => { o.caps = await this.capsOf(o.value); }));
+    const ownEmbed = []; // 1.5.72: an embedding model downloaded as a file (nomic-embed-text), for Bob's own engine
     const opts = { images: [], edit: [], video: [], voice: [], speech: [{ value: 'windows', label: 'Windows voices (built in)' }], music: [], sfx: [] };
     const aw = audioReady(this.cfg);
     if (aw.music) opts.music.push({ value: 'ace-step', label: 'ACE-Step (audio tools)' });
@@ -654,6 +655,7 @@ export class ModelShop {
     for (const m of this.catalog.models) {
       const st = await this.statusOf(m, ollama);
       if (st.state !== 'installed') continue;
+      if (m.category === 'embed') { if (st.located.gguf) ownEmbed.push({ value: m.id, label: `${m.name} (Bob's own engine)` }); continue; }
       if (st.located.gguf && !llms.some((l) => l.value === m.id)) llms.push({ value: m.id, label: `${m.name} (Bob's own engine)` });
       if (m.use?.painter?.sdcpp?.edit) opts.edit.push({ value: m.id, label: m.name });
       else if (opts[m.category]) opts[m.category].push({ value: m.id, label: m.name });
@@ -679,8 +681,8 @@ export class ModelShop {
     const speechNow = tp === 'piper' || tp === 'kokoro' ? (this.cfg.tts?.model && this.catalog.models.find((m) => m.category === 'speech' && m.use?.tts?.provider === tp && this.locate(m).model === this.cfg.tts.model)?.id) || (tp === 'kokoro' ? 'kokoro-v1' : '') : tp === 'chatterbox' ? 'chatterbox' : 'windows';
     const editNow = this.catalog.models.find((m) => m.use?.painter?.sdcpp?.edit && p.sdcpp?.edit?.diffusionModel && this.locate(m).diffusionModel === p.sdcpp.edit.diffusionModel)?.id || '';
     const current = { ...Object.fromEntries(ModelShop.JOBS.filter((j) => j.kind === 'llm').map((j) => [j.id, this.cfg.models?.[j.id] || ''])), image: imgCur, edit: editNow, video: vidCur, voice: sttNow, speech: speechNow, music: aw.music ? 'ace-step' : '', sfx: aw.sfx ? 'audioldm2' : '' };
-    // Embedding models (for matching Topics by meaning), from Ollama only; never downloaded by Bob.
-    const embed = [...names].filter((n) => /embed/.test(n)).sort().map((n) => ({ value: n, label: n }));
+    // Embedding models (for matching Topics by meaning): Bob's own downloaded file first, then any in Ollama.
+    const embed = [...ownEmbed, ...[...names].filter((n) => /embed/.test(n)).sort().map((n) => ({ value: n, label: n }))];
     const embNow = this.cfg.housekeeping?.embedModel || 'nomic-embed-text';
     current.embed = embed.find((o) => o.value === embNow || o.value.split(':')[0] === embNow)?.value || '';
     return { jobs: ModelShop.JOBS, options: { llm: llms, ...opts, embed }, current, maestroRunning: maestro.length > 0 };

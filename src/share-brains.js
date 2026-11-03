@@ -16,6 +16,10 @@ import fs from 'node:fs';
 import { isTailscaleIp } from './phone-access.js';
 
 export const PROTOCOL = 1;
+// About how many tokens a request is (4 characters a token is close enough to decide whether it fits a brain's room).
+export const roughTokens = (x) => Math.ceil(JSON.stringify(x || '').length / 4);
+export const REPLY_ROOM = 1024; // room left for the answer itself
+const WARM_FOR = 10 * 60000; // a Bob used this recently still has our chat in its prompt cache
 export const WHEN = ['gaming', 'busy', 'always'];
 export const HELLO_MS = 2500; // "are you there?" gets this long
 export const FIRST_WORD_MS = 12000; // a lender that hasn't started answering by then is dropped for this reply
@@ -42,8 +46,9 @@ export function shareView(cfg) {
   const b = s.borrow || {};
   return {
     lend: s.lend === true,
+    takeJobs: s.takeJobs === true,
     doorOpen: doorOpen(cfg),
-    borrow: { on: b.on === true, when: WHEN.includes(b.when) ? b.when : 'gaming', bobs: (b.bobs || []).map((x) => ({ name: x.name, address: x.address, passcodeSet: String(x.passcode || '').length >= 6 })) }
+    borrow: { on: b.on === true, jobs: b.jobs === true, when: WHEN.includes(b.when) ? b.when : 'gaming', bobs: (b.bobs || []).map((x) => ({ name: x.name, address: x.address, passcodeSet: String(x.passcode || '').length >= 6 })) }
   };
 }
 
@@ -53,8 +58,10 @@ export const doorOpen = (cfg) => Boolean(cfg.remote?.enabled && String(cfg.remot
 export function cleanSharePatch(cfg, b) {
   const cur = cfg.share || {};
   const cb = cur.borrow || {};
-  const next = { lend: cur.lend === true, borrow: { on: cb.on === true, when: WHEN.includes(cb.when) ? cb.when : 'gaming', bobs: (cb.bobs || []).slice() } };
+  const next = { lend: cur.lend === true, takeJobs: cur.takeJobs === true, borrow: { on: cb.on === true, jobs: cb.jobs === true, when: WHEN.includes(cb.when) ? cb.when : 'gaming', bobs: (cb.bobs || []).slice() } };
   if ('lend' in b) next.lend = b.lend === true;
+  if ('takeJobs' in b) next.takeJobs = b.takeJobs === true; // 1.5.72, off unless switched on
+  if ('sendJobs' in b) next.borrow.jobs = b.sendJobs === true; // 1.5.72, off unless switched on
   if ('when' in b) { if (!WHEN.includes(b.when)) return { error: 'Pick when to borrow.' }; next.borrow.when = b.when; }
   if (b.addBob) {
     const address = cleanAddress(b.addBob.address);
@@ -70,7 +77,7 @@ export function cleanSharePatch(cfg, b) {
   if (b.removeBob) next.borrow.bobs = next.borrow.bobs.filter((x) => x.address !== cleanAddress(b.removeBob));
   if (Array.isArray(b.order)) { const at = (a) => { const i = b.order.map((x) => cleanAddress(x)).indexOf(a); return i < 0 ? 99 : i; }; next.borrow.bobs.sort((x, y) => at(x.address) - at(y.address)); }
   if ('borrow' in b) next.borrow.on = b.borrow === true;
-  if (next.borrow.on && !next.borrow.bobs.length) return { error: 'Add one of your other Bobs first.' };
+  if ((next.borrow.on || next.borrow.jobs) && !next.borrow.bobs.length) return { error: 'Add one of your other Bobs first.' };
   return { share: next };
 }
 
@@ -116,6 +123,9 @@ export async function lendChat(brain, req, res, b, deps) {
   if (why) { res.writeHead(409, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ busy: why })); }
   const ask = cleanLendRequest(b);
   if (ask.error) { res.writeHead(400, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ error: ask.error })); }
+  // 1.5.72: a Bob knows his limits. A chat that won't fit his quick brain's room is turned down before he starts.
+  const room = deps.quickBrain(brain)?.ctx || 32768;
+  if (roughTokens(ask) + REPLY_ROOM > room) { res.writeHead(409, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ busy: 'too long', ctx: room })); }
   const stop = new AbortController();
   req.on('close', () => { if (!res.writableEnded) stop.abort(); });
   brain.lending = { since: Date.now(), for: cleanName(b.from) || 'another Bob' };
@@ -160,7 +170,12 @@ export class Lenders {
     this.cfg = cfg; this.fetch = fetchFn; this.now = now; this.firstWordMs = firstWordMs; this.quietMs = quietMs;
     this.cookies = new Map(); // address -> bob_auth cookie (memory only)
     this.state = new Map(); // address -> { ok, at, brain, why }
+    // 1.5.72: Bobs thinking for us right now (address -> held until), so two replies at once go to two different Bobs.
+    this.inUse = new Map();
   }
+  busyHere(address) { const t = this.inUse.get(address); return t !== undefined && t > this.now(); }
+  hold(address, ms = 15000) { this.inUse.set(address, this.now() + ms); }
+  release(address) { this.inUse.delete(address); }
   bobs() { return (this.cfg.share?.borrow?.bobs || []).filter((x) => cleanAddress(x.address)); }
 
   async call(bob, path, { method = 'GET', body, signal, timeout = HELLO_MS } = {}) {
@@ -195,19 +210,64 @@ export class Lenders {
       const r = await this.call(bob, '/api/lend/hello');
       const j = await r.json().catch(() => ({}));
       out = r.ok && j.lend === true && !j.busy ? { ok: true, brain: String(j.brain || '').slice(0, 60), device: String(j.device || '').slice(0, 20) } : { ok: false, why: j.busy || (r.status === 401 ? 'passcode not accepted' : r.status === 403 ? 'door closed' : `answered ${r.status}`) };
+      // 1.5.72: what this Bob says he can do. ctx: his quick brain's room; speed: words a second he's seen lately;
+      // jobs: whole jobs he takes (only with "Take jobs from my other Bobs" on there), and how busy his queue is.
+      if (r.ok) Object.assign(out, cleanAbilities(j));
     } catch (e) { out = { ok: false, why: /passcode|tries/.test(e.message) ? e.message : 'not reachable' }; }
+    const seen = this.state.get(bob.address);
+    if (seen?.measured) out.measured = seen.measured; // what we timed ourselves outlives a hello
     out.at = this.now();
     this.state.set(bob.address, out);
     return out;
   }
 
-  markDown(bob, why) { this.state.set(bob.address, { ok: false, why, at: this.now() }); }
+  // Keeps what he told us he can do (his room, his jobs) and what we timed; only today's yes becomes a no.
+  markDown(bob, why) { const s = this.state.get(bob.address) || {}; this.state.set(bob.address, { ...s, ok: false, why, at: this.now() }); }
 
-  // The first of your Bobs (in your order) that says yes, or null.
-  async pick() {
-    for (const bob of this.bobs()) { const s = await this.hello(bob); if (s.ok) return { ...bob, brain: s.brain, device: s.device }; }
-    return null;
+  // The first of your Bobs (in your order) that says yes and isn't already thinking for us, or null.
+  // `skip`: addresses already tried for this reply. The pick is held for a moment, so a second reply at the same time
+  // goes to the next Bob on the list instead of queueing behind this one.
+  //
+  // 1.5.72, smarter: every free Bob is asked at once, and only those with room for this chat count (a phone with a small
+  // brain is never handed a chat it would have to turn down). Of those, the one that still has our chat in mind (used in
+  // the last 10 minutes, so he doesn't read it all again) goes first, then the fastest, going by what we timed ourselves
+  // or what he says. Your order breaks ties.
+  async pick({ skip = [], tokens = 0 } = {}) {
+    const list = this.bobs().filter((b) => !skip.includes(b.address) && !this.busyHere(b.address));
+    const seen = await Promise.all(list.map((b) => this.hello(b).catch(() => ({ ok: false }))));
+    const fits = list.map((bob, i) => ({ bob, s: seen[i], i })).filter(({ s }) => s.ok && (!s.ctx || !tokens || tokens + REPLY_ROOM <= s.ctx));
+    if (!fits.length) return null;
+    const now = this.now();
+    const warm = (s) => (s.measured?.lastUsed && now - s.measured.lastUsed < WARM_FOR ? 1 : 0);
+    const speed = (s) => s.measured?.tokPerSec || s.speed || 0;
+    fits.sort((a, b) => (warm(b.s) - warm(a.s)) || (speed(b.s) - speed(a.s)) || (a.i - b.i));
+    const { bob, s } = fits.find((x) => !this.busyHere(x.bob.address)) || {};
+    if (!bob) return null;
+    this.hold(bob.address);
+    return { ...bob, brain: s.brain, device: s.device };
   }
+
+  // 1.5.72: the Bob for a whole job: he must say he takes jobs, list this kind as one he can do right now, and not be
+  // gaming or full. The least busy goes first (fewest jobs in his Tasks), your order breaking ties.
+  async pickForJob(need) {
+    const list = this.bobs().filter((b) => !this.busyHere(`job:${b.address}`));
+    const seen = await Promise.all(list.map((b) => this.hello(b).catch(() => ({}))));
+    const can = list.map((bob, i) => ({ bob, s: seen[i], i })).filter(({ s }) => s.takesJobs && s.jobs?.includes(need) && !s.jobsBusy && !(s.jobsDownUntil > this.now()));
+    can.sort((a, b) => ((a.s.queue || 0) - (b.s.queue || 0)) || (a.i - b.i));
+    const pick = can[0];
+    if (!pick) return null;
+    this.hold(`job:${pick.bob.address}`, 3000); // two jobs at once spread out
+    return { ...pick.bob, brain: pick.s.brain, device: pick.s.device };
+  }
+  // Has any of your Bobs said he can do this kind of job at all (even if he's busy now)?
+  anyCould(need) { return this.bobs().some((b) => this.state.get(b.address)?.jobs?.includes(need)); }
+  // He turned a job down (or couldn't be reached): don't offer him jobs for a minute.
+  noteJobs(bob, why) { const s = this.state.get(bob.address) || { ok: false, at: this.now() }; s.jobsBusy = why; s.jobsDownUntil = this.now() + 60000; this.state.set(bob.address, s); }
+
+  // Why none of your Bobs can take a reply this size right now, for the logbook.
+  tooBigFor(tokens) { return this.bobs().filter((b) => { const s = this.state.get(b.address); return s?.ok && s.ctx && tokens + REPLY_ROOM > s.ctx; }).map((b) => b.name); }
+
+  note(bob, m) { const s = this.state.get(bob.address) || { ok: true, at: this.now() }; s.measured = { ...(s.measured || {}), ...m }; this.state.set(bob.address, s); }
 
   // Would a reply be borrowed right now, going by what we already know (no network)? wake() uses this, so a Bob
   // that's about to borrow doesn't load his own brain while someone types.
@@ -220,9 +280,16 @@ export class Lenders {
     let timer = setTimeout(() => quiet.abort(), this.firstWordMs);
     const kick = () => { clearTimeout(timer); timer = setTimeout(() => quiet.abort(), this.quietMs); };
     const plain = messages.map((m) => { const { images, hidden, correction, ...rest } = m; return rest; });
+    this.hold(bob.address, 24 * 3600 * 1000); // while it thinks; released below
+    const t0 = this.now();
+    let firstAt = 0, words = 0;
     try {
       const r = await this.call(bob, '/api/lend/chat', { method: 'POST', body: { protocol: PROTOCOL, from, messages: plain, tools: tools || [] }, signal: sig, timeout: this.firstWordMs });
-      if (r.status === 409) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error(`said no (${j.busy || 'busy'})`), { busy: true }); }
+      if (r.status === 409) {
+        const j = await r.json().catch(() => ({}));
+        if (j.busy === 'too long' && Number(j.ctx) > 0) { this.note(bob, {}); this.state.get(bob.address).ctx = Number(j.ctx); } // he told us his room: remember it
+        throw Object.assign(new Error(`said no (${j.busy || 'busy'})`), { busy: true, why: j.busy });
+      }
       if (!r.ok) throw new Error(`answered ${r.status}`);
       let buf = '', reply = null;
       const dec = new TextDecoder();
@@ -235,18 +302,57 @@ export class Lenders {
           const ev = JSON.parse(line.slice(5));
           kick();
           // Any event counts as life, including a lender's { type: 'loading' } and { type: 'reading', done, of } while it starts.
-          if (ev.type === 'token' && typeof ev.text === 'string') onToken?.(ev.text);
+          if (ev.type === 'token' && typeof ev.text === 'string') { if (!firstAt) firstAt = this.now(); words++; onToken?.(ev.text); }
+          else if (ev.type === 'error' && ev.busy) { // a phone finds out it's too long only once it starts reading (1.5.72)
+            if (ev.busy === 'too long' && Number(ev.ctx) > 0) { this.note(bob, {}); this.state.get(bob.address).ctx = Number(ev.ctx); }
+            throw Object.assign(new Error(`said no (${ev.busy})`), { busy: true, why: String(ev.busy) });
+          }
           else if (ev.type === 'error') throw new Error(String(ev.error || 'failed'));
           else if (ev.type === 'done') reply = ev.reply;
         }
       }
       if (!reply) throw new Error('stopped mid-answer');
+      const secs = (this.now() - (firstAt || t0)) / 1000;
+      this.note(bob, { lastUsed: this.now(), firstWordMs: (firstAt || this.now()) - t0, ...(words > 8 && secs > 0.2 ? { tokPerSec: Math.round((words / secs) * 10) / 10 } : {}) });
       const calls = Array.isArray(reply.tool_calls) ? reply.tool_calls.filter((c) => c?.function?.name).map((c) => ({ function: { name: String(c.function.name), arguments: c.function.arguments && typeof c.function.arguments === 'object' ? c.function.arguments : {} } })) : [];
       return { role: 'assistant', content: String(reply.content || ''), tool_calls: calls.length ? calls : undefined };
     } catch (e) {
       if (signal?.aborted) throw e;
-      this.markDown(bob, e.busy ? 'busy' : quiet.signal.aborted ? 'too slow' : 'not reachable');
+      if (e.why !== 'too long') this.markDown(bob, e.busy ? (e.why || 'busy') : quiet.signal.aborted ? 'too slow' : 'not reachable'); // too long: he's still fine for shorter chats
       throw quiet.signal.aborted ? new Error('too slow') : e;
-    } finally { clearTimeout(timer); }
+    } finally { clearTimeout(timer); this.hold(bob.address, 5000); }
   }
+}
+
+// ---------- What a Bob can do (1.5.72) ----------
+export const NEEDS = ['pictures', 'video', 'music', 'sfx', 'web', 'think'];
+export function cleanAbilities(j) {
+  const n = (x, max) => (Number.isFinite(Number(x)) && Number(x) > 0 ? Math.min(Number(x), max) : 0);
+  const out = { ctx: n(j?.ctx, 1048576), speed: n(j?.speed, 1000), takesJobs: j?.takesJobs === true };
+  out.jobs = out.takesJobs ? [].concat(j?.jobs || []).filter((x) => NEEDS.includes(x)) : [];
+  out.jobsBusy = typeof j?.jobsBusy === 'string' ? j.jobsBusy.slice(0, 40) : '';
+  out.queue = n(j?.queue, 999);
+  return out;
+}
+
+// The hello a desktop lender gives: quick replies (lend) and, with "Take jobs from my other Bobs" on, the whole jobs he
+// can really do on this computer right now. Never a job he'd have to fake: no picture model, no pictures.
+export function helloFor(brain, { why, quick, can, version, label, webOn, bigBrain }) {
+  const takesJobs = brain.cfg.share?.takeJobs === true && doorOpen(brain.cfg);
+  const jobs = takesJobs ? [can.pictures && 'pictures', can.video && 'video', can.music && 'music', can.sfx && 'sfx', webOn && bigBrain && 'web', bigBrain && 'think'].filter(Boolean) : [];
+  return {
+    protocol: PROTOCOL, lend: why !== 'off', busy: why === 'off' ? undefined : why || undefined,
+    brain: quick ? label(quick.model) : '', ctx: quick?.ctx || 0, speed: brain.engine?.lastStats?.tokPerSec || 0,
+    device: 'computer', version, takesJobs, jobs, jobsBusy: takesJobs ? guestRefusal(brain) : '', queue: brain.queue?.filter?.((j) => j.state === 'waiting' || j.state === 'working').length || 0
+  };
+}
+
+// Why this Bob won't take a whole job right now, or ''. Gaming: the card and processor are the game's.
+export function guestRefusal(brain, { currentSession = brain.lendDeps?.currentSession } = {}) {
+  if (brain.cfg.share?.takeJobs !== true || !doorOpen(brain.cfg)) return 'off';
+  if (currentSession?.(brain.cfg)?.id === 'light') return 'gaming';
+  const guests = brain.queue?.filter?.((j) => j.guest && (j.state === 'waiting' || j.state === 'working')).length || 0;
+  if (guests >= 2) return 'busy';
+  if ((brain.queue?.filter?.((j) => j.state === 'waiting').length || 0) >= 3) return 'busy';
+  return '';
 }

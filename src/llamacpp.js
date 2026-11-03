@@ -13,6 +13,7 @@ import { gaming, LONG_CODER } from './sessions.js';
 import { gamingCard, decideCard, readCard, CARD_BUSY_PCT, CARD_MIN_FREE_MB } from './gaming-card.js';
 import { tuning, cpuPlan, startDir, startFile, promptHash, tidyStarts } from './tuning.js';
 import { exeName } from './platform.js';
+import { Embedder } from './embedder.js';
 
 // 1.5.19: the context a brain gets when nothing else picks one. 32K fits a 26B brain on a 16 GB card.
 
@@ -88,6 +89,28 @@ export function besideThreads(cpus = os.cpus()) {
 import { MID_SYSTEM_REFUSED, foldSystem } from './system-notes.js';
 export { MID_SYSTEM_REFUSED, foldSystem };
 
+// 1.5.35 (a function since 1.5.72, so the housekeeper can find the embedding file too): see catalogFile below.
+export function catalogFileFor(cfg, id) {
+  if (!/^[\w.:/-]+$/.test(id)) return null;
+  try {
+    const cat = JSON.parse(fs.readFileSync(cfg.catalogFile || new URL('../catalog.json', import.meta.url), 'utf8'));
+    const e = cat.models.find((m) => m.id === id) || cat.models.find((m) => m.ollama && (m.ollama === id || `${m.ollama}:latest` === id || m.ollama === `${id}:latest`));
+    const f = e?.files?.find((x) => x.role === 'gguf');
+    if (!f) return null;
+    const root = cfg.bobModelsDir || path.join(cfg.agentDir, 'models', 'bob');
+    let dirs = [e.category];
+    try { dirs = [e.category, ...fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)]; } catch {}
+    // Its own folder first; an older Bob may have filed it under another one (for example chat instead of coding).
+    const find = (x) => { const name = saveNameOf(x); return dirs.map((dir) => path.join(root, dir, name)).find((p) => fs.existsSync(p) && !fs.existsSync(p + '.part')) || idFolderFile(cfg, e, x); };
+    const file = find(f);
+    if (!file) return null;
+    // 1.5.56: a brain that sees pictures has a second file, its picture reader (mmproj), saved under its own name.
+    const pj = e.files.find((x) => x.role === 'mmproj');
+    const mmproj = pj ? find(pj) : null;
+    return mmproj ? { gguf: file, mmproj } : { gguf: file };
+  } catch { return null; }
+}
+
 export class LlamaCpp {
   // Read fresh each time, so speed settings changed in the app apply to the next brain load.
   get lc() { return this.cfg.llamacpp || {}; }
@@ -158,26 +181,7 @@ export class LlamaCpp {
   // 1.5.35: also by Ollama name (like "gpt-oss:20b"): when Bob's own pinned copy of that model is downloaded, his engine
   // uses it instead of Ollama's copy. Measured: Ollama's gpt-oss blob has no chat template and got 2 of 25 tool jobs
   // right on llama.cpp; the official file got 25 of 25.
-  catalogFile(id) {
-    if (!/^[\w.:/-]+$/.test(id)) return null;
-    try {
-      const cat = JSON.parse(fs.readFileSync(this.cfg.catalogFile || new URL('../catalog.json', import.meta.url), 'utf8'));
-      const e = cat.models.find((m) => m.id === id) || cat.models.find((m) => m.ollama && (m.ollama === id || `${m.ollama}:latest` === id || m.ollama === `${id}:latest`));
-      const f = e?.files?.find((x) => x.role === 'gguf');
-      if (!f) return null;
-      const root = this.cfg.bobModelsDir || path.join(this.cfg.agentDir, 'models', 'bob');
-      let dirs = [e.category];
-      try { dirs = [e.category, ...fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)]; } catch {}
-      // Its own folder first; an older Bob may have filed it under another one (for example chat instead of coding).
-      const find = (x) => { const name = saveNameOf(x); return dirs.map((dir) => path.join(root, dir, name)).find((p) => fs.existsSync(p) && !fs.existsSync(p + '.part')) || idFolderFile(this.cfg, e, x); };
-      const file = find(f);
-      if (!file) return null;
-      // 1.5.56: a brain that sees pictures has a second file, its picture reader (mmproj), saved under its own name.
-      const pj = e.files.find((x) => x.role === 'mmproj');
-      const mmproj = pj ? find(pj) : null;
-      return mmproj ? { gguf: file, mmproj } : { gguf: file };
-    } catch { return null; }
-  }
+  catalogFile(id) { return catalogFileFor(this.cfg, id); }
 
   // Ollama name -> GGUF file (+ vision projector), by reading Ollama's manifest.
   resolve(model) {
@@ -439,8 +443,16 @@ export class LlamaCpp {
     return [...(was ? [was] : []), ...side];
   }
 
+  // 1.5.72: the Memory slot's embedding model, on its own small server (src/embedder.js). Same call as Ollama's.
+  embedder() {
+    if (this.role === BESIDE) return this.main.embedder();
+    return (this.embedServer ||= new Embedder(this.cfg, { resolve: (m) => this.catalogFile(m), port: this.lc.embedPort || this.port + 2 }));
+  }
+  async embed(model, input) { return this.embedder().embed(model, input); }
+
   async unloadAll() {
     const was = this.current;
+    if (this.role !== BESIDE) this.embedServer?.stop();
     const side = this.role !== BESIDE ? await this.dropBeside() : [];
     await this.stopServer();
     return [...(was ? [was] : []), ...side];

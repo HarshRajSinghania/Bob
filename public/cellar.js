@@ -3,7 +3,7 @@ import { setLook } from './bob-sprite.js';
 import { progressHtml, animateWorkers } from './progress.js';
 import { createStylePage } from './style-page.js';
 import { createSampler, sampleButton, sampleHint } from './voice-samples.js';
-import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks, starterPlan, slotValue, slotTakes, isActive, tipHtml } from './equip.js';
+import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks, starterPlan, enginesFor, slotValue, slotTakes, isActive, tipHtml } from './equip.js';
 import { suit as fitSuit, picksOf, unsuited, jobNames, SLOT_NAMES, canDo } from './fit.js';
 import { catalogueHtml } from './catalogue.js';
 import { drawBob } from './bob-sprite.js';
@@ -434,7 +434,7 @@ export function createCellar() {
       ${sswitch('webSearch', settings.webSearch === true, 'Let Bob search the web', keep('Off unless you turn it on. Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page addresses leave your PC.'))}
       ${sswitch('autoCheck', settings.updates?.autoCheck, 'Check for updates when Bob starts', 'Off unless you turn it on. Bob looks at his GitHub page for a newer version and only tells you; updating always takes your click.')}
 `)}${EVERY_EXTRA.map(([id, label, note, body]) => panel(id, label, typeof note === 'function' ? note() : note, body())).join('')}${panel('ev-pc', settings.os === 'mac' ? '💻 This Mac and updates' : '💻 This PC and updates', pcSum, `
-      <div class="updates srow-foot"><span class="muted">Bob ${esc(settings.version?.label || '')} · ${hw?.gpu?.integrated ? `Built-in graphics: ${esc(hw.gpu.name.replace(/ \(shared memory\)$/, ''))}, using up to about ${hw.gpu.vramGB} GB of your RAM` : hw?.gpu?.unified ? `Chip: ${esc(hw.gpu.name)}, about ${hw.gpu.vramGB} GB of it for graphics` : `Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'}`} · Free disk: ${hw?.freeGB ?? '?'} GB</span>
+      <div class="updates srow-foot"><span class="muted">Bob ${esc(settings.version?.label || '')} · ${hw?.gpu?.integrated ? `Built-in graphics: ${esc(hw.gpu.name.replace(/ \(shared memory\)$/, ''))}, about ${hw.gpu.vramGB} GB of memory shared with it` : hw?.gpu?.unified ? `Chip: ${esc(hw.gpu.name)}, about ${hw.gpu.vramGB} GB of it for graphics` : `Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'}`} · Free disk: ${hw?.freeGB ?? '?'} GB</span>
         <div class="row"><button type="button" data-checkupdate>Check for updates</button><button type="button" data-welcome>Run first-time setup</button>${settings.features?.pcCheck === false ? '' : '<button type="button" data-pccheck>Check this PC</button>'}<span class="update-out muted"></span></div>
         <div class="update-steps"></div><div class="pc-check" aria-live="polite"></div></div>`)}
     </div>`;
@@ -451,7 +451,7 @@ export function createCellar() {
   // 1.5.32: a three-position switch for how the Gaming session uses the graphics card.
   const GCARD_NOW = { none: 'processor only', borrow: 'borrowing about 0.6 GB', whole: 'small brain on the card (processor busy)' };
   function gamingCardHtml() {
-    if (settings.features?.gamingCard === false || hw?.gpu?.integrated) return ''; // a Mac or built-in graphics share memory: no separate card to lend
+    if (settings.features?.gamingCard === false) return ''; // a Mac shares its memory: there's no separate card to lend
     const cur = settings.gamingCard || 'auto';
     const opts = [['auto', 'Automatic', 'Bob borrows about 0.6 GB of the card only when your game leaves room, and none while the game needs it. If your processor is maxed out, Bob\'s small brain (about 3.5 GB) moves onto the card instead, but only when it fits with room to spare.'],
       ['never', 'Never use the card', 'Processor only: the card is all yours. Bob\'s first reply after loading can take about half a minute, sometimes longer.'],
@@ -591,14 +591,17 @@ export function createCellar() {
     const pack = data.packs.find((p) => p.id === hw.suggestedPack) || data.packs[0];
     const items = pack.models.map((id) => data.models.find((m) => m.id === id)).filter(Boolean);
     const needed = items.filter((m) => m.status.state !== 'installed' && !covered(m));
-    const total = needed.reduce((t, m) => t + m.sizeGB, 0);
+    const engs = enginesFor(items.filter((m) => m.status.state !== 'installed'), data.engines || []).map((id) => engineById(id.slice(7))).filter(Boolean);
+    const engNames = engs.map((e) => e.name);
+    // Settings review: the click is the OK, so the size counts the programs too.
+    const total = needed.reduce((t, m) => t + m.sizeGB, 0) + engs.reduce((t, e) => t + (e.sizeGB || 0), 0);
     return `<div class="welcome">
       <h2>Welcome to Bob</h2>
       <label class="callme"><strong>What should I call you?</strong> <input type="text" data-callme maxlength="40" value="${esc(settings?.callMe || '')}" placeholder="${esc(settings?.windowsName || 'your name')}" aria-label="What should Bob call you?" autocomplete="off"></label>
       <p>I'm Bob. Before I can help, I need a few models. Here's what I'd pick for this PC${hw.gpu ? ` (${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB)` : ''}:</p>
       <label class="pick"><strong>Setup</strong><select data-pack>${data.packs.map((p) => `<option value="${p.id}" ${p.id === pack.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
       <ul class="packlist">${items.map((m) => { const extra = covered(m); return `<li><label><input type="checkbox" data-pick="${esc(m.id)}" ${m.status.state === 'installed' ? 'checked disabled' : extra ? '' : suit(m).level === 'ok' ? 'checked' : suit(m).level === 'blocked' ? 'disabled' : ''}> ${esc(m.name)} <span class="muted">· ${esc(data.categories.find((c) => c.id === m.category)?.label)} · ${m.status.state === 'installed' ? 'already here' : gb(m.sizeGB)}${extra ? ` · ${esc(extra)}` : m.status.state !== 'installed' && suit(m).level !== 'ok' ? ' · not recommended for this PC' : ''}</span></label></li>`; }).join('')}</ul>
-      <p class="muted">${needed.length ? `About ${gb(total)} to download. Free disk: ${hw.freeGB ?? '?'} GB. You can change any of this later in Get models (left menu).` : items.some((m) => m.status.state !== 'installed') ? 'Everything you need is already here. The rest is optional: tick it if you want it.' : 'Everything is already on this PC.'}</p>
+      <p class="muted">${needed.length ? `About ${gb(total)} to download${engNames.length ? `, including the programs they run on (${esc(engNames.join(', '))})` : ''}. Free disk: ${hw.freeGB ?? '?'} GB. You can change any of this later in Get models (left menu).` : items.some((m) => m.status.state !== 'installed') ? 'Everything you need is already here. The rest is optional: tick it if you want it.' : 'Everything is already on this PC.'}</p>
       ${job ? progress() : ''}
       <div class="row"><button class="get" data-getpack ${items.some((m) => m.status.state !== 'installed') ? '' : 'hidden'}>Download the checked ones</button><button data-skip>${needed.length ? 'Skip for now' : 'Done'}</button></div>
     </div>`;
@@ -784,7 +787,7 @@ export function createCellar() {
         const pack = currentPack();
         const { ids, plan } = starterPlan(pack, data.models, data.engines || [], currentPicks());
         const box = dlg.querySelector('.starter-confirm');
-        const names = ids.map((id) => { if (id.startsWith('engine:')) { const e = engineById(id.slice(7)); return `<li>${esc(e?.name || id)} <span class="muted">(engine, ${esc(ENGINE_SIZE[id.slice(7)] || 'small')})</span></li>`; } const m = data.models.find((x) => x.id === id); return `<li>${esc(m.name)} <span class="muted">${gb(m.sizeGB)} from ${m.ollama ? 'Ollama' : 'Hugging Face'} · licence ${esc(m.license)}</span></li>`; }).join('');
+        const names = ids.map((id) => { if (id.startsWith('engine:')) { const e = engineById(id.slice(7)); return `<li>${esc(e?.name || id)} <span class="muted">(engine, ${esc(ENGINE_SIZE[id.slice(7)] || 'small')})</span></li>`; } const m = data.models.find((x) => x.id === id); return `<li>${esc(m.name)} <span class="muted">${gb(m.sizeGB)} from ${m.ollama && (!m.files?.length || settings?.engine === 'ollama') ? 'Ollama' : 'Hugging Face'} · licence ${esc(m.license)}</span></li>`; }).join('');
         const total = ids.reduce((n, id) => n + (data.models.find((m) => m.id === id)?.sizeGB || 0), 0);
         box.hidden = false;
         box.innerHTML = `${ids.length ? `<p>Download these, about ${gb(total)} in all${hw?.freeGB != null ? ` (${hw.freeGB} GB free)` : ''}. Each one is put in its slot when it's done.</p><ul>${names}</ul>${ids.some((id) => ['engine:kokoro', 'engine:audio'].includes(id)) ? '<p class="muted">The Kokoro voice engine needs Python 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> installed first.</p>' : ''}` : '<p>Everything ticked is already on this PC. Bob puts each one in its slot now.</p>'}
@@ -894,7 +897,9 @@ export function createCellar() {
       else if ('scan' in b.dataset) { b.textContent = 'Looking...'; await api('/api/models/scan', {}); await load(); }
       else if ('welcome' in b.dataset) { mode = 'welcome'; draw(); }
       else if ('getpack' in b.dataset) {
-        const ids = [...dlg.querySelectorAll('[data-pick]:checked:not(:disabled)')].map((x) => x.dataset.pick);
+        const picked = [...dlg.querySelectorAll('[data-pick]:checked:not(:disabled)')].map((x) => x.dataset.pick);
+        // 1.5.72: and the engines they run on (llama.cpp, stable-diffusion.cpp...), so nothing is left to get by hand.
+        const ids = [...picked, ...enginesFor(picked.map((id) => data.models.find((m) => m.id === id)), data.engines || [])];
         if (ids.length) { job = await api('/api/models/download', { ids }); draw(); }
       } else if ('skip' in b.dataset) { await api('/api/settings', { setupDone: true }); mode = 'shop'; dlg.close(); }
     } catch (err) { alertIn(b, err.message); }

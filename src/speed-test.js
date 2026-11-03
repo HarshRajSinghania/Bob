@@ -40,7 +40,7 @@ export async function speedTest(brain, { typingMs = 5000 } = {}) {
     await sleep(typingMs);
     const cold = await ask(brain, model, { cpu, ctx }, QUESTIONS[0]);
     const warm = await ask(brain, model, { cpu, ctx }, QUESTIONS[1]);
-    const rec = { at: new Date().toISOString(), version: VERSION.label, model, where: cpu ? 'processor' : cfg.builtInGraphics ? 'built-in graphics' : 'graphics card', session: currentSession(cfg).label, engine: cfg.engine, switches: tuning(cfg), wake, typingS: secs(typingMs), first: cold, next: warm };
+    const rec = { at: new Date().toISOString(), version: VERSION.label, model, where: cpu ? 'processor' : 'graphics card', session: currentSession(cfg).label, engine: cfg.engine, switches: tuning(cfg), wake, typingS: secs(typingMs), first: cold, next: warm };
     const all = [...speedHistory(cfg), rec].slice(-20);
     try { fs.writeFileSync(fileOf(cfg), JSON.stringify(all, null, 2)); } catch {}
     brain.log?.('model', `speed test: ${model} on the ${rec.where}: woke in ${wake} s, first word ${cold.firstWord} s, full answer ${cold.full} s`);

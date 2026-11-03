@@ -151,8 +151,11 @@ export function installedVersion(cfg, e) {
   try { return JSON.parse(fs.readFileSync(path.join(cfg.agentDir, e.dir, `bob-${e.id}.json`), 'utf8')).version || null; } catch { return null; }
 }
 
+// 1.5.72: rough download sizes (GB), so the one-click Welcome total counts the programs too. llama.cpp's is the
+// NVIDIA build with its CUDA runtime (other builds are smaller); the rest follow each engine's own "About" text.
+export const ENGINE_GB = { llamacpp: 0.6, sdcpp: 0.5, whispercpp: 0.1, piper: 0.1, audio: 12, kokoro: 0.1, chatterbox: 4, ffmpeg: 0.1, libreoffice: 0.35 };
 export function engineStatus(cfg) {
-  return ENGINES.map((e0) => engineFor(e0)).map((e) => ({ id: e.id, name: e.name, what: e.what, available: !e.unavailable && !(OS !== 'win' && e.install), note: e.unavailable || '', installed: e.ready ? Boolean(e.ready(cfg)) : Boolean(engineExe(cfg, e)), version: installedVersion(cfg, e) || e.version?.(cfg) || null, pinned: Boolean(e.tag || e.pinned), found: e.found?.(cfg) || '', pin: e.id === 'libreoffice' ? (PIN.libreoffice?.version || '') : e.id === 'ffmpeg' ? (PIN.ffmpeg?.tag || '') : '', folder: path.join(cfg.agentDir, e.dir) }));
+  return ENGINES.map((e0) => engineFor(e0)).map((e) => ({ id: e.id, name: e.name, what: e.what, sizeGB: ENGINE_GB[e.id] ?? 0.1, available: !e.unavailable && !(OS !== 'win' && e.install), note: e.unavailable || '', installed: e.ready ? Boolean(e.ready(cfg)) : Boolean(engineExe(cfg, e)), version: installedVersion(cfg, e) || e.version?.(cfg) || null, pinned: Boolean(e.tag || e.pinned), found: e.found?.(cfg) || '', pin: e.id === 'libreoffice' ? (PIN.libreoffice?.version || '') : e.id === 'ffmpeg' ? (PIN.ffmpeg?.tag || '') : '', folder: path.join(cfg.agentDir, e.dir) }));
 }
 
 // The newest release with a Windows build, for "Get newer build". Same rules as installing.

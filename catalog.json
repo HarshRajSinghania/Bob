@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Bob's model shop. Each entry says what it is for, how big it is, how much graphics memory it wants, and its licence. 'ollama' entries are pulled through Ollama when it is running. 'files' entries are downloaded straight from the link into models\\bob. Links marked verify:true still need checking on the PC before the Download button is shown.",
+  "note": "Bob's model shop. Each entry says what it is for, how big it is, how much graphics memory it wants, and its licence. Every model has 'files', downloaded straight from a pinned link into models\\bob and checked against its sha256. An 'ollama' name as well means: pulled through Ollama instead when Ollama is Bob's engine (no second copy). Links marked verify:true still need checking on the PC before the Download button is shown.",
   "categories": [
     {
       "id": "chat",
@@ -58,12 +58,28 @@
       "jobs": ["bob", "deep", "tinker", "reviewer", "eyes", "ledger", "scout", "painter", "office"],
       "name": "Gemma 4 26B",
       "what": "Bob's main brain. Fast, sees pictures, good with tools.",
-      "sizeGB": 18,
+      "sizeGB": 15.4,
       "vramGB": 16,
       "license": "Apache 2.0",
       "commercial": true,
       "pick": "best",
       "ollama": "gemma4:26b",
+      "files": [
+        {
+          "url": "https://huggingface.co/ggml-org/gemma-4-26B-A4B-it-GGUF/resolve/bb4531cda34d1ea09d9814959ed4d5833cf2a4c8/gemma-4-26B-A4B-it-Q4_0.gguf",
+          "role": "gguf",
+          "verify": true,
+          "bytes": 14618145824,
+          "sha256": "d208665ab1cd3a69f7a9a4bc59430e8448c8093d9b06334f566ac59d6d504a03"
+        },
+        {
+          "url": "https://huggingface.co/ggml-org/gemma-4-26B-A4B-it-GGUF/resolve/bb4531cda34d1ea09d9814959ed4d5833cf2a4c8/mmproj-gemma-4-26B-A4B-it-Q8_0.gguf",
+          "role": "mmproj",
+          "verify": true,
+          "bytes": 806408320,
+          "sha256": "cc4e855736da450bf1e162d8cccfe0ad685727d0c9e04ef7dd8d884f3121039b"
+        }
+      ],
       "use": {
         "models": {
           "bob": "$model",
@@ -78,12 +94,28 @@
       "jobs": ["bob", "small", "eyes", "voice", "ledger", "scout", "painter", "office"],
       "name": "Gemma 4 E4B",
       "what": "Small and quick. Good for laptops and 8 GB cards. Can also hear audio.",
-      "sizeGB": 6.6,
+      "sizeGB": 5.2,
       "vramGB": 6,
       "license": "Apache 2.0",
       "commercial": true,
       "pick": "small",
       "ollama": "gemma4:e4b",
+      "files": [
+        {
+          "url": "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/a69f018d7678a2b9f5e705f8903d6fb29b9b25dc/gemma-4-E4B-it-Q4_0.gguf",
+          "role": "gguf",
+          "verify": true,
+          "bytes": 4590807392,
+          "sha256": "a555b900214b477d8880e7832e0b8925e139b0159640036b09fe472b6f2097f2"
+        },
+        {
+          "url": "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/a69f018d7678a2b9f5e705f8903d6fb29b9b25dc/mmproj-gemma-4-E4B-it-Q8_0.gguf",
+          "role": "mmproj",
+          "verify": true,
+          "bytes": 559874816,
+          "sha256": "197f49a93027f9843772bd24a6a9e0be2a32a788de5a3def330e9c585d86edd1"
+        }
+      ],
       "use": {
         "models": {
           "bob": "$model",
@@ -164,13 +196,22 @@
       "jobs": ["deep", "reviewer", "bob", "tinker", "office"],
       "name": "Qwen 3.8 27B",
       "what": "Bob's slow but smart thinker. Strong at hard problems; about 10 words a second on a 16 GB card because a little of it sits in RAM.",
-      "sizeGB": 18,
+      "sizeGB": 17.6,
       "vramGB": 18,
       "params": 27,
       "license": "Apache 2.0",
       "commercial": true,
       "pick": "optional",
       "ollama": "qwen3.8:27b",
+      "files": [
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/4ca720788d1e01f1bff70c033e0d0028fd02e502/Qwen3.8-27B-UD-Q4_K_XL.gguf",
+          "role": "gguf",
+          "verify": true,
+          "bytes": 17559178144,
+          "sha256": "3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e"
+        }
+      ],
       "use": {
         "models": {
           "reviewer": "$model"
@@ -396,6 +437,15 @@
       "commercial": true,
       "pick": "small",
       "ollama": "qwen2.5-coder:7b",
+      "files": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/13fb94bfda8c8cf22497dc57b78f391a9acb426a/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
+          "role": "gguf",
+          "verify": true,
+          "bytes": 4683073536,
+          "sha256": "509287f78cb4d4cf6b3843734733b914b2c158e43e22a7f4bf5e963800894d3c"
+        }
+      ],
       "use": {
         "models": {
           "tinker": "$model",
@@ -488,7 +538,24 @@
       "license": "Apache 2.0",
       "commercial": true,
       "pick": "optional",
-      "ollama": "qwen2.5vl:7b"
+      "ollama": "qwen2.5vl:7b",
+      "files": [
+        {
+          "url": "https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF/resolve/68bb8bc4b7df5289c143aaec0ab477a7d4051aab/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
+          "role": "gguf",
+          "verify": true,
+          "bytes": 4683072384,
+          "sha256": "d16776dcd9a28d42758c2958ed3a752aabf20a305252cd64ff2be72b4a78c503"
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF/resolve/68bb8bc4b7df5289c143aaec0ab477a7d4051aab/mmproj-F16.gguf",
+          "role": "mmproj",
+          "saveAs": "Qwen2.5-VL-7B-Instruct-mmproj-F16.gguf",
+          "verify": true,
+          "bytes": 1354163040,
+          "sha256": "987dd0733033fb5dd9b124d1ca926ae865572e432384eee7618b2eec3e735e17"
+        }
+      ]
     },
     {
       "id": "whisper-base-en",
@@ -1259,7 +1326,16 @@
       "license": "Apache 2.0",
       "commercial": true,
       "pick": "small",
-      "ollama": "nomic-embed-text:latest"
+      "ollama": "nomic-embed-text:latest",
+      "files": [
+        {
+          "url": "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/0188c9bf409793f810680a5a431e7b899c46104c/nomic-embed-text-v1.5.f16.gguf",
+          "role": "gguf",
+          "verify": true,
+          "bytes": 274290560,
+          "sha256": "f7af6f66802f4df86eda10fe9bbcfc75c39562bed48ef6ace719a251cf1c2fdb"
+        }
+      ]
     },
     {
       "id": "ace-step-music",

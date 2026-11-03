@@ -488,6 +488,11 @@ function onEvent(ev) {
       if (ev.action === 'start') add('note borrow', `📡 Borrowed brain: ${esc(ev.name)}${ev.brain ? ` (${esc(ev.brain)})` : ''} thinks this one. The tools still run here.`);
       else add('note borrow', `📡 ${esc(ev.name)} ${ev.why === 'too slow' ? 'didn\'t answer in time' : ev.partial ? 'dropped out mid-answer' : 'couldn\'t take it'}, so Bob thinks this one himself.`);
       break;
+    case 'away': // 1.5.72 Share jobs: this whole job runs on another of your Bobs (src/share-jobs.js)
+      endReply(ev);
+      if (ev.action === 'start') add('note borrow', `📡 Sent to ${esc(ev.name)}: ${ev.why === 'cant' ? `I can't ${esc(ev.what)} on this computer, and ${esc(ev.name)} can` : ev.why === 'gaming' ? `I'd have to wait while you game, and ${esc(ev.name)} is free` : `I'm busy, and ${esc(ev.name)} can ${esc(ev.what)} now`}. OK cards and finished files come back here.`);
+      else add('note borrow', `📡 ${esc(ev.name)} ${esc(ev.why || 'couldn\'t take it')}, so I'll do this one here.`);
+      break;
     case 'tool':
       if (!/^hat:/.test(ev.summary)) note(`· ${ev.summary}`);
       endReply(ev);
@@ -620,7 +625,7 @@ function drawQueue(jobs) {
   countBadge($('tasksBtn'), open.length);
   for (const j of jobs) {
     const tag = jobBubbles.get(j.id)?.querySelector('.qtag');
-    if (tag) { const st = j.status || STATE_LABEL[j.state] || j.state; tag.textContent = (j.gaming ? j.gaming.tag : st === 'delegated' && j.delegatedTo ? `delegated to ${j.delegatedTo.copy}` : st) + (j.effort && j.effort !== 'low' ? ` · ${j.effort[0].toUpperCase()}${j.effort.slice(1)} effort` : ''); tag.className = `qtag ${j.state}`; }
+    if (tag) { const st = j.status || STATE_LABEL[j.state] || j.state; tag.textContent = (j.gaming ? j.gaming.tag : st === 'delegated' && j.delegatedTo ? `${j.delegatedTo.sent ? 'sent' : 'delegated'} to ${j.delegatedTo.copy}` : st) + (j.effort && j.effort !== 'low' ? ` · ${j.effort[0].toUpperCase()}${j.effort.slice(1)} effort` : ''); tag.className = `qtag ${j.state}`; }
   }
   const show = jobs.filter((j) => j.state === 'waiting' || j.state === 'working' || ((j.state === 'failed' || j.state === 'interrupted') && Date.now() - j.at < 3600e3));
   qbox.hidden = !show.length;

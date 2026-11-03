@@ -155,7 +155,7 @@ function kitHtml(slot, ctx) {
   const getMore = slot.how === 'embed' && !all.length ? '' : `<p class="get-more"><button type="button" class="get-more-btn" data-catjob="${esc(slot.id)}">📚 Get more${hidden ? ` (${hidden} in the catalogue)` : ''}</button></p>`;
   const engine = slot.engine && !(ctx.roles?.options?.[slot.kind] || []).length
     ? `<div class="model engine-step"><p>${esc(slot.name)} comes with the audio tools.</p><button class="get" data-engine="${esc(slot.engine)}">Get the audio tools</button><div class="confirm" hidden></div></div>` : '';
-  const embedTip = slot.how === 'embed' && !all.length ? '<p class="muted">Nothing here yet. An embedding model such as nomic-embed-text in Ollama shows up here once it is on this PC.</p>' : '';
+  const embedTip = slot.how === 'embed' && !all.length ? '<p class="muted">Nothing here yet. Nomic Embed Text (in the catalogue, about 0.3 GB) shows up here once it is downloaded.</p>' : '';
   const house = houseGroupOf(slot.id) ? houseStyleHtml(houseGroupOf(slot.id), ctx.houseStyle) : ''; // 1.5.34 House style
   return `<h3>${slot.icon} ${esc(slot.name)} ${tipHtml(slot.does, `About ${slot.name}`)}</h3>${house}${engine}${embedTip}<ol class="kit-list">${items || (engine || embedTip ? '' : '<li class="muted">Nothing active for this job yet.</li>')}</ol>${more}${getMore}`;
 }
@@ -204,10 +204,22 @@ export function starterPlan(pack, models, engines, picked) {
     if (!m) continue;
     plan[id] = pack.slots?.[id] || [];
     if (m.status?.state !== 'installed') ids.push(id);
-    const eng = m.needs && engines.find((e) => e.name === m.needs);
-    if (eng && !eng.installed && !ids.includes('engine:' + eng.id)) ids.push('engine:' + eng.id);
+    for (const e of enginesFor([m], engines)) if (!ids.includes(e)) ids.push(e);
   }
   return { ids, plan };
+}
+
+// 1.5.72: the engines picked models run on that aren't here yet, as download ids ("engine:llamacpp"): a model's own
+// `needs`, and llama.cpp for brain files (GGUF). They download with the models, so first-time setup is one button.
+export function enginesFor(list, engines) {
+  const out = [];
+  const add = (e) => { if (e && !e.installed && e.available !== false && !out.includes('engine:' + e.id)) out.push('engine:' + e.id); };
+  for (const m of list) {
+    if (!m) continue;
+    add(m.needs && engines.find((e) => e.name === m.needs));
+    if ((m.files || []).some((f) => f.role === 'gguf')) add(engines.find((e) => e.id === 'llamacpp'));
+  }
+  return out;
 }
 
 export function starterHtml(ctx) {

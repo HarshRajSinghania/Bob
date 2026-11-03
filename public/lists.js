@@ -60,7 +60,7 @@ const ICON = { chat: '💬', picture: '🎨', video: '🎬', research: '🔎', c
 export function taskRow(j, { movable, full }) {
   const status = j.status || j.state;
   // 1.5.23: a job that needs the graphics card waits while the Gaming session is on.
-  const tag = j.gaming ? `<span class="tag queued gaming">${esc(j.gaming.tag)}</span>` : j.waitsFor ? '<span class="tag queued">Waiting for a download</span>' : `<span class="tag ${status.replace(' ', '-')}">${esc(STATUS[status] || status)}${status === 'delegated' && j.delegatedTo ? `: ${esc(j.delegatedTo.copy)}` : ''}</span>`;
+  const tag = j.gaming ? `<span class="tag queued gaming">${esc(j.gaming.tag)}</span>` : j.waitsFor ? '<span class="tag queued">Waiting for a download</span>' : `<span class="tag ${status.replace(' ', '-')}">${j.delegatedTo?.sent && status === 'delegated' ? `Sent to ${esc(j.delegatedTo.copy)}` : `${esc(STATUS[status] || status)}${status === 'delegated' && j.delegatedTo ? `: ${esc(j.delegatedTo.copy)}` : ''}`}</span>`;
   const sub = status === 'delegated' && j.delegatedTo ? `${esc(j.delegatedTo.copy)} (${esc(j.delegatedTo.label)}) is on it`
     : status === 'completed' ? `Completed ${when(j.doneAt)}`
     : j.gaming ? esc(j.gaming.hint)

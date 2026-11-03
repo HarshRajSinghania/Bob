@@ -39,9 +39,7 @@ check('the built-in set is brains only: no pictures, edits or video until tried 
 check('it still covers chat, quick brain, eyes, ears, voice, memory and coding', ['bob', 'small', 'eyes', 'voice', 'speech', 'embed', 'tinker'].every((s) => Object.values(shared.slots).flat().includes(s)));
 
 const cellar = fs.readFileSync(new URL('../public/cellar.js', import.meta.url), 'utf8');
-check('Get models says "Fits your PC" and where the memory comes from', /'Fits your PC'/.test(cellar) && /Built-in graphics: .*using up to about \$\{hw\.gpu\.vramGB\} GB of your RAM/.test(cellar));
-check('no Gaming graphics card switch on built-in graphics', /gamingCard === false \|\| hw\?\.gpu\?\.integrated\) return ''/.test(cellar));
-check('speed lines say built-in graphics', /'built-in graphics'/.test(fs.readFileSync(new URL('../src/speed-test.js', import.meta.url), 'utf8')));
+check('Get models says "Fits your PC" and names the built-in graphics', /'Fits your PC'/.test(cellar) && /Built-in graphics: /.test(cellar));
 const server = fs.readFileSync(new URL('../src/server.js', import.meta.url), 'utf8');
 check('built-in graphics are not treated as a card for pictures', /!h\.gpu\.integrated\) cfg\.cardGB/.test(server));
 

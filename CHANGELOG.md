@@ -4,6 +4,36 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.73
+
+### Share brains, smarter
+- **Borrow a brain** now picks the best of your other Bobs for each reply: only Bobs whose quick brain has room for the chat count, and among those the one used in the last few minutes goes first (it's quicker to start), then the fastest. Two replies at once go to two different Bobs, and a Bob that's busy or finds the chat too long is skipped for the next one. If nobody has room, this Bob answers himself.
+
+### Whole jobs to another Bob (new, both off)
+- **Send jobs to my other Bobs**: pictures, clips, music, sounds, research and bigger thinking jobs can go to another of your Bobs when this one can't do them, would wait while you game, or (with "Borrow when:" set that way) is busy. A job that's about this computer (files, folders, programs, reminders) or has pictures attached always stays here.
+- **Take jobs from my other Bobs**: a Bob only offers what it can really do right now, and says no while you game or when it's busy.
+- The chat says plainly where a job went ("📡 Sent to Laptop: …"), OK cards and files come back to this Bob, and Tasks shows "Sent to Laptop". Stopping it in Tasks stops it on the other Bob too.
+
+### Fix
+- Android: downloading the phone brain no longer sits at "0 MB" forever. If a download can't start, the app now says why.
+
+## 1.5.72
+
+### Every model downloads without Ollama
+- Gemma 4 E4B, Gemma 4 26B, Qwen 3.8 27B, Qwen2.5 Coder 7B, Qwen2.5 VL 7B and Nomic Embed Text came only through Ollama, so on Bob's own engine Get said "comes through Ollama, and Ollama isn't running". Each now downloads straight from an exact Hugging Face commit, checked against its sha256: Gemma 4 from ggml-org (Q4_0, with its picture reader), Qwen 3.8 27B from unsloth (UD-Q4_K_XL), Qwen2.5 Coder 7B from Qwen, Qwen2.5 VL 7B from unsloth (the same file the picture editor already uses, so it isn't downloaded twice), Nomic Embed Text v1.5 from nomic-ai (f16).
+- With Ollama as Bob's engine, these still come through Ollama, so there's no second copy.
+
+### One click on the Welcome screen
+- "Download the checked ones" now also fetches the programs the checked models run on (llama.cpp for brains, stable-diffusion.cpp for pictures and video, and so on), so first-time setup needs nothing installed by hand. The starter screen in Get models already did this, and now also adds llama.cpp for brain files. The size it shows counts those programs too.
+
+### Memory (finding past chats) on Bob's own engine
+- Nomic Embed Text now runs on Bob's own engine: a small separate llama.cpp server on the processor only (the graphics card is hidden from it), below normal priority, two threads, started when Topics need it and let go after two minutes unused. It never starts in the Gaming session, where Topics are matched by words as before.
+- A downloaded Nomic Embed Text shows up in the Memory slot. With Ollama as the engine and the model not in Ollama, Bob's own copy is used.
+- If no embedding model was found, Bob tries again 10 minutes later instead of only after a restart.
+
+### Help
+- New FAQ: "Do I need Ollama?". Glossary: Embedding model. Getting started says the engines come with the models.
+
 ## 1.5.71
 
 ### Built-in graphics

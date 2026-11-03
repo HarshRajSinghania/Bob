@@ -40,7 +40,8 @@ import { tuning, TUNING_KEYS, pictureFitReset } from './tuning.js';
 import { gatherFacts, tipsFrom } from './pc-check.js';
 import { speedTest, speedHistory } from './speed-test.js';
 import { phoneView, cleanPhonePatch, findAddresses, newPasscode } from './phone-access.js';
-import { shareView, cleanSharePatch, saveShare, lendChat, lendRefusal, PROTOCOL as LEND_PROTOCOL } from './share-brains.js';
+import { shareView, cleanSharePatch, saveShare, lendChat, lendRefusal, helloFor } from './share-brains.js';
+import { guestRoute, answerAway } from './share-jobs.js';
 import { OS, features } from './platform.js';
 
 const cfg = loadConfig();
@@ -71,7 +72,7 @@ brain.mindWatchers = () => mindClients.size;
 // 1.5.38: when Downloads change, a job waiting for one (a song waiting for the music models) may be able to go.
 const shop = new ModelShop(cfg, (ev) => { broadcast(ev); if (ev?.type === 'downloads') brain.downloadsChanged(); }, brain.engine);
 // 1.5.24: the card's size, for picture settings matched to it (only used when that switch is on).
-if (!cfg.gpuVramGB) shop.hardware().then((h) => { if (h?.gpu?.integrated) cfg.builtInGraphics = true; if (h?.gpu?.vramGB && !h.gpu.integrated) cfg.cardGB = h.gpu.vramGB; /* 1.5.71: built-in graphics aren't a card for pictures */ }).catch(() => {});
+if (!cfg.gpuVramGB) shop.hardware().then((h) => { if (h?.gpu?.vramGB && !h.gpu.integrated) cfg.cardGB = h.gpu.vramGB; /* 1.5.71: built-in graphics aren't a card for pictures */ }).catch(() => {});
 brain.shop = shop; // so Bob can tell when a model is on the PC but not assigned to a job
 startSchedules(brain); // ticks once a minute; nothing is ever due while the Schedules hand is off
 if (!shop.found.at) shop.scan().catch(() => {});
@@ -288,8 +289,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/lend/hello') {
       const why = lendRefusal(brain, brain.lendDeps);
       const q = why ? null : brain.lendDeps.quickBrain(brain);
-      return send(res, 200, { protocol: LEND_PROTOCOL, lend: why !== 'off', busy: why === 'off' ? undefined : why || undefined, brain: q ? brain.brainLabel(q.model) : '', device: 'computer', version: VERSION });
+      return send(res, 200, helloFor(brain, { why, quick: q, can: capabilities(cfg), version: VERSION, label: (m) => brain.brainLabel(m), webOn: cfg.webSearch === true, bigBrain: brain.guestBigBrain() }));
     }
+    // 1.5.72 Share jobs: whole jobs from your other Bobs (src/share-jobs.js). start() checks "Take jobs from my other Bobs".
+    if (p.startsWith('/api/guest/jobs') && await guestRoute({ req, res, p, url, brain, body, send, serveFile, findOutput, cfg }) !== false) return;
     if (req.method === 'POST' && p === '/api/lend/chat') {
       if (!isRemote && !isLocal) return send(res, 403, { error: 'no' });
       return lendChat(brain, req, res, await body(req).catch(() => ({})), brain.lendDeps);
@@ -429,6 +432,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && p === '/api/approve') {
       const { id, allow, rows, items } = await body(req);
+      if (brain.awayApprovals.has(String(id))) return send(res, (await answerAway(brain, id, allow, rows, items)) ? 200 : 502, { ok: true }); // 1.5.72: a card from a job on another Bob
       return send(res, brain.answerApproval(id, allow, rows, items) ? 200 : 404, { ok: true });
     }
     if (p === '/api/hands/schedules' && await schedulesRoute({ req, res, p, isLocal, brain, body, send })) return;

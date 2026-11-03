@@ -53,7 +53,7 @@ check('Z-Image from ComfyUI counts as installed', z.status.state === 'installed'
 const g = list.models.find((m) => m.id === 'gemma4-26b');
 check('Ollama models are found from manifests even with Ollama off', g.status.state === 'installed' && g.status.where[0] === 'Ollama');
 check('Maestro video file shows under "also on this PC"', list.extras.some((f) => f.owner === 'Maestro' && f.kind === 'video'));
-check('Ollama-only model can\'t download while Ollama is off', !list.models.find((m) => m.id === 'gemma4-e4b').status.canDownload);
+check('1.5.72: a model Ollama also has (Gemma 4 E4B) still downloads while Ollama is off, from its pinned link', list.models.find((m) => m.id === 'gemma4-e4b').status.canDownload);
 
 // --- use: point the painter at ComfyUI's files
 const patch = await shop.use('z-image-turbo');
