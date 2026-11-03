@@ -67,12 +67,14 @@
 
   <div id="queue" class="queue" hidden aria-live="polite"></div>
   <div id="tray" class="tray" hidden></div>
-  <div id="effort" class="effort" role="radiogroup" aria-label="Effort" data-level="low">
-    <span class="effort-lbl">Effort</span>
+  <div id="effort" class="effort" data-level="low">
+    <span class="effort-pick"><button id="effortBtn" type="button" class="effort-btn" aria-expanded="false" aria-controls="effortChoices"><span class="effort-lbl">Effort</span> <b id="effortNow">Low</b> <span id="effortArrow" aria-hidden="true">▾</span></button>
+    <span id="effortChoices" class="effort-choices" role="radiogroup" aria-label="Effort" hidden>
     <button type="button" role="radio" aria-checked="true" data-effort="low"><b>Low</b><small>Quick</small></button>
     <button type="button" role="radio" aria-checked="false" data-effort="medium" tabindex="-1"><b>Medium</b><small>Deeper</small></button>
     <button type="button" role="radio" aria-checked="false" data-effort="high" tabindex="-1"><b>High</b><small>Checked</small></button>
     <button type="button" role="radio" aria-checked="false" data-effort="extreme" tabindex="-1"><b>Extreme</b><small>Slowest</small></button>
+    </span></span>
     <button id="gameBtn" type="button" class="brain-switch game-btn" role="switch" aria-checked="false"><span class="lbl">🎮 Gaming</span><span class="st" id="gameBtnSt">Off</span></button>
     <button id="webBtn" type="button" class="brain-switch web-btn" role="switch" aria-checked="false"><span class="lbl">🌐 Web search</span><span class="st" id="webBtnSt">Off</span></button>
     <span id="effortHint" class="muted effort-hint" aria-live="polite"></span>

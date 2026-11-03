@@ -700,6 +700,16 @@ details.more > summary:hover { color: var(--accent); }
 .effort { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 14px 0; background: var(--panel); border-top: 1px solid var(--line); font-size: 12px; }
 .effort + .composer { border-top: 0; }
 .effort-lbl { font-weight: 600; color: var(--muted); margin-right: 2px; }
+/* 1.5.41: Effort is one button that opens the four choices and folds them away after a pick (big enough for remote use) */
+.effort-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; min-width: 120px; padding: 4px 12px; font: inherit; color: var(--text); background: none; border: 1px solid var(--line); border-radius: var(--r); cursor: pointer; }
+.effort-btn b { font-size: 13px; }
+.effort-btn[aria-expanded="true"] { border-color: var(--accent); }
+.effort-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.effort-pick { position: relative; display: inline-flex; }
+/* Opens as a pop-up just above the button, so the rest of the row doesn't move */
+.effort-choices { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 30; display: inline-flex; gap: 6px; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 6px 18px rgba(0,0,0,.35); white-space: nowrap; }
+.effort-btn:disabled { opacity: .6; cursor: not-allowed; }
+.effort-choices[hidden] { display: none; }
 .effort [data-effort] { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; min-height: 40px; min-width: 84px; padding: 4px 12px; font: inherit; color: var(--text); background: none; border: 1px solid var(--line); border-radius: var(--r); cursor: pointer; line-height: 1.15; }
 .effort [data-effort] b { font-size: 13px; }
 .effort [data-effort] small { font-size: 10px; color: var(--muted); }
