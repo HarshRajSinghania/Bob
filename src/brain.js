@@ -40,6 +40,8 @@ import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff, ca
 import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
 import { WEB_TOOLS, WEB_OFF, webOn, webPrompt } from './web.js';
+import { autoSessionOn, pickSessionTool, autoSessionPrompt, switchLine, switchedNote, idleSession, cardBusy, IDLE_CHECK_MS } from './auto-session.js';
+import { readCard } from './gaming-card.js';
 import { askTogether, takeEarlier, askTogetherTool } from './together.js';
 
 const MAX_STEPS = 8;
@@ -190,6 +192,7 @@ export class Brain {
     this.lastActivity = Date.now(); // for /api/idle
     this.queue = this.loadQueue();
     setTimeout(() => this.pump(), 1500); // pick up anything left waiting when Bob was last closed
+    setTimeout(() => this.armIdleCheck(), 1500); // 1.5.41: a session left on from last time goes back to the lightest one
     this.sessionDir = path.join(cfg.dataDir, 'sessions');
     fs.mkdirSync(this.sessionDir, { recursive: true });
     this.reminderTimer = setInterval(() => this.checkReminders(), 15000);
@@ -199,6 +202,7 @@ export class Brain {
     Object.assign(this.tools, handsTools(this), scheduleTools(this)); // Hands: off until the user turns them on (see hands-settings.js)
     this.tools.use_tools = useToolsTool(this);
     this.tools.ask_together = askTogetherTool(this); // 1.5.42: every OK a job needs on one card (together.js) // the toolbox (toolbox.js): groups added only when a job needs them
+    this.tools.pick_session = pickSessionTool(this); // 1.5.43: Bob changes session himself (auto-session.js)
     this.made = new Made(cfg); // Made by Bob (made.js): everything he made, for the side panel and show_made
     this.tools.show_made = showMadeTool(this);
     this.stickyGroups = new Map(); // chat id -> Map(group -> messages left)
@@ -249,6 +253,7 @@ export class Brain {
   // if a big brain pushed it out). Only Bob's own brains are touched, never another app's.
   async settle() {
     if (this.turns.size || this.waking || this.queue.some((j) => j.state === 'waiting')) return [];
+    this.armIdleCheck(); // 1.5.41: back to the lightest session once Bob has been quiet a while
     const chat = chatBrain(this.cfg).model;
     let loaded = [];
     try { loaded = await this.engine.loaded(); } catch { return []; }
@@ -582,22 +587,112 @@ export class Brain {
     return hit;
   }
 
-  // Switch session (only ever from the user's click). Brains from the old session are let go so the new set fits.
-  async setSession(id) {
+  // Switch session: from the user's pick, or (1.5.41, "Let Bob pick the session") Bob's own: by 'bob' for a job, 'idle'
+  // when he goes quiet. Brains from the old session are let go so the new set fits.
+  async setSession(id, { by = 'you', why = '' } = {}) {
     if (!SESSIONS[id]) throw new Error('Unknown session.');
     const from = currentSession(this.cfg).id;
+    // 1.5.41: picking another session by hand ends the 🎮 Gaming lock (Bob's own picks can't: see auto-session.js).
+    if (by === 'you' && id !== 'light' && this.cfg.gamingLock === true) { saveSettings(this.cfg, { gamingLock: false }); this.unpark(); this.broadcast({ type: 'gaming-lock', on: false }); }
     this.cfg.session = id;
     this.suggested = null;
     this.lastActivity = Date.now(); // for /api/idle
     if (!this.turns.size) { await this.engine.unloadAll().catch(() => {}); await this.painter?.unload?.('session switch', { force: true }).catch?.(() => {}); }
-    this.log('session', `now ${id}`);
+    this.log('session', `now ${id}${by === 'you' ? '' : ` (Bob's pick${by === 'idle' ? ', gone quiet' : ''}${why ? `: ${why}` : ''})`}`);
     this.saveQueue(); // 1.5.23: the Gaming wait tags change with the session
     setTimeout(() => this.pump(), 0); // jobs that waited for Gaming to end can start
     if (holdsChatBrain(this.cfg)) this.wake('always on').catch(() => {});
-    this.broadcast({ type: 'session', session: currentSession(this.cfg) });
+    // By Bob for a job: the chat already has his "Switching to..." line. When he goes quiet: one line saying where he went.
+    if (by === 'you' || by === 'lock') { try { saveSettings(this.cfg, { sessionBy: 'you' }); } catch {} } // who picked it, for the picker's label
+    this.broadcast({ type: 'session', session: currentSession(this.cfg), by, pickedBy: this.cfg.sessionBy === 'bob' ? 'bob' : 'you', line: by === 'idle' ? switchLine(id, '', 'idle') : undefined });
+    this.armIdleCheck();
     const aside = sleepySwitch(this.sleepy, from, id, cleanPersonality(this.cfg.personality));
     if (aside) this.broadcast({ type: 'aside', text: aside });
     return currentSession(this.cfg);
+  }
+
+  // 1.5.41: Bob changes session himself. Saved like a pick on the chat page; no job starts until the new session is set.
+  async autoSwitch(id, by = 'bob', why = '') {
+    if (currentSession(this.cfg).id === id) return currentSession(this.cfg);
+    this.switching = true;
+    try { saveSettings(this.cfg, { session: id, sessionBy: 'bob' }); return await this.setSession(id, { by, why }); }
+    finally { this.switching = false; }
+  }
+
+  // 1.5.41 the 🎮 Gaming button on the chat page: Gaming, locked. Everything Bob has on the graphics card goes at once
+  // (brains, the picture engine), running jobs are put aside in Tasks (not cancelled) and the queue waits. Bob doesn't
+  // leave Gaming by himself while it's on. Pressing it again (or picking another session) goes back to Normal, and the
+  // jobs carry on from where they stopped, like after a restart.
+  async setGamingLock(on) {
+    on = on === true;
+    saveSettings(this.cfg, { gamingLock: on });
+    if (on) {
+      for (const j of this.queue) if (j.state === 'working') j.parked = true;
+      this.stop();
+      this.endMore?.(null, 'gaming');
+      for (let i = 0; i < 80 && this.turns.size; i++) await new Promise((r) => setTimeout(r, 100)); // jobs let go (8 s at most)
+      saveSettings(this.cfg, { session: 'light' });
+      await this.setSession('light', { by: 'lock' });
+      await this.engine.unloadAll?.().catch?.(() => {});
+      await this.painter?.unload?.('gaming button', { force: true })?.catch?.(() => {});
+      this.log('session', 'Gaming locked by the 🎮 button; the graphics card is cleared');
+    } else {
+      this.unpark();
+      saveSettings(this.cfg, { session: 'normal' });
+      await this.setSession('normal', { by: 'lock' });
+    }
+    this.broadcast({ type: 'gaming-lock', on });
+    return { on, session: currentSession(this.cfg) };
+  }
+  unpark() { let n = 0; for (const j of this.queue) if (j.parked) { j.parked = undefined; n++; } if (n) { this.saveQueue(); setTimeout(() => this.pump(), 0); } }
+
+  // A job put aside by the 🎮 button: back in line, carrying on from its last finished step (as after a restart). A
+  // cut-off step that may be half done (typing in an app, moving files, a command) waits in Tasks for Carry on instead.
+  parkJob(job, emit) {
+    const plan = carryOnPlan(job);
+    job.before = finishedSteps(job); job.cutStep = plan.cut; job.carryOn = plan.note;
+    if (plan.mode === 'wait') { job.parked = undefined; job.state = 'interrupted'; job.error = interruptedNote(job); }
+    else Object.assign(job, { state: 'waiting', pickUp: true, at: Date.now(), error: undefined });
+    emit({ type: 'token', text: '\n\n*(Put aside for Gaming. It waits in Tasks and carries on when Gaming is off.)*' });
+  }
+
+  // 1.5.41: a job is waiting for Gaming to end. With "Let Bob pick the session" on, Bob looks at the graphics card once
+  // a minute: once nothing else is using it (the game is closed), he goes back to Normal and the job runs. No question.
+  gamingProbe() {
+    if (!autoSessionOn(this.cfg) || this.cfg.gamingLock === true || this.probeTimer || this.switching) return;
+    this.probeTimer = setTimeout(async () => {
+      try {
+        if (!this.queue.some((j) => j.state === 'waiting' && waitsForGaming(this.cfg, j))) return;
+        const busy = cardBusy(await (this.readCard || readCard)().catch(() => null));
+        if (busy === false && !this.turns.size && waitsForGaming(this.cfg, this.queue.find((j) => j.state === 'waiting' && waitsForGaming(this.cfg, j)))) {
+          this.probeTimer = null;
+          await this.autoSwitch('normal', 'bob', 'now that the graphics card is free');
+          this.broadcast({ type: 'announce', text: switchLine('normal', 'now that the graphics card is free') });
+          return this.pump();
+        }
+      } catch {}
+      this.probeTimer = null;
+      this.gamingProbe(); // still busy (or unreadable): look again in a minute
+    }, this.lastProbeAt ? 60_000 : 2_000);
+    this.lastProbeAt = Date.now();
+    this.probeTimer.unref?.();
+  }
+
+  // While Bob is quiet, every 2 minutes: Normal when the graphics card is free, Gaming while something else is using it
+  // (a game). One nvidia-smi reading, about 50 ms; nothing at all while a job runs or with the setting off.
+  armIdleCheck() {
+    clearTimeout(this.idleTimer);
+    if (!autoSessionOn(this.cfg)) return;
+    this.idleTimer = setTimeout(() => this.idleCheck().catch(() => {}), IDLE_CHECK_MS(this.cfg));
+    this.idleTimer.unref?.();
+  }
+  async idleCheck() {
+    if (this.turns.size || this.waking || this.switching || this.morePictures || this.queue.some((j) => j.state === 'working' || (j.state === 'waiting' && !waitsForGaming(this.cfg, j)))) return this.armIdleCheck();
+    if (Date.now() - (this.lastActivity || 0) < IDLE_CHECK_MS(this.cfg) - 1000) return this.armIdleCheck();
+    const busy = cardBusy(await (this.readCard || readCard)().catch(() => null));
+    const want = idleSession(this.cfg, busy);
+    if (want && !this.turns.size) await this.autoSwitch(want, 'idle');
+    else this.armIdleCheck();
   }
 
   // GPU-only models leave for the painter; in an Art session the chat brain on the processor stays.
@@ -782,6 +877,7 @@ export class Brain {
     if (!loaded || allToolsOn(this.cfg) || Object.keys(HANDS).some((h) => loaded.has(h))) prompt += handsPrompt(this.cfg);
     if (loaded) prompt += realPcPrompt(this.cfg) + toolboxPrompt(this, loaded);
     prompt += webPrompt(this.cfg);
+    if (loaded) prompt += autoSessionPrompt(this.cfg); // front desk only: hats don't change the session
     prompt += houseStylePrompt(this.cfg.houseStyle, this.cfg.userName || 'the user');
     if (this.cfg.defaultProject && this.cfg.projects?.[this.cfg.defaultProject]) prompt += `\n\n${this.cfg.userName || 'The user'}'s main project is ${this.cfg.defaultProject}. When they say "my project" without a name, it's that one.`;
     // "Show me a picture of X" once got no answer at all (2026-11-02): say plainly that make_image is the way.
@@ -797,7 +893,7 @@ export class Brain {
   offTools() {
     let can = {};
     try { can = capabilities(this.cfg); } catch {}
-    return new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud', freeOn(this.cfg) && 'ask_together', ...(webOn(this.cfg) ? [] : WEB_TOOLS), ...toolsOff(this.cfg)].filter(Boolean));
+    return new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud', freeOn(this.cfg) && 'ask_together', ...(webOn(this.cfg) ? [] : WEB_TOOLS), !autoSessionOn(this.cfg) && 'pick_session', ...toolsOff(this.cfg)].filter(Boolean));
   }
   usable(name, off = this.offTools()) { return Boolean(this.tools[name]) && !off.has(name); }
   // 1.5.41: whether OKs are asked on cards right now (so a job's OKs can go on one card). Not with "work without asking".
@@ -947,7 +1043,7 @@ export class Brain {
     const busy = this.busyLine(job);
     if (busy) setTimeout(() => this.broadcast({ type: 'busy-note', sessionId, jobId: job.id, text: busy }), 0);
     queueMicrotask(() => this.pump());
-    const tip = suggestSession(this.cfg, this.queue);
+    const tip = autoSessionOn(this.cfg) ? null : suggestSession(this.cfg, this.queue); // 1.5.41: Bob picks, so no tips
     if (tip && this.suggested !== tip.id) { this.suggested = tip.id; this.broadcast({ type: 'suggest', ...tip }); }
     return { jobId: job.id, turnId: job.id, ahead };
   }
@@ -1030,10 +1126,12 @@ export class Brain {
 
   // Starts the next waiting job in each free lane, oldest first.
   pump() {
+    if (this.switching) return; // 1.5.41: Bob is changing session; the jobs start once the new session is set
     const seen = new Set();
     for (const job of this.queue) {
       if (job.state !== 'waiting') continue;
-      if (waitsForGaming(this.cfg, job)) continue; // 1.5.23: waits in Tasks until the session isn't Gaming
+      if (job.parked && this.cfg.gamingLock === true) continue; // 1.5.41: put aside by the 🎮 Gaming button, waits for it to go off
+      if (waitsForGaming(this.cfg, job)) { this.gamingProbe?.(); continue; } // 1.5.23: waits in Tasks until the session isn't Gaming
       if (job.after && !this.downloadReady(job)) continue; // 1.5.38: waits for the download it needs
       let lane = laneOf(this.cfg, job);
       if (lane === 'talk' && this.turns.has('talk') && !seen.has(SIDE_LANE) && sideOk(this, job)) lane = SIDE_LANE;
@@ -1062,7 +1160,8 @@ export class Brain {
     this.run(sessionId, text, emit, controller.signal, pics, job)
       .then(() => { ok = true; if (job) job.state = 'done'; })
       .catch((e) => {
-        if (controller.signal.aborted) { emit({ type: 'token', text: '\n\n*(Stopped.)*' }); if (job) job.state = 'cancelled'; }
+        if (controller.signal.aborted && job?.parked) this.parkJob(job, emit); // 1.5.41: the 🎮 Gaming button, not a stop
+        else if (controller.signal.aborted) { emit({ type: 'token', text: '\n\n*(Stopped.)*' }); if (job) job.state = 'cancelled'; }
         else { emit({ type: 'error', text: e.message }); this.log('error', e.message); if (job) { job.state = 'failed'; job.error = e.message.slice(0, 200); } }
       })
       .finally(() => {
@@ -1070,8 +1169,11 @@ export class Brain {
         this.gate.done(controller.signal); // the graphics card goes to the next job waiting for it
         if (job?.handoff) job.handoff = slimHandoff(job.handoff); // finished: keep what it did, drop the load-by-load steps
         // 1.5.38: carried on (or not) once; the note isn't used again. A job told to wait for a download goes back in line.
-        if (job && job.state !== 'interrupted' && !job.after) { job.carryOn = null; job.before = undefined; job.cutStep = undefined; job.pickUp = false; }
+        if (job && job.state !== 'interrupted' && !job.after && !job.parked) { job.carryOn = null; job.before = undefined; job.cutStep = undefined; job.pickUp = false; }
         if (job?.after && job.state !== 'cancelled') { job.state = 'waiting'; job.error = undefined; job.at = Date.now(); this.queue = [...this.queue.filter((x) => x !== job), job]; }
+        // 1.5.41: Bob picked another session for this job: it goes back to the front of the line and runs there.
+        const switchTo = job?.switchTo && job.state === 'done' ? job.switchTo : null;
+        if (switchTo) { job.switchTo = undefined; job.switchedTo = switchTo.id; Object.assign(job, { state: 'waiting', error: undefined, doneAt: undefined, steps: [] }); this.queue = [job, ...this.queue.filter((x) => x !== job)]; }
         this.turns.delete(lane);
         this.lastActivity = Date.now();
         // Gaming: now and then a scripted sleepy aside under a normal finished reply (a feeling, never a fact about the job).
@@ -1082,7 +1184,8 @@ export class Brain {
         }
         emit({ type: 'done' });
         if (!this.turns.size) this.setState('idle', '');
-        if (job) { job.doneAt = Date.now(); for (const st of job.steps || []) if (st.state === 'in progress') st.state = job.state === 'done' ? 'completed' : job.state; this.saveQueue(); }
+        if (job && !switchTo && !job.parked) { job.doneAt = Date.now(); for (const st of job.steps || []) if (st.state === 'in progress') st.state = job.state === 'done' ? 'completed' : job.state; this.saveQueue(); }
+        if (switchTo) { this.saveQueue(); this.autoSwitch(switchTo.id, 'bob', switchTo.why).catch((e) => this.log('error', `session switch: ${e.message}`)).finally(() => this.pump()); return; }
         setTimeout(() => this.pump(), 0);
         setTimeout(() => this.settle().catch(() => {}), 0); // after pump, so a waiting job keeps its brain
       });
@@ -1180,8 +1283,13 @@ export class Brain {
     // 1.5.38: after a restart, the brain is told which steps already finished and which was cut off (the chat shows only
     // the user's own words).
     if (job?.carryOn) { user.content = `${user.content}\n\n${job.carryOn}`; user.text = text; }
-    msgs.push(user);
-    const turnStart = msgs.length - 1;
+    // 1.5.41: run again after Bob switched session: the user's message is already in the chat once, so the brain gets the
+    // note only (hidden), and the turn starts at the user's message from before.
+    const lastUser = [...msgs].reverse().find((m) => m.role === 'user');
+    const again = Boolean(job?.switchedTo) && Boolean(lastUser) && String(lastUser.text ?? lastUser.content ?? '').startsWith(text);
+    if (again) msgs.push({ role: 'system', content: switchedNote(job.switchedTo), hidden: true });
+    else msgs.push(user);
+    const turnStart = again ? msgs.map((m) => m.role).lastIndexOf('user') : msgs.length - 1;
     this.log('chat', `${this.cfg.userName || 'User'}: ${text}`);
     // The turn's pictures travel with it, so a hat Bob hands the job to can see them too.
     // Every picture, clip or sound he makes goes on the Made by Bob list as it's announced.
@@ -1280,6 +1388,8 @@ export class Brain {
       await askTogether(this, reply.tool_calls, ctx); // 1.5.41: two or more OKs in this reply go on one card
       for (const call of reply.tool_calls) {
         const name = call.function?.name;
+        // 1.5.41: once Bob has picked a new session, the rest of this round waits for it (the job runs again there).
+        if (ctx.switchTo) { msgs.push({ role: 'tool', tool_name: name, content: '(Not done yet: you are switching session first.)' }); continue; }
         // A tool from a group that isn't added yet: small brains sometimes call it straight away. Add its group and run it.
         const g = name === 'use_tools' ? null : groupOf(this, name);
         if (g) { ctx.loaded.add(g); used.add(g); }
@@ -1312,6 +1422,7 @@ export class Brain {
         msgs.push({ role: 'tool', tool_name: name, content: res.text });
         if (HAND_TOOLS.has(name) && !/^Error:|said no/.test(String(res.text))) ctx.handsDid = true;
         if (res.endsTurn) ended = true;
+        if (ctx.switchTo && !ended) { ended = true; emit({ type: 'announce', text: switchLine(ctx.switchTo.id, ctx.switchTo.why) }); } // 1.5.41: the job runs again in the new session
       }
       // 1.5.20: a picture or clip that was all the user asked for is shown with a short line, instead of loading the
       // brain back onto the card (6 s for the quick brain, 20-30 s for a big one) just to say "here it is".
@@ -1323,6 +1434,13 @@ export class Brain {
         this.log('handoff', 'showed the result without loading the brain back (it loads when typing starts)');
         this.offerMore(sessionId, ctx.painted?.kind);
         this.checkTurn(ctx, msgs.at(-1), false);
+        this.keepGroups(sessionId, used);
+        return;
+      }
+      if (ctx.switchTo) {
+        // 1.5.41: the turn ends here; startTurn's finally changes the session and puts the job back at the front of the line.
+        msgs.push({ role: 'assistant', content: switchLine(ctx.switchTo.id, ctx.switchTo.why) });
+        if (job) job.switchTo = ctx.switchTo;
         this.keepGroups(sessionId, used);
         return;
       }

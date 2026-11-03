@@ -115,7 +115,7 @@ export const VERSION = (() => {
   } catch { return { release: '0.9', branch: '', build: 0, label: '0.9.0' }; }
 })();
 
-export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask', 'brainMode', 'allTools', 'quickOnCpu', 'chatWhileBusy', 'quarantine', 'resumeJobs', 'pictureNoWait', 'readyWhileTyping', 'gamesFirst', 'pictureFit', 'webSearch', 'gamingCard', 'houseStyle', 'projectList', 'defaultProject', 'saveDir', 'saveDirsUsed'];
+export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask', 'brainMode', 'allTools', 'quickOnCpu', 'chatWhileBusy', 'quarantine', 'resumeJobs', 'autoSession', 'gamingLock', 'sessionBy', 'pictureNoWait', 'readyWhileTyping', 'gamesFirst', 'pictureFit', 'webSearch', 'gamingCard', 'houseStyle', 'projectList', 'defaultProject', 'saveDir', 'saveDirsUsed'];
 const LOCKED_LLAMACPP = ['exe', 'preArgs'];
 
 function deepMerge(into, from) {
@@ -151,6 +151,9 @@ function clean(patch) {
   if ('defaultProject' in out) out.defaultProject = typeof out.defaultProject === 'string' ? out.defaultProject.slice(0, 60) : '';
   if ('gamingCard' in out) out.gamingCard = ['auto', 'never', 'always'].includes(out.gamingCard) ? out.gamingCard : 'auto'; // 1.5.32
   for (const k of ['readyWhileTyping', 'gamesFirst', 'pictureFit']) if (k in out) out[k] = out[k] === true; // 1.5.24, off unless switched on
+  if ('sessionBy' in out) out.sessionBy = out.sessionBy === 'bob' ? 'bob' : 'you'; // 1.5.41: who picked the session now
+  if ('gamingLock' in out) out.gamingLock = out.gamingLock === true; // 1.5.41 the 🎮 button, off until pressed
+  if ('autoSession' in out) out.autoSession = out.autoSession !== false; // 1.5.41, on unless switched off (the owner's call)
   if ('pictureNoWait' in out) out.pictureNoWait = out.pictureNoWait !== false; // 1.5.20, on unless switched off
   if ('updates' in out) out.updates = { autoCheck: out.updates?.autoCheck === true };
   if ('housekeeping' in out) out.housekeeping = cleanHousekeeping(out.housekeeping || {});

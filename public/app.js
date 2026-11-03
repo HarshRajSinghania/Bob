@@ -17,6 +17,7 @@ import { handsApproval, togetherApproval, onHandsEvent } from './hands.js';
 import { createBrainBar } from './brain-bar.js';
 import { createHandsSwitch } from './hands-switch.js';
 import { createWebSwitch } from './web-switch.js';
+import { createGameLock } from './game-lock.js';
 import { quarantineCard, quarantineResult, createQuarantineBanner } from './quarantine.js';
 import { createEffort } from './effort.js';
 import { createCatAntics } from './cat-antics.js';
@@ -40,6 +41,7 @@ const log = $('log'), input = $('input'), sendBtn = $('send'), stopBtn = $('stop
 const brainBar = createBrainBar({ post: (u, d) => post(u, d), note: (t, k) => note(t, k) });
 const handsSwitch = createHandsSwitch({ note: (t, k) => note(t, k) });
 const webSwitch = createWebSwitch({ note: (t, k) => note(t, k) });
+const gameLock = createGameLock({ note: (t, k) => note(t, k) }); // 1.5.41 the 🎮 Gaming button
 const qBanner = createQuarantineBanner({ note: (t, k) => note(t, k) });
 const effort = createEffort();
 const catAntics = createCatAntics();
@@ -147,14 +149,20 @@ const STATUS_TEXT = {
 };
 // ---------- Sessions: which brains Bob keeps loaded. Bob may suggest one; only the user switches. ----------
 const sessionSel = $('sessionSel');
-function drawSessions(list, cur) {
-  if (list) sessionSel.innerHTML = list.map((x) => `<option value="${esc(x.id)}" title="${esc(x.what)}">${x.icon} ${esc(x.label)}</option>`).join('');
-  if (cur) { sessionSel.value = cur.id; sessionSel.title = `${cur.label} session: ${cur.what}`; effort.lock(cur.effortLow === true); }
+let autoSession = true; // 1.5.41 "Let Bob pick the session" (Settings), on unless switched off
+let curSession = null, pickedBy = 'you'; // 1.5.41: "Coding (picked by Bob)" when Bob picked it
+function drawSessions(list, cur, by) {
+  if (list) sessionSel.innerHTML = list.map((x) => `<option value="${esc(x.id)}" title="${esc(x.what)}" data-label="${esc(x.icon + ' ' + x.label)}">${x.icon} ${esc(x.label)}</option>`).join('');
+  if (cur) curSession = cur;
+  if (by) pickedBy = by;
+  for (const o of sessionSel.options) o.textContent = `${o.dataset.label || o.textContent}${curSession && o.value === curSession.id && pickedBy === 'bob' && autoSession ? ' (picked by Bob)' : ''}`;
+  if (curSession) { sessionSel.value = curSession.id; sessionSel.title = `${curSession.label} session: ${curSession.what}${autoSession ? ' Bob picks the session himself; you can still pick one here.' : ''}`; effort.lock(curSession.effortLow === true); }
 }
+window.addEventListener('bob-auto-session', (e) => { autoSession = e.detail?.autoSession !== false; drawSessions(); });
 async function switchSession(id) {
   const r = await post('/api/settings', { session: id });
   if (!r.ok) { note(r.data.error || 'Couldn\'t switch session.', 'error'); return; }
-  drawSessions(null, r.data.session);
+  drawSessions(null, r.data.session, 'you');
 }
 sessionSel.onchange = () => switchSession(sessionSel.value);
 
@@ -377,8 +385,10 @@ function onEvent(ev) {
       drawQueue(ev.jobs || []);
       return;
     case 'session':
-      drawSessions(null, ev.session);
-      note(`${ev.session.icon} ${ev.session.label} session. ${ev.session.what}`);
+      drawSessions(null, ev.session, ev.pickedBy);
+      // 1.5.41: Bob's own switch for a job already has its line in the chat; going quiet has one line of its own.
+      if (ev.by === 'bob') return;
+      note(ev.line || `${ev.session.icon} ${ev.session.label} session. ${ev.session.what}`);
       return;
     case 'suggest': {
       const el = add('suggest', `<span>${esc(ev.why)}</span><button type="button">${esc('Switch to ' + ev.label)}</button><button type="button" class="link">No thanks</button>`);
@@ -501,6 +511,9 @@ function onEvent(ev) {
       endReply(ev);
       note(ev.text, 'error');
       break;
+    case 'gaming-lock': // 1.5.41: changed by the button in another window, or by picking another session
+      gameLock.update(ev.on);
+      return;
     case 'aside': {
       // Gaming-session sleepy aside (public/sleepy.js): scripted, not part of the reply, not saved in the chat.
       const rep = ev.turnId && replies.get(ev.turnId);
@@ -838,7 +851,7 @@ async function start() {
     if (!s.ollama) note('I can\'t reach my engine (' + (s.engine || 'Ollama') + ') right now. Is it running? (The AI Toggle shortcut turns Ollama on.)', 'error');
   } catch {}
   try {
-    const st = await (await fetch('/api/settings')).json(); winVoiceName = st.tts?.windowsVoice || ''; setLook(st.look); applyStyle(st.style); drawSessions(st.sessions, st.session);
+    const st = await (await fetch('/api/settings')).json(); winVoiceName = st.tts?.windowsVoice || ''; setLook(st.look); applyStyle(st.style); autoSession = st.autoSession !== false; drawSessions(st.sessions, st.session, st.sessionBy);
     // Opt-in: tell the user a newer Bob is ready to build. Never updates by itself.
     if (st.updates?.autoCheck) { const c = await (await fetch('/api/update/check')).json(); if (c.newer) note(`A newer Bob (${c.available.label}) is ready. Settings, Check for updates.`); }
   } catch {}

@@ -1,6 +1,6 @@
 // Sessions: sets of brains that fit in the graphics card together, so Bob never swaps brains mid-session.
 // "Normal" is the old behaviour (each job uses the brain picked for it in Model roles).
-// Bob may suggest a session from what's waiting in his queue, but he never switches without the user's click.
+// 1.5.41: with "Let Bob pick the session" on (the default) Bob switches himself, see auto-session.js; off, he only suggests.
 
 export const SESSIONS = {
   normal: { label: 'Normal', icon: '☕', what: 'Each job uses the brain picked for it in Equip Bob. Bob swaps brains when a job needs another one.' },

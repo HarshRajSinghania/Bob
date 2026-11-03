@@ -106,3 +106,5 @@ Update this file in the same handover as any change to settings.
 | Settings > Advanced > Engines & speed | Pick up where Bob left off after a restart (was "Pick up unfinished jobs after a restart") | off | ok (approved with edits, 1.5.38) |
 | Settings > Everyday > 💾 Where Bob saves things | saveDir: Folder, Browse…, Save here, Show in folder, Use Bob's own folder | Bob's own folder (Made by Bob) | ok (approved with edits, songs) |
 | Settings > Advanced > Engines & speed | Keep chatting while Bob is busy | ON (the owner's explicit exception to opt-in, 2026-11-03) | ok (approved with edits, 1.5.41) |
+| Settings > Everyday | Let Bob pick the session | ON (the owner's explicit exception to opt-in) | ok (approved with edits, 1.5.41/42) |
+| Chat page > Effort row | 🎮 Gaming button (Off/On): locks Gaming, clears big brains from the card, parks jobs in Tasks | off | ok (approved with edits, 1.5.41/42) |
