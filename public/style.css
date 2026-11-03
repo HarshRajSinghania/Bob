@@ -977,3 +977,8 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .now-gpu .meter.split .m-bob.lvl-slower { background: #e3b53c; }
 .now-gpu .meter.split .m-bob.lvl-slow { background: #e0533f; }
 .now-gpu .mem-speed { display: block; } /* 1.5.47: no coloured dot here; the colour lives only in Bob's part of the bar above */
+
+/* 1.5.49: the brain bay in Now running: a short scene when a brain or the picture model comes or goes */
+.brain-bay { display: grid; gap: 2px; margin: 2px 0 6px; font-size: 12px; }
+.brain-bay canvas { width: 100%; max-width: 320px; image-rendering: pixelated; display: block; }
+.brain-bay .bay-text { color: var(--text); }

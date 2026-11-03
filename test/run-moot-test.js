@@ -84,7 +84,7 @@ async function turn(text, effort, s) {
   check('High: the reviewer sees the draft', rev && rev.last.includes('Here is a careful answer') && /Looks right\.|Needs fixes:/.test(rev.last));
   check('High: prose gets no workbench fix round', !r.calls.some((c) => c.w === 'tinker'));
   check('High: a moot is announced, naming the reviewer copy and its brain', r.events.some((e) => e.type === 'announce' && /calls a moot/.test(e.text) && /qwen3\.8:27b/.test(e.text)));
-  check('High: the minutes say to use the corrected answer', /Moot minutes:.*corrected answer/.test(r.tokens), r.tokens.slice(-200));
+  check('High: the minutes say to use the corrected answer', /Moot over:\*\*.*corrected answer/.test(r.tokens), r.tokens.slice(-200));
   check('the review and minutes are kept in the chat history', r.hist.some((m) => m.moot === 'check') && r.hist.some((m) => m.moot === 'minutes'));
   const name = readRoll(cfg).copies.find((c) => c.key === 'reviewer')?.name;
   check('the reviewer copy has a fresh clan name, not Bub', name && name !== 'Bub' && r.tokens.includes(`${name}, second look`), name);
@@ -125,7 +125,7 @@ async function turn(text, effort, s) {
   check('Extreme: each phase gets the reviewer\'s notes on the one before', t[1].last.includes('Right file') && t[2].last.includes('handle n = 0'));
   check('Extreme: no check after every single edit any more', r.calls.filter((c) => c.w === 'reviewer').length === 4 && !/Checkpoint/.test(r.tokens), order);
   check('Extreme: final check, fix, then a second check', /reviewer,tinker,reviewer$/.test(order), order);
-  check('Extreme: the minutes list the research and plan checks and end "checked, nothing open"', /Moot minutes:.*checked the research: fine.*checked the plan: needs fixes.*Result: checked, nothing open\./.test(r.tokens), r.tokens.slice(-400));
+  check('Extreme: the minutes list the research and plan checks and end "checked, nothing open"', /Moot over:\*\*.*checked the research: fine.*checked the plan: needs fixes.*Result: checked, nothing open\./.test(r.tokens), r.tokens.slice(-400));
 }
 
 // ---------- Small parts ----------

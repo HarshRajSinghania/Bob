@@ -92,10 +92,10 @@ function handOverToNewBob() {
   } catch { return false; }
 }
 
-globalThis.bobLoginItem = {
-  get: () => app.getLoginItemSettings().openAtLogin,
-  set: (on) => app.setLoginItemSettings({ openAtLogin: Boolean(on), args: ['--hidden'] })
-};
+// 1.5.49 (PC check): on Windows the start-up entry is matched with its arguments, so reading it without '--hidden'
+// said "off" while Bob was really set to start. Read and clear both forms, so the switch always tells the truth.
+const { loginItem } = require('./login-item.cjs');
+globalThis.bobLoginItem = loginItem(app);
 
 // Bob's brain runs in this program, so it uses Electron for Open, Show in folder and Copy. The brain checks
 // every path first (src/files.js): only the inn folder and folders Bob may read, never secrets or programs.

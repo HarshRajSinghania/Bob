@@ -4,6 +4,46 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.49
+
+### The moot, said plainly
+- When Bob's reviewer copy is called in, the chat says "🛰 Moot: Bob calls in (name), his reviewer, for a second look", and the moot ends with "🛰 Moot over:" and what was found.
+- Other copies now say "Bob hands this to (name), his Coding copy" instead of "spins up".
+
+### Swap, add or load
+- Each brain load now says what's happening: "Swapping brains" (one goes out, the other comes in), "Adding" (the new brain joins and the other stays loaded), or "Loading" (nothing was loaded).
+- For the moot, there's one line that says what happens. On Bob's own engine, which runs one brain at a time, his main brain steps out while the reviewer's brain checks the answer.
+- Bob's own engine holds one brain at a time, so a different brain is always a swap there. The picture model is separate and can sit beside a brain.
+
+### New little scenes
+- The brain-swap machine has new scenes: loading into an empty head; a copy of Bob walking in with a second brain (the moot); a copy handing its brain back while Bob keeps his; and Bob letting go of his last brain and dozing.
+- New: the brain bay at the top of Now running, Memory. It plays a short scene whenever a brain or the picture model comes or goes, with a line saying what happened. The scene goes after a few seconds, and the line stays for 2 minutes. With Animations off, there's only the line.
+
+### Fixes
+- **Launch on start-up:** Settings could say "off" while Bob was really set to start with Windows. That happened because Windows only finds the entry when it's read with the same option Bob saves it with. The switch now reads the entry correctly, and switching it off removes it.
+- **Security and privacy Hand (from the PC checks):**
+  - Programs in folders with spaces, like C:\Program Files\..., are now found and their signatures checked. Before, they were reported as missing.
+  - A site name that hides a brand with swapped letters (like paypa1-login) is now rated a likely fake.
+  - Startup items that run through the Windows console host now say the signature belongs to the host, not to the command it runs.
+  - Scheduled tasks that run a Windows component say so, instead of only "Looks normal".
+  - The "downloaded from" address no longer ends with a stray character.
+
+## 1.5.48
+
+### Security and privacy (new Hand, off to start with)
+- Turn it on in Settings > Hands > Security and privacy. It helps you protect your own PC and accounts. It's for defence only.
+- **Check this PC:** Bob reads how Microsoft Defender, the firewall, Windows updates and the programs that start with Windows are set up, and which network ports are open, then explains it in plain words. He doesn't change any of these settings.
+- **Defender scans:** quick, full or one-file scans, and definition updates. Each one goes on an OK card first.
+- **Is this file or email safe?** Bob looks at a file without opening or running it: its real type, where it was downloaded from, its signature, and signs of tricks in scripts, Office files, PDFs and emails. He also lists hidden details like photo location, camera, and document author.
+- **Make a clean copy:** Bob saves a copy of a photo, Office file, or sound or video file without the hidden details. The original isn't touched.
+- **Check a site, link or sender:** registration age, look-alike names, and known breaches (needs Web search on).
+- **Check a password safely:** a box under the Hand's switch checks whether a password has appeared in known breaches, when you press Check. Only the first 5 characters of a scrambled code of it go to haveibeenpwned.com; the password itself never leaves your PC.
+- **Tips:** plain-language notes on phishing, passwords, 2-step sign-in, backups, Wi-Fi, scams and more.
+- Bob won't help find or track people.
+
+### Smarter web searches
+- Bob's web search now uses search operators like quotes, site:, filetype: and -word, and can limit results to the past day, week, month or year. Help explains how.
+
 ## 1.5.47
 
 ### Clearer usage bars in Now running

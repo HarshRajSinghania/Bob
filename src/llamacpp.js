@@ -129,6 +129,13 @@ export class LlamaCpp {
     try { return (await fetch(this.url + '/health', { signal: AbortSignal.timeout(2000) })).ok; } catch { return false; }
   }
 
+  // 1.5.49: what loading this brain does to the ones already loaded. Bob's own engine holds one brain at a time,
+  // so a different brain always swaps the current one out (the picture engine is separate and isn't touched).
+  async loadPlan(model) {
+    const now = (await this.loaded()).map((m) => m.name);
+    return { before: now, drop: now.filter((n) => n !== model), keep: [], single: true };
+  }
+
   async loaded() {
     if (!(this.current && this.child && this.child.exitCode === null)) return [];
     let size = 0;

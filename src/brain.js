@@ -31,6 +31,7 @@ import { stampMessages, keepOlder, readSummary } from './chats.js';
 import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
 import { officeTools } from './hands-office.js';
+import { securityTools } from './hands-security.js';
 import { Made, madePaths, showMadeTool } from './made.js';
 import { imageInfoOf, sizeLike } from './imageinfo.js';
 import { scheduleTools } from './hands-schedules.js';
@@ -163,6 +164,29 @@ export function editPrompt(prompt) {
 const PLAIN_HATS = { tinker: 'Coding', ledger: 'Spreadsheets', scout: 'Research', painter: 'Images & video', reviewer: 'Review' };
 const BRAIN_NAMES = { bob: 'main', tinker: 'workbench', ledger: 'ledger', scout: 'scouting', painter: "painter's", reviewer: 'second-look', eyes: 'eyes' };
 
+// 1.5.49: how a brain load changes what Bob holds. swap = it replaces one, add = it joins one, load = nothing was loaded.
+export function loadMode(plan) {
+  if (!plan) return 'swap';
+  if (plan.drop?.length) return 'swap';
+  if (plan.keep?.length) return 'add';
+  return 'load';
+}
+// The chat line for a brain load. A reviewer joining is the moot, said plainly.
+export function loadLine({ mode, who, model, from, copy, secs, label, single = false }) {
+  const lc = (t) => t.charAt(0).toLowerCase() + t.slice(1); // "Coding brain (Qwen3 Coder 30B)" -> "coding brain (...)"
+  const mine = (t) => lc(t).replace(/^brain \(/, 'main brain ('); // Bob's main slot reads "my main brain (...)"
+  const now = lc(label(model, who)), old = from ? mine(label(from)) : '';
+  if (who === 'reviewer') {
+    if (mode === 'add') return `🛰 Moot: ${copy} joins me to check the answer, on the ${now}. It loads beside mine, about ${secs} seconds.`;
+    // Settings sign-off (1.5.49): the real reason. Bob's own engine runs one brain whatever its size; Ollama is about memory.
+    if (mode === 'swap' && old) return `🛰 Moot: ${copy} checks the answer. ${single ? 'My engine runs one brain at a time' : 'Only one big brain fits right now'}, so my ${old} steps out and the ${now} comes in, about ${secs} seconds.`;
+    return `🛰 Moot: ${copy} checks the answer, on the ${now}. Loading it, about ${secs} seconds.`;
+  }
+  if (mode === 'add' && old) return `Adding the ${now} beside my ${old}, which stays loaded. About ${secs} seconds.`;
+  if (mode === 'load' || !old) return `Loading the ${now}. Back in about ${secs} seconds.`;
+  return `Swapping brains: my ${old} goes out and the ${now} comes in. Back in about ${secs} seconds.`;
+}
+
 export class Brain {
   constructor(cfg, broadcast) {
     this.cfg = cfg;
@@ -200,7 +224,7 @@ export class Brain {
     this.reminderTimer.unref?.();
     this.housekeeper = new Housekeeper(cfg, this);
     this.tools.forget_topic = forgetTopicTool(this);
-    Object.assign(this.tools, handsTools(this), scheduleTools(this), officeTools(this)); // Hands: off until the user turns them on (see hands-settings.js)
+    Object.assign(this.tools, handsTools(this), scheduleTools(this), officeTools(this), securityTools(this)); // Hands: off until the user turns them on (see hands-settings.js)
     this.tools.use_tools = useToolsTool(this);
     this.tools.ask_together = askTogetherTool(this); // 1.5.42: every OK a job needs on one card (together.js) // the toolbox (toolbox.js): groups added only when a job needs them
     this.tools.pick_session = pickSessionTool(this); // 1.5.43: Bob changes session himself (auto-session.js)
@@ -341,9 +365,9 @@ export class Brain {
     }).format(new Date());
   }
 
-  setState(state, detail = '', model = this.state.model) {
+  setState(state, detail = '', model = this.state.model, extra = null) {
     const was = this.state?.state;
-    this.state = { state, detail, model };
+    this.state = { state, detail, model, ...(extra || {}) }; // extra (1.5.49): how a brain loads, { mode, from }
     this.broadcast({ type: 'status', ...this.state });
     // 1.5.41: a media step just started; a chat message already waiting may now go beside it.
     if (state === 'painting' && was !== 'painting' && this.cfg?.chatWhileBusy !== false && this.queue?.some((j) => j.state === 'waiting')) setTimeout(() => this.pump(), 0);
@@ -406,9 +430,12 @@ export class Brain {
       signal, emit, who,
       announce: async (m, attempt) => {
         const secs = await this.engine.estimateLoad(m).catch(() => 15);
-        const text = attempt ? `That didn't load right. Trying the ${this.brainLabel(m, who)} again, about ${secs} seconds.` : `Switching to the ${name} brain (${m}). Back in about ${secs} seconds.`;
+        // 1.5.49: say whether this brain replaces one (swap), joins one (add), or fills an empty head (load).
+        const plan = await this.engine.loadPlan?.(m, opts).catch(() => null) || null;
+        const mode = loadMode(plan);
+        const text = attempt ? `That didn't load right. Trying the ${this.brainLabel(m, who)} again, about ${secs} seconds.` : loadLine({ mode, who, model: m, from: plan?.drop?.[0] || plan?.keep?.[0] || '', copy: who === 'reviewer' ? copyName(this.cfg, 'reviewer', 'second look') : '', secs, label: (x, w) => this.brainLabel(x, w), single: Boolean(plan?.single) });
         emit({ type: 'announce', text, seconds: secs });
-        this.setState('loading', text, m);
+        this.setState('loading', text, m, { mode: attempt ? 'swap' : mode, from: plan?.drop?.[0] || plan?.keep?.[0] || '' });
       }
     }).catch((e) => {
       if (/^Stopped\.$/.test(e.message)) throw e;
@@ -1532,7 +1559,10 @@ export class Brain {
     const { model, cpu, think, ctx: wantCtx } = ctx.job?.side ? sideBrain(this.cfg) : force || (bigThinker(ctx.job) && hat !== 'reviewer' && hatBrain(this.cfg, hat, ctx.job.effort)) || modelFor(this.cfg, hat);
     const brainCtx = await this.fitCtx(model, wantCtx);
     const copy = copyName(this.cfg, hat, HATS[hat].label);
-    ctx.emit({ type: 'hat', hat, label: PLAIN_HATS[hat] || HATS[hat].label, copy });
+    // Settings sign-off (1.5.49): one moot line per review. If the review brain still has to load, the load line
+    // ("🛰 Moot: ... checks the answer ...") says it all, so the chat skips the reviewer's own line.
+    const loadsFirst = hat === 'reviewer' && !(await Promise.resolve(this.engine.isLoaded?.(model, { cpu, ctx: brainCtx }) ?? true).catch(() => true));
+    ctx.emit({ type: 'hat', hat, label: PLAIN_HATS[hat] || HATS[hat].label, copy, ...(loadsFirst ? { quiet: true } : {}) });
     // The Tasks panel: this job is now delegated to a copy (in progress) until the copy hands back.
     const step = { hat, label: PLAIN_HATS[hat] || HATS[hat].label, copy, task: String(task).slice(0, 140), state: 'in progress', at: Date.now() };
     if (ctx.job) { (ctx.job.steps ||= []).push(step); this.saveQueue(); }

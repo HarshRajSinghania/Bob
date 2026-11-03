@@ -161,7 +161,7 @@ try {
   // 6. Hat swap: coding goes to the coder model, announced
   evs = await turn('my game has a crash when the actor is destroyed');
   check(evs.some((e) => e.type === 'hat' && e.hat === 'tinker'), 'puts on the workbench hat');
-  check(evs.some((e) => e.type === 'announce' && /qwen3-coder/.test(e.text)), 'announces the switch to the coder brain');
+  check(evs.some((e) => e.type === 'announce' && /qwen3-coder|Qwen3 Coder/i.test(e.text)), 'announces the switch to the coder brain');
   check(/IsValid/.test(textOf(evs)), 'coder answer streamed to the user');
 
   // 6a. Handoff: the coding copy sees the conversation so far, not just the task the front desk wrote.

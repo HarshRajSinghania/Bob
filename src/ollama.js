@@ -1,5 +1,6 @@
 // Talks to the local Ollama server: chat streaming, what's loaded, loading and unloading.
 import { replyStats } from './speed-stats.js';
+import { readCard } from './gaming-card.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -22,6 +23,19 @@ export class Ollama {
     });
     if (!res.ok) throw new Error(`Ollama ${p} returned ${res.status}: ${(await res.text()).slice(0, 300)}`);
     return res.json();
+  }
+
+  // 1.5.49: what loading this brain does to the ones already loaded. Ollama keeps other brains while there's room:
+  // on the processor there always is (RAM); on the card, only if the new brain fits in the free graphics memory.
+  async loadPlan(model, { cpu = false } = {}) {
+    const now = (await this.loaded()).filter((m) => m.name !== model && m.name !== model + ':latest');
+    const before = now.map((m) => m.name);
+    if (!now.length || cpu) return { before, drop: [], keep: before };
+    const card = await readCard().catch(() => null);
+    const need = (await this.modelSize(model)) / 1048576;
+    const fits = card && need && need < card.freeMB * 0.95;
+    const onCard = now.filter((m) => m.vram > 0).map((m) => m.name);
+    return fits ? { before, drop: [], keep: before } : { before, drop: onCard, keep: before.filter((n) => !onCard.includes(n)) };
   }
 
   async loaded() {

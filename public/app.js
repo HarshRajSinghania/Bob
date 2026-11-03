@@ -2,7 +2,7 @@
 import { drawBob, setLook } from './bob-sprite.js';
 import { applyStyle, applySavedStyle } from './themes.js';
 applySavedStyle();
-import { startSwap } from './brain-swap.js';
+import { startSwap, sceneLabel } from './brain-swap.js';
 import { createVoice } from './voice.js';
 import { createCellar } from './cellar.js';
 import { createShelf, uploadRef, fixSideways } from './shelf.js';
@@ -172,7 +172,7 @@ function setStatus(s) {
   statusEl.textContent = s.detail || STATUS_TEXT[s.state] || s.state;
   catAntics.idle(s.state === 'idle');
   document.title = s.state === 'idle' ? 'Bob' : `Bob · ${STATUS_TEXT[s.state] || s.state}`;
-  if (s.state === 'loading') showSwap(lastModel || 'old', s.model || 'new');
+  if (s.state === 'loading') showSwap(s.from || lastModel || 'old', s.model || 'new', s.mode);
   else hideSwap();
   if (s.model) lastModel = s.model;
   layout.status(s);
@@ -187,21 +187,21 @@ function ping(title, body) {
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) badge(false); });
 
-function showSwap(from, to) {
+function showSwap(from, to, mode = 'swap') {
   if (swapEl) return;
   swapEl = document.createElement('div');
   swapEl.className = 'note announce';
   const c = document.createElement('canvas');
   c.style.cssText = 'width:100%;max-width:480px;image-rendering:pixelated;display:block;margin:0 auto';
   c.setAttribute('role', 'img');
-  c.setAttribute('aria-label', 'A contraption swaps Bob\'s brain');
+  c.setAttribute('aria-label', sceneLabel(mode));
   swapEl.appendChild(c);
   // 1.5.21: if Bob's newest post is something he made, the animation goes above it, so the creation stays in view.
   const last = log.lastElementChild;
   if (last?.classList.contains('bob') && last.querySelector('.out-card')) log.insertBefore(swapEl, last);
   else log.appendChild(swapEl);
   scrollDown();
-  swapStop = startSwap(c, { from, to });
+  swapStop = startSwap(c, { from, to, mode });
 }
 function hideSwap() {
   if (swapStop) swapStop();
@@ -446,7 +446,10 @@ function onEvent(ev) {
       break;
     case 'hat':
       endReply(ev);
-      add('note hat', ev.copy ? `Bob spins up ${esc(ev.copy)}, his ${esc(ev.label)} copy` : `Bob switches to ${esc(ev.label)}`);
+      // 1.5.49: the reviewer is the moot, said plainly; other copies take a job over.
+      if (ev.hat === 'reviewer' && ev.quiet) break; // its brain loads first, and that line says the moot
+      if (ev.hat === 'reviewer') add('note hat moot', `🛰 Moot: Bob calls in ${esc(ev.copy || 'his reviewer')}, his reviewer, for a second look`);
+      else add('note hat', ev.copy ? `Bob hands this to ${esc(ev.copy)}, his ${esc(ev.label)} copy` : `Bob switches to ${esc(ev.label)}`);
       break;
     case 'tool':
       if (!/^hat:/.test(ev.summary)) note(`· ${ev.summary}`);

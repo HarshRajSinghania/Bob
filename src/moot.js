@@ -116,7 +116,7 @@ export function mootMinutes(rounds, rev) {
   const end = !last ? '' : fixedAfter ? `Result: fixes made; ${rev} hasn't checked them again (Extreme effort does).` : last.verdict === 'ok' ? 'Result: checked, nothing open.'
     : last.corrected ? `Result: use ${rev}'s corrected answer above.`
     : `Result: not finished. ${rev}'s points above are still open.`;
-  return `**Moot minutes:** ${words.filter(Boolean).join(' · ')}. ${end}`.trim();
+  return `🛰 **Moot over:** ${words.filter(Boolean).join(' · ')}. ${end}`.trim(); // 1.5.49: was "Moot minutes"
 }
 
 // After the draft (runOn) at High or Extreme: the reviewer checks, code gets a fix round, Extreme checks again.

@@ -5,6 +5,7 @@ import { brainPlace, cardLevel, ramLevel, cpuLevel, cpuShare, quietBaseline } fr
 import { makeSortable, neighbour, taskRow, downloadRow } from './lists.js';
 import { currentStyle } from './themes.js';
 import { catMoment } from './patches.js';
+import { createBrainBay } from './brain-swap.js';
 
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -273,7 +274,8 @@ export function createLayout({ post, openTasks, openDownloads }) {
     gpuTimer = setTimeout(pollGpu, brainSt?.session === 'Gaming' ? 15000 : 5000);
   }
   // A fresh brain reading also refreshes the meters, so both are read at the same moment.
-  window.addEventListener('bob-brain-status', (e) => { brainSt = e.detail; if (Date.now() - gpuAt > 1500) pollGpu(); else brainLine(); });
+  const bay = createBrainBay($('brainBay')); // 1.5.49: a short scene whenever a brain or the picture model comes or goes
+  window.addEventListener('bob-brain-status', (e) => { brainSt = e.detail; try { bay(brainSt); } catch {} if (Date.now() - gpuAt > 1500) pollGpu(); else brainLine(); });
   document.addEventListener('visibilitychange', pollGpu);
 
   return {

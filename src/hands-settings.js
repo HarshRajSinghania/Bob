@@ -30,6 +30,11 @@ export const HANDS = {
     label: 'Office documents and converting',
     what: 'Converts files (Word, Excel, PowerPoint, PDF, pictures, sound, video), reads office files, and makes or changes documents, spreadsheets and slides. Every file he makes or changes is shown on a card first; he never overwrites and backs up before changing. Documents use LibreOffice (or OpenOffice) and sound and video use FFmpeg, found on your PC or got in Settings, Show advanced settings, Engines & speed; each runs only while it has a job. He saves only in the folders ticked below, plus his own Documents folder.',
     tools: ['convert_file', 'office_read', 'office_make', 'office_edit']
+  },
+  security: {
+    label: 'Security and privacy',
+    what: 'Checks this PC\'s protection, explains Defender alerts and runs scans, looks at suspicious files and links without opening them, and makes clean copies of photos before you share. He never turns protection off and never researches private people. Online look-ups need "Let Bob search the web".',
+    tools: ['security_check', 'defender_scan', 'inspect_file', 'strip_metadata', 'osint_lookup', 'check_exposure', 'security_tips']
   }
 };
 
