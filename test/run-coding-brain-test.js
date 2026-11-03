@@ -58,5 +58,35 @@ check('the glossary says coding always thinks and chat doesn\'t', /Thinking firs
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 
+// ---------- 1.5.67: waking the chat brain after a job loads the job's 128K (no 32K reload in between) ----------
+{
+  const os = await import('node:os'); const path = await import('node:path');
+  const { Brain } = await import('../src/brain.js');
+  const { chatBrain } = await import('../src/brain-mode.js');
+  const { modelFor } = await import('../src/sessions.js');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bob wake '));
+  const inn = path.join(tmp, 'inn'), dataDir = path.join(inn, 'bob');
+  fs.mkdirSync(dataDir, { recursive: true });
+  const make = (bob, extra = {}) => {
+    const brain = new Brain({ agentDir: tmp, innDir: inn, dataDir, settingsFile: path.join(dataDir, 'settings.json'), readRoots: [inn], readOnlyRoots: [], recycleBin: false, userName: 'Sam', models: { bob }, engine: 'ollama', ollamaUrl: 'http://127.0.0.1:1', ...extra }, () => {});
+    clearInterval(brain.reminderTimer);
+    brain.ensureModel = async () => {}; brain.fitCtx = async (m, c) => c; brain.recall = async () => '';
+    const calls = [], wakes = [];
+    brain.engine = { chat: async (o) => { calls.push(o.ctx); return { role: 'assistant', content: 'ok' }; }, isLoaded: async () => false, preload: async (m, k, o) => { wakes.push(o.ctx); return 1; } };
+    return { brain, calls, wakes };
+  };
+  const q = make('qwen3.6-35b-a3b');
+  await q.brain.runOn([], 'hi', () => {}, new AbortController().signal, [], null, 's1');
+  await q.brain.wake('back to the quick brain after a job');
+  check('Qwen3.6: waking the chat brain after a job uses the job\'s 128K, so it doesn\'t reload', q.calls[0] === 131072 && q.wakes[0] === q.calls[0], JSON.stringify({ job: q.calls, wake: q.wakes }));
+  check('the chat brain itself is 128K (wake, read-ahead, room checks, lending and the speed test all use it)', chatBrain(q.brain.cfg).ctx === 131072);
+  check('every copy on it in Normal is 128K too', modelFor({ models: { bob: 'qwen3.6-35b-a3b', tinker: 'qwen3.6-35b-a3b' } }, 'tinker').ctx === 131072);
+  const hand = make('qwen3.6-35b-a3b', { sessionCtx: { normal: 32768 } });
+  check('a context picked by hand for Normal still wins', chatBrain(hand.brain.cfg).ctx === 32768);
+  const g = make('gemma4:26b');
+  check('other brains keep the Normal 32K', chatBrain(g.brain.cfg).ctx === 32768);
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

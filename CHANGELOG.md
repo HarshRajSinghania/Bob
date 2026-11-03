@@ -4,6 +4,11 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.67
+
+### Fix
+- With Qwen3.6 35B-A3B as the Brain, Bob no longer reloads it after every job. Going back to chat after a job used to load it again with a smaller context (32K) and then load the big one (128K) for the next job, about 9 seconds each time. Now it stays one load at 128K. A context picked by hand for the Normal session still wins.
+
 ## 1.5.66
 
 ### One brain for chat and coding: Qwen3.6 35B-A3B

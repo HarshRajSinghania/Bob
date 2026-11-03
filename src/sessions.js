@@ -68,7 +68,13 @@ export function modelFor(cfg, hat) {
   const s = currentSession(cfg);
   const ctx = sessionCtx(cfg, s.id, hat);
   if (s.id === 'normal' && hat === 'bob' && quickOnCpu(cfg)) return { model: sessionBrains(cfg).small, cpu: true, ctx };
-  if (s.id === 'normal') return { model: cfg.oneBrain ? cfg.models.bob : (cfg.models[hat] || cfg.models.bob), cpu: false, ctx };
+  if (s.id === 'normal') {
+    const model = cfg.oneBrain ? cfg.models.bob : (cfg.models[hat] || cfg.models.bob);
+    // 1.5.67: Qwen3.6's 128K applies here too, not only inside a job, so waking or priming the chat brain after a
+    // job loads the same 128K the job used (it was reloading at 32K after every job). A context picked by hand wins.
+    const d = CTX_CHOICES.includes(cfg.sessionCtx?.normal) ? {} : brainDefaults(model, hat);
+    return { model, cpu: false, ctx: d.ctx || ctx };
+  }
   const model = sessionBrains(cfg)[s.brain] || cfg.models.bob;
   return { model, cpu: Boolean(s.cpu), think: s.think, ctx };
 }
