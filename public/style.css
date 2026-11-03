@@ -567,6 +567,16 @@ button.big { padding: 9px 18px; font-size: 15px; min-height: 40px; }
 .hands-card th, .hands-card td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .hands-card th { position: sticky; top: 0; background: var(--panel); }
 .hands-card td.path { font: 12px/1.35 var(--mono); overflow-wrap: anywhere; }
+/* 1.5.48: a tool Bob made, before it is added; and the Tools Bob made list in Settings */
+.newtool-card p { margin: 6px 0; }
+.newtool-card table.newtool { margin: 6px 0; }
+.newtool-card table.newtool th { position: static; width: 8em; white-space: nowrap; }
+.newtool-card table.newtool ul { margin: 0; padding-left: 1.1em; }
+.newtool-card pre.review { margin: 0; white-space: pre-wrap; font: 12px/1.4 var(--mono); }
+.newtool-card details pre.cmd, .hands-mytools pre.mytool-code { max-height: 320px; overflow: auto; white-space: pre; }
+.hands-mytools ul { list-style: none; padding: 0; margin: 6px 0; }
+.hands-mytools li.mytool { border-bottom: 1px solid var(--line); padding: 6px 0; }
+.hands-mytools.dim { opacity: 0.7; }
 .hands-card tr.blocked td { opacity: 0.6; }
 .hands-card .why { color: var(--bad); font-family: inherit; }
 .hands-card input[type=checkbox] { width: 20px; height: 20px; }

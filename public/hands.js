@@ -46,6 +46,7 @@ function officeLine(o, on) {
 // ---- Approval cards (from the brain's 'approval' event when it has a plan or a command) ----
 // Returns the card, or null if this isn't a Hands card (then the ordinary card is used).
 export function handsApproval(ev, { add, answer }) {
+  if (ev.newTool) return newToolCard(ev, { add, answer });
   if (!ev.plan && !ev.command) return null;
   const all = ev.allowAll ? '<button type="button" class="all big">Allow the rest of this job</button>' : '';
   let body = '';
@@ -80,6 +81,46 @@ export function handsApproval(ev, { add, answer }) {
   card.querySelector('.no').onclick = () => go(false);
   if (ev.allowAll) card.querySelector('.all').onclick = () => go('all');
   return card;
+}
+
+// ---- A tool Bob made, before it's added (1.5.48, src/selftools.js): what it does, what it can touch, the test,
+// the reviewer's verdict and the code. Two buttons, no "rest of this job".
+function newToolCard(ev, { add, answer }) {
+  const t = ev.newTool;
+  const li = (xs, none) => (xs?.length ? xs.map((x) => `<li>${esc(x)}</li>`).join('') : `<li class="muted">${esc(none)}</li>`);
+  const whole = (xs) => (xs || []).map((f) => `${f} (the whole folder)`);
+  // No gaps from the line breaks below (chat bubbles keep white space).
+  const card = add('approval hands-card newtool-card', (`<p><strong>Bob made a tool and wants to ${t.replaces ? 'replace his old one' : 'add it'}:</strong>&nbsp;<code>${esc(t.name)}</code></p>
+    <p>${esc(t.what)}</p>
+    <table class="newtool"><tbody>
+      <tr><th>Inputs</th><td><ul>${li(t.inputs, 'None')}</ul></td></tr>
+      <tr><th>Can read</th><td><ul>${li(whole(t.reads), 'Only its own folder')}</ul></td></tr>
+      <tr><th>Can change</th><td><ul>${li(whole(t.writes), 'Nothing outside its own folder')}</ul></td></tr>
+      <tr><th>Internet</th><td>${esc(t.internet)}</td></tr>
+      <tr><th>Downloads</th><td><ul>${li((t.downloads || []).map((d) => `${d.file}, ${d.size}, from ${d.url} (checked against its checksum)`), 'None')}</ul></td></tr>
+      <tr><th>Test</th><td>${esc(t.test)}</td></tr>
+      <tr><th>Review${t.reviewer ? ` (${esc(t.reviewer)})` : ''}</th><td><pre class="review">${esc(t.review)}</pre></td></tr>
+    </tbody></table>
+    <details><summary>Show code</summary><pre class="cmd"><code>${esc(t.code)}</code></pre>${t.testRaw ? `<pre class="cmd"><code>${esc(t.testRaw)}</code></pre>` : ''}</details>
+    <p class="muted">It runs in a sandbox that blocks other programs and anything not listed here. If its files change later, Bob turns it off until it's checked again.</p>
+    <div class="row"><button type="button" class="yes big">${esc(ev.button || 'Add tool')}</button><button type="button" class="no big">Not now (the draft is thrown away)</button></div>`).replace(/>\s+</g, '><'));
+  const go = (allow) => { card.querySelector('.row').outerHTML = `<div class="done">${allow ? (t.replaces ? 'Replaced' : 'Added') : 'Not added'}</div>`; answer(allow); };
+  card.querySelector('.yes').onclick = () => go(true);
+  card.querySelector('.no').onclick = () => go(false);
+  return card;
+}
+
+// Settings, Hands: the tools Bob made. Each can be turned off, its code shown, or removed (to the Recycle Bin).
+const TOOL_STATE = { on: '', off: 'turned off', changed: 'off: its files changed since you OK\'d it', missing: 'its folder is gone' };
+function selfToolsHtml(st, on) {
+  if (!st) return '';
+  const rows = st.tools.map((t) => `<li class="mytool"><label class="switch small"><input type="checkbox" data-hmytool="${esc(t.name)}" ${t.state === 'on' ? 'checked' : ''} ${t.state === 'changed' || t.state === 'missing' ? 'disabled' : ''}><span><strong>${esc(t.name)}</strong> ${TOOL_STATE[t.state] ? `<span class="warn-text">${esc(TOOL_STATE[t.state])}</span>` : ''}<br><span class="muted">${esc(t.what)}</span><br><span class="muted">Can change: ${esc(t.writes.join('; ') || 'nothing outside its folder')}. Internet: ${t.internet ? 'yes' : 'no'}. Made ${esc(when(t.at))}${t.lastUsed ? `, last used ${esc(when(t.lastUsed))}` : ', not used yet'}.</span></span></label>
+      <div class="row"><button type="button" data-hmytoolcode="${esc(t.name)}">Show code</button><button type="button" data-hmytooldel="${esc(t.name)}">Remove</button></div><pre class="cmd mytool-code" hidden></pre></li>`).join('');
+  const sb = st.sandbox ? (st.sandbox.ok ? `Sandbox holds ✓ <span class="muted">checked ${esc(when(st.sandbox.at || Date.now()))}</span>` : `<span class="warn-text">Making and using tools is refused: the sandbox didn't hold on this PC (${esc(st.sandbox.why)}).</span>`) : '<span class="muted">Sandbox not checked yet.</span>';
+  return `<div class="hands-mytools${on ? '' : ' dim'}"><strong>Tools Bob made</strong> <span class="muted">${st.tools.length} of ${st.max}</span>
+    ${st.tools.length ? `<ul>${rows}</ul>` : '<p class="muted">None yet. With "Make his own tools" on, Bob makes one when none of his tools fits a job, and shows you a card first.</p>'}
+    <p class="muted">${st.netGuard ? 'Tools without internet on their card are cut off from it.' : 'This PC can\'t cut one program off the internet without administrator rights, so the code is checked for it instead. That check isn\'t airtight.'}</p>
+    <div class="row"><button type="button" data-hsandbox>Check the sandbox</button> <span>${sb}</span></div></div>`;
 }
 
 // ---- One card with every OK a job needs (1.5.42, src/together.js) ----
@@ -227,6 +268,7 @@ export async function mountHandsSettings(box) {
       ${v.hands.map((h) => { const [first, ...rest] = String(h.what || '').split(/(?<=\.)\s+/); return `<label class="switch${s.enabled ? '' : ' dim'}"><input type="checkbox" data-hand="${esc(h.id)}" ${s[h.id]?.on ? 'checked' : ''} ${s.enabled ? '' : 'disabled'}><span><strong>${esc(h.label)}</strong><br><span class="muted">${esc(first)}</span></span></label>${rest.length ? `<details class="more"><summary>More</summary><p class="muted">${esc(rest.join(' '))}</p></details>` : ''}`; }).join('')}
       ${officeLine(v.office, s.enabled && s.office?.on)}
       ${securityLine(s.enabled && s.security?.on)}
+      ${selfToolsHtml(v.selfTools, s.enabled && s.maker?.on)}
       <div class="hands-limits"><strong>Hard limits</strong> <span class="tag">all on to start with</span>
         <p class="muted">These hold whether or not Bob asks first. Switch one off only if you need what it blocks.</p>
         ${(v.limits || []).map((l) => `<label class="switch small"><input type="checkbox" data-hlimit="${esc(l.id)}" ${s.limits?.[l.id] !== false ? 'checked' : ''}><span><strong>${esc(l.label)}</strong><br><span class="muted">${esc(l.on)}</span>${l.more ? `<details class="more"><summary>More</summary><span class="muted">${esc(l.more)}</span></details>` : ''}${s.limits?.[l.id] === false ? `<br><span class="warn-text">Off: ${esc(l.off)}</span>` : ''}${l.id === 'readOnly' ? `<br><span class="muted">Read-only right now: ${v.readOnly?.length ? esc(v.readOnly.join('; ')) : 'none (add folders to "readOnlyRoots" in config.json)'}</span>` : ''}</span></label>`).join('')}
@@ -286,6 +328,7 @@ export async function mountHandsSettings(box) {
       if (el.dataset.hand) return await set({ [el.dataset.hand]: { on: el.checked } }, el.checked ? 'On. Bob still asks before every action.' : 'Off.');
       if (el.dataset.hfolder) { const f = el.dataset.hfolder; return await set({ folders: el.checked ? [...v.settings.folders, f] : v.settings.folders.filter((x) => x !== f) }); }
       if ('htimeout' in el.dataset) return await set({ timeoutMin: Number(el.value) });
+      if (el.dataset.hmytool) { v = await post('/api/hands/mytools', { name: el.dataset.hmytool, on: el.checked }); draw(); return say(el.checked ? 'Tool on.' : 'Tool off. Bob won\'t use it until you turn it back on.'); }
       if (el.dataset.hsched) { sched = await post('/api/hands/schedules', { id: el.dataset.hsched, on: el.checked }); draw(); return say(el.checked ? 'Schedule on.' : 'Schedule off.'); }
       if ('hschedtask' in el.dataset) { try { sched = await post('/api/hands/schedules', { windowsTask: el.checked }); draw(); say(el.checked ? 'Added the "Bob schedules" task: Windows wakes Bob (hidden) when a schedule is due. Remove Bob takes it away too.' : 'Removed the Windows task.'); } catch (err) { el.checked = !el.checked; say(err.message); } return; }
     } catch (err) { say(err.message); }
@@ -308,6 +351,9 @@ export async function mountHandsSettings(box) {
       }
       if ('hpwcheck' in b.dataset) return await checkPassword(box);
       if (b.dataset.hgetengine) { b.disabled = true; try { await post('/api/models/download', { id: 'engine:' + b.dataset.hgetengine }); say('Downloading. It shows in Downloads; this line turns to ✓ when it\'s ready.'); } catch (e) { b.disabled = false; say(e.message); } return; }
+      if (b.dataset.hmytoolcode) { const pre = b.closest('li').querySelector('.mytool-code'); if (!pre.hidden) { pre.hidden = true; b.textContent = 'Show code'; return; } const r = await post('/api/hands/mytools', { name: b.dataset.hmytoolcode, code: true }); pre.textContent = r.code; pre.hidden = false; b.textContent = 'Hide code'; return; }
+      if (b.dataset.hmytooldel) { if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Click again to remove'; return; } v = await post('/api/hands/mytools', { name: b.dataset.hmytooldel, remove: true }); draw(); return say('Removed. Its folder is in the Recycle Bin.'); }
+      if ('hsandbox' in b.dataset) { b.disabled = true; say('Checking the sandbox (a few seconds)…'); v = await post('/api/hands/sandbox'); draw(); return say(v.sandbox?.ok ? 'The sandbox holds.' : `The sandbox didn't hold: ${v.sandbox?.why || 'unknown'}.`); }
       if ('hselftest' in b.dataset) { b.disabled = true; say('Running the self-test (about 10 seconds)…'); selftest = await post('/api/hands/selftest'); draw(); say(`Self-test: ${selftest.passed} of ${selftest.total} passed.`); return; }
       if (b.dataset.hscheddel) { sched = await post('/api/hands/schedules', { remove: b.dataset.hscheddel }); draw(); say('Schedule removed.'); return; }
       if (b.dataset.hundo) { const r = await post('/api/hands/undo', { id: b.dataset.hundo }); v = r; draw(); say(`Undone.${r.manual?.length ? ` ${r.manual.length} thing(s) are in the Recycle Bin: restore from there.` : ''}${r.failed?.length ? ` Couldn't undo: ${r.failed.join('; ')}` : ''}`); return; }

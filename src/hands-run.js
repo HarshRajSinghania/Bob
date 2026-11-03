@@ -85,7 +85,7 @@ const CMD_META = /[&|<>^%!"\r\n]/;
 const progName = (cmd) => path.basename(String(cmd || '')).toLowerCase().replace(/\.(exe|com|bat|cmd)$/, '');
 
 // What's wrong with this text, by the hard limits that are on (commands = the blocklist, sendOut = uploads).
-function textProblem(text, cfg = {}) {
+export function textProblem(text, cfg = {}) {
   if (limitOn(cfg, 'commands')) for (const [re, why] of NEVER_TEXT) if (re.test(text)) return why;
   if (limitOn(cfg, 'sendOut')) { const why = sendProblem(text); if (why) return `${why}, and "Don't send anything out" is on`; }
   return '';

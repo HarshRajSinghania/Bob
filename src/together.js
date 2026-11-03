@@ -94,6 +94,7 @@ export async function gather(brain, steps, ctx) {
     const args = parse(s.args ?? s.arguments);
     const tool = brain.tools[name];
     if (!tool?.check || !brain.usable(name)) continue; // nothing to ask (or not a tool he can use): the real call says why
+    if (tool.alone) continue; // 1.5.48: a new tool Bob made gets its own card after its own checks (selftools.js)
     const key = stepKey(name, args);
     if (ctx.allowAll?.has(typeof tool.approvalGroup === 'function' ? tool.approvalGroup(args) : tool.approvalGroup)) continue;
     let need, later = '';

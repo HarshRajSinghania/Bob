@@ -14,12 +14,15 @@
 //                              SHA-1 (made in the window) go to Have I Been Pwned; the list comes back to the window,
 //                              which finds the match itself. The password and its full scramble never reach Bob.
 //   POST /api/hands/run-recipe { name }  run a recipe now (the user's click is the approval; output goes to the chat)
+//   POST /api/hands/mytools    { name, on } | { name, remove: true } | { name, code: true }  the tools Bob made (1.5.48)
+//   POST /api/hands/sandbox    check again that the sandbox for Bob's own tools holds on this PC
 import { handsView, stopRun, stopEverything, holdHands, saveRecipe, removeRecipe, loadRecipes, runApproved } from './hands.js';
 import { handsSettings, cleanHands, HANDS, LIMITS, handOn } from './hands-settings.js';
 import fs from 'node:fs';
 import { undoJob } from './hands-files.js';
 import { selfTest } from './hands-selftest.js';
 import { pwnedRange } from './security-web.js';
+import { setToolOn, removeTool, toolCode, sandboxHolds } from './selftools.js';
 const isDir = (f) => { try { return fs.statSync(f).isDirectory(); } catch { return false; } };
 
 export async function handsRoute({ req, p, isLocal, brain, cfg, body, send, res }) {
@@ -67,6 +70,15 @@ export async function handsRoute({ req, p, isLocal, brain, cfg, body, send, res 
       send(res, 200, { range: await pwnedRange(String(b.prefix || '')) }); // nothing about it goes in the logbook
       return true;
     }
+    if (p === '/api/hands/mytools') {
+      const name = String(b.name || '');
+      if (b.code) { send(res, 200, { name, code: toolCode(cfg, name) }); return true; }
+      if (b.remove) { removeTool(cfg, name); brain.log('selftools', `removed ${name} (your click)`); }
+      else if ('on' in b) { setToolOn(cfg, name, b.on === true); brain.log('selftools', `${name} turned ${b.on ? 'on' : 'off'} (your click)`); }
+      send(res, 200, handsView(cfg));
+      return true;
+    }
+    if (p === '/api/hands/sandbox') { send(res, 200, { sandbox: await sandboxHolds(cfg, { fresh: true }), ...handsView(cfg) }); return true; }
     if (p === '/api/hands/selftest') { send(res, 200, await selfTest(cfg, { log: (k, t) => brain.log(k, t) })); return true; }
     if (p === '/api/hands/run-recipe') {
       if (!handOn(cfg, 'run')) throw new Error('The Run Hand is off. Turn on Hands and "Run programs and scripts" first.');

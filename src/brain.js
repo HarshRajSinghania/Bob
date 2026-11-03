@@ -32,6 +32,7 @@ import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
 import { officeTools } from './hands-office.js';
 import { securityTools } from './hands-security.js';
+import { selfToolsTools } from './selftools.js';
 import { Made, madePaths, showMadeTool } from './made.js';
 import { imageInfoOf, sizeLike } from './imageinfo.js';
 import { scheduleTools } from './hands-schedules.js';
@@ -172,15 +173,15 @@ export function loadMode(plan) {
   return 'load';
 }
 // The chat line for a brain load. A reviewer joining is the moot, said plainly.
-export function loadLine({ mode, who, model, from, copy, secs, label, single = false }) {
+export function loadLine({ mode, who, model, from, copy, secs, label, single = false, what = 'the answer' }) {
   const lc = (t) => t.charAt(0).toLowerCase() + t.slice(1); // "Coding brain (Qwen3 Coder 30B)" -> "coding brain (...)"
   const mine = (t) => lc(t).replace(/^brain \(/, 'main brain ('); // Bob's main slot reads "my main brain (...)"
   const now = lc(label(model, who)), old = from ? mine(label(from)) : '';
   if (who === 'reviewer') {
-    if (mode === 'add') return `🛰 Moot: ${copy} joins me to check the answer, on the ${now}. It loads beside mine, about ${secs} seconds.`;
+    if (mode === 'add') return `🛰 Moot: ${copy} joins me to check ${what}, on the ${now}. It loads beside mine, about ${secs} seconds.`;
     // Settings sign-off (1.5.49): the real reason. Bob's own engine runs one brain whatever its size; Ollama is about memory.
-    if (mode === 'swap' && old) return `🛰 Moot: ${copy} checks the answer. ${single ? 'My engine runs one brain at a time' : 'Only one big brain fits right now'}, so my ${old} steps out and the ${now} comes in, about ${secs} seconds.`;
-    return `🛰 Moot: ${copy} checks the answer, on the ${now}. Loading it, about ${secs} seconds.`;
+    if (mode === 'swap' && old) return `🛰 Moot: ${copy} checks ${what}. ${single ? 'My engine runs one brain at a time' : 'Only one big brain fits right now'}, so my ${old} steps out and the ${now} comes in, about ${secs} seconds.`;
+    return `🛰 Moot: ${copy} checks ${what}, on the ${now}. Loading it, about ${secs} seconds.`;
   }
   if (mode === 'add' && old) return `Adding the ${now} beside my ${old}, which stays loaded. About ${secs} seconds.`;
   if (mode === 'load' || !old) return `Loading the ${now}. Back in about ${secs} seconds.`;
@@ -224,7 +225,7 @@ export class Brain {
     this.reminderTimer.unref?.();
     this.housekeeper = new Housekeeper(cfg, this);
     this.tools.forget_topic = forgetTopicTool(this);
-    Object.assign(this.tools, handsTools(this), scheduleTools(this), officeTools(this), securityTools(this)); // Hands: off until the user turns them on (see hands-settings.js)
+    Object.assign(this.tools, handsTools(this), scheduleTools(this), officeTools(this), securityTools(this), selfToolsTools(this)); // Hands: off until the user turns them on (see hands-settings.js)
     this.tools.use_tools = useToolsTool(this);
     this.tools.ask_together = askTogetherTool(this); // 1.5.42: every OK a job needs on one card (together.js) // the toolbox (toolbox.js): groups added only when a job needs them
     this.tools.pick_session = pickSessionTool(this); // 1.5.43: Bob changes session himself (auto-session.js)
@@ -433,7 +434,7 @@ export class Brain {
         // 1.5.49: say whether this brain replaces one (swap), joins one (add), or fills an empty head (load).
         const plan = await this.engine.loadPlan?.(m, opts).catch(() => null) || null;
         const mode = loadMode(plan);
-        const text = attempt ? `That didn't load right. Trying the ${this.brainLabel(m, who)} again, about ${secs} seconds.` : loadLine({ mode, who, model: m, from: plan?.drop?.[0] || plan?.keep?.[0] || '', copy: who === 'reviewer' ? copyName(this.cfg, 'reviewer', 'second look') : '', secs, label: (x, w) => this.brainLabel(x, w), single: Boolean(plan?.single) });
+        const text = attempt ? `That didn't load right. Trying the ${this.brainLabel(m, who)} again, about ${secs} seconds.` : loadLine({ mode, who, model: m, from: plan?.drop?.[0] || plan?.keep?.[0] || '', copy: who === 'reviewer' ? copyName(this.cfg, 'reviewer', 'second look') : '', secs, label: (x, w) => this.brainLabel(x, w), single: Boolean(plan?.single), ...(opts?.what ? { what: opts.what } : {}) });
         emit({ type: 'announce', text, seconds: secs });
         this.setState('loading', text, m, { mode: attempt ? 'swap' : mode, from: plan?.drop?.[0] || plan?.keep?.[0] || '' });
       }
@@ -548,6 +549,7 @@ export class Brain {
     if (need.command) { card.command = need.command; card.cwd = need.cwd || ''; if (need.button) card.button = String(need.button).slice(0, 30); }
     if (hand) card.hand = true;
     if (Array.isArray(need.together)) card.together = need.together.map(({ key, ...it }) => it);
+    if (need.newTool) { card.newTool = need.newTool; if (need.button) card.button = String(need.button).slice(0, 30); card.allowAll = false; } // 1.5.48 (selftools.js)
     emit(card);
     if (hand) this.handApprovals.add(id);
     let picked = null, steps = null;
@@ -775,7 +777,7 @@ export class Brain {
             ctx.emit({ type: 'allowed-earlier', text: typeof need === 'string' ? need : need.text });
             if (Array.isArray(need.plan)) ctx.picked = earlier.rows;
           } else {
-          const hand = Boolean(need && typeof need === 'object' && (need.plan || need.command));
+          const hand = Boolean(need && typeof need === 'object' && (need.plan || need.command || need.newTool));
           const out = {};
           // Not on the card (or changed since): its own card, saying so, so the person isn't surprised by it.
           const unlisted = ctx.preOk ? (earlier?.changed ? ' (This changed since the list you saw, so Bob is asking again.)' : ' (This wasn\'t on the list you saw.)') : '';

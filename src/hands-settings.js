@@ -35,6 +35,11 @@ export const HANDS = {
     label: 'Security and privacy',
     what: 'Checks this PC\'s protection, explains Defender alerts and runs scans, looks at suspicious files and links without opening them, and makes clean copies of photos before you share. He never turns protection off and never researches private people. Online look-ups need "Let Bob search the web".',
     tools: ['security_check', 'defender_scan', 'inspect_file', 'strip_metadata', 'osint_lookup', 'check_exposure', 'security_tips']
+  },
+  maker: {
+    label: 'Make his own tools',
+    what: 'When none of his tools fits a job, Bob can write a small new one, tested in a sandbox and read by his reviewer, and you see one card before it\'s added. A tool he made can only use its own folder and the folders listed on its card, can\'t start other programs, and only uses the internet if the card says so. Any downloads are pinned to one exact file. Tools he made are listed under Tools Bob made, where you can turn one off, see its code or remove it.',
+    tools: ['make_tool', 'use_my_tool', 'my_tools']
   }
 };
 

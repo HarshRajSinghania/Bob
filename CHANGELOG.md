@@ -4,6 +4,20 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.50
+
+### Make his own tools (new Hand, off to start with)
+- Turn it on in Settings > Hands > Make his own tools. When none of Bob's tools fits a job, he can write a small new one.
+- Before a tool is added, it has to pass every step:
+  - **Plain checks:** plain JavaScript using only what's built into Node. It can't start other programs or hide what it does, and it can only use folders you ticked.
+  - **A test run** in a sandbox.
+  - **A moot:** his reviewer reads the code every time. The chat says "🛰 Bob calls a moot" and "🛰 Moot over".
+  - **Your OK** on one card: what the tool does, what it can read and change, whether it uses the internet, its downloads, the test result, the reviewer's verdict, and the code.
+- **The sandbox:** a tool can only use its own folder and the folders on its card. It can't start programs, never runs as administrator, gets no keys or passwords, and has a time limit.
+- **Downloads:** any file a tool needs is pinned to one exact file and checked before it's used.
+- **Tools Bob made:** a list in Settings > Hands, with a switch, Show code and Remove for each tool, plus a "Check the sandbox" button. If a tool's files are changed by hand, it's switched off.
+- A whole new Hand isn't something Bob makes himself, but he can suggest one.
+
 ## 1.5.49
 
 ### The moot, said plainly
