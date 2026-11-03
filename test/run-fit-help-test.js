@@ -43,7 +43,7 @@ const slot = (id) => allSlots().find((s) => s.id === id);
   const big = pc(16, 32);
   check('16 GB card: Gemma 4 26B is the Brain (covers the most jobs, fits the card)', pickFor('bob', models, big)?.id === 'gemma4-26b');
   check('16 GB card: the Quick brain is the light Gemma 4 E4B', pickFor('small', models, big)?.id === 'gemma4-e4b');
-  check('one model covering several jobs wins Coding over a coder that only codes', pickFor('tinker', models, big)?.id === 'gemma4-26b');
+  check('16 GB card: Coding is Qwen3.6 35B-A3B (it won the race, 1.5.63)', pickFor('tinker', models, big)?.id === 'qwen3.6-35b-a3b', pickFor('tinker', models, big)?.id);
   check('8 GB card: nothing too big is picked', ['bob', 'small', 'tinker', 'eyes'].every((s) => { const p = pickFor(s, models, pc(8, 32)); return !p || byId(p.id).vramGB <= 8; }));
   check('8 GB card: no Deep thinking pick (nothing strong enough fits)', pickFor('deep', models, pc(8, 32)) === null);
   check('6 GB card (a laptop): the light Qwen3 4B is the Brain and the Quick brain', pickFor('bob', models, pc(6, 32))?.id === 'qwen3-4b' && pickFor('small', models, pc(6, 32))?.id === 'qwen3-4b');

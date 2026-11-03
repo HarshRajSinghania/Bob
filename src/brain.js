@@ -26,7 +26,7 @@ import { copyName } from './clan.js';
 import { RefShelf } from './refs.js';
 import { makeAudio, songTitle, aceMissingFiles, aceModelsEntry, ACE_MODELS_ID } from './audio.js';
 import { runWorkflow } from './workshop.js';
-import { currentSession, modelFor, laneOf, suggestSession, SESSIONS, sessionBrains, waitsForGaming, GAMING_TAG, GAMING_HINT } from './sessions.js';
+import { currentSession, modelFor, laneOf, suggestSession, SESSIONS, sessionBrains, brainDefaults, waitsForGaming, GAMING_TAG, GAMING_HINT } from './sessions.js';
 import { stampMessages, keepOlder, readSummary } from './chats.js';
 import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
@@ -1781,6 +1781,7 @@ export class Brain {
     // Normal session: the hat's own brain (or the main one with "One brain"). Other sessions: the session's brain.
     // A moot (High/Extreme effort) passes force: the reviewer always runs on the Review slot brain.
     let { model, cpu, think, ctx: wantCtx, beside } = ctx.job?.side ? (ctx.job.sidePick || await sidePick(this, ctx.job)) : force || (bigThinker(ctx.job) && hat !== 'reviewer' && hatBrain(this.cfg, hat, ctx.job.effort)) || modelFor(this.cfg, hat);
+    { const d = brainDefaults(model, hat, cleanEffort(ctx.job?.effort)); if (wantCtx == null && d.ctx) wantCtx = d.ctx; if (think === undefined && 'think' in d) think = d.think; }
     const brainCtx = await this.fitCtx(model, wantCtx);
     // 1.5.51 (opt-in): the reviewer sits beside the main brain on the processor instead of swapping it out.
     if (hat === 'reviewer' && force && !ctx.job?.side && mootBesideOk(this, model, brainCtx)) { beside = true; cpu = true; }

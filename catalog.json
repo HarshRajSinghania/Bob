@@ -415,8 +415,7 @@
       "license": "Apache 2.0",
       "commercial": true,
       "pick": "best",
-      "trial": true,
-      "trialNote": "Being raced against Qwen3 Coder 30B on a 16 GB card.",
+      "raced": "Beat Qwen3 Coder 30B on a 16 GB card (2026-11-03): 128K fits with part of it in RAM.",
       "files": [
         {
           "url": "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/a483e9e6cbd595906af30beda3187c2663a1118c/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
@@ -1429,7 +1428,7 @@
       "minVramGB": 12,
       "models": [
         "gemma4-26b",
-        "qwen3-coder-30b",
+        "qwen3.6-35b-a3b",
         "z-image-turbo",
         "qwen-image-edit-2509",
         "wan2.2-ti2v-5b",
@@ -1442,7 +1441,7 @@
           "bob",
           "deep"
         ],
-        "qwen3-coder-30b": [
+        "qwen3.6-35b-a3b": [
           "tinker"
         ],
         "z-image-turbo": [
@@ -1467,7 +1466,8 @@
         ]
       },
       "notes": {
-        "gemma4-e4b": "the quick brain, and it sees pictures and hears you"
+        "gemma4-e4b": "the quick brain, and it sees pictures and hears you",
+        "qwen3.6-35b-a3b": "the coding brain: a big context (128K, how much it keeps in mind), and it thinks things through from Medium effort up"
       },
       "times": "Pictures take about 10 seconds each, clips a few minutes.",
       "cardGB": 16

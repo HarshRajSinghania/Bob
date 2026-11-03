@@ -119,6 +119,7 @@ ${set('Clear', 'Button', 'Empties the window. Nothing else changes.')}</dl>
     html: `<p>Above the chat box, <strong>Effort</strong> sets how hard I work on your next messages. It goes back to Low each time I start.</p>
 <p>Session: what the graphics card is kept for. Effort: how hard I work on each message. In the Gaming session Effort stays on Low, because the bigger levels need the graphics card.</p>
 <ul><li><strong>Low · Quick</strong> (the default): a quick answer from my Quick brain. If you switch on "Keep the graphics card free for quick answers" (Settings, Show advanced settings, Engines &amp; speed), it runs on the processor in the Normal session, so games and pictures keep the card, but replies take about half a minute to start.</li>
+<li><strong>My Coding brain</strong> (Qwen3.6 35B-A3B): at Low I answer straight off, without thinking first, so small coding jobs stay quick. From Medium up it thinks things through before it writes.</li>
 <li><strong>Medium · Deeper</strong>: one big brain (Deep thinking, or the main Brain if that slot is empty) thinks it through on the graphics card. No second check.</li>
 <li><strong>High · Checked</strong>: I call a <em>moot</em>, a meeting with my copies. A big brain drafts the answer, then my reviewer copy checks it on the Review brain. Code problems go back to the workbench for one fix.</li>
 <li><strong>Extreme · Slowest</strong>: like High, and coding goes in three steps (research, plan, then the changes), with the reviewer checking after each one. Then I check the fixes again. It's slow: on one graphics card every check swaps brains. Measure twice, cut once.</li></ul>
@@ -284,7 +285,7 @@ ${set('Alerts', 'Off', 'Pops up a Windows notification when I need you, for exam
 <dl>${set('Active', 'On for models on this PC, off for the rest', 'Active models show up in the Equip Bob slots and the brain menus that can use them; the rest stay here, out of the way. Switching one off only hides it: it stays on your PC, and if it\'s equipped it stays equipped and in view. Switch on a model you haven\'t downloaded and it shows in those slots with a Get button.')}</dl>
 <ul><li><strong>Get</strong> downloads it, after asking first with the size and licence. Big ones are big, so I always ask.</li>
 <li><strong>Equip</strong> puts a model that's already here into that job's slot.</li>
-<li><span class="tag">New</span> means I list it but don't recommend it until it's been tried on a real PC. Qwen3.6 35B-A3B, for example, is being raced against Qwen3 Coder 30B for Coding right now.</li>
+<li><span class="tag">New</span> means I list it but don't recommend it until it's been tried on a real PC. Qwen3.6 35B-A3B isn't marked New any more. On a real 16 GB card it beat Qwen3 Coder 30B, so it's now my Coding pick there.</li>
 <li>The <strong>Phone</strong> list is for the Bob phone app: it gets its own copy and you pick it there.</li>
 <li>Brains I found on this PC that aren't in my list sit at the end under <strong>Other brains on this PC</strong>, with their own Active switch.</li></ul>
 <p>Short version: the catalogue is the shop window, the slots are the shelf you actually reach for.</p>` },
@@ -629,6 +630,8 @@ ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for ti
     html: `<p>Two reasons it can hide. Either its <strong>Active</strong> switch is off in the ${go('catalogue', 'Brain catalogue')}, or it can't do that slot's job (a brain that can't see pictures never shows under Seeing pictures). Press <strong>📚 Get more</strong> under the slot, find it, and switch Active on. Nothing was deleted; I just tidied it out of the way.</p>` },
   { id: 'faq-new-models', group: 'FAQ', title: 'Why isn\'t a newer model Bob\'s pick yet?', words: 'faq new tag not recommended qwen3.6 qwen3.5 gemma e2b newer better tried tested race',
     html: `<p>Because I only recommend what's been tried on a real PC. A newer model can score better on paper and still trip over my tools or run slowly here. Once it's been timed and tested, the <strong>New</strong> tag goes and it can become my pick. You can still get and equip it before then.</p>` },
+  { id: 'faq-coding-think', group: 'FAQ', title: 'Why doesn\'t my Coding brain think things through at Low?', words: 'faq coding brain think thinking low medium effort qwen3.6 quick slow coder',
+    html: `<p>On purpose. Qwen3.6, my Coding brain, would think before every single reply, and for "rename this" or "what does this line do" that only makes you wait. So at <strong>Low</strong> I answer straight off. Pick <strong>Medium</strong> or higher and it thinks the job through first. Qwen3 Coder 30B is still here if you'd rather equip it: it never thinks first. See ${go('effort', 'Effort')}.</p>` },
   { id: 'faq-gaming-brain', group: 'FAQ', title: 'Can I use another brain in Gaming?', words: 'faq gaming brain other e4b gemma qwen change pick game processor',
     html: `<p>Not yet. The Gaming slot only takes Qwen3 4B Instruct 2507, the one that was timed answering on a busy processor while a game ran. Gemma 4 E4B is never used there, even if a setting asks for it. When another small brain passes the same timing, it gets added.</p>` },
   { id: 'faq-tips', group: 'FAQ', title: 'Where did the explanations under the settings go?', words: 'faq explanation description hint gone missing tip tooltip hover bubble i info clutter busy',
@@ -723,6 +726,7 @@ ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for ti
 <dt>GitHub release</dt><dd>A finished version of me published on github.com/MouseWurX/Bob, with a file for each kind of computer. <strong>Update Bob</strong> uses the one marked Latest.</dd>
 <dt>Checksum (.sha256)</dt><dd>A long number worked out from a file's contents. If even one byte changes, so does the number, so matching it proves the file is exactly the one on my GitHub release page. I'm not code-signed yet, so Windows or macOS may still warn the first time after an update.</dd>
 <dt>Brain</dt><dd>A model that thinks and chats. Bigger brains are usually smarter but slower and need more memory.</dd>
+<dt>Thinking first</dt><dd>Some brains think quietly before they answer. My Coding brain only does that from Medium effort up; at Low it answers straight away.</dd>
 <dt>Borrowed brain</dt><dd>When another of your Bobs thinks a quick reply for me over Tailscale (📡 in the chat). I still run the tools.</dd>
 <dt>Tip (ⓘ)</dt><dd>A small round <strong>i</strong> next to a setting or a heading. Point at it, Tab to it, or tap it and a bubble explains that thing. Press and hold a button on a touch screen to see its tip.</dd>
 <dt>Brain swap</dt><dd>Putting one brain away and loading another, usually 10 to 20 seconds.</dd>

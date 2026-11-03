@@ -152,7 +152,7 @@ With just these, Bob can chat, plan, research the web, read pictures, hear you a
 | Job | 16 GB card or more | 8 GB card | 6 GB card (most laptops) |
 |---|---|---|---|
 | Brain | Gemma 4 26B | Gemma 4 E4B | Qwen3 4B (light, leaves room for longer chats; Gemma 4 E4B still sees pictures and hears you) |
-| Coding | Qwen3 Coder 30B | Qwen3 Coder 30B (slower, runs mostly in RAM) | Qwen2.5 Coder 7B |
+| Coding | Qwen3.6 35B-A3B (128K; thinks from Medium effort up) | Qwen3 Coder 30B (slower, runs mostly in RAM) | Qwen2.5 Coder 7B |
 | Painter | Z-Image Turbo | Z-Image Turbo, 8 GB version | Z-Image Turbo, 6 GB version |
 | Picture editor | Qwen Image Edit | FLUX.2 klein 4B | FLUX.2 klein 4B, 6 GB version |
 | Video | Wan 2.2 5B | Wan 2.2 5B, small card version | the same, left unticked (very slow) |

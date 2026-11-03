@@ -24,7 +24,7 @@ const ctx = { roles, models, brains: {}, active: {}, vramGB: 16, ramGB: 32, free
   const want = ['qwen3.6-35b-a3b', 'qwen3.6-27b', 'qwen3.8-27b', 'qwen3.5-9b', 'qwen3.5-4b', 'qwen3.5-2b', 'gemma4-e2b'];
   check('the newer families are in the list', want.every((id) => byId(id)), want.filter((id) => !byId(id)).join(','));
   check('every new brain says which jobs it does', want.every((id) => byId(id).jobs?.length));
-  check('new brains are marked New (trial) until tried; Qwen 3.8 27B is already in use', want.filter((id) => id !== 'qwen3.8-27b').every((id) => byId(id).trial) && !byId('qwen3.8-27b').trial);
+  check('new brains are marked New (trial) until tried; Qwen 3.8 27B and Qwen3.6 35B-A3B (raced, 1.5.63) are not', want.filter((id) => !['qwen3.8-27b', 'qwen3.6-35b-a3b'].includes(id)).every((id) => byId(id).trial) && !byId('qwen3.8-27b').trial && !byId('qwen3.6-35b-a3b').trial);
   const hf = models.flatMap((m) => m.files || []).filter((f) => /huggingface\.co/.test(f.url));
   check('every Hugging Face link is pinned to a commit, with size and checksum', hf.every((f) => /\/resolve\/[0-9a-f]{40}\//.test(f.url) && f.bytes > 0 && (f.sizeOnly || /^[0-9a-f]{64}$/.test(f.sha256))));
   const seen = new Map(), clash = [];

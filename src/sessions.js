@@ -54,6 +54,14 @@ export function sessionCtx(cfg, id, hat) {
 // Setting quickOnCpu (Settings > Everyday): OFF unless switched on. Measured 2026-11-02 on a 9800X3D (gemma4:e4b, 4.3K-token
 // prompt): about 31 s to the first word on the processor vs about 4 s on the card, because reading the prompt is slow there.
 export const quickOnCpu = (cfg) => cfg?.quickOnCpu === true;
+// 1.5.63: Qwen3.6 35B-A3B, picked as the Coding brain after a race on a 16 GB card: 128K for the coding copy, and no thinking
+// at Low effort (it thinks before every reply otherwise); from Medium up it thinks, as the effort asks.
+export const LONG_CODER = /qwen3\.6[-_ ]?35b/i;
+export function brainDefaults(model, hat, effort) {
+  if (!LONG_CODER.test(String(model || ''))) return {};
+  return { ...(hat === 'tinker' ? { ctx: 131072 } : {}), ...(!effort || effort === 'low' ? { think: false } : {}) };
+}
+
 export function modelFor(cfg, hat) {
   const s = currentSession(cfg);
   const ctx = sessionCtx(cfg, s.id, hat);
