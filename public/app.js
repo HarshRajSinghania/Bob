@@ -21,6 +21,7 @@ import { createGameLock } from './game-lock.js';
 import { quarantineCard, quarantineResult, createQuarantineBanner } from './quarantine.js';
 import { createEffort } from './effort.js';
 import { createCatAntics } from './cat-antics.js';
+import { createBobLife } from './bob-life.js';
 import { createViewer, outCard, fillPeeks } from './viewer.js';
 import { songListHtml, wireSongs } from './song-player.js';
 import { moreBar } from './more-bar.js';
@@ -44,7 +45,7 @@ const webSwitch = createWebSwitch({ note: (t, k) => note(t, k) });
 const gameLock = createGameLock({ note: (t, k) => note(t, k) }); // 1.5.41 the 🎮 Gaming button
 const qBanner = createQuarantineBanner({ note: (t, k) => note(t, k) });
 const effort = createEffort();
-const catAntics = createCatAntics();
+const catAntics = createCatAntics({ onAntic: () => life.react('cat'), sleepy: () => life.dozing });
 const viewer = createViewer({ post: (u, d) => post(u, d), note: (t, k) => note(t, k) });
 const bobCanvas = $('bob'), bobCtx = bobCanvas.getContext('2d');
 bobCtx.imageSmoothingEnabled = false;
@@ -64,7 +65,11 @@ let lastModel = null;
 
 // ---------- Bob's face ----------
 // Idle life: he breathes (a one-pixel rise every couple of seconds) and blinks every 2.5 to 6 seconds,
-// sometimes twice. Animations off (Style page) keeps him still but still lets him talk.
+// sometimes twice. 1.5.53: little habits and reactions on top (public/bob-life.js), and a prop by his picture.
+// Animations off (Style page) keeps him still but still lets him talk. About 12 frames a second, and the picture
+// is only repainted when something changed.
+const life = createBobLife();
+const propEl = $('bobProp');
 let blink = false;
 (function blinker() {
   const twice = Math.random() < 0.25;
@@ -72,23 +77,40 @@ let blink = false;
   setTimeout(() => { blink = false; if (twice) setTimeout(() => { blink = true; setTimeout(() => { blink = false; }, 120); }, 160); }, 140);
   setTimeout(blinker, 2500 + Math.random() * 3500);
 })();
-let lastFrame = '';
+let lastFrame = '', lastProp = '';
 (function animate() {
   const now = Date.now();
   const still = document.body.classList.contains('still');
+  life.setStill(still);
+  const f = life.frame(now);
   const talk = now < talkingUntil && Math.floor(now / 140) % 2 === 0;
-  const rise = !still && !talk && Math.floor(now / 1100) % 2 === 1 ? 1 : 0;
-  const key = `${blink && !still}${talk}${rise}`;
+  const rise = !still && !talk && !f.shut && Math.floor(now / 1100) % 2 === 1 ? 1 : 0;
+  const shut = !still && (blink || f.shut);
+  const key = `${shut}${talk}${rise}${f.look}${f.wink}${f.dx}${f.dy}${f.head.toFixed(3)}`;
   if (key !== lastFrame) { // only repaint when something changed
     lastFrame = key;
     bobCtx.clearRect(0, 0, 56, 56);
     bobCtx.save();
-    bobCtx.translate(0, -rise * 2);
-    drawBob(bobCtx, 56, { blink: blink && !still, talk });
+    bobCtx.translate(f.dx * 2, (f.dy - rise) * 2);
+    drawBob(bobCtx, 56, { blink: shut, talk, look: f.look, wink: f.wink, head: f.head });
     bobCtx.restore();
   }
-  requestAnimationFrame(animate);
+  const prop = `${f.prop}|${f.propClass}`;
+  if (propEl && prop !== lastProp) {
+    lastProp = prop;
+    propEl.textContent = f.prop;
+    propEl.className = `bob-prop${f.prop ? ` p-${f.propClass}` : ''}`;
+    propEl.hidden = !f.prop;
+  }
+  setTimeout(animate, document.hidden ? 1000 : 80);
 })();
+// Two brains loaded at once (from the brain readings): a bigger head. Back to one: normal again.
+window.addEventListener('bob-brain-status', (e) => { const n = (e.detail?.models || []).filter((m) => m?.name).length; life.brains(n); });
+// A dozing Bob wakes when you come back to the window.
+let lifePoked = 0;
+const wakeBob = () => { const t = Date.now(); if (t - lifePoked > 2000) { lifePoked = t; life.poke(); } };
+for (const ev of ['pointermove', 'keydown', 'focus']) window.addEventListener(ev, wakeBob, { passive: true });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeBob(); });
 
 // ---------- Rendering ----------
 function scrollDown() { log.scrollTop = log.scrollHeight; }
@@ -171,6 +193,7 @@ function setStatus(s) {
   statusEl.className = `status ${s.state}`;
   statusEl.textContent = s.detail || STATUS_TEXT[s.state] || s.state;
   catAntics.idle(s.state === 'idle');
+  life.state(s.state);
   document.title = s.state === 'idle' ? 'Bob' : `Bob · ${STATUS_TEXT[s.state] || s.state}`;
   if (s.state === 'loading') showSwap(s.from || lastModel || 'old', s.model || 'new', s.mode);
   else hideSwap();
@@ -368,6 +391,13 @@ dlbar.onclick = () => downloads.open();
 dlbar.title = 'Open Downloads: pause, resume, reorder';
 function drawDownloadsBadge(items) { countBadge($('dlBtn'), items.filter((d) => ['queued', 'downloading'].includes(d.state)).length); }
 
+// 1.5.53: "Bob's thinking" (public/mind.html): a small window on top. Bob.exe opens it as its own window; in a
+// browser it opens as a pop-up. Pressing the button again brings the open one to the front.
+$('mindBtn')?.addEventListener('click', () => {
+  const w = window.open('/mind.html', 'bob-mind', 'popup,width=380,height=480');
+  try { w?.focus(); } catch {}
+});
+
 // ---------- Events from the brain ----------
 let brainSoon = null;
 function onEvent(ev) {
@@ -507,6 +537,7 @@ function onEvent(ev) {
       break;
     case 'error':
       endReply(ev);
+      life.react('oops');
       note(ev.text, 'error');
       break;
     case 'correction':
@@ -535,6 +566,7 @@ function onEvent(ev) {
       endReply(ev);
       running.delete(ev.turnId);
       setBusy(running.size > 0);
+      if (rep?.media?.length) life.react('proud'); else if (finished) life.react('done');
       if (finished) { speak(finished); if (aside) speak(sayAside(aside)); ping('Bob replied', finished.slice(0, 120)); }
       break;
     }
@@ -775,6 +807,7 @@ $('composer').onsubmit = async (e) => {
   const tag = bubble.querySelector('.qtag');
   if (!r.ok) { tag.textContent = 'not sent'; tag.classList.add('bad'); note(r.data.error || 'Something went wrong.', 'error'); return; }
   jobBubbles.set(r.data.jobId, bubble);
+  life.react('heard');
   tag.textContent = (r.data.ahead ? `queued, ${r.data.ahead} ahead` : 'queued') + (level === 'low' ? '' : ` · ${level[0].toUpperCase()}${level.slice(1)} effort`);
   if (lastJobs.some((j) => j.id === r.data.jobId && j.state !== 'waiting')) drawQueue(lastJobs); // it may already have run
 };
@@ -849,6 +882,7 @@ async function start() {
   try {
     const s = await (await fetch('/api/status')).json();
     setStatus(s);
+    if (s.state === 'idle') life.react('hello');
     if (s.version) $('ver').textContent = `Bob ${s.version.label}`;
     if (s.busy) setBusy(true);
     if (!s.ollama) note('I can\'t reach my engine (' + (s.engine || 'Ollama') + ') right now. Is it running? (The AI Toggle shortcut turns Ollama on.)', 'error');

@@ -166,8 +166,9 @@ export class Ollama {
     return r.embeddings;
   }
 
-  // Streams a chat. Calls onToken(text) for visible text. Returns the final assistant message.
-  async chat({ model, messages, tools, signal, onToken, cpu = false, think, ctx }) {
+  // Streams a chat. Calls onToken(text) for visible text, and onThink(text) for the model's thinking (1.5.53, only
+  // passed while the "Bob's thinking" window is open). Returns the final assistant message.
+  async chat({ model, messages, tools, signal, onToken, onThink, cpu = false, think, ctx }) {
     const thinkSend = await this.thinkField(model, think);
     const res = await fetch(this.url + '/api/chat', {
       method: 'POST',
@@ -192,6 +193,7 @@ export class Ollama {
         const ev = JSON.parse(line);
         if (ev.error) throw new Error('Ollama: ' + ev.error);
         const msg = ev.message || {};
+        if (msg.thinking && onThink) onThink(msg.thinking);
         if (msg.content) { content += msg.content; onToken && onToken(msg.content); }
         if (msg.tool_calls) toolCalls.push(...msg.tool_calls);
         // 1.5.30: the last line carries the reply's numbers; kept for Now running (no extra work for Ollama).

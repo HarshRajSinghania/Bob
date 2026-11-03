@@ -110,3 +110,10 @@ Update this file in the same handover as any change to settings.
 | Settings > Advanced > Engines & speed | Let the reviewer sit beside Bob's main brain (mootBeside) | off | ok (approved with edits, 1.5.51) |
 | Settings > Everyday | Let Bob pick the session | ON (the owner's explicit exception to opt-in) | ok (approved with edits, 1.5.41/42) |
 | Chat page > Effort row | 🎮 Gaming button (Off/On): locks Gaming, clears big brains from the card, parks jobs in Tasks | off | ok (approved with edits, 1.5.41/42) |
+
+## Added in 1.5.53 (Bob's thinking window), approved with edits by the design thread
+| Setting | Hint | Default | Review |
+|---|---|---|---|
+| 💭 Bob's thinking (chat bar button) | Opens a small always-on-top window showing Bob's thinking, which brain is working, moots and every step. Nothing runs for it while it's closed. | closed (opens on demand) | ok (1.5.53, clear with edits) |
+| Bob's thinking > Follow along | On: the window keeps up with the newest lines. Off: it stays where you scrolled to. (Scrolling up turns it off by itself.) | on | ok |
+| Bob's thinking > Clear | Empty this window. Nothing else changes. | button | ok |

@@ -190,6 +190,10 @@ Above the chat box, **Effort** sets how hard Bob works on your next messages. It
 
 High and Extreme end with **moot minutes**: who checked what, and what's still open.
 
+### Watching Bob think
+
+**💭 Bob's thinking**, at the top of the chat, opens a small window that stays on top of your other windows. It shows, live: what Bob is doing, which brains he holds and where (graphics card or processor), his thinking as it streams (his copies too, so you can watch a moot), brain loads and swaps, each tool step and the notes he keeps for himself. Low effort replies skip thinking, so there you mostly see steps. Bob only sends his thinking along while the window is open, and nothing in it is saved.
+
 ---
 
 ## 6. Topics and housekeeping: Bob's memory

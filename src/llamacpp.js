@@ -579,7 +579,7 @@ export class LlamaCpp {
     } finally { opts.signal?.removeEventListener?.('abort', onAbort); }
   }
 
-  async chatStream({ model, messages, tools, signal, onToken, think, budget, onOver }) {
+  async chatStream({ model, messages, tools, signal, onToken, onThink, think, budget, onOver }) {
     // 1.5.52: a brain whose template refused a mid-chat system note gets them folded in from then on (foldSystem).
     this.noMidSystem ||= new Set();
     if (this.noMidSystem.has(model)) messages = foldSystem(messages);
@@ -589,11 +589,11 @@ export class LlamaCpp {
       if (!this.noMidSystem.has(model) && MID_SYSTEM_REFUSED.test(text)) {
         this.noMidSystem.add(model);
         this.log?.('engine', `${model}: its chat template only takes a system message first, so Bob's notes go in as user notes from now on`);
-        return this.chatStream({ model, messages, tools, signal, onToken, think, budget, onOver });
+        return this.chatStream({ model, messages, tools, signal, onToken, onThink, think, budget, onOver });
       }
       throw new Error(`llama-server returned ${res.status}: ${text}`);
     }
-    return this.readStream(res, { model, messages, tools, signal, onToken, think, budget, onOver });
+    return this.readStream(res, { model, messages, tools, signal, onToken, onThink, think, budget, onOver });
   }
 
   post(model, messages, tools, signal, think) {
@@ -608,7 +608,7 @@ export class LlamaCpp {
     });
   }
 
-  async readStream(res, { model, messages, tools, signal, onToken, think, budget, onOver }) {
+  async readStream(res, { model, messages, tools, signal, onToken, onThink, think, budget, onOver }) {
     let content = '';
     let held = null; // null: not decided yet; false: streaming normally; a string: held back
     let thought = 0;
@@ -630,6 +630,7 @@ export class LlamaCpp {
         if (ev.timings) this.lastStats = replyStats({ model: this.current || model, messages, promptTokens: (ev.timings.prompt_n || 0) + (ev.timings.cache_n || 0), outTokens: ev.timings.predicted_n, tokPerSec: ev.timings.predicted_per_second, ctx: this.currentCtx || this.lc.ctx || DEFAULT_CTX }) || this.lastStats;
         const d = ev.choices?.[0]?.delta || {};
         if (budget && d.reasoning_content && ++thought > budget && !content) onOver(); // stop.over marks it, so real errors aren't retried
+        if (d.reasoning_content && onThink) onThink(d.reasoning_content); // 1.5.53: only while the thinking window is open
         if (d.content) {
           content += d.content;
           // 1.5.29: a reply that starts like a tool call written as text is held back until the end, so a rescued

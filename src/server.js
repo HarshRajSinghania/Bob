@@ -53,13 +53,18 @@ function saveDirView() {
   return { folder: cfg.painterDir, own: cfg.defaultPainterDir, picked: cfg.saveDir || '', custom: Boolean(cfg.saveDir) && !cfg.saveDirMissing, missing: cfg.saveDirMissing === true };
 }
 const clients = new Set();
+// 1.5.53: the "Bob's thinking" window (public/mind.html) listens with ?mind=1. Only those windows get his thinking
+// as it streams; while none is open, Bob doesn't even pass it along (brain.mindWatchers), so it costs nothing.
+const mindClients = new Set();
 
 function broadcast(ev) {
+  if (ev?.type === 'think-start' && ev.model) ev = { ...ev, label: friendlyName(ev.model) }; // "Qwen 3.8 27B", not the raw tag
   const data = `data: ${JSON.stringify(ev)}\n\n`;
-  for (const res of clients) res.write(data);
+  for (const res of ev?.type === 'think' || ev?.type === 'think-start' ? mindClients : clients) res.write(data);
 }
 
 const brain = new Brain(cfg, broadcast);
+brain.mindWatchers = () => mindClients.size;
 // 1.5.38: when Downloads change, a job waiting for one (a song waiting for the music models) may be able to go.
 const shop = new ModelShop(cfg, (ev) => { broadcast(ev); if (ev?.type === 'downloads') brain.downloadsChanged(); }, brain.engine);
 // 1.5.24: the card's size, for picture settings matched to it (only used when that switch is on).
@@ -169,8 +174,10 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
       res.write(`data: ${JSON.stringify({ type: 'status', ...brain.state })}\n\n`);
       clients.add(res);
+      const mind = url.searchParams.get('mind') === '1';
+      if (mind) mindClients.add(res);
       const ping = setInterval(() => res.write(': ping\n\n'), 20000);
-      req.on('close', () => { clearInterval(ping); clients.delete(res); });
+      req.on('close', () => { clearInterval(ping); clients.delete(res); mindClients.delete(res); });
       return;
     }
     // Keep Bob light (1.5.2): the Brain label on the chat page, and waking the small brain when someone types.

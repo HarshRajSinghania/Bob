@@ -261,6 +261,14 @@ export function loadLine({ mode, who, model, from, copy, secs, label, single = f
   return `Swapping brains: my ${old} goes out and the ${now} comes in. Back in about ${secs} seconds.`;
 }
 
+// 1.5.53: thinking goes to the "Bob's thinking" window in small batches (about 8 a second), not token by token.
+export function thinkStream(emit, who, model, every = 120) {
+  // The window's box for this brain call starts with the first thought, so a reply with no thinking leaves no empty box.
+  let buf = '', timer = null, started = false;
+  const flush = () => { clearTimeout(timer); timer = null; if (buf) { emit({ type: 'think', who, model, text: buf }); buf = ''; } };
+  return { push: (t) => { if (!started) { started = true; emit({ type: 'think-start', who, model }); } buf += t; if (!timer) timer = setTimeout(flush, every); }, flush };
+}
+
 export class Brain {
   constructor(cfg, broadcast) {
     this.cfg = cfg;
@@ -604,6 +612,13 @@ export class Brain {
 
   // A chat call that survives the engine dropping out mid-answer: the brain is loaded again and the call made once more.
   async chatSafe(opts, { emit, who = 'bob' } = {}) {
+    // 1.5.53: while a "Bob's thinking" window is open, his thinking streams to it, a few times a second (never saved).
+    const mind = emit && this.mindWatchers?.() ? thinkStream(emit, who, opts.model) : null;
+    if (mind) opts = { ...opts, onThink: mind.push };
+    try { return await this.chatRetry(opts, { emit, who }); } finally { mind?.flush(); }
+  }
+
+  async chatRetry(opts, { emit, who }) {
     try { return await this.engine.chat(opts); }
     catch (e) {
       if (opts.signal?.aborted) throw e;

@@ -5,7 +5,7 @@
 //   2. otherwise a Bob folder Bob.exe sits inside (it has an "inn" folder), e.g. Agent 00\Bob app\Bob.exe
 // Bob.exe is Electron's official electron.exe, only renamed; Bob's files are in Bob app\resources\app.
 //   3. otherwise %LOCALAPPDATA%\Bob, with a fresh config.json made from config.example.json.
-const { app, BrowserWindow, shell, Menu, dialog, clipboard } = require('electron');
+const { app, BrowserWindow, shell, Menu, dialog, clipboard, screen } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
@@ -140,6 +140,20 @@ async function up(port) {
 }
 
 let win = null;
+let mindWin = null; // 1.5.53: "Bob's thinking", opened from the chat page; nothing runs for it while it's closed
+
+// Small, in the bottom-right corner of the screen Bob is on, so it sits beside a game or an editor.
+function mindOptions(parent) {
+  const area = screen.getDisplayMatching(parent.getBounds()).workArea;
+  const width = 380, height = 480;
+  return {
+    width, height, minWidth: 260, minHeight: 200, x: area.x + area.width - width - 16, y: area.y + area.height - height - 16,
+    title: 'Bob\'s thinking', icon: path.join(root, 'public', 'icons', 'bob.ico'), backgroundColor: '#1d1510',
+    autoHideMenuBar: true, alwaysOnTop: true, minimizable: true, maximizable: false, fullscreenable: false,
+    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false }
+  };
+}
+
 async function start() {
   Menu.setApplicationMenu(null);
   if (handOverToNewBob()) { app.quit(); return; }
@@ -159,13 +173,30 @@ async function start() {
   });
   const base = `http://127.0.0.1:${home.port}`;
   // Links to the web open in the normal browser; Bob's window only ever shows Bob.
-  win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
+  // 1.5.53: the one exception is "Bob's thinking", his own small window that stays on top (one at a time).
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url === base + '/mind.html') {
+      if (mindWin) { mindWin.show(); mindWin.focus(); return { action: 'deny' }; }
+      return { action: 'allow', overrideBrowserWindowOptions: mindOptions(win) };
+    }
+    if (/^https?:/.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  win.webContents.on('did-create-window', (child) => {
+    mindWin = child;
+    child.setAlwaysOnTop(true, 'floating'); // above other windows, but not above Windows' own menus
+    child.setMenu(null);
+    child.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
+    child.webContents.on('will-navigate', (e, url) => { if (url !== base + '/mind.html') e.preventDefault(); });
+    contextMenu(child, base);
+    child.on('closed', () => { mindWin = null; });
+  });
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith(base)) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url); } });
   // The microphone (voice notes, "Hey Bob") and notifications are the only permissions Bob's page gets.
   win.webContents.session.setPermissionRequestHandler((wc, perm, cb) => cb(['media', 'notifications'].includes(perm) && wc.getURL().startsWith(base)));
   contextMenu(win, base);
   win.loadURL(base + '/');
-  win.on('closed', () => { win = null; });
+  win.on('closed', () => { win = null; if (mindWin) mindWin.close(); }); // closing Bob closes his thinking window too
 }
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
