@@ -30,6 +30,6 @@ check('never colour alone: every bar says "Speed:" with the reason, and a fix fo
 check('every yellow and red reason has a one-line fix', [cardLevel({ usedGB: 15, totalGB: 16 }, spill), cardLevel({ usedGB: 15.5, totalGB: 16 }, onCard), ramLevel({ usedGB: 31, totalGB: 32 }, onCard), ramLevel({ usedGB: 28, totalGB: 32 }, onCard), cpuLevel(30, cpu), cpuLevel(95, cpu), cpuLevel(95, onCard)].every((l) => l.level !== 'quick' && /\.$/.test(l.fix || '')));
 check('the two numbers add up to the headline (Bob never counts past what is in use)', /const bob = r1\(Math\.min\(b\[key\], m\.usedGB\)\), other = r1\(m\.usedGB - bob\)/.test(layout));
 check('Bob\'s app processor share comes from Node\'s own counter', /process\.cpuUsage\(\)/.test(server) && /return \{ loadPct: pct, appPct \}/.test(server));
-check('help explains the colours in Bob\'s voice', /my part is <strong>green<\/strong> when I should be quick/.test(help) && /<strong>blue<\/strong> is everything else/.test(help));
+check('help explains the colours in Bob\'s voice', /My part comes first, <strong>green<\/strong> when I should be quick/.test(help) && /<strong>blue<\/strong> is everything else/.test(help) && /dotted line is what.s free/.test(help));
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

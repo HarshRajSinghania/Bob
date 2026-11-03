@@ -4,6 +4,13 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.47
+
+### Clearer usage bars in Now running
+- Each usage bar (Graphics card, RAM, Processor) now reads as one whole bar from 0 to 100%. Bob's part comes first, in green, yellow or red for how quick he should be. Everything else follows in blue. The unused part is a dotted line running to a small mark at 100%.
+- The coloured dot on the "Speed:" line under each bar is gone, so the colour only appears in Bob's part of the bar. The words stay.
+- The bars are a little taller, so the colours are easier to see. Help explains the new look.
+
 ## 1.5.46
 
 ### Office documents and converting (new Hand, off to start with)

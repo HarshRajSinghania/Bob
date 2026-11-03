@@ -967,13 +967,13 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .together .together-step:has(input.pick:not(:checked)) > :not(.together-head) { opacity: 0.5; }
 
 /* 1.5.44: split bars in Now running: Bob's part by speed (green, yellow, red), everything else blue. */
-.now-gpu .meter.split { display: flex; }
+.now-gpu .meter.split { display: flex; height: 12px; border-radius: 3px 0 0 3px;
+  /* 1.5.47: the unused part is a dotted line running to the 100% mark, with a small end mark, so the bar always reads as one whole. */
+  background: repeating-linear-gradient(90deg, var(--muted, #a08a78) 0 2px, transparent 2px 6px) left center / 100% 2px no-repeat;
+  box-shadow: inset -2px 0 0 var(--muted, #a08a78); }
 .now-gpu .meter.split i { display: block; height: 100%; flex: none; width: 0; }
 .now-gpu .meter.split .m-sys { background: #4f8fdc; }
 .now-gpu .meter.split .m-bob { background: #5cb85c; }
 .now-gpu .meter.split .m-bob.lvl-slower { background: #e3b53c; }
 .now-gpu .meter.split .m-bob.lvl-slow { background: #e0533f; }
-.now-gpu .mem-speed { display: block; }
-.now-gpu .mem-speed::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; background: #5cb85c; vertical-align: middle; }
-.now-gpu .mem-speed.lvl-slower::before { background: #e3b53c; }
-.now-gpu .mem-speed.lvl-slow::before { background: #e0533f; }
+.now-gpu .mem-speed { display: block; } /* 1.5.47: no coloured dot here; the colour lives only in Bob's part of the bar above */
