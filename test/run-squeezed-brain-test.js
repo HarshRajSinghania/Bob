@@ -31,7 +31,7 @@ const trialOff = models.map((m) => (m.id === q3.id ? { ...m, trial: false } : m)
 check('once tested, on 16 GB it still never becomes a pick', ['tinker', 'bob', 'deep'].every((s) => pickFor(s, trialOff, pc(16))?.id !== q3.id));
 check('New until tried on a real small card', q3.trial === true);
 check('the catalogue says the 16 GB card uses the full version', deviceFit(q3).find((d) => d.id === 'big')?.word === 'Uses the full version');
-check('it gets the Coding brain settings (128K, thinks from Medium up)', JSON.stringify(brainDefaults(q3.id, 'tinker', 'low')) === JSON.stringify({ ctx: 131072, think: false }));
+check('it gets the Coding brain settings (128K, thinks at every effort)', JSON.stringify(brainDefaults(q3.id, 'tinker', 'low')) === JSON.stringify({ ctx: 131072 }));
 
 const faq = HELP.find((h) => h.id === 'faq-squeezed-brain');
 check('Help has the FAQ in Bob\'s voice', faq && /\bI\b/.test(faq.html) && /8 GB/.test(faq.html) && /Q3/.test(faq.html));

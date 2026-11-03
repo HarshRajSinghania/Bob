@@ -26,7 +26,7 @@ import { copyName } from './clan.js';
 import { RefShelf } from './refs.js';
 import { makeAudio, songTitle, aceMissingFiles, aceModelsEntry, ACE_MODELS_ID } from './audio.js';
 import { runWorkflow } from './workshop.js';
-import { currentSession, modelFor, laneOf, suggestSession, SESSIONS, sessionBrains, brainDefaults, waitsForGaming, GAMING_TAG, GAMING_HINT } from './sessions.js';
+import { currentSession, modelFor, laneOf, suggestSession, SESSIONS, sessionBrains, brainDefaults, CTX_CHOICES, LONG_CODER, waitsForGaming, GAMING_TAG, GAMING_HINT } from './sessions.js';
 import { stampMessages, keepOlder, readSummary } from './chats.js';
 import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
@@ -1522,6 +1522,13 @@ export class Brain {
     // 1.5.16: a Low-effort chat reply doesn't think first (gemma4 and others think by default, which delays every reply).
     // Medium and up, and sessions that set a level (Deep thought), keep their thinking.
     if (think === undefined && !bigThinker(job)) think = false;
+    // 1.5.66: Qwen3.6 as the main Brain (everyday chat): no thinking first, and the same 128K load its Coding copy
+    // uses, so chat and coding don't reload the brain between them. A context picked by hand for Normal still wins.
+    if (!job?.side && !bigThinker(job) && currentSession(this.cfg).id === 'normal' && !CTX_CHOICES.includes(this.cfg.sessionCtx?.normal)) {
+      const d = brainDefaults(model, 'bob');
+      if (d.ctx) wantCtx = d.ctx;
+      if ('think' in d) think = d.think;
+    }
     // Small extras, only on some turns: the effort note (High/Extreme) and now and then a moment with the cat.
     const turnNo = msgs.filter((m) => m.role === 'user').length;
     const state = realState({ model, session: currentSession(this.cfg).label, waiting: this.queue.filter((j) => j.state === 'waiting').length, cat: this.cfg.catName, turn: turnNo });
@@ -1561,6 +1568,14 @@ export class Brain {
 
     for (let step = 0; step < MAX_STEPS; step++) {
       const tools = this.frontDeskTools(ctx.loaded);
+      // 1.5.66: Bob's own one-more-go after a reply that missed. On Qwen3.6 (everyday chat answers without thinking)
+      // the retry thinks it through: thinking is set per request, so the same loaded brain does it, no reload.
+      if (ctx.retrying && think === false && LONG_CODER.test(String(model || ''))) {
+        think = undefined;
+        emit({ type: 'announce', text: 'Trying again, thinking it through this time.' });
+        this.log('chat', 'one more go, with thinking on');
+      }
+      ctx.retrying = false;
       const sys = { role: 'system', content: this.withLimits(systemPrompt({ now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName, look: lookPrompt(this.cfg), dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') }), ctx.loaded) + extras + (earlier ? `\n\n${earlier}` : '') };
       let reply = null;
       if (lender) {
@@ -1602,7 +1617,7 @@ export class Brain {
         // Shown by the app as its own note line under the reply (not as Bob's words), and kept with the reply for reloads.
         emit({ type: 'correction', text: CLAIM_CORRECTION });
         reply.correction = CLAIM_CORRECTION;
-        msgs.push({ role: 'system', content: CLAIM_NUDGE, hidden: true });
+        msgs.push({ role: 'system', content: CLAIM_NUDGE, hidden: true }); ctx.retrying = true;
         this.log('honesty', 'Bob claimed a PC action with no tool result; corrected and asked to retry');
         noteStrike(this, ctx, 'claims', 'said he did something on the PC that no tool did');
         await qAsk(this, ctx);
@@ -1613,7 +1628,7 @@ export class Brain {
         ctx.observeChecked = true;
         emit({ type: 'correction', text: OBSERVE_CORRECTION });
         reply.correction = OBSERVE_CORRECTION;
-        msgs.push({ role: 'system', content: OBSERVE_NUDGE.replaceAll('{{USER}}', this.cfg.userName || 'the user'), hidden: true });
+        msgs.push({ role: 'system', content: OBSERVE_NUDGE.replaceAll('{{USER}}', this.cfg.userName || 'the user'), hidden: true }); ctx.retrying = true;
         this.log('honesty', 'Bob described an observation with no tool result; corrected and asked to answer again');
         noteStrike(this, ctx, 'claims', 'described something on the PC with no tool behind it');
         await qAsk(this, ctx);
@@ -1627,7 +1642,7 @@ export class Brain {
         if (u) {
           ctx.cantRetried = true;
           await openLink(u, 'Bob said he could not; opened the link and asked again');
-          msgs.push({ role: 'system', content: LINK_NUDGE, hidden: true });
+          msgs.push({ role: 'system', content: LINK_NUDGE, hidden: true }); ctx.retrying = true;
           emit({ type: 'token', text: '\n\n' });
           continue;
         }
@@ -1638,7 +1653,7 @@ export class Brain {
           missing.forEach((g) => ctx.loaded.add(g));
           if (missing.length) emit({ type: 'tool', name: 'use_tools', summary: 'Trying again with all his tools' });
           if (empty) msgs.pop(); // an empty reply isn't worth keeping in the chat
-          msgs.push({ role: 'system', content: empty ? EMPTY_NUDGE : CANT_NUDGE, hidden: true });
+          msgs.push({ role: 'system', content: empty ? EMPTY_NUDGE : CANT_NUDGE, hidden: true }); ctx.retrying = true;
           this.log('toolbox', empty ? 'Bob gave an empty reply; added every tool group and asked again' : 'Bob said he could not; added every tool group and asked again');
           emit({ type: 'token', text: '\n\n' });
           continue;
@@ -1654,7 +1669,7 @@ export class Brain {
           msgs.push({ role: 'assistant', content: '', correction: EMPTY_NOTE });
         }
         this.log('toolbox', 'Bob gave an empty reply twice');
-      } else if (!reply.tool_calls && this.checkTurn(ctx, reply, true)) continue; // asked for something that didn't happen: one more go
+      } else if (!reply.tool_calls && this.checkTurn(ctx, reply, true)) { ctx.retrying = true; continue; } // asked for something that didn't happen: one more go
       if (!reply.tool_calls) { this.keepGroups(sessionId, used); return; }
       let ended = false;
       ctx.painted = null; // what the painter made in this round (for the quick hand-back below)
@@ -1802,7 +1817,7 @@ export class Brain {
     // Normal session: the hat's own brain (or the main one with "One brain"). Other sessions: the session's brain.
     // A moot (High/Extreme effort) passes force: the reviewer always runs on the Review slot brain.
     let { model, cpu, think, ctx: wantCtx, beside } = ctx.job?.side ? (ctx.job.sidePick || await sidePick(this, ctx.job)) : force || (bigThinker(ctx.job) && hat !== 'reviewer' && hatBrain(this.cfg, hat, ctx.job.effort)) || modelFor(this.cfg, hat);
-    { const d = brainDefaults(model, hat, cleanEffort(ctx.job?.effort)); if (wantCtx == null && d.ctx) wantCtx = d.ctx; if (think === undefined && 'think' in d) think = d.think; }
+    { const d = brainDefaults(model, hat, cleanEffort(ctx.job?.effort)); if (d.ctx && (wantCtx == null || (currentSession(this.cfg).id === 'normal' && !CTX_CHOICES.includes(this.cfg.sessionCtx?.normal)))) wantCtx = d.ctx; if (think === undefined && 'think' in d) think = d.think; }
     const brainCtx = await this.fitCtx(model, wantCtx);
     // 1.5.51 (opt-in): the reviewer sits beside the main brain on the processor instead of swapping it out.
     if (hat === 'reviewer' && force && !ctx.job?.side && mootBesideOk(this, model, brainCtx)) { beside = true; cpu = true; }

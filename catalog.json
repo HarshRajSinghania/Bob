@@ -1476,10 +1476,11 @@
       ],
       "slots": {
         "gemma4-26b": [
-          "bob",
-          "deep"
+          "deep",
+          "office"
         ],
         "qwen3.6-35b-a3b": [
+          "bob",
           "tinker"
         ],
         "z-image-turbo": [
@@ -1505,7 +1506,8 @@
       },
       "notes": {
         "gemma4-e4b": "the quick brain, and it sees pictures and hears you",
-        "qwen3.6-35b-a3b": "the coding brain: a big context (128K, how much it keeps in mind), and it thinks things through from Medium effort up"
+        "qwen3.6-35b-a3b": "everyday chat and coding in one load: a big context (128K, how much it keeps in mind). It answers Low-effort chat straight off and always thinks coding jobs through",
+        "gemma4-26b": "Office and Deep thinking"
       },
       "times": "Pictures take about 10 seconds each, clips a few minutes.",
       "cardGB": 16

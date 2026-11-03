@@ -5,7 +5,7 @@
 const $ = (id) => document.getElementById(id);
 const KEY = 'bob-effort';
 export const HINTS = {
-  low: 'Quick answer from the Quick brain. Nothing extra loads.',
+  low: 'A quick answer, without thinking it over first. Nothing extra loads.',
   medium: 'One big brain thinks it through on the graphics card. No second check. Takes a little longer.',
   high: 'A big brain drafts the answer, then the Review brain checks it. Slower. Big brains are freed afterwards.',
   extreme: 'Like High, and for code the Review brain also checks the research and the plan before anything changes. Slowest: every check swaps brains (about 20 seconds each).'

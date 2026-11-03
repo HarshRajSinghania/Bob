@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { idFolderFile, saveNameOf, fileNameOf } from '../src/models.js';
+import { idFolderFile, saveNameOf, fileNameOf, ownerOf } from '../src/models.js';
 import { LlamaCpp } from '../src/llamacpp.js';
 
 let pass = 0, fail = 0;
@@ -36,6 +36,8 @@ const got = lc.catalogFile('test-model');
 check('Bob\'s engine runs it from there, picture reader included', got?.gguf === path.join(dir, 'Model-Q4.gguf') && got?.mmproj === path.join(dir, 'mmproj-F16.gguf'), JSON.stringify(got));
 check('a bad id never leaves the models folder', idFolderFile(cfg, { id: '../x', files: [] }, gguf) === null);
 
+check('1.5.66: Get models says such a copy is Bob\'s, not Ollama\'s', ownerOf('C:\\Agent 00\\models\\qwen3.6-35b-a3b\\Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf') === 'Bob');
+check('Ollama\'s own blobs are still Ollama\'s', ownerOf('C:\\Agent 00\\models\\blobs\\sha256-abc') === 'Ollama' && ownerOf('C:\\Users\\you\\.ollama\\models\\blobs\\x') === 'Ollama');
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -44,7 +44,9 @@ export function ownerOf(p) {
   if (/comfy/.test(s)) return 'ComfyUI';
   if (/maestro|wan2gp|wangp/.test(s)) return 'Maestro';
   if (/pinokio/.test(s)) return 'Pinokio';
-  if (/ollama|\/models\//.test(s)) return 'Ollama';
+  // 1.5.66: only Ollama's own folders (blobs, manifests) are Ollama's; models\<id>\ copies are Bob's (idFolderFile).
+  if (/ollama|\/models\/(?:blobs|manifests)\//.test(s)) return 'Ollama';
+  if (/\/models\/[\w.-]+\/[^/]+\.gguf$/.test(s)) return 'Bob';
   return 'other';
 }
 
