@@ -9,6 +9,7 @@ import { setupWorkshop, setupVoice, audioReady, voicesReady } from './audio.js';
 import { findOffice, findFfmpeg } from './office.js';
 import { OS, exeName, onPath } from './platform.js';
 import { unzip } from './zip.js';
+import { fileURLToPath } from 'node:url';
 
 // The opt-in office helpers are pinned to exact versions and checksums (src/office-pins.json, installer/pin-office.js).
 export function officePins() {
@@ -155,7 +156,7 @@ export function installedVersion(cfg, e) {
 // NVIDIA build with its CUDA runtime (other builds are smaller); the rest follow each engine's own "About" text.
 export const ENGINE_GB = { llamacpp: 0.6, sdcpp: 0.5, whispercpp: 0.1, piper: 0.1, audio: 12, kokoro: 0.1, chatterbox: 4, ffmpeg: 0.1, libreoffice: 0.35 };
 export function engineStatus(cfg) {
-  return ENGINES.map((e0) => engineFor(e0)).map((e) => ({ id: e.id, name: e.name, what: e.what, sizeGB: ENGINE_GB[e.id] ?? 0.1, available: !e.unavailable && !(OS !== 'win' && e.install), note: e.unavailable || '', installed: e.ready ? Boolean(e.ready(cfg)) : Boolean(engineExe(cfg, e)), version: installedVersion(cfg, e) || e.version?.(cfg) || null, pinned: Boolean(e.tag || e.pinned), found: e.found?.(cfg) || '', pin: e.id === 'libreoffice' ? (PIN.libreoffice?.version || '') : e.id === 'ffmpeg' ? (PIN.ffmpeg?.tag || '') : '', folder: path.join(cfg.agentDir, e.dir) }));
+  return ENGINES.map((e0) => engineFor(e0)).map((e) => ({ id: e.id, name: e.name, what: e.what, sizeGB: ENGINE_GB[e.id] ?? 0.1, available: !e.unavailable && !(OS !== 'win' && e.install), note: e.unavailable || '', installed: e.ready ? Boolean(e.ready(cfg)) : Boolean(engineExe(cfg, e)), bundled: e.id === 'llamacpp' && bundledEngine(cfg), version: installedVersion(cfg, e) || e.version?.(cfg) || null, pinned: Boolean(e.tag || e.pinned), found: e.found?.(cfg) || '', pin: e.id === 'libreoffice' ? (PIN.libreoffice?.version || '') : e.id === 'ffmpeg' ? (PIN.ffmpeg?.tag || '') : '', folder: path.join(cfg.agentDir, e.dir) }));
 }
 
 // The newest release with a Windows build, for "Get newer build". Same rules as installing.
@@ -269,7 +270,9 @@ function flatten(folder, exeNames) {
 // release with no Windows zips at all, so Bob looks back through the last 15 instead of giving up.
 export async function findRelease(e, nvidia, signal, fetchImpl = fetch) {
   const get = async (u) => {
-    const r = await fetchImpl(u, { headers: { 'user-agent': 'Bob', accept: 'application/vnd.github+json' }, signal });
+    // Release builds only (installer/bundle-engine.mjs in CI): the workflow's token, against GitHub's rate limit.
+    const auth = process.env.BOB_BUNDLE_TOKEN ? { authorization: `Bearer ${process.env.BOB_BUNDLE_TOKEN}` } : {};
+    const r = await fetchImpl(u, { headers: { 'user-agent': 'Bob', accept: 'application/vnd.github+json', ...auth }, signal });
     if (!r.ok) throw new Error(`GitHub didn't answer for ${e.name} (${r.status}). Try again in a few minutes.`);
     return r.json();
   };
@@ -310,9 +313,35 @@ export function checkEngine(cfg, id, { run = execFile, timeout = 20000 } = {}) {
   });
 }
 
-export async function installEngine(cfg, id, { nvidia, pub, signal, tick }) {
-  const e = engineFor(ENGINES.find((x) => x.id === id));
-  if (!e) throw new Error('No such engine.');
+// 1.5.76 "bundle a basic engine": Bob's download carries a basic llama.cpp (Vulkan on Windows and Linux: any graphics
+// card or the processor; Metal on a Mac) in <app>/engines/llama.cpp, made by installer/bundle-engine.mjs at release time
+// from the same GitHub release files and checksums as a normal download. On first start it is copied into Bob's own
+// engine folder if he has none, so he can run a brain with nothing fetched. Its bob-llamacpp.json says bundled: true;
+// with an NVIDIA card, Get Bob ready then swaps in the faster CUDA build.
+// Inside an AppImage (asar), the bundle is unpacked next to it in app.asar.unpacked, where programs can be copied from.
+export const BUNDLE_DIR = fileURLToPath(new URL('../engines/llama.cpp', import.meta.url)).replace(/app\.asar(?=[\\/])/, 'app.asar.unpacked');
+export function bundledEngine(cfg) {
+  try { return JSON.parse(fs.readFileSync(path.join(cfg.agentDir, 'llama.cpp', 'bob-llamacpp.json'), 'utf8')).bundled === true; } catch { return false; }
+}
+export function seedBundledEngine(cfg, from = BUNDLE_DIR) {
+  const e = ENGINES.find((x) => x.id === 'llamacpp');
+  if (engineExe(cfg, e) || !fs.existsSync(path.join(from, 'bob-llamacpp.json'))) return false;
+  const to = path.join(cfg.agentDir, e.dir);
+  fs.mkdirSync(to, { recursive: true });
+  fs.cpSync(from, to, { recursive: true });
+  if (OS !== 'win') { try { makeRunnable(to); } catch {} }
+  return Boolean(engineExe(cfg, e));
+}
+
+export async function installEngine(cfg, id, { nvidia, pub, signal, tick, tag } = {}) {
+  const e0 = engineFor(ENGINES.find((x) => x.id === id));
+  if (!e0) throw new Error('No such engine.');
+  const e = tag ? { ...e0, tag } : e0;
+  // Replacing the bundled build: its files go first, so two builds' graphics libraries never sit side by side.
+  if (id === 'llamacpp' && bundledEngine(cfg)) {
+    try { fs.rmSync(path.join(cfg.agentDir, e.dir), { recursive: true, force: true }); }
+    catch (err) { throw new Error(`llama.cpp is in use right now (${err.code || err.message}). Press Unload everything (or wait for the brain to go idle), then Try again.`); }
+  }
   if (e.unavailable) throw new Error(e.unavailable);
   if (e.install && e.os !== 'win') throw new Error(`${e.name} can't be fetched on this computer. Install it yourself and Bob finds it.`);
   if (e.install) return e.install(cfg, { pub, signal, tick });

@@ -15,7 +15,7 @@ import { loadConfig, appDir, saveSettings, saveRemote, replaceSettings, cleanPro
 import { Brain } from './brain.js';
 import { transcribe } from './stt.js';
 import { ModelShop } from './models.js';
-import { checkEngine } from './engines.js';
+import { checkEngine, seedBundledEngine } from './engines.js';
 import { autostartOn, setAutostart } from './autostart.js';
 import { capabilities } from './capabilities.js';
 import { cloudStatus } from './cloud.js';
@@ -46,6 +46,8 @@ import { guestRoute, answerAway } from './share-jobs.js';
 import { OS, features } from './platform.js';
 
 const cfg = loadConfig();
+// 1.5.76: the basic llama.cpp that comes inside Bob's download goes into his engine folder, if he has none yet.
+try { if (seedBundledEngine(cfg)) console.error('Bob: set up the llama.cpp that came with him.'); } catch {}
 const publicDir = path.join(appDir, 'public');
 
 // llama.cpp speed settings, as the app shows them.

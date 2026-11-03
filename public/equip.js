@@ -280,7 +280,8 @@ export function starterBrain({ vramGB, ramGB, unified, integrated } = {}) {
 }
 export function readyPlan(hwCtx, models, engines) {
   const eng = CORE_ENGINES.map((id) => engines.find((e) => e.id === id)).filter((e) => e && e.available !== false);
-  const ids = eng.filter((e) => !e.installed).map((e) => 'engine:' + e.id);
+  // 1.5.76: the llama.cpp that came with Bob is the basic build; with an NVIDIA card the faster CUDA build replaces it.
+  const ids = eng.filter((e) => !e.installed || (e.bundled && hwCtx.nvidia)).map((e) => 'engine:' + e.id);
   const brain = models.find((m) => m.id === starterBrain(hwCtx)) || null;
   if (brain && brain.status?.state !== 'installed') ids.push(brain.id);
   return { ids, engines: eng, brain };

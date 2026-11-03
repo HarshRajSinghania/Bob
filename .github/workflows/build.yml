@@ -51,8 +51,10 @@ jobs:
         run: npm test
       - name: Release check (licences, pinned actions)
         run: npm run check:release
-      - name: Release zip (official Electron + Bob's files)
+      - name: Release zip (official Electron + Bob's files + the basic llama.cpp)
         shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: ./installer/make-release.ps1 -Out dist
       - name: Upload release zip
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -105,6 +107,8 @@ jobs:
       - name: Tests (on macOS)
         run: npm test
       - name: Make Bob.app
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: bash installer/make-release-mac.sh dist arm64
       - name: Bob's engines for Mac download and start
         env:

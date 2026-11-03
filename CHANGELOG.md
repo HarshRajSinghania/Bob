@@ -4,6 +4,14 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.76
+
+### A basic engine comes with Bob
+- Bob's download now carries a basic build of llama.cpp, the program his brains run on: Vulkan on Windows and Linux (it works with any graphics card, or the processor), Metal on a Mac. It's the unchanged file from llama.cpp's GitHub release, checked against GitHub's sha256 when the release is made (MIT licence, see THIRD-PARTY.md). It adds about 30 to 50 MB to the download.
+- On first start it's set up in Bob's engine folder if there's no llama.cpp there yet, so step 1 of the Welcome shows it as "came with me". An engine already on the PC is never replaced.
+- With an NVIDIA card, **Get Bob ready** swaps in the faster CUDA build (the basic build's files are cleared first, so the two never sit side by side). With built-in graphics, another card or a Mac, the bundled build is the one Bob uses.
+- Stable-diffusion.cpp, whisper.cpp and the starter brain still come with Get Bob ready.
+
 ## 1.5.75
 
 ### Engines first

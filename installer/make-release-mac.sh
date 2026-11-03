@@ -59,6 +59,8 @@ for f in "${APP_FILES[@]}"; do
   cp -R "$SOURCE/$f" "$RES/app/"
 done
 rm -f "$RES/app/config.json"
+# 1.5.76: the basic llama.cpp (Metal) comes inside the download (installer/bundle-engine.mjs; checked against GitHub's sha256).
+node "$SOURCE/installer/bundle-engine.mjs" "$RES/app"
 
 # Bob's icon, every size macOS wants, from the 512 px picture.
 ICONSET="$OUT/bob.iconset"

@@ -604,12 +604,14 @@ export function createCellar() {
     const engRow = (e) => {
       const c = checks?.find((x) => x.id === e.id);
       const st = e.installed && !state('engine:' + e.id) ? (!c ? 'checking…' : c.ok ? '✓ works' : `✗ ${esc(c.why)}`) : rowSay('engine:' + e.id, false, '');
+      // Settings review: two short lines, and the swap line only on an NVIDIA card (that's when it's in the plan).
+      if (e.bundled) return `<li>${esc(e.name)}: came with me (basic version) <span class="muted">${st === '✓ works' ? '✓' : st}</span>${rp.ids.includes('engine:' + e.id) ? '<br><span class="muted">Get Bob ready swaps in the faster NVIDIA version.</span>' : ''}</li>`;
       return `<li>${esc(e.name)} <span class="muted">· ${st}</span></li>`;
     };
     const b = rp.brain;
     const brainRow = b ? `<li>${esc(b.name)} <span class="muted">· starter brain, ${gb(b.sizeGB)} · ${rowSay(b.id, b.status?.state === 'installed', '✓ here')}</span></li>` : '';
-    const ids = [...rp.engines.filter((e) => !e.installed).map((e) => 'engine:' + e.id), ...(b && b.status?.state !== 'installed' ? [b.id] : [])];
-    const readyGB = rp.engines.filter((e) => !e.installed).reduce((t, e) => t + (e.sizeGB || 0), 0) + (b && b.status?.state !== 'installed' ? b.sizeGB : 0);
+    const ids = rp.ids;
+    const readyGB = rp.engines.filter((e) => ids.includes('engine:' + e.id)).reduce((t, e) => t + (e.sizeGB || 0), 0) + (b && ids.includes(b.id) ? b.sizeGB : 0);
     const moving = ids.some((id) => ['downloading', 'queued'].includes(state(id)));
     const paused = ids.some((id) => state(id) === 'paused');
     const broken = checks?.some((x) => !x.ok && rp.engines.some((e) => e.id === x.id && e.installed));
@@ -661,7 +663,7 @@ export function createCellar() {
 
   // 1.5.74 "engines first": the Welcome's step 1 (core engines + a small starter brain), and whether each engine starts.
   let checks = null;
-  const hwCtx = () => ({ vramGB: hw?.vramGB, ramGB: hw?.ramGB, unified: Boolean(hw?.gpu?.unified), integrated: Boolean(hw?.gpu?.integrated) });
+  const hwCtx = () => ({ vramGB: hw?.vramGB, ramGB: hw?.ramGB, unified: Boolean(hw?.gpu?.unified), integrated: Boolean(hw?.gpu?.integrated), nvidia: Boolean(hw?.gpu && !hw.gpu.unified && !hw.gpu.integrated) });
   // GB still to free on disk before step 1 may start (its size plus 2 GB to spare), or 0.
   const readyFits = (needGB) => (needGB && hw?.freeGB != null && hw.freeGB < needGB + 2 ? Math.ceil(needGB + 2 - hw.freeGB) : 0);
   const readyIds = () => { const p = readyPlan(hwCtx(), data.models, data.engines || []); return [...p.engines.map((e) => 'engine:' + e.id), ...(p.brain ? [p.brain.id] : [])]; };

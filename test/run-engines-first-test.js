@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { starterBrain, readyPlan, CORE_ENGINES } from '../public/equip.js';
-import { checkEngine } from '../src/engines.js';
+import { checkEngine, seedBundledEngine, bundledEngine, engineStatus } from '../src/engines.js';
 import { exeName } from '../src/platform.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -53,6 +53,33 @@ const help1 = await checkEngine(cfg, 'llamacpp', { run: (exe, a, o, cb) => cb(Ob
 check(help1.ok, 'an old build that exits 1 after printing its help still works');
 fs.rmSync(tmp, { recursive: true, force: true });
 
+// 1.5.76: the basic llama.cpp inside Bob's download.
+const t2 = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-bundle-'));
+const bundle = path.join(t2, 'app', 'engines', 'llama.cpp');
+fs.mkdirSync(bundle, { recursive: true });
+fs.writeFileSync(path.join(bundle, exeName('llama-server')), 'x');
+fs.writeFileSync(path.join(bundle, 'ggml-vulkan.dll'), 'x');
+fs.writeFileSync(path.join(bundle, 'bob-llamacpp.json'), JSON.stringify({ version: 'b9999', asset: 'llama-b9999-bin-win-vulkan-x64.zip', bundled: true }));
+const c2 = { agentDir: path.join(t2, 'home') };
+check(seedBundledEngine(c2, bundle) && fs.existsSync(path.join(c2.agentDir, 'llama.cpp', 'ggml-vulkan.dll')), 'first start: the bundled llama.cpp is set up in Bob\'s engine folder');
+check(bundledEngine(c2) && engineStatus(c2).find((e) => e.id === 'llamacpp').bundled === true, 'and is known as the bundled (basic) build');
+fs.writeFileSync(path.join(c2.agentDir, 'llama.cpp', 'mine.txt'), 'x');
+check(!seedBundledEngine(c2, bundle) && fs.existsSync(path.join(c2.agentDir, 'llama.cpp', 'mine.txt')), 'an engine already there is never overwritten');
+check(!seedBundledEngine({ agentDir: path.join(t2, 'other') }, path.join(t2, 'nothing')), 'no bundle (installed from source): nothing happens');
+fs.rmSync(t2, { recursive: true, force: true });
+const bEng = [{ id: 'llamacpp', installed: true, bundled: true }, { id: 'sdcpp', installed: true }, { id: 'whispercpp', installed: true }];
+const done2 = models.map((m) => (m.id === 'gemma4-e4b' ? { ...m, status: { state: 'installed' } } : m));
+check(readyPlan({ vramGB: 16, nvidia: true }, done2, bEng).ids.join() === 'engine:llamacpp', 'NVIDIA card: Get Bob ready swaps in the faster CUDA build');
+check(readyPlan({ vramGB: 16, ramGB: 32, integrated: true }, done2, bEng).ids.length === 0, 'built-in graphics or no NVIDIA card: the bundled build is the right one');
+const engSrc = fs.readFileSync(path.join(here, '..', 'src', 'engines.js'), 'utf8');
+check(/bundledEngine\(cfg\)\) \{\s*try \{ fs\.rmSync/.test(engSrc), 'replacing the bundled build clears its files first (no two builds side by side)');
+const mk = fs.readFileSync(path.join(here, '..', 'installer', 'make-release.ps1'), 'utf8');
+const mac = fs.readFileSync(path.join(here, '..', 'installer', 'make-release-mac.sh'), 'utf8');
+const lin = fs.readFileSync(path.join(here, '..', '.github', 'workflows', 'linux.yml'), 'utf8');
+check(/bundle-engine\.mjs/.test(mk) && /bundle-engine\.mjs/.test(mac) && /bundle-engine\.mjs/.test(lin), 'Windows zip, Mac app and Linux AppImage all carry it');
+const pk = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
+check(pk.build.asarUnpack.includes('engines/**') && pk.build.files.includes('engines/**'), 'AppImage: the engine sits outside the asar so it can run');
+
 // Welcome wiring.
 const cellar = fs.readFileSync(path.join(here, '..', 'public', 'cellar.js'), 'utf8');
 check(/Step 1: getting me ready/.test(cellar) && /data-getready/.test(cellar) && /\/api\/engines\/check/.test(cellar), 'Welcome has step 1 with its checks and Try again');
@@ -62,6 +89,12 @@ check(/Not enough free disk: free up \$\{short\} GB, then press Try again\./.tes
 check(/Free disk: \$\{hw\.freeGB/.test(cellar.slice(cellar.indexOf('Step 1: getting me ready'))), 'size and free disk are shown before anything moves');
 const server = fs.readFileSync(path.join(here, '..', 'src', 'server.js'), 'utf8');
 check(/'\/api\/engines\/check'/.test(server), 'the server answers /api/engines/check');
+
+{
+  const cel = fs.readFileSync(new URL('../public/cellar.js', import.meta.url), 'utf8');
+  check(/came with me \(basic version\)/.test(cel) && !/basic build/.test(cel), 'Welcome row: "llama.cpp: came with me (basic version)", no jargon');
+  check(/rp\.ids\.includes\('engine:' \+ e\.id\) \? '<br><span class="muted">Get Bob ready swaps in the faster NVIDIA version\.<\/span>' : ''/.test(cel), 'the NVIDIA swap line shows only when the swap is planned (NVIDIA cards)');
+}
 
 console.log(`\n${failures ? failures + ' failed' : 'all passed'}`);
 process.exit(failures ? 1 : 0);

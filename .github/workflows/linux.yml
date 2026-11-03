@@ -46,6 +46,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node installer/check-linux-engines.js
+      - name: Bundle the basic llama.cpp (Vulkan, checked against GitHub's sha256)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node installer/bundle-engine.mjs .
       - name: Build the AppImage
         run: npx electron-builder --linux AppImage --x64 --publish never
       - name: Checksum
