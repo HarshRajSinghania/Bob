@@ -268,3 +268,20 @@ export function equipHtml(ctx) {
       <section class="kit-panel" aria-live="polite"><div class="kit-head muted">Inventory</div>${kitHtml(sel, ctx)}</section>
     </div>`;
 }
+
+// 1.5.74 "engines first": what first start gets before anything else, so Bob can talk and help with the rest.
+// The three core engines (where this computer has a build of them) and one small starter brain for this device:
+// Gemma 4 E4B with room for it (a card of 8 GB or more, or 16 GB of shared memory on a Mac or built-in graphics),
+// otherwise Gemma 4 E2B.
+export const CORE_ENGINES = ['llamacpp', 'sdcpp', 'whispercpp'];
+export function starterBrain({ vramGB, ramGB, unified, integrated } = {}) {
+  if (unified || integrated) return (ramGB || 0) >= 16 ? 'gemma4-e4b' : 'gemma4-e2b';
+  return (vramGB || 0) >= 8 ? 'gemma4-e4b' : 'gemma4-e2b';
+}
+export function readyPlan(hwCtx, models, engines) {
+  const eng = CORE_ENGINES.map((id) => engines.find((e) => e.id === id)).filter((e) => e && e.available !== false);
+  const ids = eng.filter((e) => !e.installed).map((e) => 'engine:' + e.id);
+  const brain = models.find((m) => m.id === starterBrain(hwCtx)) || null;
+  if (brain && brain.status?.state !== 'installed') ids.push(brain.id);
+  return { ids, engines: eng, brain };
+}

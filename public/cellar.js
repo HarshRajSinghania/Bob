@@ -3,7 +3,7 @@ import { setLook } from './bob-sprite.js';
 import { progressHtml, animateWorkers } from './progress.js';
 import { createStylePage } from './style-page.js';
 import { createSampler, sampleButton, sampleHint } from './voice-samples.js';
-import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks, starterPlan, enginesFor, slotValue, slotTakes, isActive, tipHtml } from './equip.js';
+import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks, starterPlan, enginesFor, readyPlan, slotValue, slotTakes, isActive, tipHtml } from './equip.js';
 import { suit as fitSuit, picksOf, unsuited, jobNames, SLOT_NAMES, canDo } from './fit.js';
 import { catalogueHtml } from './catalogue.js';
 import { drawBob } from './bob-sprite.js';
@@ -595,10 +595,37 @@ export function createCellar() {
     const engNames = engs.map((e) => e.name);
     // Settings review: the click is the OK, so the size counts the programs too.
     const total = needed.reduce((t, m) => t + m.sizeGB, 0) + engs.reduce((t, e) => t + (e.sizeGB || 0), 0);
+    const rp = readyPlan(hwCtx(), data.models, data.engines || []);
+    // Settings review (1.5.75): one click, size and free disk shown first, Pause and Stop right here.
+    const dlOf = (id) => (data.downloads || []).find((d) => d.id === id && ['queued', 'downloading', 'paused', 'failed'].includes(d.state));
+    const state = (id) => (live.has(id) ? 'downloading' : dlOf(id)?.state || '');
+    const SAY = { downloading: 'downloading…', queued: 'waiting its turn', paused: 'paused' };
+    const rowSay = (id, here, okText) => { const st = state(id); return st === 'failed' ? `✗ the download failed: ${esc(dlOf(id).error || 'press Try again')}` : SAY[st] || (here ? okText : 'not here yet'); };
+    const engRow = (e) => {
+      const c = checks?.find((x) => x.id === e.id);
+      const st = e.installed && !state('engine:' + e.id) ? (!c ? 'checking…' : c.ok ? '✓ works' : `✗ ${esc(c.why)}`) : rowSay('engine:' + e.id, false, '');
+      return `<li>${esc(e.name)} <span class="muted">· ${st}</span></li>`;
+    };
+    const b = rp.brain;
+    const brainRow = b ? `<li>${esc(b.name)} <span class="muted">· starter brain, ${gb(b.sizeGB)} · ${rowSay(b.id, b.status?.state === 'installed', '✓ here')}</span></li>` : '';
+    const ids = [...rp.engines.filter((e) => !e.installed).map((e) => 'engine:' + e.id), ...(b && b.status?.state !== 'installed' ? [b.id] : [])];
+    const readyGB = rp.engines.filter((e) => !e.installed).reduce((t, e) => t + (e.sizeGB || 0), 0) + (b && b.status?.state !== 'installed' ? b.sizeGB : 0);
+    const moving = ids.some((id) => ['downloading', 'queued'].includes(state(id)));
+    const paused = ids.some((id) => state(id) === 'paused');
+    const broken = checks?.some((x) => !x.ok && rp.engines.some((e) => e.id === x.id && e.installed));
+    const short = readyFits(readyGB);
+    const started = ids.some((id) => state(id));
+    const step1 = `<section class="ready"><h3>Step 1: getting me ready</h3>
+      ${ids.length ? `<p>First the programs I run on and a starter brain, about ${gb(readyGB)} in all. Free disk: ${hw.freeGB ?? '?'} GB.</p>` : ''}
+      <ul class="packlist">${rp.engines.map(engRow).join('')}${brainRow}</ul>
+      ${short ? `<p class="error">Not enough free disk: free up ${short} GB, then press Try again.</p>` : ''}
+      <div class="row">${moving ? '<button data-readypause>Pause</button><button data-readystop>Stop</button>' : paused ? '<button class="get" data-readyresume>Resume</button><button data-readystop>Stop</button>' : short ? '<button class="get" data-readyrecheck>Try again</button>' : ids.length ? `<button class="get" data-getready>${started ? 'Try again' : `Get Bob ready (about ${gb(readyGB)})`}</button>` : broken ? '<button class="get" data-getready>Try again</button>' : ''}</div></section>`;
     return `<div class="welcome">
       <h2>Welcome to Bob</h2>
       <label class="callme"><strong>What should I call you?</strong> <input type="text" data-callme maxlength="40" value="${esc(settings?.callMe || '')}" placeholder="${esc(settings?.windowsName || 'your name')}" aria-label="What should Bob call you?" autocomplete="off"></label>
-      <p>I'm Bob. Before I can help, I need a few models. Here's what I'd pick for this PC${hw.gpu ? ` (${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB)` : ''}:</p>
+      ${step1}
+      <h3>Step 2: the rest of my models</h3>
+      <p>Then the models for the jobs I do. Here's what I'd pick for this PC${hw.gpu ? ` (${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB)` : ''}:</p>
       <label class="pick"><strong>Setup</strong><select data-pack>${data.packs.map((p) => `<option value="${p.id}" ${p.id === pack.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
       <ul class="packlist">${items.map((m) => { const extra = covered(m); return `<li><label><input type="checkbox" data-pick="${esc(m.id)}" ${m.status.state === 'installed' ? 'checked disabled' : extra ? '' : suit(m).level === 'ok' ? 'checked' : suit(m).level === 'blocked' ? 'disabled' : ''}> ${esc(m.name)} <span class="muted">· ${esc(data.categories.find((c) => c.id === m.category)?.label)} · ${m.status.state === 'installed' ? 'already here' : gb(m.sizeGB)}${extra ? ` · ${esc(extra)}` : m.status.state !== 'installed' && suit(m).level !== 'ok' ? ' · not recommended for this PC' : ''}</span></label></li>`; }).join('')}</ul>
       <p class="muted">${needed.length ? `About ${gb(total)} to download${engNames.length ? `, including the programs they run on (${esc(engNames.join(', '))})` : ''}. Free disk: ${hw.freeGB ?? '?'} GB. You can change any of this later in Get models (left menu).` : items.some((m) => m.status.state !== 'installed') ? 'Everything you need is already here. The rest is optional: tick it if you want it.' : 'Everything is already on this PC.'}</p>
@@ -610,6 +637,7 @@ export function createCellar() {
   function draw() {
     if (!data) { $('cellar-body').innerHTML = '<p class="muted">Loading...</p>'; return; }
     $('cellar-body').innerHTML = mode === 'welcome' ? welcomeHtml() : shopHtml();
+    if (mode === 'welcome') dlg.querySelector('[data-getready]')?.focus(); // 1.5.75: the first button is Get Bob ready
     stylePage.paintPreviews(dlg);
     const doll = dlg.querySelector('.doll-bob');
     if (doll) { const c = doll.getContext('2d'); c.imageSmoothingEnabled = false; try { drawBob(c, 160, {}, settings?.look); } catch {} }
@@ -631,12 +659,35 @@ export function createCellar() {
     if (jumpTo) { const el = dlg.querySelector('#sub-' + CSS.escape(jumpTo)); jumpTo = ''; if (el?.tagName === 'DETAILS') el.open = true; el?.scrollIntoView({ block: 'start' }); }
   }
 
+  // 1.5.74 "engines first": the Welcome's step 1 (core engines + a small starter brain), and whether each engine starts.
+  let checks = null;
+  const hwCtx = () => ({ vramGB: hw?.vramGB, ramGB: hw?.ramGB, unified: Boolean(hw?.gpu?.unified), integrated: Boolean(hw?.gpu?.integrated) });
+  // GB still to free on disk before step 1 may start (its size plus 2 GB to spare), or 0.
+  const readyFits = (needGB) => (needGB && hw?.freeGB != null && hw.freeGB < needGB + 2 ? Math.ceil(needGB + 2 - hw.freeGB) : 0);
+  const readyIds = () => { const p = readyPlan(hwCtx(), data.models, data.engines || []); return [...p.engines.map((e) => 'engine:' + e.id), ...(p.brain ? [p.brain.id] : [])]; };
+  async function getReady() {
+    const plan = readyPlan(hwCtx(), data.models, data.engines || []);
+    if (!plan.ids.length) {
+      // Everything is here but an engine didn't start: fetch it again.
+      const bad = (checks || []).filter((c) => !c.ok).map((c) => 'engine:' + c.id);
+      if (bad.length) job = await api('/api/models/download', { ids: bad });
+      return;
+    }
+    const need = plan.ids.reduce((t, id) => t + (id.startsWith('engine:') ? plan.engines.find((e) => 'engine:' + e.id === id)?.sizeGB || 0 : plan.brain?.sizeGB || 0), 0);
+    if (readyFits(need)) return;
+    const main = allSlots().find((x) => x.id === 'bob');
+    if (plan.brain && main && !equipped(main, eqCtx())) savePlan({ ...readPlan(), [plan.brain.id]: ['bob', 'small'] });
+    job = await api('/api/models/download', { ids: plan.ids });
+  }
   async function load() {
     [data, hw, settings, roles, cloud, caps] = await Promise.all([api('/api/models'), api('/api/hardware'), api('/api/settings'), api('/api/roles'), api('/api/cloud'), api('/api/capabilities').catch(() => ({}))]);
     speedRuns = (await api('/api/speed-test').catch(() => ({}))).history || [];
     voices = (await api('/api/voice/samples').catch(() => ({}))).voices || [];
     job = data.job;
     await applyStarter().catch(() => {});
+    if (mode === 'welcome') {
+      checks = (await api('/api/engines/check').catch(() => null))?.checks || null;
+    }
     live.clear();
     for (const d of data.downloads || []) if (d.state === 'downloading') live.set(d.id, { ...d, phase: d.phase === 'downloading' ? 'downloading' : d.phase });
     draw();
@@ -896,6 +947,14 @@ export function createCellar() {
       else if (b.dataset.switchengine) { await api('/api/settings', { engine: b.dataset.switchengine }); settings.engine = b.dataset.switchengine; b.closest('.confirm').outerHTML = '<span class="have">Switched. Restart Bob to use his own engine.</span>'; }
       else if ('scan' in b.dataset) { b.textContent = 'Looking...'; await api('/api/models/scan', {}); await load(); }
       else if ('welcome' in b.dataset) { mode = 'welcome'; draw(); }
+      else if ('getready' in b.dataset) { b.disabled = true; await getReady(); await load(); }
+      else if ('readyrecheck' in b.dataset) { b.disabled = true; await load(); }
+      else if ('readypause' in b.dataset || 'readyresume' in b.dataset || 'readystop' in b.dataset) {
+        const act = 'readypause' in b.dataset ? 'pause' : 'readyresume' in b.dataset ? 'resume' : 'cancel';
+        b.disabled = true;
+        for (const id of readyIds()) await api('/api/models/' + act, { id }).catch(() => {});
+        await load();
+      }
       else if ('getpack' in b.dataset) {
         const picked = [...dlg.querySelectorAll('[data-pick]:checked:not(:disabled)')].map((x) => x.dataset.pick);
         // 1.5.72: and the engines they run on (llama.cpp, stable-diffusion.cpp...), so nothing is left to get by hand.

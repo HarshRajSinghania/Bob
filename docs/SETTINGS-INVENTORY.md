@@ -49,6 +49,7 @@ Update this file in the same handover as any change to settings.
 | Style | Theme groups, your own theme (name, colours, font, corners, blueprint, outlined), avatars (133), Layout | Bob's Inn | ok (1.5.2) |
 | Personality | What should Bob call you?; personality preset; sliders (humour, puns, side trips, mood, nerd references, talkative, manner…) | Factory Bob | ok, labels are plain |
 | First-time setup | What should I call you?; Setup pack; model ticks | suggested pack | ok |
+| First-time setup, Step 1 (1.5.75) | Get Bob ready (about X GB): core engines (llama.cpp, stable-diffusion.cpp, whisper.cpp) + one starter brain (E4B, or E2B on small cards / 8 GB Macs); size and free disk shown first; Pause, Stop, Try again; won't start with less than size + 2 GB free; each engine test-started (✓ works or the reason) | one click, never automatic (not an opt-in exception) | approved with edits (1.5.75) |
 
 ## Not yet reviewed
 - 1.5.3 chat page: ✋ Hands kill switch (On / Stopped / Off in Settings; only stops, never switches on) and the Memory section (Graphics card + RAM meters, Brain: friendly name).

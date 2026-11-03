@@ -288,6 +288,28 @@ export async function findRelease(e, nvidia, signal, fetchImpl = fetch) {
   throw new Error(`None of the last 15 ${e.name} releases has a build for this computer, so there's nothing safe to install. Clicking again won't help; Bob will pick it up once the project posts one.`);
 }
 
+// 1.5.74: does an installed engine actually start? It is run once with --help (it prints and exits, loading
+// nothing). A missing program, a crash on start (Windows: a missing runtime file, codes 0xC0000000 and up) or
+// silence counts as not working, with a plain reason. Tests replace run.
+export function checkEngine(cfg, id, { run = execFile, timeout = 20000 } = {}) {
+  const e = engineFor(ENGINES.find((x) => x.id === id) || {});
+  const exe = e?.exe ? engineExe(cfg, e) : null;
+  if (!exe) return Promise.resolve({ id, ok: false, why: 'not downloaded yet' });
+  return new Promise((resolve) => {
+    try {
+      run(exe, ['--help'], { timeout, windowsHide: true, maxBuffer: 1 << 20 }, (err, out = '', errOut = '') => {
+        const said = String(out) + String(errOut);
+        const code = err && typeof err.code === 'number' ? err.code >>> 0 : 0;
+        if (err && (err.code === 'ENOENT' || err.code === 'EACCES')) return resolve({ id, ok: false, why: `it couldn't be started (${err.code})` });
+        if (code >= 0xC0000000) return resolve({ id, ok: false, why: `it stopped as it started (code 0x${code.toString(16).toUpperCase()}), usually a missing runtime file` });
+        if (err?.killed) return resolve({ id, ok: false, why: 'it didn\'t answer within 20 seconds' });
+        if (!said.trim()) return resolve({ id, ok: false, why: 'it started but said nothing' });
+        resolve({ id, ok: true });
+      });
+    } catch (err) { resolve({ id, ok: false, why: `it couldn't be started (${err.message})` }); }
+  });
+}
+
 export async function installEngine(cfg, id, { nvidia, pub, signal, tick }) {
   const e = engineFor(ENGINES.find((x) => x.id === id));
   if (!e) throw new Error('No such engine.');

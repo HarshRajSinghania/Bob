@@ -2,7 +2,7 @@
 
 Bob is a local AI who lives on your PC. Chat, plans and reminders, research, coding help, spreadsheets, pictures, video, music, sound effects and voice, all on your own hardware. He's a self-aware digital engineer with a dry sense of humour, a little virtual workspace called The Idle Process, and a cat named Patches.
 
-Your chats stay on your PC. Bob only looks things up on the web (DuckDuckGo) if you turn on **Let Bob search the web**, and nothing downloads until you click and confirm.
+Your chats stay on your PC. Bob only looks things up on the web (DuckDuckGo) if you turn on **Let Bob search the web**, and nothing downloads until you click and confirm. The first start is one click too: **Get Bob ready** fetches the programs Bob runs on and one starter brain, checked against their checksums.
 
 **[Install Bob (5 steps)](#install-bob-in-five-steps-windows-10-or-11)** · **[Privacy policy](PRIVACY.md)** · **[Download the latest release](https://github.com/MouseWurX/Bob/releases/latest)** · **[What's new (changelog)](CHANGELOG.md)**
 
