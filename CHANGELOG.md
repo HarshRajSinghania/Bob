@@ -4,6 +4,11 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.62
+
+### Fix: Bob's checks no longer put test files in your Recycle Bin
+- When Bob updated on Windows, a few of his own checks threw their scratch files into your real Recycle Bin (files like "old notes #1.txt" or a "note_writer" folder). They were harmless leftovers, and they're safe to empty. Now Bob's checks only ever use his own trash folder, so nothing of theirs reaches your Recycle Bin or Trash.
+
 ## 1.5.61
 
 ### New: Update Bob from GitHub

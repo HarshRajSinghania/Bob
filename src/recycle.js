@@ -92,6 +92,8 @@ export function forgetTrashInfo(dest) {
 
 // The Recycle Bin on Windows; the desktop Trash on Linux, but only in the app itself (Bob from source and the
 // tests keep using his own trash folder). recycleBin in the config overrides it either way.
+export const IN_TEST = process.env.BOB_TEST === '1' || /[\\/]test[\\/]run-[\w-]+\.m?js$/.test(process.argv[1] || '');
+
 export function usesBin(cfg, platform = process.platform) {
   return cfg.recycleBin ?? (platform === 'win32' || (platform === 'linux' && Boolean(process.versions.electron)));
 }
@@ -107,7 +109,9 @@ export function recycle(cfg, paths, { roots } = {}) {
     ok.push(path.resolve(p));
   }
   if (!ok.length) return { gone, refused, trashed };
-  const useBin = usesBin(cfg);
+  // 1.5.62: Bob's own tests never reach this computer's real Recycle Bin or Trash (test files ended up in the owner's
+  // Recycle Bin twice). Under a test runner it's Bob's own trash folder, unless the test names a pretend Trash folder.
+  const useBin = usesBin(cfg) && !(IN_TEST && (process.platform === 'win32' || !cfg.desktopTrashDir));
   if (useBin && process.platform !== 'win32') {
     const went = toDesktopTrash(cfg, ok);
     for (const p of ok) if (went[p]) { trashed[p] = went[p]; gone.push(p); } else refused.push(p);

@@ -22,7 +22,7 @@ fs.mkdirSync(secret, { recursive: true });
 fs.writeFileSync(path.join(work, 'in.csv'), 'a,b\n1,2\n');
 fs.writeFileSync(path.join(secret, 'diary.txt'), 'private');
 const on = { enabled: true, maker: { on: true }, folders: [work] };
-const cfg = { innDir: inn, dataDir: path.join(inn, 'bob'), agentDir: tmp, readOnlyRoots: [], readRoots: [work], userName: 'Sam', hands: on, models: { bob: 'gemma4:e4b', reviewer: 'gpt-oss:20b' } };
+const cfg = { innDir: inn, dataDir: path.join(inn, 'bob'), agentDir: tmp, recycleBin: false, readOnlyRoots: [], readRoots: [work], userName: 'Sam', hands: on, models: { bob: 'gemma4:e4b', reviewer: 'gpt-oss:20b' } };
 
 // ---------- the Hand ----------
 check('there is a Make his own tools Hand with its three tools', HANDS.maker?.label === 'Make his own tools' && ['make_tool', 'use_my_tool', 'my_tools'].every((t) => HANDS.maker.tools.includes(t)));
