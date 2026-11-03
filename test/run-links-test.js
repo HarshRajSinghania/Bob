@@ -94,6 +94,44 @@ const runWith = async (b, prior, text) => { await b.brain.runOn(prior.map((m) =>
   check('web off: a refusal never opens a page', b.fetched.length === 0);
 }
 
+// ---------- 1.5.69: with the Quick brain on the processor, a link goes to the main Brain ----------
+{
+  const { linkTurn } = await import('../src/web.js');
+  check('a message with a link is a link turn', linkTurn('what is on https://github.com/MouseWurX/Bob ?'));
+  check('"that page" is a link turn only with a link in the last few messages', linkTurn('what does that page say?', [{ role: 'user', content: 'see github.com/MouseWurX/Bob' }]) && !linkTurn('what does that page say?', [{ role: 'user', content: 'hello' }]));
+  check('a plain message is not', !linkTurn('hi Bob'));
+  const quick = (extra) => {
+    const b = make(true);
+    Object.assign(b.brain.cfg, { quickOnCpu: true, models: { bob: 'qwen3.6-35b-a3b' }, sessionBrains: { small: 'qwen3-4b:latest' } }, extra);
+    const calls = [];
+    const inner = b.brain.engine.chat;
+    b.brain.engine.chat = async (o) => { calls.push({ model: o.model, cpu: o.cpu, think: o.think }); return inner(o); };
+    b.brain.engine.isLoaded = async () => false; b.brain.engine.estimateLoad = async () => 40;
+    return { ...b, calls };
+  };
+  const a = quick();
+  const evs = await run(a, 'what is on https://github.com/MouseWurX/Bob ?');
+  check('Quick brain on the processor + a link: the main Brain answers, on the card, without thinking first', a.calls[0]?.model === 'qwen3.6-35b-a3b' && a.calls[0].cpu === false && a.calls[0].think === false, JSON.stringify(a.calls));
+  check('the chat says plainly that the main Brain takes it', evs.some((e) => e.type === 'announce' && /link in it, so my main Brain takes it/.test(e.text)));
+  check('not loaded yet: the line says it is loading and about how long', evs.some((e) => e.type === 'announce' && /takes it \(loading it, about 40 seconds\)\.$/.test(e.text)), JSON.stringify(evs.filter((e) => e.type === 'announce')));
+  const l = quick(); l.brain.engine.isLoaded = async () => true;
+  const levs = await run(l, 'what is on https://github.com/MouseWurX/Bob ?');
+  check('already loaded: no bracket', levs.some((e) => e.type === 'announce' && e.text === 'This one has a link in it, so my main Brain takes it.'));
+  check('the page is still opened first', a.fetched.length === 1);
+  const b = quick();
+  await run(b, 'hi Bob');
+  check('no link: the Quick brain answers on the processor as before', b.calls[0]?.model === 'qwen3-4b:latest' && b.calls[0].cpu === true, JSON.stringify(b.calls));
+  const g = quick({ session: 'light' });
+  const gevs = await run(g, 'what is on https://github.com/MouseWurX/Bob ?');
+  check('Gaming: a link stays on the Gaming brain, on the processor (never E4B, never the card)', g.calls.every((c) => c.cpu === true && !/e4b|qwen3\.6/i.test(c.model)) && !gevs.some((e) => e.type === 'announce' && /main Brain/.test(e.text)), JSON.stringify(g.calls));
+  const off = quick({ webSearch: false });
+  await run(off, 'what is on https://github.com/MouseWurX/Bob ?');
+  check('web search off: no swap (the page can\'t be opened anyway)', off.calls[0]?.model === 'qwen3-4b:latest');
+  const n = quick({ quickOnCpu: false, models: { bob: 'qwen3.6-35b-a3b' } });
+  await run(n, 'what is on https://github.com/MouseWurX/Bob ?');
+  check('switch off: the main Brain answered anyway, no announcement needed', n.calls[0]?.model === 'qwen3.6-35b-a3b');
+}
+
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -49,3 +49,10 @@ export const linkPrompt = (cfg) => (webOn(cfg) ? `\n\n${LINK_PROMPT}` : '');
 // 1.5.65: "the page I told you about", "that link", "check the repo": a message that points back at a link from earlier.
 const BACK = /\b(?:the|that|this|my|your|our)\s+(?:page|link|site|website|repo|repository|url|address|article|post|github(?:\s+page)?)\b|\b(?:i|we)\s+(?:told|sent|gave|showed|mentioned|linked)\s+(?:you|earlier|before)\b|\b(?:from|mentioned)\s+(?:before|earlier)\b/i;
 export const refersToLink = (text) => BACK.test(String(text || ''));
+
+// 1.5.69: whether this turn is about a link: one in the message, or "that page" with a link in the last few messages.
+export function linkTurn(text, earlier = []) {
+  if (findLinks(text, 1).length) return true;
+  if (!refersToLink(text)) return false;
+  return earlier.filter((m) => m.role === 'user').slice(-4).some((m) => findLinks(m.text ?? m.content, 1).length);
+}

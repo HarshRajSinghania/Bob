@@ -4,6 +4,12 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.69
+
+### Links go to the main Brain
+- With "Keep the graphics card free for quick answers" on, Low chat runs on the small Quick brain on the processor, which isn't good at reading web pages. A message with a link in it (or one asking about a link from a moment ago) now goes to your main Brain on the card instead. The chat says "This one has a link in it, so my main Brain takes it.", and adds about how long it takes to load if it isn't loaded yet.
+- It needs "Let Bob search the web" on. In Gaming it doesn't happen: the Gaming brain reads the page itself, and the card stays free for your game.
+
 ## 1.5.68
 
 ### Fix

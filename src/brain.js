@@ -26,7 +26,7 @@ import { copyName } from './clan.js';
 import { RefShelf } from './refs.js';
 import { makeAudio, songTitle, aceMissingFiles, aceModelsEntry, ACE_MODELS_ID } from './audio.js';
 import { runWorkflow } from './workshop.js';
-import { currentSession, modelFor, laneOf, suggestSession, SESSIONS, sessionBrains, brainDefaults, CTX_CHOICES, LONG_CODER, waitsForGaming, GAMING_TAG, GAMING_HINT } from './sessions.js';
+import { currentSession, modelFor, quickOnCpu, laneOf, suggestSession, SESSIONS, sessionBrains, brainDefaults, CTX_CHOICES, LONG_CODER, waitsForGaming, GAMING_TAG, GAMING_HINT } from './sessions.js';
 import { stampMessages, keepOlder, readSummary } from './chats.js';
 import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
@@ -42,7 +42,7 @@ import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUs
 import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff, carryOnPlan, carryOnLine, finishedSteps, MAX_AUTO_RESUMES } from './handoff.js';
 import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
-import { WEB_TOOLS, WEB_OFF, webOn, webPrompt, linkPrompt, findLinks, refersToLink } from './web.js';
+import { WEB_TOOLS, WEB_OFF, webOn, webPrompt, linkPrompt, findLinks, refersToLink, linkTurn } from './web.js';
 import { autoSessionOn, pickSessionTool, autoSessionPrompt, switchLine, switchedNote, idleSession, cardBusy, IDLE_CHECK_MS } from './auto-session.js';
 import { readCard } from './gaming-card.js';
 import { Lenders, wantsBorrow } from './share-brains.js';
@@ -1528,6 +1528,23 @@ export class Brain {
       const d = brainDefaults(model, 'bob');
       if (d.ctx) wantCtx = d.ctx;
       if ('think' in d) think = d.think;
+    }
+    // 1.5.69: with "Keep the graphics card free for quick answers" on, Low chat runs on the small Quick brain, which is
+    // poor at reading web pages. A message with a link in it (or one about a link from earlier) goes to the main Brain
+    // instead, like any other hand-off. Normal session only: Gaming keeps its own small brain (never E4B, never the card).
+    if (!job?.side && !bigThinker(job) && !again && quickOnCpu(this.cfg) && currentSession(this.cfg).id === 'normal'
+      && webOn(this.cfg) && this.usable('fetch_page') && linkTurn(text, msgs.slice(0, turnStart))) {
+      const main = modelFor({ ...this.cfg, quickOnCpu: false }, 'bob');
+      if (main.model && !sameModel(main.model, model)) {
+        ({ model, cpu, ctx: wantCtx } = main);
+        think = false; // a Low chat reply, on whichever brain
+        // Settings review: a load costs time, so say how long when the main Brain isn't loaded yet.
+        let loaded = false, secs = null;
+        try { loaded = await this.engine.isLoaded(model, { cpu, ctx: wantCtx }); } catch {}
+        if (!loaded) { try { secs = await this.engine.estimateLoad?.(model, { cpu, ctx: wantCtx }); } catch {} }
+        emit({ type: 'announce', text: `This one has a link in it, so my main Brain takes it${loaded ? '' : secs ? ` (loading it, about ${Math.round(secs)} seconds)` : ' (loading it)'}.` });
+        this.log('chat', `a link: the main Brain (${model}) answers instead of the Quick brain`);
+      }
     }
     // Small extras, only on some turns: the effort note (High/Extreme) and now and then a moment with the cat.
     const turnNo = msgs.filter((m) => m.role === 'user').length;
