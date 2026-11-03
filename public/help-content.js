@@ -61,7 +61,8 @@ export const HELP = [
 <ul><li><strong>The menu on the left.</strong> My picture and what I'm doing right now, then New chat, Chat, Tasks, Downloads, References, Made by Bob, Topics and Tidy up. Under <em>Setup</em>: Get models, Settings, Style and Help. Then the Listen, Read aloud and Alerts switches, and the Session picker at the bottom. Fold the menu to icons with ‹ or Ctrl+B.</li>
 <li><strong>The chat in the middle.</strong> Along the top: my brain label, <strong>Free memory when Bob is idle</strong> and <strong>✋ Hands</strong>. Along the bottom: quick buttons (Plan my day, To-do list, Remind me…, Spreadsheet…, Look up…), Effort with the <strong>🌐 Web search</strong> switch, and the message box with 🎙 and 📎.</li>
 <li><strong>Now running on the right:</strong> tasks, downloads, and how full your graphics card and RAM are. Hide it with Ctrl+J or <strong>Hide »</strong>, and drag its edge to make it wider or narrower.</li></ul>
-<p>I remember how you leave the menu and Now running, so you don't have to set them up every time.</p>` },
+<p>I remember how you leave the menu and Now running, so you don't have to set them up every time.</p>
+<p><strong>The little ⓘ buttons.</strong> I used to write an explanation under every switch. It got crowded. Now the explanations wait behind a small round <strong>i</strong>: point at it, Tab to it, or tap it, and a bubble tells you what that thing does. Most buttons have a bubble too: rest the pointer on one, Tab to it, or press and hold it on a touch screen. Warnings, what something is set to right now, and approval cards always stay written out where you can see them.</p>` },
 
   { id: 'chatting', group: 'Getting started', title: 'Chatting with Bob', words: 'type send enter message queue stop new chat chips quick buttons plan my day to-do remind spreadsheet look up copy right-click',
     html: `<ul><li><strong>Type and press Enter</strong> to send. Shift+Enter starts a new line.</li>
@@ -88,7 +89,7 @@ export const HELP = [
     html: `<p>For people who'd rather not touch the mouse. I respect that.</p>
 <table><tr><th>Keys</th><th>What it does</th></tr>
 <tr><td>F1</td><td>Opens this Help</td></tr><tr><td>Ctrl+B</td><td>Folds or opens the left menu</td></tr><tr><td>Ctrl+J</td><td>Shows or hides Now running</td></tr><tr><td>Esc (in the side panel)</td><td>Closes the side panel</td></tr>
-<tr><td>Esc</td><td>Back to the chat from Settings, Get models, Style or Help</td></tr><tr><td>Enter / Shift+Enter</td><td>Send / new line</td></tr></table>` },
+<tr><td>Esc</td><td>Back to the chat from Settings, Get models, Style or Help (or closes a tip bubble first)</td></tr><tr><td>Tab</td><td>Moves to the next button; its tip bubble shows by itself</td></tr><tr><td>Enter / Shift+Enter</td><td>Send / new line</td></tr></table>` },
 
   { id: 'speed', group: 'Getting started', title: 'Making Bob faster on your PC', words: 'speed fast slow tune check this pc test speed benchmark games priority memory expo xmp driver graphics card ready while typing before after',
     html: `<p>Two buttons and three switches help me run well on your PC. The switches are off until you turn them on, because I'd rather measure than guess.</p>
@@ -235,18 +236,19 @@ ${set('Alerts', 'Off', 'Pops up a Windows notification when I need you, for exam
   // ---------------- Models ----------------
   { id: 'get-models', group: 'Models', title: 'Get models: the model pages', words: 'get models shop voice conversation coding seeing pictures video on this pc download delete size licence',
     html: `<p><strong>Get models</strong> opens on Equip Bob. The bar along the top jumps between Equip Bob, the model pages, Style and Settings.</p>
-<ul><li><strong>Voice &amp; conversation:</strong> everyday brains, hearing you, and my voices with Hear a sample.</li><li><strong>Coding</strong> and <strong>Seeing pictures</strong>: brains for those jobs.</li><li><strong>Pictures &amp; video:</strong> the painter, picture editor and clips.</li><li><strong>On this PC:</strong> everything already downloaded, with its size, and a way to delete what you don't use.</li></ul>
+<ul><li><strong>📚 Brain catalogue:</strong> every model I know, sorted by the job it does, with an <strong>Active</strong> switch on each. See ${go('catalogue', 'The Brain catalogue')}.</li><li><strong>Voice &amp; conversation:</strong> everyday brains, hearing you, and my voices with Hear a sample.</li><li><strong>Coding</strong> and <strong>Seeing pictures</strong>: brains for those jobs.</li><li><strong>Pictures &amp; video:</strong> the painter, picture editor and clips.</li><li><strong>On this PC:</strong> everything already downloaded, with its size, and a way to delete what you don't use.</li></ul>
 <p>Each model shows its size, licence and what it's good at before you press <strong>Get</strong>, and every download is confirmed first. Models that don't suit this PC are hidden until you ask (see ${go('recommended', 'How Bob picks models')}).</p>` },
 
   { id: 'recommended', group: 'Models', title: 'How Bob picks models for your PC', words: 'recommended fits your card does not suit star badge show models that don\'t suit compatible slot job score',
     html: `<p>On <strong>Get models</strong> and in <strong>Equip Bob</strong>, each model can carry one of these:</p>
-<ul><li><span class="tag rec">★ Recommended for your PC</span> My pick for that job on your PC. In Equip Bob it reads <em>Recommended for this job on your PC</em>, because the best pick depends on the job.</li>
+<ul><li><span class="tag rec">★ Recommended for your PC</span> My pick for that job on your PC. In Equip Bob and the Brain catalogue it's just <strong>★ Recommended</strong>, and the reason is behind the little <strong>i</strong> next to it, because the best pick depends on the job.</li>
+<li><span class="tag">New</span> A newer model I list but don't recommend yet, because nobody has tried it on a real PC. Once it's been timed and tested, the tag goes and it can become my pick.</li>
 <li><span class="tag">Fits your card</span> It runs well here too. It just isn't my first pick.</li>
 <li><span class="tag warn">Doesn't suit this PC</span> It wants more graphics memory or RAM than this PC has, so it would be slow or wouldn't run. A one-line reason sits under it.</li>
 <li><span class="tag bad">Can't install on this PC</span> Not enough free disk space, or it needs Windows.</li></ul>
 <p><strong>How I pick brains:</strong> a model scores higher the more jobs it can cover, because one brain doing several jobs means I stop to swap brains less. It also scores higher the less it takes from your PC, and much lower if it would spill out of the graphics card into RAM. Bigger brains get a bonus for jobs that need careful thinking (Brain, Deep thinking, Coding, Review). The Quick brain only cares about being light. On small cards (8 GB or less), I prefer brains that leave room for longer chats. On a 6 GB card, like many laptops, that makes the light Qwen3 4B the Brain, and Gemma 4 E4B loads only to see pictures and hear you.</p>
 <p><strong>For pictures, video and voices</strong>, the pick comes from the starter set for your graphics card.</p>
-<p><strong>Each slot only lists models that can do that job.</strong> A brain that can't see pictures never shows under Seeing pictures, and a big brain never shows under Quick brain. Models already on your PC always show.</p>
+<p><strong>Each slot only lists active models that can do that job.</strong> A brain that can't see pictures never shows under Seeing pictures, and a big brain never shows under Quick brain. Models on your PC are active unless you switch them off; models you haven't downloaded wait in the ${go('catalogue', 'Brain catalogue')} until you make them active. What's equipped always shows.</p>
 <dl>${set('Show models that don\'t suit this PC', 'Off', 'Shows the hidden models, each with the reason it doesn\'t suit. Remembered.')}</dl>
 <p>I judge your PC by the graphics card and RAM shown at the top of each model page. No guessing, just the numbers.</p>` },
 
@@ -255,9 +257,11 @@ ${set('Alerts', 'Off', 'Pops up a Windows notification when I need you, for exam
 <table><tr><th>Slot</th><th>What it does</th></tr>
 <tr><td>🧠 Brain</td><td>Thinks, chats and plans. Everything else hangs off this one.</td></tr>
 <tr><td>⚡ Quick brain</td><td>A small, fast brain for Low effort and the Art session.</td></tr>
+<tr><td>🎮 Gaming</td><td>Chats on the processor while you play, so your game keeps the graphics card. Only Qwen3 4B Instruct 2507 goes here: it's the one that was timed answering on a busy processor. Gemma 4 E4B never does.</td></tr>
 <tr><td>🔭 Deep thinking</td><td>The strongest thinker, for Medium, High and Extreme effort.</td></tr>
 <tr><td>🔨 Coding</td><td>Writes and fixes code. Empty means the Brain codes.</td></tr>
 <tr><td>🧐 Review</td><td>Checks code and plans at High and Extreme effort.</td></tr>
+<tr><td>📊 Office</td><td>The one all-rounder that does everything in the Office session.</td></tr>
 <tr><td>👁 Seeing pictures</td><td>Looks at pictures and screenshots you attach.</td></tr>
 <tr><td>🗂 Memory (finding past chats)</td><td>Matches what you say to past Topics by meaning.</td></tr>
 <tr><td>👂 Hearing you</td><td>Turns your voice into text.</td></tr>
@@ -265,12 +269,25 @@ ${set('Alerts', 'Off', 'Pops up a Windows notification when I need you, for exam
 <tr><td>🎨 Painter, ✂ Picture editor, 🎞 Video</td><td>Paints, edits pictures, makes short clips.</td></tr>
 <tr><td>🎵 Music, 💥 Sound effects</td><td>Optional extras from the audio tools (<strong>Get the audio tools</strong>).</td></tr></table>
 <ul><li><strong>Click a slot</strong>, then click a model in the list (or drag it onto the slot). Nothing is equipped without you.</li>
-<li>Models you don't have yet show a <strong>Get</strong> button. Nothing downloads until you confirm.</li>
+<li>Each slot lists only <strong>active</strong> models, one line each. Point at the little <strong>i</strong> (or tap it, or Tab to it) for the size, licence and why I like it.</li>
+<li><strong>📚 Get more</strong>, at the end of each list, opens the ${go('catalogue', 'Brain catalogue')} at that job, with everything else that can do it.</li>
+<li>Active models you don't have yet show a <strong>Get</strong> button. Nothing downloads until you confirm.</li>
 <li><strong>One model can fill several slots</strong>, and I offer this with <em>Also use it for</em>. That's what makes small PCs work well.</li>
 <li>To empty a slot, use the <strong>✕</strong> on it. The Brain can't be emptied. I need something to think with.</li>
 <li>The bar shows whether everything equipped fits on the graphics card at once. If not, I take turns (about 20 seconds a swap).</li>
 <li><strong>Plain list instead</strong> shows the same choices as a list (also in Settings, Brains).</li></ul>
 <p>On the left, <strong>Attributes</strong> holds my look and personality: see ${go('personality', 'Bob\'s personality')}.</p>` },
+
+  { id: 'catalogue', group: 'Models', title: 'The Brain catalogue: every model, by job', words: 'brain catalogue catalog index list every model by job active inactive switch hide show pickers menus get more new tried source link hugging face commit fits phone laptop 8 gb 6 gb smaller devices qwen3.6 qwen3.5 gemma 4 e2b qwen 3.8',
+    html: `<p>The <strong>📚 Brain catalogue</strong> is my full list of models, sorted by the job each one does: Quick brain, Gaming, Brain, Deep thinking, Review, Coding, Office, Seeing pictures, Phone, then hearing, voices, pictures, video, music and memory. Open it from the bar on Get models, or press <strong>📚 Get more</strong> under any slot in Equip Bob (or next to a menu in Settings, Brains) to land on that job.</p>
+<p>Each model is one line: its name, its download size, and a tag or two. The rest hides behind the little <strong>i</strong>: what it's good at, how much graphics memory it wants, how it does on a 16 GB card, an 8 GB card, a 6 GB laptop card, no graphics card and an 8 GB phone, its licence, and exactly where it comes from. The <strong>↗</strong> opens that source: the exact Hugging Face commit I download from, so the file can't change under me, or the model's Ollama page.</p>
+<dl>${set('Active', 'On for models on this PC, off for the rest', 'Active models show up in the Equip Bob slots and the brain menus that can use them; the rest stay here, out of the way. Switching one off only hides it: it stays on your PC, and if it\'s equipped it stays equipped and in view. Switch on a model you haven\'t downloaded and it shows in those slots with a Get button.')}</dl>
+<ul><li><strong>Get</strong> downloads it, after asking first with the size and licence. Big ones are big, so I always ask.</li>
+<li><strong>Equip</strong> puts a model that's already here into that job's slot.</li>
+<li><span class="tag">New</span> means I list it but don't recommend it until it's been tried on a real PC. Qwen3.6 35B-A3B, for example, is being raced against Qwen3 Coder 30B for Coding right now.</li>
+<li>The <strong>Phone</strong> list is for the Bob phone app: it gets its own copy and you pick it there.</li>
+<li>Brains I found on this PC that aren't in my list sit at the end under <strong>Other brains on this PC</strong>, with their own Active switch.</li></ul>
+<p>Short version: the catalogue is the shop window, the slots are the shelf you actually reach for.</p>` },
 
   { id: 'starter', group: 'Models', title: 'Starter sets', words: 'starter set pack 16 gb 8 gb 6 gb laptop processor only commercial equip starter set',
     html: `<p>A starter set is a ready-made selection for your kind of graphics card: 16 GB or more, 8 GB, 6 GB (most laptops), or no graphics card. I pick the set by reading your card, and mark it <em>(this PC)</em>. You can pick another set and untick anything before you confirm.</p>
@@ -482,8 +499,8 @@ ${set('Check for updates when Bob starts', 'Off', 'I look at the folder I was bu
 
   { id: 'settings-brains', group: 'Settings', title: 'Settings: Brains', words: 'model roles thinking making session brains context gaming brain small brain',
     html: `<p>The plain-list version of ${go('equip', 'Equip Bob')}, plus two things Equip doesn't show.</p>
-<ul><li><strong>Thinking</strong> and <strong>Making:</strong> which model does each job. Same as the Equip slots.</li>
-<li><strong>Session brains:</strong> the brain each session keeps, for example the Gaming brain (Qwen3 4B Instruct 2507 to start with) and the small brain Art chats on (Gemma 4 E4B to start with). Change one if you prefer another model for that session.</li>
+<ul><li><strong>Thinking</strong> and <strong>Making:</strong> which model does each job. Same as the Equip slots. Each menu lists only active models that can do that job, and <strong>📚 Get more</strong> next to it opens the ${go('catalogue', 'Brain catalogue')} there.</li>
+<li><strong>Session brains:</strong> the brain each session keeps: <strong>Quick brain</strong> (the small brain Art chats on, Gemma 4 E4B to start with), <strong>Gaming</strong> (Qwen3 4B Instruct 2507, and nothing else), <strong>Deep thinking</strong>, <strong>Coding session</strong> and <strong>Office</strong>. They're slots in Equip Bob too.</li>
 <li><strong>How much each session keeps in mind</strong> (context): 8K to 256K. More lets me read longer files and chats, but uses more graphics memory and loads slower. <em>Default</em> uses the engine's own setting (32K for most sessions, 64K for Office; Coding keeps the engine's full default).</li></ul>` },
 
   { id: 'settings-voice', group: 'Settings', title: 'Settings: Voice details', words: 'kokoro chatterbox speed hey bob read aloud listen voice engine',
@@ -605,6 +622,14 @@ ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for ti
 <p><strong>Removing:</strong> Settings, Show advanced settings, Remove Bob, <strong>Remove Bob…</strong>. It takes off my program, my Start menu shortcut, "Launch on start-up" and the "Bob schedules" Windows task. My chats, settings and models stay unless you tick those boxes; ticked ones go to the Recycle Bin. No hard feelings.</p>` },
 
   // ---------------- FAQ ----------------
+  { id: 'faq-missing-model', group: 'FAQ', title: 'Why isn\'t a model I downloaded in Equip Bob?', words: 'faq missing model not listed hidden slot menu active inactive where gone equip',
+    html: `<p>Two reasons it can hide. Either its <strong>Active</strong> switch is off in the ${go('catalogue', 'Brain catalogue')}, or it can't do that slot's job (a brain that can't see pictures never shows under Seeing pictures). Press <strong>📚 Get more</strong> under the slot, find it, and switch Active on. Nothing was deleted; I just tidied it out of the way.</p>` },
+  { id: 'faq-new-models', group: 'FAQ', title: 'Why isn\'t a newer model Bob\'s pick yet?', words: 'faq new tag not recommended qwen3.6 qwen3.5 gemma e2b newer better tried tested race',
+    html: `<p>Because I only recommend what's been tried on a real PC. A newer model can score better on paper and still trip over my tools or run slowly here. Once it's been timed and tested, the <strong>New</strong> tag goes and it can become my pick. You can still get and equip it before then.</p>` },
+  { id: 'faq-gaming-brain', group: 'FAQ', title: 'Can I use another brain in Gaming?', words: 'faq gaming brain other e4b gemma qwen change pick game processor',
+    html: `<p>Not yet. The Gaming slot only takes Qwen3 4B Instruct 2507, the one that was timed answering on a busy processor while a game ran. Gemma 4 E4B is never used there, even if a setting asks for it. When another small brain passes the same timing, it gets added.</p>` },
+  { id: 'faq-tips', group: 'FAQ', title: 'Where did the explanations under the settings go?', words: 'faq explanation description hint gone missing tip tooltip hover bubble i info clutter busy',
+    html: `<p>Behind the little round <strong>i</strong> next to each one. Point at it, Tab to it or tap it, and the bubble opens; tap it again or press Esc to close it. On a touch screen you can also press and hold a button to see what it does. I kept warnings, current values and approval cards written out, because those you need at a glance. More in ${go('around', 'Finding your way around')}.</p>` },
   { id: 'faq-convert', group: 'FAQ', title: 'Can Bob convert my files?', words: 'faq convert pdf word excel powerpoint mp3 mp4 gif picture turn into export',
     html: `<p>Yes, once you switch on ${go('hands-office', 'Office documents and converting')} in Settings, Show advanced settings, Hands, and tick the folders I may save in. Then ask: "turn this into a PDF", "make these mp3s", "convert the clip to a GIF". You see each file on a card before I start. Pictures work straight away; documents need LibreOffice and sound or video need FFmpeg, both free and both offered in Engines &amp; speed if you don't have them.</p>` },
   { id: 'faq-antivirus', group: 'FAQ', title: 'Can Bob replace my antivirus?', words: 'faq antivirus replace defender norton mcafee protect virus malware security',
@@ -689,11 +714,12 @@ ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for ti
 <tr><td>A model you want isn't listed in a slot</td><td>That slot only lists models that can do its job. Models that don't suit this PC are hidden: turn on <strong>Show models that don't suit this PC</strong>.</td></tr></table>
 <p>Still stuck? Ask me in the chat. Describing the problem to someone helps, even when that someone is software.</p>` },
 
-  { id: 'glossary', group: 'Troubleshooting', title: 'Glossary', words: 'words meaning model brain gpu vram ram graphics memory gguf engine commercial session hands context effort moot copy token processor cpu ollama llama.cpp thinking borrowed lend',
+  { id: 'glossary', group: 'Troubleshooting', title: 'Glossary', words: 'words meaning tip bubble model brain gpu vram ram graphics memory gguf engine commercial session hands context effort moot copy token processor cpu ollama llama.cpp thinking borrowed lend',
     html: `<p>The words I use, in plain English. I'll try not to say "tensor" without warning you.</p>
 <dl>
 <dt>Brain</dt><dd>A model that thinks and chats. Bigger brains are usually smarter but slower and need more memory.</dd>
 <dt>Borrowed brain</dt><dd>When another of your Bobs thinks a quick reply for me over Tailscale (📡 in the chat). I still run the tools.</dd>
+<dt>Tip (ⓘ)</dt><dd>A small round <strong>i</strong> next to a setting or a heading. Point at it, Tab to it, or tap it and a bubble explains that thing. Press and hold a button on a touch screen to see its tip.</dd>
 <dt>Brain swap</dt><dd>Putting one brain away and loading another, usually 10 to 20 seconds.</dd>
 <dt>Thinking (Bob's thinking window)</dt><dd>What a brain works through before it answers. Medium effort and up think first; Low doesn't. 💭 Bob's thinking shows it live while that window is open, and none of it is saved.</dd>
 <dt>Card (in the chat)</dt><dd>A box in the chat that shows a file, a picture, or something I want your OK for.</dd>
@@ -709,6 +735,9 @@ ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for ti
 <dt>Convert</dt><dd>Turning a file into another kind (Word into PDF, a WAV into an MP3). The original stays as it is.</dd>
 <dt>Engine</dt><dd>The program that runs a kind of model, such as llama.cpp for brains. I offer it when a model needs it.</dd>
 <dt>Equip Bob</dt><dd>The page where you choose which model does each job.</dd>
+<dt>Brain catalogue</dt><dd>My full list of models, sorted by job, with what each one needs and where it comes from.</dd>
+<dt>Active (model)</dt><dd>A model that shows up in the slots and brain menus. The rest wait in the Brain catalogue.</dd>
+<dt>Picture reader</dt><dd>The small extra file (an "mmproj") that lets a brain see pictures. I download it with the brain when it has one.</dd>
 <dt>FFmpeg</dt><dd>A free program I use to convert sound and video (and WebP pictures). Runs only while it converts.</dd>
 <dt>Graphics card, graphics memory</dt><dd>The part of your PC that makes AI fast. Its memory (6, 8, 16 GB) decides which models fit. Also called GPU and VRAM.</dd>
 <dt>Hands</dt><dd>Me doing things on your PC (files, programs, schedules, apps). Off until you turn them on.</dd>

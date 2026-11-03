@@ -58,6 +58,7 @@ Update this file in the same handover as any change to settings.
 | Page | Setting | Default | Review |
 |---|---|---|---|
 | Get models / Equip Bob | Show models that don't suit this PC | off (remembered) | Approved with edits: use the pill switch style |
+| Get models / Brain catalogue | Active (one switch per model, `activeModels`) | on for models on this PC, off for models not downloaded | 1.5.56, pending review |
 | Help (menu, F1) | Search Help | | ok |
 | Settings > Advanced > Engines & speed | Give Bob all his tools at once: "Sends every tool with each message, which leaves less room for the chat. Leave off to keep chats light." | off | ok (approved with edits, slim tools) |
 | Settings > Advanced > Engines & speed | Pick up unfinished jobs after a restart: "If Bob closes mid-job, he starts it again next time. Jobs that had already changed something wait in Tasks for you to press Retry." | off | ok (approved with edits, handoffs) |
@@ -88,7 +89,7 @@ Update this file in the same handover as any change to settings.
 | Session picker | 🎮 Gaming (was Light / gaming, id still `light`): "Keeps the graphics card for your games. Bob chats and listens on the processor with a small brain, which usually starts answering within a few seconds. Pictures and big jobs wait until you switch back. How much of the card he may borrow is set in Settings, Engines & speed (Automatic to start with)." | off (Normal) | ok |
 | Chat page, Effort | In Gaming, Medium/High/Extreme are greyed out: "Gaming keeps the graphics card free. Switch session to use more effort." | Low | ok |
 | Tasks | In Gaming, picture/clip/music and Medium-and-up jobs wait: "Waiting · Gaming is on", "Switch the session to Normal to run it." | — | ok |
-| Settings > Equip, Session brains | Gaming session brain (`sessionBrains.gaming`), default Qwen3 4B Instruct 2507 (1.5.25: picked on time to first word and to a full answer on the processor) | qwen3-4b | ok |
+| Settings > Equip, Session brains | Gaming session brain (`sessionBrains.gaming`), default Qwen3 4B Instruct 2507 (1.5.25: picked on time to first word and to a full answer on the processor) | qwen3-4b | ok (1.5.56: also a 🎮 Gaming slot in Equip Bob; only takes catalog brains timed for gaming, never Gemma 4 E4B) |
 | Help, Sessions and Effort | "Session: what the graphics card is kept for. Effort: how hard Bob works on each message." | — | ok |
 | Settings > Advanced > Engines & speed > Speed for this PC | Get Bob ready while you type · Let games go first · Match picture settings to my graphics card | all off | ok (approved with edits, hw tuning) |
 | Settings > Advanced > Engines & speed | Test Bob's speed (button + last 6 results) | | ok (approved with edits) |

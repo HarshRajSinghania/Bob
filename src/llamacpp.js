@@ -3,6 +3,7 @@
 // Models are found by Ollama name in Ollama's model folder (no duplicate downloads), or set by path in config.
 import { replyStats } from './speed-stats.js';
 import fs from 'node:fs';
+import { saveNameOf } from './models.js';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
@@ -177,11 +178,15 @@ export class LlamaCpp {
       const f = e?.files?.find((x) => x.role === 'gguf');
       if (!f) return null;
       const root = this.cfg.bobModelsDir || path.join(this.cfg.agentDir, 'models', 'bob');
-      const name = decodeURIComponent(f.url.split('/').pop().split('?')[0]);
+      const dirs = [e.category, ...fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)];
       // Its own folder first; an older Bob may have filed it under another one (for example chat instead of coding).
-      const file = [e.category, ...fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)]
-        .map((dir) => path.join(root, dir, name)).find((x) => fs.existsSync(x) && !fs.existsSync(x + '.part'));
-      return file ? { gguf: file } : null;
+      const find = (x) => { const name = saveNameOf(x); return dirs.map((dir) => path.join(root, dir, name)).find((p) => fs.existsSync(p) && !fs.existsSync(p + '.part')); };
+      const file = find(f);
+      if (!file) return null;
+      // 1.5.56: a brain that sees pictures has a second file, its picture reader (mmproj), saved under its own name.
+      const pj = e.files.find((x) => x.role === 'mmproj');
+      const mmproj = pj ? find(pj) : null;
+      return mmproj ? { gguf: file, mmproj } : { gguf: file };
     } catch { return null; }
   }
 
@@ -587,15 +592,31 @@ export class LlamaCpp {
   async chatStream({ model, messages, tools, signal, onToken, onThink, think, budget, onOver }) {
     // 1.5.52: a brain whose template refused a mid-chat system note gets them folded in from then on (foldSystem).
     this.noMidSystem ||= new Set();
+    // 1.5.60: ask the loaded brain's chat template up front, so a template that refuses mid-chat system notes is
+    // folded from the very first request (the retry below stays as a second line of defence).
+    this.templateRead ||= new Set();
+    if (!this.templateRead.has(model)) {
+      this.templateRead.add(model);
+      try {
+        const props = await (await fetch(this.url + '/props', { signal: AbortSignal.timeout(3000) })).json();
+        if (MID_SYSTEM_REFUSED.test(String(props?.chat_template || ''))) {
+          this.noMidSystem.add(model);
+          this.log?.('engine', `${model}: its chat template only takes a system message first, so Bob's notes go in as user notes`);
+        }
+      } catch {}
+    }
     if (this.noMidSystem.has(model)) messages = foldSystem(messages);
     const res = await this.post(model, messages, tools, signal, think);
     if (!res.ok) {
-      const text = (await res.text()).slice(0, 300);
-      if (!this.noMidSystem.has(model) && MID_SYSTEM_REFUSED.test(text)) {
+      // 1.5.60: the template's refusal can sit deep in a long error (after the template source), so look at all of it.
+      const full = await res.text();
+      const text = full.slice(0, 300);
+      if (!this.noMidSystem.has(model) && MID_SYSTEM_REFUSED.test(full)) {
         this.noMidSystem.add(model);
         this.log?.('engine', `${model}: its chat template only takes a system message first, so Bob's notes go in as user notes from now on`);
         return this.chatStream({ model, messages, tools, signal, onToken, onThink, think, budget, onOver });
       }
+      if (MID_SYSTEM_REFUSED.test(full)) this.log?.('engine', `${model}: refused a system message even after folding (roles ${(messages || []).map((m) => (m.role || '?')[0]).join('')}, ${full.length} chars of error)`);
       throw new Error(`llama-server returned ${res.status}: ${text}`);
     }
     return this.readStream(res, { model, messages, tools, signal, onToken, onThink, think, budget, onOver });

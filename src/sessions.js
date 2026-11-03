@@ -23,7 +23,7 @@ export function sessionBrains(cfg) {
     // 1.5.23: Gaming chats on the processor, so a smaller brain answers sooner. 1.5.25: Qwen3 4B Instruct 2507 (Get models
     // id "qwen3-4b"), picked on time to first word and to a full answer: about 0.1-2 s / 2-7 s on the processor. Ollama's
     // qwen3:4b thinks first even when asked not to (about 30 s for "hi"). If it isn't on the PC, the hand-off falls back.
-    gaming: s.gaming || 'qwen3-4b',
+    gaming: s.gaming && !/e4b/i.test(s.gaming) ? s.gaming : 'qwen3-4b', // 1.5.56: never E4B, even from an old settings file
     coding: s.coding || m.tinker || m.bob,
     office: s.office || m.ledger || m.bob,
     deep: s.deep || m.reviewer || m.bob

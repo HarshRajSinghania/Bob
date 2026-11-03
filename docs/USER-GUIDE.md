@@ -86,9 +86,11 @@ Bob uses different AI **models** for different jobs, the way a person might use 
 |---|---|
 | 🧠 Brain | Thinks, chats and plans. Everything else hangs off this one. |
 | ⚡ Quick brain | A small, fast brain for Low effort and the Art session. |
+| 🎮 Gaming | Chats on the processor while you play, so your game keeps the graphics card. Only Qwen3 4B Instruct 2507 goes here (it was timed on a busy processor); Gemma 4 E4B never does. |
 | 🔭 Deep thinking | The strongest thinker, for Medium, High and Extreme effort. Optional. |
 | 🔨 Coding | Writes and fixes code. If it's empty, the Brain codes. |
 | 🧐 Review | Checks code and plans before you rely on them. Optional. |
+| 📊 Office | The one all-rounder that does everything in the Office session. |
 | 👁 Seeing pictures | Looks at pictures and screenshots you attach. |
 | 🗂 Memory (finding past chats) | Helps Topics and search find things by meaning, not just exact words. |
 | 👂 Hearing you | Turns your voice into text. |
@@ -101,17 +103,29 @@ Bob uses different AI **models** for different jobs, the way a person might use 
 ### How to equip something
 
 - **Click a slot**, then click a model in the list to put it there. You can also **drag** a model onto a slot.
-- Models already on your PC are ready to go. Models you don't have yet show a **Get** button. Nothing downloads until you confirm.
+- Each slot lists only **active** models, one line each. Point at the little **i** (or tap it) for the size, licence and Bob's reasons.
+- **📚 Get more**, at the end of each list, opens the Brain catalogue at that job.
+- Models already on your PC are ready to go. Active models you don't have yet show a **Get** button. Nothing downloads until you confirm.
 - **One model can fill several slots.** For example, Gemma 4 E4B can be the Brain, the Quick brain, Seeing pictures and Hearing you all at once. Bob offers this with "Also use it for…". That's the trick that makes small PCs work well.
 - To empty a slot, use the **✕** on it. The Brain can't be emptied, because Bob needs something to think with.
 - The bar along the bottom shows whether everything fits on your graphics card at the same time. If it doesn't, that's fine: Bob takes turns, putting one model away while another works.
 - Prefer a plain list? There's a button for that at the top.
 
-Each slot only lists models that can do its job: a brain that can't see pictures never shows under Seeing pictures, and a big brain never shows under Quick brain.
+Each slot only lists active models that can do its job: a brain that can't see pictures never shows under Seeing pictures, and a big brain never shows under Quick brain. What's equipped always shows.
+
+### The Brain catalogue
+
+**📚 Brain catalogue** (on the Get models bar, or **📚 Get more** under any slot) is Bob's full list of models, sorted by job: Quick brain, Gaming, Brain, Deep thinking, Review, Coding, Office, Seeing pictures, Phone, then hearing, voices, pictures, video, music and memory.
+
+- Each model is one line: name, download size and a tag or two. The **i** holds the rest: what it's good at, how much graphics memory it wants, how it does on a 16 GB card, an 8 GB card, a 6 GB laptop card, no graphics card and an 8 GB phone, its licence and its source. The **↗** opens that source: the exact Hugging Face commit Bob downloads from, or the model's Ollama page.
+- **Active** (on for models on your PC, off for the rest): active models show in the Equip Bob slots and the brain menus; the rest stay in the catalogue. Switching one off only hides it. It stays on your PC, and if it's equipped it stays equipped.
+- **Get** downloads it after asking first. **Equip** puts a model that's already here into that job's slot.
+- **New** marks a model Bob lists but doesn't recommend until it's been tried on a real PC.
+- **Phone** lists the brains the Bob phone app can run; the phone app gets its own copy.
 
 ### Recommended, Fits your card, Doesn't suit this PC
 
-- **★ Recommended for this job on your PC:** Bob's pick for that slot. For brains, a model scores higher the more jobs it covers (fewer brain swaps) and the less graphics memory it takes, and much lower if it would spill into RAM. Bigger brains get a bonus for jobs that need careful thinking. On small cards (8 GB or less), a brain that fills most of the card scores lower, because it leaves no room for longer chats. For pictures, video and voices, the pick comes from the starter set for your card.
+- **★ Recommended:** Bob's pick for that slot (the reason is behind the **i**). For brains, a model scores higher the more jobs it covers (fewer brain swaps) and the less graphics memory it takes, and much lower if it would spill into RAM. Bigger brains get a bonus for jobs that need careful thinking. On small cards (8 GB or less), a brain that fills most of the card scores lower, because it leaves no room for longer chats. For pictures, video and voices, the pick comes from the starter set for your card.
 - **Fits your card:** runs well here too, just not the first pick.
 - **Doesn't suit this PC:** needs more graphics memory or RAM than you have. These are hidden until you turn on **Show models that don't suit this PC** (off unless you turn it on), and each says why.
 
@@ -369,6 +383,7 @@ The full glossary and an FAQ are in Help inside Bob (left menu, or F1).
 - **Graphics card (GPU) and graphics memory (VRAM):** the part of your PC that makes AI fast. The amount of graphics memory (6 GB, 8 GB, 16 GB) decides which models fit.
 - **RAM:** your PC's main memory. Bob can use it for parts of a model that don't fit on the graphics card. It works, but more slowly.
 - **Squeezed (GGUF) version:** a smaller copy of a model that fits small cards, with a little less detail.
+- **Brain catalogue:** Bob's full list of models, sorted by job. **Active** models show in the slots and menus; the rest wait there.
 - **Engine:** the program that runs a kind of model, for example the painter engine for pictures. Bob offers it when a model needs it.
 - **Commercial use:** using what you make for money. All starter set models allow it. A few optional extras don't, and Bob marks those.
 

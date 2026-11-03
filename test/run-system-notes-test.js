@@ -21,11 +21,13 @@ check('the exact llama-server error is recognised', MID_SYSTEM_REFUSED.test("Val
 // Through the engine: a mock llama-server whose template refuses mid-chat system messages.
 const sse = (t) => `data: ${JSON.stringify({ choices: [{ delta: { content: t } }] })}\n\ndata: [DONE]\n\n`;
 let calls = 0, lastBody = null;
+let template = '';
 globalThis.fetch = async (url, init) => {
+  if (String(url).endsWith('/props')) return new Response(JSON.stringify({ chat_template: template }));
   calls++;
   lastBody = JSON.parse(init.body);
   const bad = lastBody.messages.some((m, i) => m.role === 'system' && i > 0);
-  if (bad) return new Response(JSON.stringify({ error: { code: 500, message: "Value is not callable: raise_exception('System message must be at the beginning.')" } }), { status: 500 });
+  if (bad) return new Response(JSON.stringify({ error: { code: 500, message: `While executing CallExpression at line 106, column 32\n${'{%- if messages[0].role == "system" %}{{- messages[0].content }}{%- endif %}'.repeat(8)}\nValue is not callable: raise_exception('System message must be at the beginning.')` } }), { status: 500 });
   return new Response(sse('Hello.'));
 };
 const lc = new LlamaCpp({ agentDir: '.', dataDir: '.', llamacpp: {} });
@@ -40,6 +42,13 @@ check('the next chat with that brain is folded straight away (one request)', cal
 calls = 0;
 const other = await lc.chatStream({ model: 'gemma4:26b', messages: [chat[0], chat[2]] });
 check('other brains and plain chats go as before', other.content === 'Hello.' && calls === 1 && lastBody.messages.length === 2);
+// 1.5.60: a brain whose template says so up front is folded from its very first request.
+const lc2 = new LlamaCpp({ agentDir: '.', dataDir: '.', llamacpp: {} });
+template = "{%- if not loop.first %}{{- raise_exception('System message must be at the beginning.') }}{%- endif %}";
+calls = 0;
+const r2 = await lc2.chatStream({ model: 'qwen3.8:27b', messages: chat });
+check('a template that refuses mid-chat system notes is folded from the first request', r2.content === 'Hello.' && calls === 1, `calls=${calls}`);
+template = '';
 globalThis.fetch = async () => new Response('some other failure', { status: 500 });
 let threw = '';
 try { await lc.chatStream({ model: 'x', messages: chat.slice(0, 3) }); } catch (e) { threw = e.message; }

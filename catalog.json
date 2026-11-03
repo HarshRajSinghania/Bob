@@ -55,7 +55,7 @@
     {
       "id": "gemma4-26b",
       "category": "chat",
-      "jobs": ["bob", "deep", "tinker", "reviewer", "eyes", "ledger", "scout", "painter"],
+      "jobs": ["bob", "deep", "tinker", "reviewer", "eyes", "ledger", "scout", "painter", "office"],
       "name": "Gemma 4 26B",
       "what": "Bob's main brain. Fast, sees pictures, good with tools.",
       "sizeGB": 18,
@@ -75,7 +75,7 @@
     {
       "id": "gemma4-e4b",
       "category": "chat",
-      "jobs": ["bob", "small", "eyes", "voice", "ledger", "scout", "painter"],
+      "jobs": ["bob", "small", "eyes", "voice", "ledger", "scout", "painter", "office"],
       "name": "Gemma 4 E4B",
       "what": "Small and quick. Good for laptops and 8 GB cards. Can also hear audio.",
       "sizeGB": 6.6,
@@ -95,9 +95,9 @@
     {
       "id": "qwen3-4b",
       "category": "chat",
-      "jobs": ["bob", "small", "ledger", "scout", "painter"],
-      "name": "Qwen3 4B Instruct",
-      "what": "Tiny. For older PCs with 4 to 6 GB of graphics memory.",
+      "jobs": ["bob", "small", "ledger", "scout", "painter", "gaming", "office", "phone"],
+      "name": "Qwen3 4B Instruct 2507",
+      "what": "Tiny and quick. Bob's Gaming brain (on the processor), and the Brain on 4 to 6 GB cards.",
       "sizeGB": 2.5,
       "vramGB": 4,
       "license": "Apache 2.0",
@@ -118,12 +118,218 @@
           "scout": "$model",
           "painter": "$model"
         }
+      },
+      "params": 4,
+      "phoneFit": "Second choice on an 8 GB phone; a bit slower than Gemma 4 E2B."
+    },
+    {
+      "id": "qwen3.6-27b",
+      "category": "chat",
+      "jobs": ["deep", "reviewer", "tinker", "bob", "office", "eyes", "scout"],
+      "name": "Qwen3.6 27B",
+      "what": "A careful, strong thinker for Deep thinking and reviews. All 27B of it works at once, so a little sits in RAM on a 16 GB card and replies are slower.",
+      "sizeGB": 17.7,
+      "vramGB": 18,
+      "params": 27,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "optional",
+      "trial": true,
+      "files": [
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/82d411acf4a06cfb8d9b073a5211bf410bfc29bf/Qwen3.6-27B-Q4_K_M.gguf",
+          "role": "gguf",
+          "verify": true,
+          "bytes": 16817244384,
+          "sha256": "5ed60d0af4650a854b1755bd392f9aef4872643dc25a254bc68043fa638392a0"
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/82d411acf4a06cfb8d9b073a5211bf410bfc29bf/mmproj-F16.gguf",
+          "role": "mmproj",
+          "saveAs": "Qwen3.6-27B-mmproj-F16.gguf",
+          "verify": true,
+          "bytes": 927607360,
+          "sha256": "eacf610d1ee4bd5ed0197a0777dd8f4fceb8eefa27009067c7d496cb68fbde45"
+        }
+      ],
+      "use": {
+        "models": {
+          "reviewer": "$model"
+        }
+      }
+    },
+    {
+      "id": "qwen3.8-27b",
+      "category": "chat",
+      "jobs": ["deep", "reviewer", "bob", "tinker", "office"],
+      "name": "Qwen 3.8 27B",
+      "what": "Bob's slow but smart thinker. Strong at hard problems; about 10 words a second on a 16 GB card because a little of it sits in RAM.",
+      "sizeGB": 18,
+      "vramGB": 18,
+      "params": 27,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "optional",
+      "ollama": "qwen3.8:27b",
+      "use": {
+        "models": {
+          "reviewer": "$model"
+        }
+      }
+    },
+    {
+      "id": "qwen3.5-9b",
+      "category": "chat",
+      "jobs": ["bob", "tinker", "eyes", "office", "ledger", "scout", "painter"],
+      "name": "Qwen3.5 9B",
+      "what": "A small all-rounder for 8 GB cards: chats, codes a little, sees pictures and keeps a long chat in mind.",
+      "sizeGB": 6.6,
+      "vramGB": 8,
+      "params": 9,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "small",
+      "trial": true,
+      "files": [
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-Q4_K_M.gguf",
+          "role": "gguf",
+          "verify": true,
+          "bytes": 5680522464,
+          "sha256": "03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8"
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/mmproj-F16.gguf",
+          "role": "mmproj",
+          "saveAs": "Qwen3.5-9B-mmproj-F16.gguf",
+          "verify": true,
+          "bytes": 918166080,
+          "sha256": "f70dc3509053962b0d0d3ee8a7eacebf5d60aa560cad78254ae8698516ae029f"
+        }
+      ],
+      "use": {
+        "models": {
+          "bob": "$model",
+          "scout": "$model",
+          "painter": "$model"
+        }
+      }
+    },
+    {
+      "id": "qwen3.5-4b",
+      "category": "chat",
+      "jobs": ["small", "bob", "eyes", "scout", "painter", "ledger"],
+      "name": "Qwen3.5 4B",
+      "what": "A tiny brain that also sees pictures. Fits 4 to 6 GB cards.",
+      "sizeGB": 3.4,
+      "vramGB": 4,
+      "params": 4,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "tiny",
+      "trial": true,
+      "files": [
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf",
+          "role": "gguf",
+          "verify": true,
+          "bytes": 2740937888,
+          "sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4"
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/e87f176479d0855a907a41277aca2f8ee7a09523/mmproj-F16.gguf",
+          "role": "mmproj",
+          "saveAs": "Qwen3.5-4B-mmproj-F16.gguf",
+          "verify": true,
+          "bytes": 672423616,
+          "sha256": "cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864"
+        }
+      ],
+      "use": {
+        "models": {
+          "bob": "$model",
+          "scout": "$model",
+          "painter": "$model"
+        }
+      }
+    },
+    {
+      "id": "qwen3.5-2b",
+      "category": "chat",
+      "jobs": ["small", "eyes", "phone"],
+      "name": "Qwen3.5 2B",
+      "what": "The smallest brain here. Quick on a phone or an old laptop, and it sees pictures; keep the questions simple.",
+      "sizeGB": 1.9,
+      "vramGB": 2,
+      "params": 2,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "tiny",
+      "trial": true,
+      "phoneFit": "Fits an 8 GB phone easily; the lightest choice.",
+      "files": [
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/f6d5376be1edb4d416d56da11e5397a961aca8ae/Qwen3.5-2B-Q4_K_M.gguf",
+          "role": "gguf",
+          "verify": true,
+          "bytes": 1280835840,
+          "sha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/f6d5376be1edb4d416d56da11e5397a961aca8ae/mmproj-F16.gguf",
+          "role": "mmproj",
+          "saveAs": "Qwen3.5-2B-mmproj-F16.gguf",
+          "verify": true,
+          "bytes": 668227264,
+          "sha256": "7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7"
+        }
+      ],
+      "use": {
+        "models": {
+          "small": "$model"
+        }
+      }
+    },
+    {
+      "id": "gemma4-e2b",
+      "category": "chat",
+      "jobs": ["small", "eyes", "phone", "scout", "painter"],
+      "name": "Gemma 4 E2B",
+      "what": "Gemma 4's smallest brain. The phone app's brain, and a light Quick brain on a PC; it sees pictures.",
+      "sizeGB": 3.4,
+      "vramGB": 4,
+      "params": 2,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "tiny",
+      "trial": true,
+      "phoneFit": "The phone app's pick for an 8 GB phone (about 11 words a second on a Galaxy S22, from others' tests).",
+      "files": [
+        {
+          "url": "https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/resolve/b4243c156154b6dca9324415f8c7ccc098b4aed1/gemma-4-E2B-it-Q4_0.gguf",
+          "role": "gguf",
+          "verify": true,
+          "bytes": 2841481184,
+          "sha256": "8e30dff3ac4c8434c49a7036fa15564bdbb6044e42bf04550bf1a096ad7e6a52"
+        },
+        {
+          "url": "https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/resolve/b4243c156154b6dca9324415f8c7ccc098b4aed1/mmproj-gemma-4-E2B-it-Q8_0.gguf",
+          "role": "mmproj",
+          "verify": true,
+          "bytes": 557368064,
+          "sha256": "9406f99c16d68cda4f1f0552192dcc99021ea1fc6d2fd50b1dc3ccf30d04b292"
+        }
+      ],
+      "use": {
+        "models": {
+          "small": "$model"
+        }
       }
     },
     {
       "id": "qwen3-coder-30b",
       "category": "coding",
-      "jobs": ["tinker", "bob", "reviewer"],
+      "jobs": ["tinker", "bob", "reviewer", "office", "deep"],
       "name": "Qwen3 Coder 30B",
       "what": "The workbench brain. Strong coder with a long memory (128K).",
       "sizeGB": 19,
@@ -151,7 +357,7 @@
     {
       "id": "gpt-oss-20b",
       "category": "coding",
-      "jobs": ["deep", "reviewer", "tinker", "bob", "ledger", "scout"],
+      "jobs": ["deep", "reviewer", "tinker", "bob", "ledger", "scout", "office"],
       "name": "gpt-oss 20B",
       "what": "The second-look reviewer. Very fast, careful thinker.",
       "sizeGB": 13,
@@ -198,11 +404,48 @@
       }
     },
     {
+      "id": "qwen3.6-35b-a3b",
+      "category": "coding",
+      "jobs": ["tinker", "bob", "reviewer", "deep", "office", "eyes", "ledger", "scout"],
+      "name": "Qwen3.6 35B-A3B",
+      "what": "A newer coder and all-rounder: sees pictures, thinks before it answers, and keeps up to 256K in mind. Only 3B of it works at a time, so it stays quick even with part of it in RAM.",
+      "sizeGB": 23.3,
+      "vramGB": 16,
+      "params": 35,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "best",
+      "trial": true,
+      "trialNote": "Being raced against Qwen3 Coder 30B on a 16 GB card.",
+      "files": [
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/a483e9e6cbd595906af30beda3187c2663a1118c/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
+          "role": "gguf",
+          "verify": true,
+          "bytes": 22360456160,
+          "sha256": "707a55a8a4397ecde44de0c499d3e68c1ad1d240d1da65826b4949d1043f4450"
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/a483e9e6cbd595906af30beda3187c2663a1118c/mmproj-F16.gguf",
+          "role": "mmproj",
+          "saveAs": "Qwen3.6-35B-A3B-mmproj-F16.gguf",
+          "verify": true,
+          "bytes": 899283680,
+          "sha256": "8971ee4f331ff0a4c609374f32984b3d4e6dc086c0aa35f1d637fad1829e887f"
+        }
+      ],
+      "use": {
+        "models": {
+          "tinker": "$model"
+        }
+      }
+    },
+    {
       "id": "qwen2.5-vl-7b",
       "category": "vision",
       "jobs": ["eyes"],
       "name": "Qwen2.5 VL 7B",
-      "what": "Reads screenshots and documents. Gemma 4 already does this, so it's optional.",
+      "what": "Reads screenshots and documents. Older: Gemma 4 and Qwen3.5 already see pictures, so it's optional.",
       "sizeGB": 6,
       "vramGB": 8,
       "license": "Apache 2.0",

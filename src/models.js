@@ -51,6 +51,11 @@ export function ownerOf(p) {
 export function fileNameOf(url) {
   return decodeURIComponent(new URL(url).pathname.split('/').pop());
 }
+// 1.5.56: the name a catalog file is saved under. Several repos call their picture reader "mmproj-F16.gguf", so those
+// entries give it a name of their own (saveAs, a plain file name only); everything else keeps the name in the link.
+export function saveNameOf(f) {
+  return typeof f?.saveAs === 'string' && /^[\w][\w.+-]{0,150}$/.test(f.saveAs) ? f.saveAs : fileNameOf(f.url);
+}
 
 // Fill in "$model" and "$file:role" in an entry's "use" block.
 export function resolveUse(use, values) {
@@ -200,7 +205,7 @@ export class ModelShop {
       if (!p.startsWith(path.resolve(root) + path.sep)) throw new Error('A catalog file pointed outside its folder.');
       return p;
     }
-    return path.join(this.dir, entry.category, fileNameOf(f.url));
+    return path.join(this.dir, entry.category, saveNameOf(f));
   }
 
   // Where each of an entry's files is on this PC, if anywhere. Bob's own folder first, then anything the scan found.
@@ -212,7 +217,7 @@ export class ModelShop {
         try { const size = fs.statSync(p).size; if (!f.bytes || aceFileOk(f, size)) out[f.role] = p; } catch {}
         continue;
       }
-      const name = fileNameOf(f.url);
+      const name = saveNameOf(f);
       const mine = path.join(this.dir, entry.category, name);
       if (fs.existsSync(mine)) { out[f.role] = mine; continue; }
       const alt = [name, ...(f.aka || [])].map((n) => n.toLowerCase());
@@ -238,7 +243,7 @@ export class ModelShop {
   async list() {
     const ollama = await this.ollamaNames();
     const models = [];
-    for (const m of this.catalog.models) models.push({ ...m, files: (m.files || []).map((f) => ({ name: fileNameOf(f.url), role: f.role })), status: await this.statusOf(m, ollama) });
+    for (const m of this.catalog.models) models.push({ ...m, files: (m.files || []).map((f) => ({ name: saveNameOf(f), role: f.role })), status: await this.statusOf(m, ollama) });
     const known = new Set(models.flatMap((m) => Object.values(m.status.located).map((p) => p.toLowerCase())));
     const extras = this.found.files.filter((f) => !known.has(f.path.toLowerCase()) && f.owner !== 'Ollama');
     return {
@@ -529,7 +534,7 @@ export class ModelShop {
     pub.total = total || pub.total;
     pub.done = 0;
     for (const [i, h] of heads.entries()) {
-      const name = fileNameOf(h.f.url);
+      const name = saveNameOf(h.f);
       pub.file = name; pub.fileIndex = i + 1;
       pub.phase = 'downloading';
       const final = this.dest(entry, h.f);

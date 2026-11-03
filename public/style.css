@@ -1040,3 +1040,37 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .brain-bay { display: grid; gap: 2px; margin: 2px 0 6px; font-size: 12px; }
 .brain-bay canvas { width: 100%; max-width: 320px; image-rendering: pixelated; display: block; }
 .brain-bay .bay-text { color: var(--text); }
+
+/* 1.5.56 Brain catalogue (public/catalogue.js) and Active models */
+.cat-top { margin-bottom: 8px; }
+.cat-nav { display: flex; flex-wrap: wrap; gap: 6px; }
+.cat-nav button[aria-current="true"] { border-color: var(--accent); }
+.cat-job { margin: 14px 0; scroll-margin-top: calc(var(--cellar-head-h, 56px) + var(--cellar-tabs-h, 0px) + 8px); }
+.cat-job h3 { display: flex; align-items: center; gap: 6px; }
+.cat-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); }
+.cat-row.dim { opacity: 0.75; }
+.cat-row .confirm { flex-basis: 100%; }
+.cat-act { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.src-link { text-decoration: none; color: var(--muted); padding: 0 4px; }
+.mini-switch { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 2px 8px; font: inherit; font-size: 12px; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+.mini-switch .st { font-weight: 700; text-transform: uppercase; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--line); }
+.mini-switch[aria-checked="true"] { color: var(--text); border-color: var(--good); }
+.mini-switch[aria-checked="true"] .st { background: var(--good); color: var(--on-accent, #fff); }
+.get-more { margin: 8px 0 0; }
+.get-more-btn { white-space: nowrap; }
+.kit:not(.shop) { display: flex; align-items: center; padding-right: 8px; }
+.kit:not(.shop) .kit-btn { flex: 1; }
+/* 1.5.56 Tips: explanations wait behind a small ⓘ and show in one bubble on hover, on keyboard focus, or on tap. */
+button.tip-i, .cellar button.tip-i { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; min-height: 0; min-width: 0; padding: 0; margin: -6px -4px; vertical-align: middle; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font: 600 12px/1 var(--font, inherit); cursor: help; flex: none; }
+/* The circle you see is 20 px; the button you can hit is 32 px (rule 10, Parsec and thumbs). */
+.tip-i::before { content: "i"; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); box-sizing: border-box; font-style: normal; }
+button.tip-i:hover, button.tip-i:focus-visible, button.tip-i[aria-expanded="true"] { color: var(--text); }
+button.tip-i:hover::before, button.tip-i:focus-visible::before, button.tip-i[aria-expanded="true"]::before { border-color: var(--accent); }
+button.tip-i:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tip-bubble { position: fixed; z-index: 10000; max-width: 340px; padding: 8px 11px; border-radius: var(--r, 8px); border: 1px solid var(--accent); background: var(--panel); color: var(--text); font-size: 13px; line-height: 1.45; font-weight: 400; text-align: left; white-space: normal; box-shadow: 0 6px 22px rgba(0,0,0,.35); pointer-events: none; }
+.tip-bubble .muted { color: var(--text); }
+.tip-bubble[hidden] { display: none; }
+@media (forced-colors: active) { .tip-bubble, .tip-i::before { border: 1px solid CanvasText; } }
+@media (pointer: coarse) { button.tip-i, .cellar button.tip-i { width: 40px; height: 40px; margin: -10px -8px; } }
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.cellar-head h2 + .tip-i { margin: 0 auto 0 8px; }

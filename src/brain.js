@@ -42,7 +42,7 @@ import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUs
 import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff, carryOnPlan, carryOnLine, finishedSteps, MAX_AUTO_RESUMES } from './handoff.js';
 import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
-import { WEB_TOOLS, WEB_OFF, webOn, webPrompt } from './web.js';
+import { WEB_TOOLS, WEB_OFF, webOn, webPrompt, linkPrompt, findLinks } from './web.js';
 import { autoSessionOn, pickSessionTool, autoSessionPrompt, switchLine, switchedNote, idleSession, cardBusy, IDLE_CHECK_MS } from './auto-session.js';
 import { readCard } from './gaming-card.js';
 import { Lenders, wantsBorrow } from './share-brains.js';
@@ -1075,7 +1075,7 @@ export class Brain {
     // The Hands line only when a Hand group is added (or for hats and "all tools at once"); otherwise use_tools lists them.
     if (!loaded || allToolsOn(this.cfg) || Object.keys(HANDS).some((h) => loaded.has(h))) prompt += handsPrompt(this.cfg);
     if (loaded) prompt += realPcPrompt(this.cfg) + toolboxPrompt(this, loaded);
-    prompt += webPrompt(this.cfg);
+    prompt += webPrompt(this.cfg) + linkPrompt(this.cfg);
     if (loaded) prompt += autoSessionPrompt(this.cfg); // front desk only: hats don't change the session
     prompt += houseStylePrompt(this.cfg.houseStyle, this.cfg.userName || 'the user');
     if (this.cfg.defaultProject && this.cfg.projects?.[this.cfg.defaultProject]) prompt += `\n\n${this.cfg.userName || 'The user'}'s main project is ${this.cfg.defaultProject}. When they say "my project" without a name, it's that one.`;
@@ -1534,6 +1534,18 @@ export class Brain {
     // The tools still run here, with this Bob's own checks and OK cards. No answer in time: this Bob thinks for himself.
     let lender = wantsBorrow(this.cfg, this.borrowCase(job, pics)) ? await this.lenders.pick().catch(() => null) : null;
     if (lender) emit({ type: 'borrow', action: 'start', name: lender.name, brain: lender.brain, device: lender.device });
+
+    // 1.5.60: a link in the message, with web search on: open it first, so even a small brain that would say
+    // "I have no web access" answers from the page. Only the first link; it shows as a normal 🔧 Read the page line.
+    if (!again && webOn(this.cfg) && this.usable('fetch_page')) {
+      const [url] = findLinks(text, 1);
+      if (url) {
+        const res = await this.runTool('fetch_page', { url }, ctx).catch((e) => ({ text: `Error: ${e.message}` }));
+        msgs.push({ role: 'assistant', content: '', tool_calls: [{ function: { name: 'fetch_page', arguments: { url } } }] });
+        msgs.push({ role: 'tool', tool_name: 'fetch_page', content: String(res.text) });
+        this.log('tool', `opened the link in the message first: ${url}`);
+      }
+    }
 
     for (let step = 0; step < MAX_STEPS; step++) {
       const tools = this.frontDeskTools(ctx.loaded);
