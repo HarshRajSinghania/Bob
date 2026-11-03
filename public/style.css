@@ -955,3 +955,15 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .together tr.tap td { height: 32px; }
 .together .together-head input { flex: none; margin-top: 1px; }
 .together .together-step:has(input.pick:not(:checked)) > :not(.together-head) { opacity: 0.5; }
+
+/* 1.5.44: split bars in Now running: Bob's part by speed (green, yellow, red), everything else blue. */
+.now-gpu .meter.split { display: flex; }
+.now-gpu .meter.split i { display: block; height: 100%; flex: none; width: 0; }
+.now-gpu .meter.split .m-sys { background: #4f8fdc; }
+.now-gpu .meter.split .m-bob { background: #5cb85c; }
+.now-gpu .meter.split .m-bob.lvl-slower { background: #e3b53c; }
+.now-gpu .meter.split .m-bob.lvl-slow { background: #e0533f; }
+.now-gpu .mem-speed { display: block; }
+.now-gpu .mem-speed::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; background: #5cb85c; vertical-align: middle; }
+.now-gpu .mem-speed.lvl-slower::before { background: #e3b53c; }
+.now-gpu .mem-speed.lvl-slow::before { background: #e0533f; }

@@ -1,6 +1,7 @@
 // Bob's layout: a menu on the left that folds to an icon strip (Ctrl+B), chat in the middle, and a
 // "Now running" panel on the right (Ctrl+J) with tasks, downloads and graphics card memory.
 // Both remember how you left them. In a narrow window the right panel slides over the chat.
+import { brainPlace, cardLevel, ramLevel, cpuLevel, cpuShare, quietBaseline } from './mem-colours.js';
 import { makeSortable, neighbour, taskRow, downloadRow } from './lists.js';
 import { currentStyle } from './themes.js';
 import { catMoment } from './patches.js';
@@ -183,16 +184,47 @@ export function createLayout({ post, openTasks, openDownloads }) {
     p.textContent = `${why} · last reading ${ago(Date.now() - lastOk)}`;
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden) pausedLine(true); });
+  // 1.5.44: each bar is split too: everything else in blue, Bob's part green, yellow or red for how quick he
+  // should be right now. The line under the bar says the same in words, with the reason.
+  const LEVEL_WORD = { quick: 'quick', slower: 'slower', slow: 'slow' };
+  const paint = (sel, bobPct, sysPct, lv) => {
+    const m = $('nowGpu').querySelector(`.meter[data-bar="${sel}"]`);
+    if (!m) return;
+    const [bi, si] = m.children;
+    bi.style.width = `${Math.max(0, Math.min(100, bobPct))}%`; bi.className = `m-bob lvl-${lv.level}`;
+    si.style.width = `${Math.max(0, Math.min(100 - bobPct, sysPct))}%`;
+    m.title = `Bob's part (${lv.level === 'quick' ? 'green' : lv.level === 'slower' ? 'yellow' : 'red'}): Speed: ${LEVEL_WORD[lv.level]}, ${lv.why}.${lv.fix ? ` ${lv.fix}` : ''} Blue: everything else.`;
+  };
   const splitLines = () => {
     const el = $('nowGpu');
     if (!lastGpu || !brainSt) return;
-    const b = bobShare(), a = b.about ? 'about ' : '';
-    const put = (sel, used) => {
-      const t = el.querySelector(sel);
-      if (t) t.textContent = `Bob ${a}${b[sel === '.split-card' ? 'card' : 'ram']} GB · everything else ${a}${r1(Math.max(0, used - b[sel === '.split-card' ? 'card' : 'ram']))} GB`;
+    const b = bobShare(), a = b.about ? 'about ' : '', place = brainPlace(brainSt);
+    // Settings sign-off (1.5.43): colour always comes with words: "Speed: quick", or the reason and a one-line fix.
+    const say = (t, lv) => {
+      const sp = t?.nextElementSibling?.classList.contains('mem-speed') ? t.nextElementSibling : t && t.insertAdjacentElement('afterend', Object.assign(document.createElement('span'), { className: 'mem-speed' }));
+      if (!sp) return;
+      sp.className = `mem-speed lvl-${lv.level}`;
+      sp.textContent = lv.level === 'quick' ? `Speed: quick, ${lv.why}` : `Speed: ${LEVEL_WORD[lv.level]}, ${lv.why}. ${lv.fix || ''}`.trim();
     };
-    if (lastGpu.gpu) put('.split-card', lastGpu.gpu.usedGB);
-    if (lastGpu.ram?.totalGB) put('.split-ram', lastGpu.ram.usedGB);
+    const put = (sel, key, m, lv) => {
+      const t = el.querySelector(`.${sel}`);
+      // The two numbers always add up to the headline: Bob's part never counts past what's in use.
+      const bob = r1(Math.min(b[key], m.usedGB)), other = r1(m.usedGB - bob);
+      if (t) t.textContent = `Bob ${a}${bob} GB · everything else ${a}${other} GB`;
+      say(t, lv);
+      paint(sel, (bob / m.totalGB) * 100, (other / m.totalGB) * 100, lv);
+    };
+    if (lastGpu.gpu) put('split-card', 'card', lastGpu.gpu, cardLevel(lastGpu.gpu, place));
+    if (lastGpu.ram?.totalGB) put('split-ram', 'ram', lastGpu.ram, ramLevel(lastGpu.ram, place));
+    const cpu = lastGpu.cpu;
+    if (cpu?.loadPct != null) {
+      const lv = cpuLevel(cpu.loadPct, place);
+      const sh = cpuShare(cpu, { working: brainSt.state === 'working', place, baseline: quietBaseline(hist) });
+      const t = el.querySelector('.split-cpu');
+      if (t) t.textContent = `Bob ${sh.about ? 'about ' : ''}${sh.bob}% · everything else ${sh.about ? 'about ' : ''}${Math.max(0, cpu.loadPct - sh.bob)}%`;
+      say(t, lv);
+      paint('split-cpu', sh.bob, cpu.loadPct - sh.bob, lv);
+    }
   };
   // A small line graph of the last 5 minutes: graphics memory, card busy and processor busy, as percentages.
   const graph = () => {
@@ -217,11 +249,12 @@ export function createLayout({ post, openTasks, openDownloads }) {
       const { gpu, ram, cpu } = data;
       lastGpu = data; lastOk = Date.now();
       const el = $('nowGpu');
-      hist.push({ mem: gpu ? Math.round((gpu.usedGB / gpu.totalGB) * 100) : null, gpu: gpu?.loadPct ?? null, cpu: cpu?.loadPct ?? null });
+      hist.push({ mem: gpu ? Math.round((gpu.usedGB / gpu.totalGB) * 100) : null, gpu: gpu?.loadPct ?? null, cpu: cpu?.loadPct ?? null, working: brainSt?.state === 'working' });
       if (hist.length > 60) hist.shift();
       // 1.5.3: graphics card and system memory (RAM), each with a meter; 1.5.30: the processor too.
-      const row = (pct, split) => `<div class="mem-row"><span class="mem-text"></span><div class="meter"><i style="width:${Math.min(100, Math.round(pct))}%"></i></div>${split ? `<span class="mem-split ${split}"></span>` : ''}</div>`;
-      el.innerHTML = `${gpu ? row((gpu.usedGB / gpu.totalGB) * 100, 'split-card') : '<div class="mem-row"><span class="mem-text"></span></div>'}${ram?.totalGB ? row((ram.usedGB / ram.totalGB) * 100, 'split-ram') : ''}${cpu?.loadPct != null ? row(cpu.loadPct) : ''}<div class="mem-brain"></div>
+      // 1.5.44: two parts per bar, Bob's (coloured by speed) and everything else (blue); splitLines() sizes them.
+      const row = (pct, split) => `<div class="mem-row"><span class="mem-text"></span><div class="meter split" data-bar="${split}"><i class="m-bob"></i><i class="m-sys" style="width:${Math.min(100, Math.round(pct))}%"></i></div><span class="mem-split ${split}"></span></div>`;
+      el.innerHTML = `${gpu ? row((gpu.usedGB / gpu.totalGB) * 100, 'split-card') : '<div class="mem-row"><span class="mem-text"></span></div>'}${ram?.totalGB ? row((ram.usedGB / ram.totalGB) * 100, 'split-ram') : ''}${cpu?.loadPct != null ? row(cpu.loadPct, 'split-cpu') : ''}<div class="mem-brain"></div>
         <button type="button" class="mem-graph-btn" aria-expanded="${showGraph}">${showGraph ? 'Hide graph' : 'Show graph'}</button><div class="mem-graph" hidden></div>`;
       // 1.5.26: each meter names itself on its own line: "Graphics card · 9.1 of 15.9 GB in use (all apps)".
       const rows = el.querySelectorAll('.mem-row');

@@ -633,10 +633,16 @@ function friendlyName(id) {
 
 // Processor load since the last reading (Now running asks every few seconds while it is open).
 let cpuSnap = null, gpuReads = 0;
+let appCpu = null; // 1.5.42: Bob's own app share of the processor, from Node's own counter (no extra program)
 function cpuNow() {
-  const { snap, pct } = cpuLoad(cpuSnap, os.cpus());
+  const cpus = os.cpus();
+  const { snap, pct } = cpuLoad(cpuSnap, cpus);
   cpuSnap = snap;
-  return { loadPct: pct };
+  const now = { t: performance.now(), u: process.cpuUsage() };
+  let appPct = null;
+  if (appCpu) { const ms = now.t - appCpu.t, used = (now.u.user - appCpu.u.user + now.u.system - appCpu.u.system) / 1000; if (ms > 0) appPct = Math.min(100, Math.round((used / (ms * cpus.length)) * 1000) / 10); }
+  appCpu = now;
+  return { loadPct: pct, appPct };
 }
 
 // Graphics card memory for the Now running panel (NVIDIA only; nvidia-smi ships with the driver).
