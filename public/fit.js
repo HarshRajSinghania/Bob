@@ -56,6 +56,8 @@ export function suit(m, hw = {}, platform = '') {
   if (hw.freeGB != null && m.status?.state !== 'installed' && m.sizeGB > hw.freeGB) return { level: 'blocked', why: `Needs ${gb(m.sizeGB)} of disk space; ${hw.freeGB} GB is free.` };
   if (m.needs && platform && !engineRunsOn(m.needs, platform)) return { level: 'blocked', why: `${m.needs} doesn't run on ${platform === 'darwin' ? 'a Mac' : 'this computer'} yet.` };
   const v = hw.vramGB;
+  // 1.5.64: a squeezed (Q3) brain is only for small cards. On a bigger card the full (Q4 or better) version runs.
+  if (m.maxCardGB && v > m.maxCardGB) return { level: 'no', squeezed: true, why: `Made for cards of ${m.maxCardGB} GB or less. Your card runs the full version, which is sharper.` };
   // A brain bigger than the card keeps the rest in RAM. Too much for the RAM, and it won't run well at all.
   if (m.ollama && v && hw.ramGB && m.vramGB > v) {
     const spill = Math.ceil(m.vramGB - v);
@@ -95,12 +97,19 @@ export function scoreFor(m, slotId, hw = {}) {
   return W.cover * jobs + (QUALITY[slotId] ?? 1) * Math.log2(p) - W.weight * weight - spill - room;
 }
 
+// 1.5.64, the owner's rule: never below Q4, except on small cards. A squeezed (Q3) version only takes part when
+// its full version wouldn't run well on this PC.
+export function fullRunsHere(m, models, hw = {}, platform = '') {
+  const full = m.squeezedOf && models.find((x) => x.id === m.squeezedOf);
+  return Boolean(full) && suit(full, hw, platform).level === 'ok';
+}
+
 // Bob's pick for a job on this PC: { id, why } or null.
 export function pickFor(slotId, models, ctx = {}) {
   const hw = { vramGB: ctx.vramGB, ramGB: ctx.ramGB, freeGB: ctx.freeGB };
   if (BRAIN_SLOTS.includes(slotId)) {
     // 1.5.56: new brains (trial: true) are listed but not recommended until they've been tried on a real PC.
-    const able = models.filter((m) => canDo(slotId, { entry: m }) && !m.gated && !m.trial);
+    const able = models.filter((m) => canDo(slotId, { entry: m }) && !m.gated && !m.trial && !fullRunsHere(m, models, hw, ctx.platform));
     const pool = able.filter((m) => suit(m, hw, ctx.platform).level === 'ok');
     if (!pool.length) return null;
     const best = pool.map((m) => ({ m, s: scoreFor(m, slotId, hw) })).sort((a, b) => b.s - a.s)[0].m;
@@ -137,7 +146,7 @@ export const DEVICES = [
 ];
 const WORD = { ok: 'Runs well', slow: 'Runs, slowly', no: "Won't run well", blocked: "Can't install" };
 export function deviceFit(m) {
-  const rows = DEVICES.map((d) => { const s = suit({ ...m, status: { state: 'installed' } }, d); return { id: d.id, label: d.label, level: s.level, word: WORD[s.level] || s.level }; });
+  const rows = DEVICES.map((d) => { const s = suit({ ...m, status: { state: 'installed' } }, d); return { id: d.id, label: d.label, level: s.level, word: s.squeezed ? 'Uses the full version' : WORD[s.level] || s.level }; });
   if (m.jobs?.includes('phone') || m.phoneFit) rows.push({ id: 'phone', label: 'Phone (8 GB)', level: 'ok', word: m.phoneFit || 'Fits the phone app' });
   else if ((m.jobs || []).length) rows.push({ id: 'phone', label: 'Phone (8 GB)', level: 'no', word: 'Too big for a phone' });
   return rows;

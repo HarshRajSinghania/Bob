@@ -159,6 +159,8 @@ With just these, Bob can chat, plan, research the web, read pictures, hear you a
 
 The "8 GB" and "6 GB" versions are the same models **squeezed** to fit smaller cards. Pictures lose a little fine detail but look much the same.
 
+Brains stay at Q4 or better, except on cards of 8 GB or less. There, when a brain's full file wouldn't run well, the Brain catalogue offers an **8 GB card version** packed at Q3 (for example Qwen3.6 35B-A3B). It's smaller and a little less sharp. Bigger cards always get the full version.
+
 **How long things take** on a small card is a rough guess for now (these haven't been timed on every card yet). On an 8 GB card, expect roughly half a minute to a minute per picture, a minute or two per edit, and ten minutes or more for a few seconds of video. A 6 GB card is slower again. While Bob paints, he puts his chat brain away to make room, so chat waits until the picture is done.
 
 ---

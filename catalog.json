@@ -440,6 +440,44 @@
       }
     },
     {
+      "id": "qwen3.6-35b-a3b-q3",
+      "category": "coding",
+      "jobs": ["tinker", "bob", "reviewer", "deep", "office", "eyes", "ledger", "scout"],
+      "name": "Qwen3.6 35B-A3B (8 GB card version)",
+      "what": "My Coding brain squeezed into a smaller file for cards of 8 GB or less. It's a little less sharp than the full one, and most of it sits in your RAM, so replies come slower. On a bigger card I use the full version instead.",
+      "sizeGB": 17.7,
+      "vramGB": 12,
+      "params": 35,
+      "license": "Apache 2.0",
+      "commercial": true,
+      "pick": "small",
+      "trial": true,
+      "squeezedOf": "qwen3.6-35b-a3b",
+      "maxCardGB": 8,
+      "files": [
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/a483e9e6cbd595906af30beda3187c2663a1118c/Qwen3.6-35B-A3B-UD-Q3_K_XL.gguf",
+          "role": "gguf",
+          "verify": true,
+          "bytes": 16845511648,
+          "sha256": "a832b9689925f1bd335bbe985cdfb06c36bf2cf268f4f8f6eceafa3ceb515617"
+        },
+        {
+          "url": "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/a483e9e6cbd595906af30beda3187c2663a1118c/mmproj-F16.gguf",
+          "role": "mmproj",
+          "saveAs": "Qwen3.6-35B-A3B-mmproj-F16.gguf",
+          "verify": true,
+          "bytes": 899283680,
+          "sha256": "8971ee4f331ff0a4c609374f32984b3d4e6dc086c0aa35f1d637fad1829e887f"
+        }
+      ],
+      "use": {
+        "models": {
+          "tinker": "$model"
+        }
+      }
+    },
+    {
       "id": "qwen2.5-vl-7b",
       "category": "vision",
       "jobs": ["eyes"],
@@ -605,7 +643,7 @@
       "id": "z-image-turbo-q5",
       "category": "images",
       "name": "Z-Image Turbo (8 GB card version)",
-      "what": "The same fast painter, squeezed to fit an 8 GB card. Pictures look almost the same as the full one.",
+      "what": "The same fast picture model, squeezed to fit an 8 GB card. Pictures look almost the same as the full one.",
       "sizeGB": 7.4,
       "vramGB": 7,
       "license": "Apache 2.0",
@@ -651,7 +689,7 @@
       "id": "z-image-turbo-q4",
       "category": "images",
       "name": "Z-Image Turbo (6 GB card version)",
-      "what": "The fast painter made small enough for 6 GB cards and laptops. A touch less detail than the bigger versions.",
+      "what": "The fast picture model made small enough for 6 GB cards and laptops. A touch less detail than the bigger versions.",
       "sizeGB": 6.7,
       "vramGB": 5,
       "license": "Apache 2.0",
