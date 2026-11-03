@@ -1,5 +1,5 @@
 // Sessions (which brains stay loaded), parallel lanes, and Style settings cleaning.
-import { Brain } from '../src/brain.js';
+import { Brain, besideOk } from '../src/brain.js';
 import { modelFor, laneOf, suggestSession, currentSession, sessionBrains, SESSIONS, waitsForGaming } from '../src/sessions.js';
 import { cleanStyle } from '../src/config.js';
 import { ENGINES, findRelease, pickAsset } from '../src/engines.js';
@@ -38,7 +38,8 @@ check('Normal by default: the main Brain on the card, as before 1.5.14', (() => 
 check('session brains can be changed', sessionBrains(cfg({ sessionBrains: { small: 'qwen2.5-coder:7b' } })).small === 'qwen2.5-coder:7b');
 check('Art: pictures get their own lane', laneOf(cfg({ session: 'art' }), { kind: 'picture' }) === 'art' && laneOf(cfg({ session: 'art' }), { kind: 'chat' }) === 'talk');
 check('Normal: one lane for everything', laneOf(cfg(), { kind: 'picture' }) === 'talk');
-check('Art with llama.cpp: one lane (it holds one brain)', laneOf(cfg({ session: 'art', engine: 'llamacpp' }), { kind: 'picture' }) === 'talk');
+check('Art with llama.cpp: pictures get their own lane too (both share the small brain on the processor)', laneOf(cfg({ session: 'art', engine: 'llamacpp' }), { kind: 'picture' }) === 'art' && laneOf(cfg({ session: 'art', engine: 'llamacpp' }), { kind: 'chat' }) === 'talk');
+check('Normal with llama.cpp: still one lane', laneOf(cfg({ engine: 'llamacpp' }), { kind: 'picture' }) === 'talk');
 const jobs = [{ kind: 'picture', state: 'waiting' }, { kind: 'video', state: 'waiting' }, { kind: 'chat', state: 'waiting' }];
 check('two pictures waiting: suggests Art', suggestSession(cfg(), jobs)?.id === 'art');
 check('already in Art: no suggestion', suggestSession(cfg({ session: 'art' }), jobs) === null);
@@ -122,5 +123,20 @@ fs.rmSync(tmp, { recursive: true, force: true });
 check('a question about an attached picture is a chat job', Brain.guessKind('what is in this picture?') === 'chat' && Brain.guessKind('Describe it', true) === 'chat');
 check('asking for a picture is still a picture job', Brain.guessKind('paint a dragon over the inn') === 'picture');
 
+// 1.5.40: on llama.cpp, making room for the painter keeps a brain that runs on the processor.
+{
+  const lc = Object.create(LlamaCpp.prototype); let stopped = 0;
+  lc.stopServer = async () => { stopped++; lc.current = null; }; lc.cfg = {};
+  Object.assign(lc, { current: 'small', currentCpu: true, currentCard: null });
+  const kept = await lc.unloadGpu();
+  check('llama.cpp: the processor brain stays when the painter needs the card', kept.length === 0 && stopped === 0 && lc.current === 'small');
+  Object.assign(lc, { current: 'big', currentCpu: false });
+  check('llama.cpp: a brain on the card is let go', (await lc.unloadGpu()).join() === 'big' && stopped === 1);
+  const b = { cfg: { engine: 'llamacpp' }, turns: new Map([['art', {}]]) };
+  check('beside a picture: a plain chat runs', besideOk(b, { refs: [], effort: 'low' }, 'talk'));
+  check('beside a picture: a job with attached pictures (needs his eyes) waits', !besideOk(b, { refs: ['x'], effort: 'low' }, 'talk'));
+  check('beside a picture: Medium effort and up (reviewer brain) waits', !besideOk(b, { refs: [], effort: 'medium' }, 'talk'));
+  check('with Ollama nothing waits', besideOk({ ...b, cfg: { engine: 'ollama' } }, { refs: ['x'], effort: 'high' }, 'talk'));
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -76,8 +76,10 @@ export function waitsForGaming(cfg, job) {
 // Pictures, video and sound go in their own lane during an Art session, so chat doesn't wait for them.
 export function laneOf(cfg, job) {
   const s = currentSession(cfg);
-  // Only with Ollama: Bob's own engine (llama.cpp) holds one brain at a time.
-  return s.parallel && cfg.engine !== 'llamacpp' && ['picture', 'video'].includes(job.kind) ? 'art' : 'talk';
+  // 1.5.40: Bob's own engine (llama.cpp) holds one brain at a time, so it gets the second lane only when the session's
+  // brain lives on the processor (Art): the picture job and the chat then share that one small brain, and the
+  // graphics card goes to the painter. (It used to be Ollama only, though Art promised chat while a picture paints.)
+  return s.parallel && (cfg.engine !== 'llamacpp' || s.cpu) && ['picture', 'video'].includes(job.kind) ? 'art' : 'talk';
 }
 
 // A gentle suggestion from what's waiting: never a switch.

@@ -329,6 +329,13 @@ export class LlamaCpp {
   // Counts as use, so the idle clock starts again (someone is typing).
   touch() { this.lastUse = this.now(); }
 
+  // 1.5.40: make room on the graphics card. A brain running on the processor stays (Art keeps chatting on it while a
+  // picture paints); one on the card goes.
+  async unloadGpu() {
+    if (this.current && this.currentCpu && !['whole', 'borrow'].includes(this.currentCard)) return [];
+    return this.unloadAll();
+  }
+
   async unloadAll() {
     const was = this.current;
     await this.stopServer();

@@ -47,6 +47,14 @@ const MAX_STEPS = 8;
 // made up "the simulated OS won't let me" and even "I've opened Notepad" with no tool call at all.
 const HAND_TOOLS = new Set(Object.values(HANDS).flatMap((h) => h.tools));
 // Old Hands errors from earlier turns are shown to the brain as possibly out of date, so it tries again.
+// 1.5.40: Bob's own engine runs one brain. While the other lane is busy, a job that may need a different brain
+// (pictures attached for his eyes, or Medium effort and up with its reviewer) waits, so it never swaps the brain
+// out from under the other job. Everything else shares the small brain and runs beside it.
+export function besideOk(brain, job, lane) {
+  if (brain.cfg?.engine !== 'llamacpp' || !brain.turns?.size || brain.turns.has(lane)) return true;
+  return !(job.refs?.length || (job.effort && job.effort !== 'low'));
+}
+
 export function staleHandErrors(msgs, turnStart) {
   return msgs.map((m, i) => (i < turnStart && m.role === 'tool' && HAND_TOOLS.has(m.tool_name) && /^Error:/.test(String(m.content))
     ? { ...m, content: `(An earlier try failed: ${String(m.content).slice(7, 200)}. That may be out of date, because Bob's Hands can be fixed or switched on since. To do it now, call the tool again; don't repeat this.)` }
@@ -972,6 +980,7 @@ export class Brain {
       if (seen.has(lane)) continue;
       seen.add(lane);
       if (this.turns.has(lane)) continue;
+      if (!besideOk(this, job, lane)) continue; // 1.5.40: waits for the other lane, see besideOk
       job.state = 'working'; job.startedAt = Date.now(); job.steps = [];
       this.saveQueue();
       this.startTurn(job.sessionId, job.text, job.refs, job, lane);
