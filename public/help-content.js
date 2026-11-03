@@ -43,7 +43,7 @@ export const HELP = [
   { id: 'mac', group: 'Getting started', title: 'Bob on a Mac', words: 'mac macos apple silicon m1 m2 m3 m4 metal open anyway gatekeeper damaged unidentified developer finder dock applications library application support homebrew brew ffmpeg libreoffice kokoro update remove uninstall',
     html: `<p>I run on Macs with Apple Silicon (M1 and newer). Same Bob, different hardware: the Mac's graphics (Metal) do the heavy lifting.</p>
 <ol><li>Download <strong>Bob-&lt;version&gt;-mac-arm64.zip</strong> from github.com/MouseWurX/Bob/releases, open it, and drag <strong>Bob</strong> into Applications.</li>
-<li>The first time, macOS says it can't check me. That's because I'm not signed with a paid Apple developer account yet, not because anything is wrong. Open <strong>System Settings, Privacy &amp; Security</strong>, scroll down, and click <strong>Open Anyway</strong> next to Bob. You only do this once.</li>
+<li>The first time, macOS says it can't check me. That's because my official Mac builds aren't signed with a paid Apple developer account, not because anything is wrong. That won't change, though anyone may make a signed copy of me (see the Contributing page on GitHub). Open <strong>System Settings, Privacy &amp; Security</strong>, scroll down, and click <strong>Open Anyway</strong> next to Bob. You only do this once.</li>
 <li>After that, open me from Applications, Launchpad or the Dock like any app.</li></ol>
 <p><strong>What's different on a Mac:</strong></p>
 <ul><li><strong>Memory.</strong> A Mac shares one pool of memory between the chip and the graphics. I count about two thirds of it (three quarters from 36 GB up) as "graphics memory" when I suggest models, because that's what macOS lets the graphics use.</li>
