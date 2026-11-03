@@ -49,6 +49,7 @@ export function textCalls(content, names) {
   for (const c of Array.isArray(o) ? o : [o]) if (c && typeof c === 'object' && typeof c.name === 'string') add(c.name, c.arguments ?? c.parameters ?? {});
   return calls.length ? { calls, text: '' } : null;
 }
+const samePath = (a, b) => Boolean(a && b) && path.resolve(String(a)).toLowerCase() === path.resolve(String(b)).toLowerCase();
 export const DEFAULT_CTX = 32768;
 // 1.5.19: Medium thinks, but only this long (tokens of thinking), then it is asked to answer.
 export const THINK_BUDGET = { medium: 1536 };
@@ -186,7 +187,10 @@ export class LlamaCpp {
   // Ollama name -> GGUF file (+ vision projector), by reading Ollama's manifest.
   resolve(model) {
     const override = this.lc.models?.[model];
-    if (override) return typeof override === 'string' ? { gguf: override } : override;
+    if (override && typeof override !== 'string') return override;
+    // 1.5.74: an Equip from before 1.5.74 saved only the file path, which dropped the picture reader (mmproj). When
+    // that path is Bob's own copy of a catalogue model, use the full copy (with its picture reader) instead.
+    if (override) { const own = this.catalogFile(model); return own && samePath(own.gguf, override) ? own : { gguf: override }; }
     // 1.5.25: a Get models id (like "qwen3-4b") that was downloaded but never picked in a slot: its file in Bob's models folder.
     const own = this.catalogFile(model);
     if (own) return own;

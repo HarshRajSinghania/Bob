@@ -702,7 +702,7 @@ export class ModelShop {
       // it once flipped a PC to llama.cpp). If the model needs the other engine, the app asks.
       const inOllama = new Set([...((await this.ollamaNames()) || []), ...this.ollamaManifests()]).has(value);
       let needsEngine = null;
-      if (entry) { const loc = this.locate(entry); if (loc.gguf) { patch.llamacpp = { models: { [value]: loc.gguf } }; if (this.cfg.engine !== 'llamacpp' && !inOllama) needsEngine = 'llamacpp'; } }
+      if (entry) { const loc = this.locate(entry); if (loc.gguf) { patch.llamacpp = { models: { [value]: loc.mmproj ? { gguf: loc.gguf, mmproj: loc.mmproj } : loc.gguf } }; /* 1.5.74: keep its picture reader */ if (this.cfg.engine !== 'llamacpp' && !inOllama) needsEngine = 'llamacpp'; } }
       saveSettings(this.cfg, patch);
       return needsEngine ? { ...patch, needsEngine } : patch;
     }

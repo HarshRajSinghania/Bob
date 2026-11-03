@@ -34,6 +34,18 @@ check('the picture reader counts under the name in its link too', idFolderFile(c
 const lc = new LlamaCpp(cfg);
 const got = lc.catalogFile('test-model');
 check('Bob\'s engine runs it from there, picture reader included', got?.gguf === path.join(dir, 'Model-Q4.gguf') && got?.mmproj === path.join(dir, 'mmproj-F16.gguf'), JSON.stringify(got));
+// 1.5.74: picking it in Equip kept only the file path, so the Brain lost its picture reader.
+{
+  const saved = new LlamaCpp({ ...cfg, llamacpp: { models: { 'test-model': path.join(dir, 'Model-Q4.gguf') } } });
+  const r = saved.resolve('test-model');
+  check('an older Equip (path only) gets its picture reader back', r.gguf === path.join(dir, 'Model-Q4.gguf') && r.mmproj === path.join(dir, 'mmproj-F16.gguf'), JSON.stringify(r));
+  const other = new LlamaCpp({ ...cfg, llamacpp: { models: { 'test-model': path.join(tmp, 'elsewhere.gguf') } } });
+  check('a file picked by hand elsewhere is still used as it is', JSON.stringify(other.resolve('test-model')) === JSON.stringify({ gguf: path.join(tmp, 'elsewhere.gguf') }));
+  const full = new LlamaCpp({ ...cfg, llamacpp: { models: { 'test-model': { gguf: 'a.gguf', mmproj: 'b.gguf' } } } });
+  check('a saved pair is used as it is', full.resolve('test-model').mmproj === 'b.gguf');
+  const src = fs.readFileSync(new URL('../src/models.js', import.meta.url), 'utf8');
+  check('Equip now saves the picture reader with the brain', /models: \{ \[value\]: loc\.mmproj \? \{ gguf: loc\.gguf, mmproj: loc\.mmproj \} : loc\.gguf \}/.test(src));
+}
 check('a bad id never leaves the models folder', idFolderFile(cfg, { id: '../x', files: [] }, gguf) === null);
 
 check('1.5.66: Get models says such a copy is Bob\'s, not Ollama\'s', ownerOf('C:\\Agent 00\\models\\qwen3.6-35b-a3b\\Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf') === 'Bob');

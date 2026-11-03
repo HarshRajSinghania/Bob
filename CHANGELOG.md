@@ -4,6 +4,11 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.74
+
+### Fix
+- Picking a brain that can see pictures (like Qwen3.6 35B-A3B) in Equip Bob no longer takes its eyes away. It used to keep only the brain's file and drop its picture reader, so the Brain couldn't look at pictures itself. Brains picked that way before are fixed automatically, with nothing to redo.
+
 ## 1.5.73
 
 ### Share brains, smarter
