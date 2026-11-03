@@ -9,7 +9,7 @@ import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
 import { tidySchema } from './toolbox.js';
 import { templateFor, samplingFor } from './model-family.js';
-import { gaming } from './sessions.js';
+import { gaming, LONG_CODER } from './sessions.js';
 import { gamingCard, decideCard, readCard, CARD_BUSY_PCT, CARD_MIN_FREE_MB } from './gaming-card.js';
 import { tuning, cpuPlan, startDir, startFile, promptHash, tidyStarts } from './tuning.js';
 import { exeName } from './platform.js';
@@ -51,6 +51,16 @@ export function textCalls(content, names) {
 export const DEFAULT_CTX = 32768;
 // 1.5.19: Medium thinks, but only this long (tokens of thinking), then it is asked to answer.
 export const THINK_BUDGET = { medium: 1536 };
+// 1.5.68: the always-thinking Coding copy (Qwen3.6) gets a budget at every effort too. On the PC it once thought for
+// 10 minutes (about 45K tokens) on a small hand-off without answering; in the race every task finished in under
+// 6,400 tokens. Medium keeps its shorter budget above.
+export const LONG_THINK_BUDGET = 12288;
+// And every request has a ceiling on how much it may write (thinking plus answer), so no single reply runs forever.
+export const MAX_REPLY_TOKENS = 32768;
+export function thinkBudget(model, think) {
+  if (think === false) return 0;
+  return THINK_BUDGET[think] || (LONG_CODER.test(String(model || '')) ? LONG_THINK_BUDGET : 0);
+}
 
 // How long a brain may sit unused in memory: the shared setting ollamaKeepAlive ("10m", "30m", "1h", or "-1" for never).
 // Both engines use it: Ollama through keep_alive, Bob's own engine through the idle check below (1.5.2).
@@ -551,10 +561,10 @@ export class LlamaCpp {
     try { return await this.chatOnce(opts); } finally { this.active--; this.lastUse = this.now(); }
   }
 
-  // 1.5.19: Medium has a thinking budget. Once the brain has thought that long, the request stops and is asked again
+  // 1.5.19: Medium has a thinking budget (1.5.68: so does Qwen3.6 at every effort, see thinkBudget). Once the brain has thought that long, the request stops and is asked again
   // with thinking off and a note to answer now (llama-server keeps the prompt cached, so the retry starts quickly).
   async chatOnce(opts) {
-    const budget = THINK_BUDGET[opts.think];
+    const budget = thinkBudget(opts.model, opts.think);
     if (!budget) return this.chatStream(opts);
     const stop = new AbortController();
     const onAbort = () => stop.abort();
@@ -605,7 +615,7 @@ export class LlamaCpp {
     return fetch(this.url + '/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model, messages: LlamaCpp.toOpenAI(messages), tools: tools && tools.length ? tidySchema(tools) : undefined, stream: true, // 1.5.26: no empty enums (llama.cpp rejects them)
+      body: JSON.stringify({ model, messages: LlamaCpp.toOpenAI(messages), tools: tools && tools.length ? tidySchema(tools) : undefined, stream: true, max_tokens: MAX_REPLY_TOKENS, // 1.5.26: no empty enums (llama.cpp rejects them)
         ...this.sampling(model, { tools: !!tools?.length, think }),
         // 1.5.16: a quick reply asks the chat template to skip thinking (templates that don't know the switch ignore it).
         ...(think === false ? { chat_template_kwargs: { enable_thinking: false } } : {}) }),

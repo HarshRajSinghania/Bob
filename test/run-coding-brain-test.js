@@ -21,7 +21,7 @@ check('other brains are untouched', JSON.stringify(brainDefaults('qwen3-coder:30
 
 check('family is the Qwen3.5/3.6 one', familyOf(id, null) === 'qwen3.5');
 const think = samplingFor({}, id, null, { think: undefined });
-check('thinking: temp 0.6, top_p 0.95, top_k 20, min_p 0', think.temperature === 0.6 && think.top_p === 0.95 && think.top_k === 20 && think.min_p === 0 && !think.presence_penalty, JSON.stringify(think));
+check('thinking: temp 0.6, top_p 0.95, top_k 20, min_p 0, presence_penalty 1.5', think.temperature === 0.6 && think.top_p === 0.95 && think.top_k === 20 && think.min_p === 0 && think.presence_penalty === 1.5, JSON.stringify(think));
 const plain = samplingFor({}, id, null, { think: false });
 check('no thinking: temp 0.7, top_p 0.8, top_k 20, presence_penalty 1.5', plain.temperature === 0.7 && plain.top_p === 0.8 && plain.top_k === 20 && plain.presence_penalty === 1.5, JSON.stringify(plain));
 check('with tools the temperature keeps Bob\'s 0.6 cap', samplingFor({}, id, null, { think: false, tools: true }).temperature === 0.6);
@@ -85,6 +85,39 @@ check('the glossary says coding always thinks and chat doesn\'t', /Thinking firs
   check('a context picked by hand for Normal still wins', chatBrain(hand.brain.cfg).ctx === 32768);
   const g = make('gemma4:26b');
   check('other brains keep the Normal 32K', chatBrain(g.brain.cfg).ctx === 32768);
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+// ---------- 1.5.68: the always-thinking Coding copy can't think forever ----------
+{
+  const os = await import('node:os'); const path = await import('node:path');
+  const { LlamaCpp, thinkBudget, LONG_THINK_BUDGET, MAX_REPLY_TOKENS, THINK_BUDGET } = await import('../src/llamacpp.js');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bob budget '));
+  const lc = new LlamaCpp({ agentDir: tmp, dataDir: tmp, llamacpp: {} });
+  check('Qwen3.6 thinking has a budget at Low (Coding thinks by default) and at High', thinkBudget(id, undefined) === LONG_THINK_BUDGET && thinkBudget(id, 'high') === LONG_THINK_BUDGET && LONG_THINK_BUDGET >= 8192 && LONG_THINK_BUDGET <= 16384);
+  check('Medium keeps its own shorter budget; no thinking means no budget', thinkBudget(id, 'medium') === THINK_BUDGET.medium && thinkBudget(id, false) === 0);
+  check('other brains thinking at High are left as they were', thinkBudget('qwen3.8-27b', 'high') === 0 && thinkBudget('gemma4:26b', undefined) === 0);
+  const realFetch = globalThis.fetch;
+  const bodies = [];
+  const thinkChunks = (n) => Array.from({ length: n }, () => 'data: {"choices":[{"delta":{"reasoning_content":"hm"}}]}\n\n').join('');
+  globalThis.fetch = async (url, init) => {
+    if (!init?.body) throw new Error('no props here');
+    const b = JSON.parse(init.body); bodies.push(b);
+    if (b.chat_template_kwargs?.enable_thinking === false) return new Response('data: {"choices":[{"delta":{"content":"answer"}}]}\n\ndata: [DONE]\n\n');
+    const stream = new ReadableStream({ async pull(c) { if (init.signal.aborted) { c.error(new DOMException('aborted', 'AbortError')); return; } c.enqueue(new TextEncoder().encode(thinkChunks(500))); await new Promise((r) => setTimeout(r, 0)); } });
+    return new Response(stream);
+  };
+  for (const [label, think] of [['Low', undefined], ['High', 'high']]) {
+    bodies.length = 0;
+    const r = await lc.chatOnce({ model: id, messages: [{ role: 'user', content: 'tidy this Unreal helper' }], think });
+    check(`${label} Coding on Qwen3.6: endless thinking is stopped at the budget, then it answers`, r.content === 'answer' && bodies.length === 2 && /Thinking time is up/.test(JSON.stringify(bodies[1].messages)), JSON.stringify({ r, n: bodies.length }));
+    check(`${label} Coding on Qwen3.6 sends presence_penalty 1.5 and a reply ceiling`, bodies[0].presence_penalty === 1.5 && bodies[0].max_tokens === MAX_REPLY_TOKENS && bodies[1].max_tokens === MAX_REPLY_TOKENS);
+  }
+  bodies.length = 0;
+  globalThis.fetch = async (url, init) => { if (!init?.body) throw new Error('no props'); bodies.push(JSON.parse(init.body)); return new Response('data: {"choices":[{"delta":{"content":"hi"}}]}\n\ndata: [DONE]\n\n'); };
+  await lc.chatOnce({ model: 'gemma4:26b', messages: [{ role: 'user', content: 'x' }], think: false });
+  check('every request has the reply ceiling, any brain', bodies[0].max_tokens === MAX_REPLY_TOKENS);
+  globalThis.fetch = realFetch;
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 

@@ -54,7 +54,8 @@ const SAMPLING = {
   'qwen3-coder': { temperature: 0.7, top_p: 0.8, top_k: 20, min_p: 0, repeat_penalty: 1.05 },
   // 1.5.63: Qwen3.5/3.6 cards: no-think 0.7/0.8/20 with presence_penalty 1.5; thinking 0.6/0.95/20.
   'qwen3.5': { temperature: 0.7, top_p: 0.8, top_k: 20, min_p: 0, presence_penalty: 1.5 },
-  'qwen3.5-thinking': { temperature: 0.6, top_p: 0.95, top_k: 20, min_p: 0 },
+  // 1.5.68: thinking also gets presence_penalty 1.5 (Qwen's guidance; without it Qwen3.6 can think in circles).
+  'qwen3.5-thinking': { temperature: 0.6, top_p: 0.95, top_k: 20, min_p: 0, presence_penalty: 1.5 },
   'qwen2.5': { temperature: 0.7, top_p: 0.8, top_k: 20, min_p: 0, repeat_penalty: 1.05 }
 };
 export const TOOL_TEMP = 0.6;
