@@ -4,6 +4,11 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.77
+
+### Fix
+- The llama.cpp that comes inside Bob's download is now always the same tested release (b12032, the one every speed test and brain race used), instead of whichever was newest on the day the release was built.
+
 ## 1.5.76
 
 ### A basic engine comes with Bob

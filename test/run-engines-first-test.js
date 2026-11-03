@@ -96,5 +96,7 @@ check(/'\/api\/engines\/check'/.test(server), 'the server answers /api/engines/c
   check(/rp\.ids\.includes\('engine:' \+ e\.id\) \? '<br><span class="muted">Get Bob ready swaps in the faster NVIDIA version\.<\/span>' : ''/.test(cel), 'the NVIDIA swap line shows only when the swap is planned (NVIDIA cards)');
 }
 
+check(/^b\d+$/.test(JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).bob?.bundledLlamaTag || ''), 'the bundled llama.cpp is pinned to one release (bob.bundledLlamaTag), so every release carries the same tested build');
+
 console.log(`\n${failures ? failures + ' failed' : 'all passed'}`);
 process.exit(failures ? 1 : 0);
