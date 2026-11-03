@@ -99,11 +99,25 @@ function handOverToNewBob() {
   if (process.platform !== 'win32' || !app.isPackaged) return false;
   const waiting = [[path.join(exeDir, 'resources', 'app.new'), 'app.pending'], [path.join(exeDir, 'runtime.new'), 'runtime.pending']].filter(([p]) => fs.existsSync(p));
   const home = readHome();
-  const script = home.source && path.join(home.source, 'installer', 'bob-build-window.ps1');
-  if (!waiting.length || !script || !fs.existsSync(script)) return false;
+  let source = home.source;
+  let script = source && path.join(source, 'installer', 'bob-build-window.ps1');
+  if (!waiting.length) return false;
+  // No source folder (Bob came from the GitHub zip and was updated from GitHub): the waiting Bob's own window,
+  // copied out first, because the folder it's in is about to be renamed.
+  if (!script || !fs.existsSync(script)) {
+    const newApp = path.join(exeDir, 'resources', 'app.new');
+    if (!fs.existsSync(path.join(newApp, 'installer', 'bob-build-window.ps1'))) return false;
+    try {
+      source = path.join(app.getPath('temp'), 'bob-swap');
+      fs.rmSync(source, { recursive: true, force: true });
+      fs.cpSync(path.join(newApp, 'installer'), path.join(source, 'installer'), { recursive: true });
+      fs.copyFileSync(path.join(newApp, 'package.json'), path.join(source, 'package.json'));
+      script = path.join(source, 'installer', 'bob-build-window.ps1');
+    } catch { return false; }
+  }
   try {
     for (const [p, to] of waiting) fs.renameSync(p, path.join(path.dirname(p), to));
-    const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script, '-Mode', 'swap', '-Source', home.source];
+    const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script, '-Mode', 'swap', '-Source', source];
     if (home.agentDir) args.push('-BobHome', home.agentDir);
     args.push('-AppDir', exeDir);
     const ps = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
@@ -111,7 +125,7 @@ function handOverToNewBob() {
     // Through "cmd /c start" so PowerShell gets a console of its own (a detached one has none and quits).
     const q = (x) => `"${String(x).replace(/"/g, '')}"`;
     const line = `"start "Bob update" /min ${q(ps)} ${args.map(q).join(' ')}"`;
-    require('node:child_process').spawn(process.env.ComSpec || path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe'), ['/d', '/s', '/c', line], { cwd: home.source, detached: false, stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true, env }).unref();
+    require('node:child_process').spawn(process.env.ComSpec || path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe'), ['/d', '/s', '/c', line], { cwd: source, detached: false, stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true, env }).unref();
     return true;
   } catch { return false; }
 }

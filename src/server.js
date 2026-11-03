@@ -26,7 +26,7 @@ import { autoSessionOn } from './auto-session.js';
 import { gamingCard, GAMING_CARD } from './gaming-card.js';
 import { plan as uninstallPlan, startUninstall } from './uninstall.js';
 import { voiceList, publicView, sampleFor, clearSamples } from './voice-samples.js';
-import { checkUpdate, startUpdate, updateStatus, requestRestart } from './update.js';
+import { checkAll, startAny, updateStatus, requestRestart } from './update.js';
 import { describe as describeFile, openFile, peek as peekFile } from './files.js';
 import { wavePeaks } from './wave.js';
 import { refuseForeign } from './guard.js';
@@ -493,12 +493,12 @@ const server = http.createServer(async (req, res) => {
       out.costMs = { wait: Math.round((performance.now() - t0) * 10) / 10, bobCpu: Math.round((c.user + c.system) / 100) / 10, cardCheck: gpuCache.ms ?? null };
       return send(res, 200, out);
     }
-    if (req.method === 'GET' && p === '/api/update/check') return send(res, 200, checkUpdate());
+    if (req.method === 'GET' && p === '/api/update/check') return send(res, 200, await checkAll());
     if (req.method === 'GET' && p === '/api/update/status') return send(res, 200, updateStatus(cfg) || {});
     if (req.method === 'POST' && p === '/api/update/restart') {
       if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' });
       const { when } = await body(req);
-      try { return send(res, 200, requestRestart(cfg, when)); } catch (e) { return send(res, 409, { error: e.message }); }
+      try { return send(res, 200, requestRestart(cfg, when, { isBusy: () => brain.turns.size > 0 || brain.queue.some((j) => j.state === 'waiting') || Boolean(shop.job) })); } catch (e) { return send(res, 409, { error: e.message }); }
     }
     // "Remove Bob" (Settings): only on the PC itself, after the window's confirm.
     if (req.method === 'GET' && p === '/api/uninstall') { const pl = uninstallPlan(cfg); return send(res, 200, { canRun: pl.canRun, why: pl.why, app: pl.app, inn: pl.inn, models: pl.models }); }
@@ -519,7 +519,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && (p === '/api/update/start' || p === '/api/quit')) {
       if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' });
       if (p === '/api/quit') { brain.log('settings', 'closing for an update'); brain.broadcast({ type: 'announce', text: 'Closing for a moment to switch to the new Bob. Back in a few seconds.' }); send(res, 200, { ok: true }); setTimeout(() => (globalThis.bobQuit ? globalThis.bobQuit() : process.exit(0)), 300); return; }
-      try { const r = startUpdate(cfg); brain.log('settings', `update started: ${r.from.label} -> ${r.to?.label}`); return send(res, 200, r); }
+      try { const r = await startAny(cfg); brain.log('settings', `update started (${r.via}): ${r.from.label} -> ${r.to?.label}`); return send(res, 200, r); }
       catch (e) { return send(res, 409, { error: e.message }); }
     }
     if (req.method === 'POST' && (p === '/api/queue/cancel' || p === '/api/queue/retry')) {

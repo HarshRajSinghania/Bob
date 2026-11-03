@@ -76,7 +76,7 @@ export function groupSpawnOptions(os_ = OS) { return os_ === 'win' ? {} : { deta
 //   appsHand     using other apps' windows (installer/bob-apps.ps1, Windows UI Automation)
 //   wakeTask     Windows Task Scheduler waking Bob for schedules (schedules inside Bob work everywhere)
 //   gamingCard   the Gaming session's graphics card switch (reads NVIDIA cards; a Mac shares its memory)
-//   updateBob    Update Bob from the source folder (installer/bob-build-window.ps1)
+//   updateBob    Update Bob from GitHub's newest release (everywhere), or from the source folder (Windows)
 //   uninstall    the Remove Bob window (installer/bob-uninstall.ps1)
 //   pcCheck      Check this PC's hardware tips (Windows' hardware lists)
 //   ownEngines   Bob's own engine downloads (llama.cpp, stable-diffusion.cpp...)
@@ -85,7 +85,7 @@ export const FEATURES = {
   appsHand: ['win'],
   wakeTask: ['win'],
   gamingCard: ['win', 'linux'],
-  updateBob: ['win'],
+  updateBob: ['win', 'mac', 'linux'],
   uninstall: ['win'],
   pcCheck: ['win'],
   ownEngines: ['win', 'mac', 'linux']

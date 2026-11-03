@@ -896,8 +896,8 @@ async function start() {
   } catch {}
   try {
     const st = await (await fetch('/api/settings')).json(); winVoiceName = st.tts?.windowsVoice || ''; setLook(st.look); applyStyle(st.style); autoSession = st.autoSession !== false; drawSessions(st.sessions, st.session, st.sessionBy);
-    // Opt-in: tell the user a newer Bob is ready to build. Never updates by itself.
-    if (st.updates?.autoCheck) { const c = await (await fetch('/api/update/check')).json(); if (c.newer) note(`A newer Bob (${c.available.label}) is ready. Settings, Check for updates.`); }
+    // Opt-in: look at GitHub (and the source folder) and tell the user about a newer Bob. Never updates by itself.
+    if (st.updates?.autoCheck) { const c = await (await fetch('/api/update/check')).json(); if (c.newer) note(`A newer Bob (${c.available.label}) is out${c.from === 'github' ? ' on GitHub' : ''}. Settings, This PC and updates, Check for updates.`); }
   } catch {}
   try { drawQueue(await (await fetch('/api/queue')).json()); } catch {}
   try { const d = await (await fetch('/api/downloads')).json(); downloads.update(d); layout.downloads(d); drawDownloadsBadge(d); for (const x of d) if (x.state === 'downloading') showDownload({ ...x, phase: 'downloading' }); } catch {}
@@ -921,6 +921,7 @@ function watchUpdateReady() {
   clearTimeout(updWatch);
   fetch('/api/update/status').then((r) => r.json()).then((st) => {
     if (st?.error) return note(`Update: ${st.error}`, 'error');
+    if (st?.manual) return note(`The new Bob (${st.version}) is downloaded and checked. ${st.log || ''}`);
     if (st?.ready && !updAsked) { updAsked = true; return askRestart(st); }
     if (!st?.done) updWatch = setTimeout(watchUpdateReady, 3000);
   }).catch(() => { updWatch = setTimeout(watchUpdateReady, 5000); });
@@ -931,10 +932,10 @@ async function askRestart(st) {
   let pickUp = false;
   if (busyWith) { try { pickUp = (await (await fetch('/api/settings')).json()).resumeJobs === true; } catch {} }
   const after = pickUp ? 'if I restart now, I pick up where I left off when I open again.' : 'if I restart now, it stops and waits in Tasks or Downloads for you to start it again. (Turn on "Pick up where Bob left off after a restart" in Settings, Show advanced settings, Engines & speed, and I\'ll carry on by myself.)';
-  const el = add('suggest', `<span>The new Bob (${esc(st.version || 'update')}) is built.${busyWith ? ` I'm working on ${esc(busyWith)}; ${esc(after)}` : ''}</span>
+  const el = add('suggest', `<span>The new Bob (${esc(st.version || 'update')}) is ready.${busyWith ? ` I'm working on ${esc(busyWith)}; ${esc(after)}` : ''}</span>
     <button type="button" data-r="now">${busyWith ? 'Restart anyway' : 'Restart Bob now'}</button>${busyWith ? '<button type="button" data-r="done">Wait until I\'m done</button>' : ''}<button type="button" class="link" data-r="later">Later</button>`);
   for (const b of el.querySelectorAll('button')) b.onclick = async () => {
-    if (b.dataset.r === 'later') { el.remove(); note('OK. The new Bob takes over the next time Bob starts, or press Restart in the update window.'); return; }
+    if (b.dataset.r === 'later') { el.remove(); note(st.mode === 'github' ? 'OK. Press "Restart Bob now" whenever you like: Settings, This PC and updates, Check for updates.' : 'OK. The new Bob takes over the next time Bob starts, or press Restart in the update window.'); return; }
     const r = await post('/api/update/restart', { when: b.dataset.r });
     el.remove();
     note(r.ok ? (b.dataset.r === 'done' ? 'I\'ll restart as soon as I\'ve finished.' : 'Restarting...') : (r.data.error || 'The update window didn\'t answer.'), r.ok ? '' : 'error');

@@ -54,5 +54,29 @@ let threw = '';
 try { await lc.chatStream({ model: 'x', messages: chat.slice(0, 3) }); } catch (e) { threw = e.message; }
 check('any other error is still reported, not retried', /llama-server returned 500: some other failure/.test(threw));
 
+// 1.5.61: the same through Ollama (Deep = qwen3.8:27b on Ollama refused too, and nothing caught it there).
+{
+  const { Ollama } = await import('../src/ollama.js');
+  let n = 0, body = null;
+  globalThis.fetch = async (url, init) => {
+    if (!String(url).endsWith('/api/chat')) return new Response('{}');
+    n++; body = JSON.parse(init.body);
+    if (body.messages.some((m, i) => m.role === 'system' && i > 0)) return new Response(JSON.stringify({ error: 'template: raise_exception: System message must be at the beginning.' }), { status: 500 });
+    return new Response(JSON.stringify({ message: { role: 'assistant', content: 'Hi.' }, done: true }) + '\n');
+  };
+  const ol = new Ollama({ ollamaUrl: 'http://127.0.0.1:1', agentDir: '.', dataDir: '.' });
+  ol.thinkField = async () => undefined;
+  const ologs = [];
+  ol.log = (k, t) => ologs.push(t);
+  const a = await ol.chat({ model: 'qwen3.8:27b', messages: chat });
+  check('Ollama: a refused request is tried again folded, and answers', a.content === 'Hi.' && n === 2, `n=${n} content=${a.content}`);
+  check('Ollama: the logbook says why', ologs.some((t) => /only takes a system message first/.test(t)));
+  n = 0; await ol.chat({ model: 'qwen3.8:27b', messages: chat });
+  check('Ollama: that brain is folded straight away next time', n === 1 && !body.messages.some((m, i) => m.role === 'system' && i > 0));
+  globalThis.fetch = async () => new Response('other trouble', { status: 500 });
+  let t2 = ''; try { await ol.chat({ model: 'y', messages: chat }); } catch (e) { t2 = e.message; }
+  check('Ollama: any other error is still reported, not retried', /Ollama chat returned 500: other trouble/.test(t2), t2);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

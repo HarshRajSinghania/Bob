@@ -432,7 +432,7 @@ export function createCellar() {
       ${sswitch('oneBrain', settings.oneBrain, 'One brain (snappier)', 'Every copy of Bob uses the main brain, so he never stops to swap brains (about 20 seconds).')}
       ${sswitch('autostart', settings.autostart, 'Launch Bob on start-up', 'Off unless you turn it on.', settings.platform === 'win32' || settings.platform === 'darwin' || settings.loginItems ? '' : 'disabled')}
       ${sswitch('webSearch', settings.webSearch === true, 'Let Bob search the web', keep('Off unless you turn it on. Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page addresses leave your PC.'))}
-      ${sswitch('autoCheck', settings.updates?.autoCheck, 'Check for updates when Bob starts', 'Off unless you turn it on. Bob only tells you; updating always takes your click.')}
+      ${sswitch('autoCheck', settings.updates?.autoCheck, 'Check for updates when Bob starts', 'Off unless you turn it on. Bob looks at his GitHub page for a newer version and only tells you; updating always takes your click.')}
 `)}${EVERY_EXTRA.map(([id, label, note, body]) => panel(id, label, typeof note === 'function' ? note() : note, body())).join('')}${panel('ev-pc', settings.os === 'mac' ? '💻 This Mac and updates' : '💻 This PC and updates', pcSum, `
       <div class="updates srow-foot"><span class="muted">Bob ${esc(settings.version?.label || '')} · ${hw?.gpu?.unified ? `Chip: ${esc(hw.gpu.name)}, about ${hw.gpu.vramGB} GB of it for graphics` : `Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'}`} · Free disk: ${hw?.freeGB ?? '?'} GB</span>
         <div class="row"><button type="button" data-checkupdate>Check for updates</button><button type="button" data-welcome>Run first-time setup</button>${settings.features?.pcCheck === false ? '' : '<button type="button" data-pccheck>Check this PC</button>'}<span class="update-out muted"></span></div>
@@ -863,19 +863,26 @@ export function createCellar() {
       }
       else if ('checkupdate' in b.dataset) {
         const out = b.parentElement.querySelector('.update-out');
-        out.textContent = 'Checking...';
+        out.textContent = 'Checking GitHub...';
         const c = await api('/api/update/check');
-        if (c.newer && c.canRun) out.innerHTML = `Bob ${esc(c.available.label)} is ready to build. <button class="get" data-startupdate>Update Bob</button>`;
-        else if (c.newer) out.textContent = `Bob ${c.available.label} is in the source folder, but: ${c.why}`;
-        else out.textContent = c.source ? `Up to date (Bob ${c.current.label}).` : c.why;
+        if (c.waiting) { out.innerHTML = 'The new Bob is downloaded, checked and waiting. <button class="get" data-restartnow>Restart Bob now</button>'; return; }
+        const notes = c.github?.page ? ` <a href="${esc(c.github.page)}" target="_blank" rel="noopener">What's new</a>` : '';
+        const offline = c.githubError ? ` (GitHub: ${esc(c.githubError)})` : '';
+        // When the source folder and GitHub both have something, say which one won.
+        const other = c.from === 'github' && c.source ? ` (your source folder has ${esc(c.sourceLabel || c.current.label)})` : c.from === 'source' && c.github?.label ? ` (GitHub has ${esc(c.github.label)})` : '';
+        if (c.newer && c.canRun && c.from === 'github') out.innerHTML = `Newest is ${esc(c.available.label)} from GitHub${other}${c.github?.sizeMB ? `, ${c.github.sizeMB} MB` : ''}.${notes} <button class="get" data-startupdate>Update Bob</button>`;
+        else if (c.newer && c.canRun) out.innerHTML = `Newest is ${esc(c.available.label)} from your source folder${other}.${offline} <button class="get" data-startupdate>Update Bob</button>`;
+        else if (c.newer) out.innerHTML = `Bob ${esc(c.available.label)} is out, but: ${esc(c.why)}${notes}`;
+        else out.innerHTML = c.githubError ? `I couldn't check GitHub: ${esc(c.githubError)} (you have Bob ${esc(c.current.label)}).` : `Up to date (Bob ${esc(c.current.label)}).`;
       }
       else if ('startupdate' in b.dataset) {
         b.disabled = true;
-        await api('/api/update/start', {});
-        b.outerHTML = '<span class="have">The update window is open. The steps show here too.</span>';
+        const r = await api('/api/update/start', {});
+        b.outerHTML = r.via === 'github' ? '<span class="have">Downloading from GitHub. The steps show here.</span>' : '<span class="have">The update window is open. The steps show here too.</span>';
         window.dispatchEvent(new Event('bob-update-started'));
         watchUpdate();
       }
+      else if ('restartnow' in b.dataset) { b.disabled = true; await api('/api/update/restart', { when: 'now' }); b.outerHTML = '<span class="have">Restarting...</span>'; }
       else if ('opendl' in b.dataset) { window.dispatchEvent(new Event('bob-downloads')); }
       else if (b.dataset.use) { const r = await api('/api/models/use', { id: b.dataset.use }); const at = b.parentElement; b.outerHTML = `<span class="have">Saved.</span>`; if (r.needsEngine) askEngine(at); }
       else if (b.dataset.checkengine) {
@@ -1024,7 +1031,7 @@ export function createCellar() {
     api('/api/update/status').then((st) => {
       if (st?.steps) {
         box.innerHTML = `<ol class="dl-steps">${st.steps.map((label, i) => { const n = i + 1; const mark = st.done || n < st.step ? '✓' : n === st.step ? (st.error ? '✗' : '●') : '○'; return `<li class="${mark === '✓' ? 'did' : mark === '○' ? '' : 'now'}">${mark} ${esc(label)}</li>`; }).join('')}</ol>
-          ${st.log ? `<div class="muted mono">${esc(st.log)}</div>` : ''}${st.error ? `<p class="error">${esc(st.error)}</p>` : st.ready ? '<p class="have">Ready. Press "Restart Bob now" in the update window.</p>' : ''}`;
+          ${st.log && !st.manual ? `<div class="muted mono">${esc(st.log)}</div>` : ''}${st.error ? `<p class="error">${esc(st.error)}</p>` : st.manual ? `<p class="have">Checked. ${esc(st.log || '')}</p>` : st.ready ? (st.mode === 'github' ? '<p class="have">Ready. Press "Restart Bob now" in the chat.</p>' : '<p class="have">Ready. Press "Restart Bob now" in the update window.</p>') : ''}`;
       }
       if (!st?.done && !st?.error) updTimer = setTimeout(watchUpdate, 1000);
     }).catch(() => { updTimer = setTimeout(watchUpdate, 2000); });

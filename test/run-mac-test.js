@@ -30,7 +30,7 @@ check('defaultHome on Windows: LOCALAPPDATA\\Bob', defaultHome({ LOCALAPPDATA: '
   killTree({ pid: 43 }, { os_: 'win', spawnSyncImpl: (f, a) => { ran = [f, ...a]; } });
   check('killTree: the whole process group on a Mac, taskkill /T on Windows', killed[0]?.[0] === -42 && killed[0][1] === 'SIGKILL' && ran?.[0] === 'taskkill' && ran.includes('/T'));
 }
-check('features: Windows-only parts are off on a Mac', !supports('defender', 'mac') && !supports('appsHand', 'mac') && !supports('gamingCard', 'mac') && !supports('updateBob', 'mac') && supports('ownEngines', 'mac') && features('win').defender === true);
+check('features: Windows-only parts are off on a Mac', !supports('defender', 'mac') && !supports('appsHand', 'mac') && !supports('gamingCard', 'mac') && supports('updateBob', 'mac') && supports('ownEngines', 'mac') && features('win').defender === true);
 check('a Mac shares memory: about two thirds for graphics, three quarters from 36 GB', unifiedGraphicsGB(16 * 1024 ** 3) === 10 && unifiedGraphicsGB(64 * 1024 ** 3) === 48);
 {
   const vm = 'Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free:                               10000.\nPages active:                             90000.\nPages inactive:                           50000.\nPages speculative:                         2000.\nPages purgeable:                           3000.\n';
