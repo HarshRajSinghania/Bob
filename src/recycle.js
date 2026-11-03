@@ -11,7 +11,8 @@ import { isInside } from './config.js';
 // plus any folder the user adds in settings (housekeeping.extraFolders).
 export function tidyRoots(cfg) {
   const extra = [].concat(cfg.housekeeping?.extraFolders || []).filter((f) => typeof f === 'string' && path.isAbsolute(f));
-  return [cfg.dataDir, cfg.painterDir, path.join(cfg.innDir, 'references'), ...extra];
+  // 1.5.41: Bob's own pictures folder, never a folder the user picked for saving (that one holds their files too).
+  return [cfg.dataDir, cfg.defaultPainterDir || cfg.painterDir, path.join(cfg.innDir, 'references'), ...extra];
 }
 
 // Files that are never thrown away, wherever they are.

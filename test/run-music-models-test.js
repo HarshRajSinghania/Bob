@@ -93,7 +93,7 @@ check('the chat shows a Download button that only starts on a click', /case 'off
 
 // Busy note: a chat message behind a long media job hears about it at once.
 const { Brain } = await import('../src/brain.js');
-const fake = { turns: new Map([['talk', {}]]), state: { state: 'painting', detail: 'Composing 40%' }, cfg: { sessions: {}, engine: 'llamacpp' } };
+const fake = { turns: new Map([['talk', {}]]), state: { state: 'painting', detail: 'Composing 40%' }, cfg: { sessions: {}, engine: 'llamacpp', chatWhileBusy: false } }; // with the 1.5.41 switch on, the chat goes beside instead (sessions test)
 const line = Brain.prototype.busyLine.call(fake, { kind: 'chat' });
 check('a message sent while Bob composes gets a busy note straight away', /^I'm still on the last job \(Composing 40%\)\. I'll answer this as soon as it's done\. If this can't wait, stop it in Tasks\.$/.test(line || ''), line);
 check('no busy note when nothing long is running', Brain.prototype.busyLine.call({ ...fake, state: { state: 'thinking', detail: '' } }, { kind: 'chat' }) === null && Brain.prototype.busyLine.call({ ...fake, turns: new Map() }, { kind: 'chat' }) === null);

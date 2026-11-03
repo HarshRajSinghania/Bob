@@ -319,6 +319,28 @@ export function createCellar() {
         <label for="proj-path">Folder</label><input id="proj-path" type="text" placeholder="C:\\Projects\\MyGame"> <button type="button" class="mini" data-projbrowse>Browse…</button>
         <button type="button" data-projadd disabled>Add project</button><p class="error proj-error" hidden></p></div>`;
   }
+  // 1.5.41 Where Bob saves things: the folder for pictures, clips, songs and sounds. Bob's own folder unless one is picked.
+  function saveDirHtml() {
+    const sd = settings?.saveDir || {};
+    const custom = sd.custom === true;
+    return `<p class="muted">The pictures, clips, songs and sounds Bob makes are saved in this folder. Made by Bob in the left menu shows them wherever they are.</p>
+      <p class="save-fact">Things Bob already made stay where they are. Only new ones go to the new folder.</p>
+      <p class="save-now"><strong>Saving in</strong> <span class="save-path">${esc(sd.folder || '')}</span> ${custom ? '' : '<span class="tag good">Bob\'s own folder</span>'}</p>
+      ${sd.missing ? `<p class="error">Bob can't find ${esc(sd.picked)} right now (an unplugged drive, maybe). Until it's back, he saves in his own folder.</p>` : ''}
+      <div class="save-pick"><label for="save-path">Folder</label><input id="save-path" type="text" placeholder="D:\\My pictures from Bob" value="${esc(custom ? sd.folder : '')}"> <button type="button" class="mini" data-savebrowse>Browse…</button>
+        <button type="button" data-savedir disabled>Save here</button></div>
+      <p class="error save-error" hidden></p>
+      <p class="save-tools"><button type="button" class="mini" data-saveopen>Show in folder</button>${custom || sd.missing ? ' <button type="button" class="mini" data-saveown>Use Bob\'s own folder</button>' : ''}</p>
+      <details class="more"><summary>More about picking a folder</summary><p class="muted">Older things still show in your chats and in Made by Bob. Tidy up only tidies Bob's own folder, never one you picked. Documents and spreadsheets still go where you ask for them.</p></details>`;
+  }
+  async function saveDirTo(folder) {
+    const r = await api('/api/settings', { saveDir: folder });
+    const eb = dlg.querySelector('.save-error');
+    if (r.saveDirError) { if (eb) { eb.textContent = r.saveDirError; eb.hidden = false; } return false; }
+    settings.saveDir = r.saveDir; draw(); return true;
+  }
+  const saveDirState = () => { const b = dlg.querySelector('[data-savedir]'); if (b) b.disabled = !dlg.querySelector('#save-path')?.value.trim(); };
+
   async function saveProjects(list, def) {
     const r = await api('/api/settings', { projectList: list.map(({ name, path }) => ({ name, path })), ...(def !== undefined ? { defaultProject: def } : {}) });
     const errBox = dlg.querySelector('.proj-error');
@@ -366,7 +388,9 @@ export function createCellar() {
   // More everyday panels slot in here as [id, label, note, () => html] (for example Projects), between How Bob works and This PC.
   // 1.5.34 Projects (folders Bob searches for "my project"), its own panel in the everyday settings.
   // The note is what a closed panel shows: what's set now.
-  const EVERY_EXTRA = [['ev-projects', '📁 Projects', () => { const n = (settings?.projectList || []).length; return n ? `${n} project${n === 1 ? '' : 's'} · Main: ${settings.defaultProject || 'none'}` : 'No projects yet. Add the folders Bob searches when you say "my project".'; }, () => projectsHtml()]];
+  const EVERY_EXTRA = [['ev-projects', '📁 Projects', () => { const n = (settings?.projectList || []).length; return n ? `${n} project${n === 1 ? '' : 's'} · Main: ${settings.defaultProject || 'none'}` : 'No projects yet. Add the folders Bob searches when you say "my project".'; }, () => projectsHtml()],
+    // 1.5.41 Where Bob saves things (closed, it shows the folder in use).
+    ['ev-save', '💾 Where Bob saves things', () => { const sd = settings?.saveDir || {}; return sd.missing ? 'Picked folder not found · saving in Bob\'s own folder' : sd.custom ? sd.folder : 'Bob\'s own folder (Made by Bob)'; }, () => saveDirHtml()]];
 
   function everydayHtml() {
     const st = settings.style || {};
@@ -422,6 +446,7 @@ export function createCellar() {
         <span class="muted">${held ? 'Not used right now: "Free memory when Bob is idle" on the chat page is off, so his small brain stays loaded.' : 'Used while "Free memory when Bob is idle" on the chat page is on.'} Big brains (Coding, and Medium effort and up) are freed after 2 minutes, or sooner if you pick less.</span></label>
       ${sswitch('pictureNoWait', settings.pictureNoWait !== false, 'Show pictures without waiting for Bob\'s brain', 'Bob shows a finished picture or clip straight away with a short line, instead of loading his brain back just to talk about it. Turn off if you want him to comment on each one.')}
       ${sswitch('quickOnCpu', settings.quickOnCpu === true, 'Keep the graphics card free for quick answers', 'Low effort answers run on the processor, so games and pictures keep the card. Replies start much slower (about half a minute). Applies in the Normal session; Gaming always does this.')}
+      ${sswitch('chatWhileBusy', settings.chatWhileBusy !== false, 'Keep chatting while Bob is busy', 'On to start with. While Bob makes a picture, clip, song or sound, plain chat messages are answered by his small brain on the processor, if there\'s enough free memory. Those replies start slower (up to about half a minute). Messages with a picture attached, or at Medium effort and up, still wait. Off: every message waits until the job is done.')}
       ${gamingCardHtml()}
       ${tuneHtml()}
       <label class="pick"><strong>Bob's engine</strong>
@@ -688,6 +713,11 @@ export function createCellar() {
         return;
       }
       if ('gohouse' in b.dataset) { eqView = 'doll'; eqSelected = 'music'; houseFocus = 'music'; setTab('roles'); draw(); await load().catch(() => {}); return; }
+      // 1.5.41 Where Bob saves things.
+      if ('savebrowse' in b.dataset) { const r = await api('/api/pick-folder', { purpose: 'save' }); const box = dlg.querySelector('#save-path'); if (r.folder && box) { box.value = r.folder; saveDirState(); await saveDirTo(r.folder); } else if (r.error) { const eb = dlg.querySelector('.save-error'); if (eb) { eb.textContent = r.error; eb.hidden = false; } } return; }
+      if ('savedir' in b.dataset) { const v = dlg.querySelector('#save-path')?.value.trim(); if (v) await saveDirTo(v); return; }
+      if ('saveown' in b.dataset) { await saveDirTo(''); return; }
+      if ('saveopen' in b.dataset) { try { await api('/api/open', { path: settings?.saveDir?.folder || '' }); } catch (err) { const eb = dlg.querySelector('.save-error'); if (eb) { eb.textContent = err.message; eb.hidden = false; } } return; }
       if ('projbrowse' in b.dataset) { const r = await api('/api/pick-folder', {}); const box = dlg.querySelector('#proj-path'); if (r.folder && box) { box.value = r.folder; projAddState(); const nm = dlg.querySelector('#proj-name'); if (nm && !nm.value) nm.value = r.folder.split(/[\\/]/).filter(Boolean).pop() || ''; } else if (r.error) { const eb = dlg.querySelector('.proj-error'); if (eb) { eb.textContent = r.error; eb.hidden = false; } } return; }
       if ('projadd' in b.dataset) {
         const name = dlg.querySelector('#proj-name')?.value.trim(); const dir = dlg.querySelector('#proj-path')?.value.trim();
@@ -856,7 +886,7 @@ export function createCellar() {
   }
   // 1.5.34 Projects: "Add project" stays greyed out until a folder is filled in.
   const projAddState = () => { const b = dlg.querySelector('[data-projadd]'); if (b) b.disabled = !dlg.querySelector('#proj-path')?.value.trim(); };
-  dlg.addEventListener('input', (e) => { if (e.target.id === 'proj-path') projAddState(); });
+  dlg.addEventListener('input', (e) => { if (e.target.id === 'proj-path') projAddState(); if (e.target.id === 'save-path') saveDirState(); });
   dlg.addEventListener('input', (e) => { if (tab === 'style') stylePage.onInput(e.target); if (e.target.dataset?.ssearch !== undefined) { settingsQuery = e.target.value; filterSettings(); } if (e.target.dataset?.dial) showDials(dialValues()); });
 
   dlg.addEventListener('change', async (e) => {
@@ -908,6 +938,7 @@ export function createCellar() {
         box.outerHTML = gamingCardHtml();
         flash(dlg.querySelector('.seg3'), 'Saved.'); return;
       }
+      if (el.dataset.set === 'chatWhileBusy') { const r = await api('/api/settings', { chatWhileBusy: el.checked }); settings.chatWhileBusy = r.chatWhileBusy; el.checked = r.chatWhileBusy; return; }
       if (el.dataset.set === 'quickOnCpu') { const r = await api('/api/settings', { quickOnCpu: el.checked }); settings.quickOnCpu = r.quickOnCpu; el.checked = r.quickOnCpu; return; }
       if (el.dataset.set === 'resumeJobs') { const r = await api('/api/settings', { resumeJobs: el.checked }); settings.resumeJobs = r.resumeJobs; el.checked = r.resumeJobs; return; }
       if (el.dataset.set === 'allTools') { const r = await api('/api/settings', { allTools: el.checked }); settings.allTools = r.allTools; el.checked = r.allTools; return; }

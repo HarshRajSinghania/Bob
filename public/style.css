@@ -904,3 +904,42 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .project-add #proj-name { grid-column: span 2; }
 .note.house button.link { min-height: 32px; padding: 4px 8px; }
 .project-row .proj-path { overflow-wrap: anywhere; word-break: break-all; }
+
+/* 1.5.41 The song player (song-player.js): songs and sounds Bob makes, in the chat and the side panel. */
+.reply-media { display: contents; }
+.song { display: flex; gap: 10px; align-items: center; width: 420px; max-width: 100%; box-sizing: border-box; margin-top: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: calc(var(--r) * 1.25); background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--card)), var(--card) 70%); white-space: normal; }
+.song audio { display: none; }
+.song-play { flex: none; width: 48px; height: 48px; border-radius: 50%; border: none; background: var(--accent); color: var(--on-accent); font-size: 18px; font-weight: 700; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.song-play:hover { filter: brightness(1.08); }
+.song-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.song.playing .song-play .song-icon { font-size: 14px; letter-spacing: -2px; }
+.song-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.song-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.song-title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.song-what { flex: none; font-size: 12px; }
+.song-wave { position: relative; height: 40px; cursor: pointer; touch-action: none; border-radius: 4px; }
+.song-wave:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.song-bars { position: absolute; inset: 0; }
+.song-bars svg { width: 100%; height: 100%; display: block; fill: color-mix(in srgb, var(--muted) 45%, transparent); }
+.song-done svg { fill: var(--accent); }
+.song.no-bars .song-bars svg { display: none; }
+.song.no-bars .song-bars { top: 50%; bottom: auto; height: 4px; margin-top: -2px; border-radius: 2px; background: color-mix(in srgb, var(--muted) 45%, transparent); }
+.song.no-bars .song-done { background: var(--accent); }
+.song-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.song-time { font-family: var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.song-tools { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
+.song-tools .mini { min-height: 32px; padding: 4px 10px; }
+.song-lyrics pre { white-space: pre-wrap; font-family: var(--font); font-size: 13px; max-height: 260px; overflow-y: auto; margin: 4px 0 0; }
+.song.broken .song-time { color: var(--bad); font-family: inherit; }
+.song-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.song-list .song { margin-top: 0; }
+.song.big { width: 100%; padding: 16px; }
+.song.big .song-play { width: 64px; height: 64px; font-size: 24px; }
+.song.big .song-wave { height: 72px; }
+.song.big .song-title { font-size: 16px; white-space: normal; }
+.vaudio .song { align-self: stretch; }
+/* Settings, Where Bob saves things */
+.save-path { font-family: var(--mono); word-break: break-all; }
+.save-pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.save-pick input { flex: 1; min-width: 220px; }
+.save-fact { font-weight: 600; }

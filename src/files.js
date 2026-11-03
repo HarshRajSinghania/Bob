@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { insideAny } from './config.js';
+import { insideAny, outputDirs, findOutput } from './config.js';
 import { isSensitive } from './tools.js';
 
 // Open works only for pictures, sounds, clips, documents and art files (an allowlist, so nothing that runs code
@@ -20,15 +20,15 @@ const canOpen = (file, dir) => dir || OPEN_OK.has(path.extname(file).toLowerCase
 export function resolveMention(cfg, p) {
   let s = String(p || '').trim().replace(/^["'`]+|["'`.,;:!?)]+$/g, '');
   if (!s || s.length > 1000 || s.includes('\0')) return null;
-  if (/^\/images\//.test(s)) s = path.join(cfg.painterDir, path.basename(decodeURIComponent(s.slice(8))));
+  if (/^\/images\//.test(s)) s = findOutput(cfg, decodeURIComponent(s.slice(8).split('?')[0]));
   else if (/^inn[\\/]/i.test(s)) s = path.join(cfg.agentDir, s.replace(/^inn/i, 'inn'));
-  else if (!path.isAbsolute(s) && !/^[a-zA-Z]:[\\/]/.test(s)) s = path.join(cfg.painterDir, path.basename(s));
+  else if (!path.isAbsolute(s) && !/^[a-zA-Z]:[\\/]/.test(s)) s = findOutput(cfg, s);
   return path.resolve(s.replace(/[\\/]/g, path.sep));
 }
 
 export function allowedFile(cfg, file) {
   if (!file) return false;
-  const roots = [cfg.innDir, ...(cfg.readRoots || []), ...Object.values(cfg.projects || {})].filter(Boolean);
+  const roots = [cfg.innDir, ...outputDirs(cfg), ...(cfg.readRoots || []), ...Object.values(cfg.projects || {})].filter(Boolean);
   if (!insideAny(roots, file)) return false;
   if (isSensitive(cfg, file)) return false;
   if (path.resolve(file) === path.resolve(path.join(cfg.agentDir, 'inn', 'bob', 'settings.json'))) return false;

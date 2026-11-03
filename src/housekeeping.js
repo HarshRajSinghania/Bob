@@ -10,7 +10,7 @@
 // and topics are never touched. Every action goes in the logbook. Only Bob's own folders are touched.
 import fs from 'node:fs';
 import path from 'node:path';
-import { appDir } from './config.js';
+import { appDir, findOutput } from './config.js';
 import { UNITS, KINDS, ageMs, cleanHousekeeping, hkSettings } from './hk-settings.js';
 export { UNITS, KINDS, ageMs, cleanHousekeeping, hkSettings };
 import { recycle, backupToBin, mayRecycle } from './recycle.js';
@@ -116,7 +116,7 @@ export class Housekeeper {
       add({ key: `chat:${c.id}`, kind: 'chats', ref: c.id, label: c.title, detail: `${c.messages} messages, last talked about ${dateOf(c.lastTouched)}`, bytes: c.bytes, touched: c.lastTouched, actions: ['summarize', 'delete'], def: 'summarize' });
     }
     const pinsP = new Set(st.pins.pictures);
-    for (const f of files(cfg.painterDir)) {
+    for (const f of files(cfg.defaultPainterDir || cfg.painterDir)) { // 1.5.41: Bob's own folder only, never one the user picked
       const ext = path.extname(f).toLowerCase(), name = path.basename(f), t = mtime(f);
       const kind = PIC_EXT.has(ext) ? 'pictures' : SOUND_EXT.has(ext) ? 'sounds' : null;
       if (!kind || pinsP.has(name) || !old(kind, t)) continue;
@@ -416,7 +416,7 @@ export class Housekeeper {
       this.topics.change(id, (x) => { x.spans = []; x.pics = []; x.fade = null; x.vec = x.vec || null; x.forgotten = Date.now(); });
     }
     let gone = 0;
-    if (pictures && pv.pictures.length) gone = recycle(this.cfg, pv.pictures.map((u) => path.join(this.cfg.painterDir, path.basename(decodeURIComponent(u.slice(8)))))).gone.length;
+    if (pictures && pv.pictures.length) gone = recycle(this.cfg, pv.pictures.map((u) => findOutput(this.cfg, decodeURIComponent(u.slice(8))))).gone.length;
     this.log(`forgot "${t.name}": ${n} message${n === 1 ? '' : 's'} from chats${mode === 'all' ? ', its note and memory lines' : ' (the note stays)'}${gone ? `, ${gone} picture${gone === 1 ? '' : 's'}` : ''}; the chats as they were are in the Recycle Bin`);
     return { messages: n, pictures: gone, keptNote: mode !== 'all' };
   }

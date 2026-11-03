@@ -2,7 +2,7 @@
 // and a run function. Anything risky goes through approval; the inn folder is Bob's own space.
 import fs from 'node:fs';
 import path from 'node:path';
-import { isInside, insideAny, appDir } from './config.js';
+import { isInside, insideAny, appDir, findOutput } from './config.js';
 import { HATS } from './persona.js';
 import { cloudHelpers, askCloud } from './cloud.js';
 import { copyName } from './clan.js';
@@ -317,7 +317,8 @@ export function buildTools(cfg) {
     schema: fn('make_music', "Make a piece of music on {{USER}}'s PC with the audio workshop (a few minutes). The chat brain steps out of the GPU while it plays.", {
       prompt: str('Style tags: genre, mood, instruments, tempo. Like "chiptune, upbeat, 140 bpm, square lead". If {{USER}} gave no style, pick one that fits and say what you picked.'),
       lyrics: str('Optional lyrics with [verse] and [chorus] markers. Leave empty for instrumental.'),
-      seconds: { type: 'integer', description: 'Length in seconds, 10 to 240, default 30.' }
+      seconds: { type: 'integer', description: 'Length in seconds, 10 to 240, default 30.' },
+      title: str('Optional: a short song title, 2 to 5 words, shown on its player. Make one up if {{USER}} gave none.')
     }, ['prompt']),
     async run(args, ctx) { return ctx.brain.makeSound('music', args, ctx); },
     summary: ({ prompt }) => `music: ${String(prompt).slice(0, 80)}`
@@ -362,7 +363,7 @@ export function buildTools(cfg) {
     }, ['picture', 'name', 'kind']),
     async run({ picture, name, kind, notes }, ctx) {
       const shelf = ctx.brain.refs;
-      const painted = path.join(cfg.painterDir, path.basename(String(picture)));
+      const painted = findOutput(cfg, String(picture));
       if (/\.(png|jpe?g|webp)$/i.test(picture) && fs.existsSync(painted)) {
         const r = shelf.addFile(painted, { name, kind, notes });
         return `On the shelf as "${r.name}" (${r.kind}).`;

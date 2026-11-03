@@ -16,7 +16,7 @@ import { personalityPrompt, cleanPersonality } from '../public/personality.js';
 import { catPrompt, catMoment } from '../public/patches.js';
 import { sleepyAfterReply, sleepySwitch, SLEEPY_SESSION } from '../public/sleepy.js';
 import { cleanEffort, careful, bigThinker, draftBrain, hatBrain, effortPrompt, mootOpening, runMoot, phasedWork } from './moot.js';
-import { saveSettings } from './config.js';
+import { saveSettings, outputDirs, findOutput } from './config.js';
 import { paint, paintingAvailable } from './painter.js';
 import { PainterServer } from './painter-server.js';
 import { maestroMake } from './maestro.js';
@@ -24,7 +24,7 @@ import { capabilities } from './capabilities.js';
 import { cloudHelpers } from './cloud.js';
 import { copyName } from './clan.js';
 import { RefShelf } from './refs.js';
-import { makeAudio, aceMissingFiles, aceModelsEntry, ACE_MODELS_ID } from './audio.js';
+import { makeAudio, songTitle, aceMissingFiles, aceModelsEntry, ACE_MODELS_ID } from './audio.js';
 import { runWorkflow } from './workshop.js';
 import { currentSession, modelFor, laneOf, suggestSession, SESSIONS, sessionBrains, waitsForGaming, GAMING_TAG, GAMING_HINT } from './sessions.js';
 import { stampMessages, keepOlder, readSummary } from './chats.js';
@@ -50,6 +50,27 @@ const HAND_TOOLS = new Set(Object.values(HANDS).flatMap((h) => h.tools));
 // 1.5.40: Bob's own engine runs one brain. While the other lane is busy, a job that may need a different brain
 // (pictures attached for his eyes, or Medium effort and up with its reviewer) waits, so it never swaps the brain
 // out from under the other job. Everything else shares the small brain and runs beside it.
+// 1.5.41 "Keep chatting while Bob is busy" (chatWhileBusy, on unless switched off: the owner, 2026-11-03, "this wouldnt be opt in"): while the job in the main lane is
+// in a media step (painting, filming, composing: its brain is already let go so the card is free), a plain chat
+// message runs in a "side" lane on the small brain on the processor, if there's room in RAM. Nothing big is loaded
+// for it. The media job waits for that reply before it loads its own brain back (Gate.needBrain).
+export const SIDE_LANE = 'side';
+export function sideOk(brain, job, { freeMem = os.freemem() } = {}) {
+  const cfg = brain.cfg || {};
+  if (cfg.chatWhileBusy === false || !job || job.kind !== 'chat') return false;
+  if (job.refs?.length || (job.effort && job.effort !== 'low')) return false;
+  if (currentSession(cfg).id === 'light') return false; // Gaming: the processor is the game's
+  if (!brain.turns?.has('talk') || brain.turns.has(SIDE_LANE) || brain.state?.state !== 'painting') return false;
+  return freeMem >= sideBrainBytes(brain) + 2 * 1024 ** 3;
+}
+function sideBrainBytes(brain) {
+  try { const f = brain.engine?.resolve?.(sessionBrains(brain.cfg).small)?.gguf; if (f) return fs.statSync(f).size; } catch {}
+  return 4 * 1024 ** 3; // unknown: assume a 4B brain
+}
+
+// A side-lane reply: always the small brain on the processor, so it never touches the card the painter holds.
+export const sideBrain = (cfg) => ({ model: sessionBrains(cfg).small, cpu: true });
+
 export function besideOk(brain, job, lane) {
   if (brain.cfg?.engine !== 'llamacpp' || !brain.turns?.size || brain.turns.has(lane)) return true;
   return !(job.refs?.length || (job.effort && job.effort !== 'low'));
@@ -313,8 +334,11 @@ export class Brain {
   }
 
   setState(state, detail = '', model = this.state.model) {
+    const was = this.state?.state;
     this.state = { state, detail, model };
     this.broadcast({ type: 'status', ...this.state });
+    // 1.5.41: a media step just started; a chat message already waiting may now go beside it.
+    if (state === 'painting' && was !== 'painting' && this.cfg?.chatWhileBusy !== false && this.queue?.some((j) => j.state === 'waiting')) setTimeout(() => this.pump(), 0);
   }
 
   log(kind, text) {
@@ -565,7 +589,8 @@ export class Brain {
 
   // GPU-only models leave for the painter; in an Art session the chat brain on the processor stays.
   async clearGpu() {
-    if (currentSession(this.cfg).cpu && this.engine.unloadGpu) return this.engine.unloadGpu();
+    // 1.5.41: a quick reply running beside a job on the processor brain keeps going too.
+    if ((currentSession(this.cfg).cpu || this.turns?.has(SIDE_LANE)) && this.engine.unloadGpu) return this.engine.unloadGpu();
     return this.engine.unloadAll();
   }
 
@@ -699,7 +724,7 @@ export class Brain {
     if (!v.ok) { this.log('handoff', `${path.basename(file)} wasn't shown: ${v.why}`); return false; }
     const name = path.basename(file);
     // Only files in Bob's pictures folder have a link the chat can show.
-    if (path.resolve(path.dirname(file)) !== path.resolve(this.cfg.painterDir)) return false;
+    if (!outputDirs(this.cfg).some((d) => path.resolve(d) === path.resolve(path.dirname(file)))) return false;
     ctx.emit({ type, url: `/images/${encodeURIComponent(name)}`, file });
     return true;
   }
@@ -899,9 +924,15 @@ export class Brain {
     return { jobId: job.id, turnId: job.id, ahead };
   }
 
+  // 1.5.41: until the side-lane reply is done (the media job waits here before it loads its own brain back).
+  async sideIdle(signal) {
+    while (this.turns.has(SIDE_LANE) && !signal?.aborted) await new Promise((r) => setTimeout(r, 300));
+  }
+
   // What to tell someone whose message has to wait behind a long media job, or null.
   busyLine(job) {
     if (!this.turns.size || this.state.state !== 'painting') return null;
+    if (sideOk(this, job)) return null; // 1.5.41: it's answered beside the job instead
     if (laneOf(this.cfg, job) !== 'talk' || !this.turns.has('talk')) return null; // it runs in its own lane: no wait
     const what = String(this.state.detail || '').trim();
     return `I'm still on the last job${what ? ` (${what})` : ''}. I'll answer this as soon as it's done. If this can't wait, stop it in Tasks.`;
@@ -976,12 +1007,13 @@ export class Brain {
       if (job.state !== 'waiting') continue;
       if (waitsForGaming(this.cfg, job)) continue; // 1.5.23: waits in Tasks until the session isn't Gaming
       if (job.after && !this.downloadReady(job)) continue; // 1.5.38: waits for the download it needs
-      const lane = laneOf(this.cfg, job);
+      let lane = laneOf(this.cfg, job);
+      if (lane === 'talk' && this.turns.has('talk') && !seen.has(SIDE_LANE) && sideOk(this, job)) lane = SIDE_LANE;
       if (seen.has(lane)) continue;
       seen.add(lane);
       if (this.turns.has(lane)) continue;
       if (!besideOk(this, job, lane)) continue; // 1.5.40: waits for the other lane, see besideOk
-      job.state = 'working'; job.startedAt = Date.now(); job.steps = [];
+      job.side = lane === SIDE_LANE; job.state = 'working'; job.startedAt = Date.now(); job.steps = [];
       this.saveQueue();
       this.startTurn(job.sessionId, job.text, job.refs, job, lane);
     }
@@ -1064,7 +1096,7 @@ export class Brain {
     const keep = (ev) => {
       if (['image', 'video', 'audio'].includes(ev.type) && typeof ev.url === 'string' && ev.url.startsWith('/images/')) {
         if (media.some((m) => m.url === ev.url)) return; // delivered once already
-        media.push({ type: ev.type, url: ev.url, name: path.basename(decodeURIComponent(ev.url.slice(8))) });
+        media.push({ type: ev.type, url: ev.url, name: path.basename(decodeURIComponent(ev.url.slice(8))), ...(ev.song?.title ? { title: ev.song.title, sound: ev.song.sound } : {}) });
         out.ctx?.ledger?.output(ev, out.ctx.currentTool || null);
       }
       // Saved files and things called up with show_made: kept as cards with the reply.
@@ -1126,7 +1158,7 @@ export class Brain {
     // The turn's pictures travel with it, so a hat Bob hands the job to can see them too.
     // Every picture, clip or sound he makes goes on the Made by Bob list as it's announced.
     const emitMade = (ev) => {
-      if (['image', 'video', 'audio'].includes(ev?.type) && ev.file) { try { this.made.add(ev.file, { tool: ev.type, chat: sessionId }); } catch {} }
+      if (['image', 'video', 'audio'].includes(ev?.type) && ev.file) { try { this.made.add(ev.file, { tool: ev.type, chat: sessionId, song: ev.song || null }); } catch {} }
       return emit(ev);
     };
     const ctx = { emit: emitMade, signal, brain: this, cfg: this.cfg, allowAll: new Set(), pics, picNote, msgs, turnText: text, job, sessionId };
@@ -1137,7 +1169,7 @@ export class Brain {
     out.ctx = ctx;
     const used = new Set();
     // High and Extreme effort draft on the big brain; Low is the usual chat brain.
-    let { model, cpu, think, ctx: wantCtx } = (bigThinker(job) && draftBrain(this.cfg, job.effort)) || modelFor(this.cfg, 'bob');
+    let { model, cpu, think, ctx: wantCtx } = job?.side ? sideBrain(this.cfg) : (bigThinker(job) && draftBrain(this.cfg, job.effort)) || modelFor(this.cfg, 'bob');
     // 1.5.16: a Low-effort chat reply doesn't think first (gemma4 and others think by default, which delays every reply).
     // Medium and up, and sessions that set a level (Deep thought), keep their thinking.
     if (think === undefined && !bigThinker(job)) think = false;
@@ -1349,7 +1381,7 @@ export class Brain {
     // "One brain" mode: every hat runs on the main model, so there's no brain swap (about 20 s each) mid-chat.
     // Normal session: the hat's own brain (or the main one with "One brain"). Other sessions: the session's brain.
     // A moot (High/Extreme effort) passes force: the reviewer always runs on the Review slot brain.
-    const { model, cpu, think, ctx: wantCtx } = force || (bigThinker(ctx.job) && hat !== 'reviewer' && hatBrain(this.cfg, hat, ctx.job.effort)) || modelFor(this.cfg, hat);
+    const { model, cpu, think, ctx: wantCtx } = ctx.job?.side ? sideBrain(this.cfg) : force || (bigThinker(ctx.job) && hat !== 'reviewer' && hatBrain(this.cfg, hat, ctx.job.effort)) || modelFor(this.cfg, hat);
     const brainCtx = await this.fitCtx(model, wantCtx);
     const copy = copyName(this.cfg, hat, HATS[hat].label);
     ctx.emit({ type: 'hat', hat, label: PLAIN_HATS[hat] || HATS[hat].label, copy });
@@ -1485,10 +1517,12 @@ export class Brain {
       signal: ctx.signal,
       onProgress: (n, total) => this.setState('painting', `${music ? 'Composing' : 'Making a sound'} ${Math.round((100 * n) / total)}%`, null)
     }); } catch (e) { if (e.details) this.log(kind, e.details); throw e; } })();
-    ctx.emit({ type: 'audio', url: `/images/${encodeURIComponent(name)}`, file });
+    // 1.5.41: the song's title, style and lyrics travel with it, for its player in the chat.
+    const song = { title: songTitle(args, kind), style: String(args.prompt || '').slice(0, 200), sound: music ? 'music' : 'sfx', ...(music && args.lyrics ? { lyrics: String(args.lyrics).slice(0, 4000) } : {}) };
+    ctx.emit({ type: 'audio', url: `/images/${encodeURIComponent(name)}`, file, song });
     this.setState('thinking', '', null);
     // 1.5.38: plain about where it is, so Bob never claims a song only played and wasn't kept.
-    return `${music ? 'Made the song' : 'Made the sound'} and saved it as a .wav file: ${file}. It is kept on the PC: the user can play it in the chat, find it in Made by Bob (left menu, Sounds), or open that file. Tell the user where it was saved.`;
+    return `${music ? `Made the song "${song.title}"` : `Made the sound "${song.title}"`} and saved it as a .wav file: ${file}. It is kept on the PC: the user can play it in the chat, find it in Made by Bob (left menu, Sounds), or open that file. Tell the user where it was saved.`;
   }
 
   // The advanced workshop: a ComfyUI workflow the user saved. ComfyUI does the work in its own process.
@@ -1522,7 +1556,7 @@ export class Brain {
     }
     const base = path.basename(n.replace(/\\/g, '/'));
     if (/\.(png|jpe?g|webp)$/i.test(base)) {
-      const file = path.join(this.cfg.painterDir, base);
+      const file = findOutput(this.cfg, base);
       if (fs.existsSync(file)) return { name: base, path: file, painted: true };
     }
     const r = this.refs.find(n);

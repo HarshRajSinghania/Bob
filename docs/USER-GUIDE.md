@@ -53,7 +53,7 @@ Handy things in the chat:
 These open as a page in the middle of the window, in place of the chat. **← Back to chat** (or Esc, or Chat in the menu) takes you back. A bar along the top of the page, which stays put while you scroll, jumps between Equip Bob, the model pages, Style and Settings, so clicking Bob's picture gets you everywhere too.
 
 - **Get models:** Equip Bob, the model shops (Voice & conversation, Coding, Seeing pictures, Pictures & video) and **On this PC**.
-- **Settings** starts as one short page showing what's set now: Bob's voice (with **Play sample** and **Change**), his look, the colours, animations, the cat's name, one brain, launch on start-up, **Let Bob search the web** and checking for updates (all three off unless you turn them on), and the version, graphics card and disk space, with **Check for updates**, **Run first-time setup** and **Check this PC**.
+- **Settings** starts as one short page showing what's set now: Bob's voice (with **Play sample** and **Change**), his look, the colours, animations, the cat's name, one brain, launch on start-up, Projects, **Where Bob saves things**, **Let Bob search the web** and checking for updates (all three off unless you turn them on), and the version, graphics card and disk space, with **Check for updates**, **Run first-time setup** and **Check this PC**.
 - **Show advanced settings** (off unless you turn it on, and remembered) adds a search box and the rest: Brains (model roles, session brains, context), Voice details, Look & feel, Engines & speed, Connections (ComfyUI, cloud helpers), Hands, Housekeeping and Remove Bob. Longer explanations fold behind **More**.
 
 ---
@@ -237,6 +237,14 @@ Just ask in the chat: "paint a lighthouse at dusk", "make this picture look like
 - **Video:** clips are short (a few seconds). On small cards, keep them short; Bob tells you roughly how long a job will take before he starts.
 
 If a slot is empty, Bob tells you which model would fill it.
+
+### Songs and sounds
+
+Ask for a song ("a chiptune boss theme, about a minute") or a sound effect ("a creaky wooden door"). It lands in the chat as a **song player**: a round ▶ button, its title, bars showing the song's shape (click or drag along them to jump around; arrow keys jump 5 seconds), the time, **Lyrics** if it has words, **Open in Made by Bob** for a bigger player in the side panel, and **Show in folder**. Several songs in one reply play one after another, and only one plays at a time. Each song is kept as a .wav file named with the date and its title.
+
+### Where Bob saves things
+
+Settings, **Where Bob saves things** picks the folder for the pictures, clips, songs and sounds Bob makes. It starts as Bob's own folder (the one Made by Bob lists). **Browse…** picks another (or type one and press **Save here**), **Show in folder** opens it, and **Use Bob's own folder** goes back. Only new things go to a new folder; older ones stay put and still show in your chats. Tidy up only tidies Bob's own folder. If a picked folder goes missing (an unplugged drive), Bob saves in his own until it's back.
 
 ---
 

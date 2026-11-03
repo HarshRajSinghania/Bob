@@ -4,6 +4,7 @@
 // The first tab, "Made by Bob", lists everything he has made, newest first, to call any of it up again.
 // Chat cards (outCard) are small previews: a thumbnail or the first lines, and a click opens the panel.
 import { esc, render } from './rich.js';
+import { songCard, fillSongs } from './song-player.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -37,6 +38,7 @@ const pathFromUrl = (url) => { try { return url.startsWith('/api/file?') ? new U
 // item: { kind or type, url, name, path?, bytes? }. The mention is what Open / Show in folder pass to the server.
 export function outCard(item) {
   const kind = kindOf(item);
+  if (kind === 'audio' && item.url) return songCard(item); // 1.5.41: songs and sounds get the song player (song-player.js)
   const url = item.url || '';
   const name = item.name || decodeURIComponent(url.split('/').pop() || '');
   const mention = item.mention || item.path || (url.startsWith('/images/') ? url : pathFromUrl(url));
@@ -72,6 +74,7 @@ async function fillSizes(root) {
   for (const e of els) { const n = sizes.get(e.dataset.sizeFor || ''); if (n != null && !e.textContent.includes('·')) e.textContent += ` · ${friendlySize(n)}`; }
 }
 export async function fillPeeks(root) {
+  fillSongs(root);
   for (const e of root.querySelectorAll('[data-size-of]')) e.dataset.sizeFor = e.dataset.sizeOf;
   fillSizes(root);
   for (const b of root.querySelectorAll('.out-peek[data-peek]')) {
@@ -147,7 +150,12 @@ export function createViewer({ post, note }) {
     const head = `<div class="vitem-head"><strong>${esc(t.name)}</strong><span class="muted">${esc(kindWord(t.kind, t.name))}${t.bytes != null && t.kind !== 'folder' ? ` · ${esc(friendlySize(t.bytes))}` : ''}</span></div>`;
     if (t.kind === 'image') { main.innerHTML = `${head}<div class="vstage"><img class="vimg" src="${esc(url)}" alt="${esc(t.name)}" title="Click to see it at full size"></div>${tools}`; return; }
     if (t.kind === 'video') { main.innerHTML = `${head}<div class="vstage"><video src="${esc(url)}" controls loop autoplay muted></video></div>${tools}`; return; }
-    if (t.kind === 'audio') { main.innerHTML = `${head}<div class="vstage vaudio"><span class="made-ico" aria-hidden="true">🔊</span><audio src="${esc(url)}" controls autoplay></audio></div>${tools}`; return; }
+    if (t.kind === 'audio') { // 1.5.41: the bigger song player, playing straight away
+      main.innerHTML = `${head}<div class="vstage vaudio">${songCard({ url, name: t.name, path: t.path }, { big: true })}</div>${tools}`;
+      fillSongs(main);
+      main.querySelector('.song audio')?.play().catch(() => {});
+      return;
+    }
     if (t.kind === 'document' && isText(t.name) && url) {
       main.innerHTML = `${head}<div class="vstage vtext"><p class="muted">Loading...</p></div>${tools}`;
       let j = null;

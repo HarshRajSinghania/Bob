@@ -52,9 +52,11 @@ export function settingsNow(cfg) {
     `ComfyUI: ${onOff(cfg.workshop?.enabled === true)}`,
     `Cloud helpers on: ${cloud.length ? cloud.join(', ') : 'none'}`,
     `Keep the graphics card free for quick answers: ${onOff(cfg.quickOnCpu === true)}`,
+    `Keep chatting while Bob is busy: ${onOff(cfg.chatWhileBusy !== false)}`,
     `Gaming session: graphics card: ${{ auto: 'Automatic', never: 'Never use the card', always: 'Always borrow a little' }[gamingCard(cfg)]}`,
     `House style (Equip Bob): ${houseStylePrompt(cfg.houseStyle).replace(/^\s+/, '').replace(/^.*?: /, '') || 'none set (Bob picks)'}`,
     `Projects (Settings): ${Object.keys(cfg.projects || {}).join(', ') || 'none'}${cfg.defaultProject ? `; main project ${cfg.defaultProject}` : ''}`,
+    `Where Bob saves things (Settings): ${cfg.saveDirMissing ? `the picked folder ${cfg.saveDir} is missing, so saving in Bob's own folder ${cfg.painterDir} for now` : cfg.saveDir ? cfg.painterDir : `Bob's own folder (Made by Bob), ${cfg.painterDir || 'inn\\painter'}`}`,
     `Speed for this PC: Get Bob ready while you type ${onOff(cfg.readyWhileTyping === true)}, Let games go first ${onOff(cfg.gamesFirst === true)}, Match picture settings to my graphics card ${onOff(cfg.pictureFit === true)}`
   ].join('\n');
 }

@@ -45,6 +45,20 @@ check('"Try again" puts a task at the back of the line', f3.queue.map((j) => j.i
   P.pump.call(g);
   check('back to Normal: the waiting picture job starts', started.join() === 'pic', started.join());
 }
+// 1.5.41: Keep chatting while Bob is busy. A chat waiting behind a picture that's painting starts in the side lane.
+{
+  const started = [];
+  const g = { cfg: { session: 'normal', engine: 'llamacpp', chatWhileBusy: true, models: { small: 's' } }, engine: {}, state: { state: 'painting' }, turns: new Map([['talk', {}]]),
+    queue: [job('pic', 'working', { kind: 'picture' }), job('hi', 'waiting'), job('hi2', 'waiting')], saveQueue() {}, startTurn(s, t, r, j, lane) { started.push(`${j.id}@${lane}`); this.turns.set(lane, {}); } };
+  P.pump.call(g);
+  check('busy switch on: a chat behind a painting picture starts beside it (one at a time)', started.join() === 'hi@side' && g.queue[1].side === true && g.queue[2].state === 'waiting', started.join());
+  g.turns = new Map([['talk', {}]]); g.queue[1].state = 'done'; g.state = { state: 'thinking' }; started.length = 0;
+  P.pump.call(g);
+  check('once the picture step is over, the next chat waits for the job again', started.length === 0);
+  g.cfg.chatWhileBusy = false; g.state = { state: 'painting' };
+  P.pump.call(g);
+  check('switch off: nothing starts beside', started.length === 0);
+}
 {
   const { Gate } = await import('../src/handoff.js').catch(() => ({}));
   if (Gate) {

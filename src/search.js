@@ -30,7 +30,9 @@ export function search(cfg, { topics, summaries = [] }, q) {
   }
   for (const s of summaries) if (hits(`${s.title} ${s.summary}`, ts)) out.push({ type: 'removed', title: `Tidied chat: ${s.title}`, snippet: snippet(s.summary, ts), at: s.to || 0 });
   try {
-    for (const f of fs.readdirSync(cfg.painterDir)) if (hits(`${f} ${f.replace(/[-_.]/g, ' ')}`, ts)) out.push({ type: 'file', title: f, url: `/images/${encodeURIComponent(f)}`, at: fs.statSync(path.join(cfg.painterDir, f)).mtimeMs });
+    // Bob's own folder only: a folder the user picked for saving can hold their own files too.
+    const own = cfg.defaultPainterDir || cfg.painterDir;
+    for (const f of fs.readdirSync(own)) if (hits(`${f} ${f.replace(/[-_.]/g, ' ')}`, ts)) out.push({ type: 'file', title: f, url: `/images/${encodeURIComponent(f)}`, at: fs.statSync(path.join(own, f)).mtimeMs });
   } catch {}
   const notes = [['memory', cfg.memoryFile, "Bob's memory"], ['about', path.join(cfg.dataDir, 'about-me.md'), 'About you'], ['board', cfg.noticeBoard, 'Notice board']];
   for (const [kind, f, label] of notes) {

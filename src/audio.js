@@ -329,12 +329,29 @@ export function newestSong(cfg, since) {
   } catch { return null; }
 }
 
+// 1.5.41: the name a song or sound shows on its player: the title Bob gave it, else the first few style words
+// ("Chiptune, upbeat, 140 bpm"), else the first words of what it sounds like.
+export function songTitle({ title, prompt } = {}, kind = 'music') {
+  const t = String(title || '').replace(/[\u0000-\u001f"<>]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (t) return t.slice(0, 60);
+  const p = String(prompt || '').replace(/[\u0000-\u001f"<>]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!p) return kind === 'music' ? 'Untitled song' : 'Sound effect';
+  const words = kind === 'music' ? p.split(/\s*,\s*/).filter(Boolean).slice(0, 3).join(', ') : p.split(' ').slice(0, 7).join(' ');
+  const short = words.length > 60 ? `${words.slice(0, 57).replace(/\s+\S*$/, '')}…` : words;
+  return short.charAt(0).toUpperCase() + short.slice(1);
+}
+// A file name people can recognise in their folder: 2026-11-03-rainy-day-lofi-1a2b3c4d.wav.
+export function songFileName(title, now = new Date()) {
+  const slug = String(title || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
+  return `${now.toISOString().slice(0, 10)}-${slug ? `${slug}-` : ''}${crypto.randomUUID().slice(0, 8)}.wav`;
+}
+
 // kind: 'music' | 'sfx'. Returns { file, name }.
-export async function makeAudio(cfg, kind, { prompt, lyrics, seconds }, { signal, onProgress }) {
+export async function makeAudio(cfg, kind, { prompt, lyrics, seconds, title }, { signal, onProgress }) {
   const can = audioReady(cfg);
   if (!can[kind]) throw new Error(kind === 'music' ? 'Music isn\'t set up yet. Get the audio tools in Settings (left menu), Show advanced settings, Engines & speed.' : 'Sound effects aren\'t set up yet. Get the audio tools in Settings (left menu), Show advanced settings, Engines & speed.');
   fs.mkdirSync(cfg.painterDir, { recursive: true });
-  const name = `${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID().slice(0, 8)}.wav`;
+  const name = songFileName(songTitle({ title, prompt }, kind));
   const out = path.join(cfg.painterDir, name);
   const job = { kind, prompt: String(prompt).slice(0, 1000), lyrics: lyrics ? String(lyrics).slice(0, 4000) : '', seconds: Math.min(kind === 'music' ? 240 : 20, Math.max(1, Number(seconds) || (kind === 'music' ? 30 : 5))), out };
   if (kind === 'music') {

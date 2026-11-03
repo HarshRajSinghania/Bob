@@ -1,5 +1,5 @@
 // Sessions (which brains stay loaded), parallel lanes, and Style settings cleaning.
-import { Brain, besideOk } from '../src/brain.js';
+import { Brain, besideOk, sideOk, sideBrain, SIDE_LANE } from '../src/brain.js';
 import { modelFor, laneOf, suggestSession, currentSession, sessionBrains, SESSIONS, waitsForGaming } from '../src/sessions.js';
 import { cleanStyle } from '../src/config.js';
 import { ENGINES, findRelease, pickAsset } from '../src/engines.js';
@@ -137,6 +137,25 @@ check('asking for a picture is still a picture job', Brain.guessKind('paint a dr
   check('beside a picture: a job with attached pictures (needs his eyes) waits', !besideOk(b, { refs: ['x'], effort: 'low' }, 'talk'));
   check('beside a picture: Medium effort and up (reviewer brain) waits', !besideOk(b, { refs: [], effort: 'medium' }, 'talk'));
   check('with Ollama nothing waits', besideOk({ ...b, cfg: { engine: 'ollama' } }, { refs: ['x'], effort: 'high' }, 'talk'));
+}
+// 1.5.41 "Keep chatting while Bob is busy": a plain chat goes beside a media step, on the small processor brain.
+{
+  const GB = 1024 ** 3;
+  const base = (over = {}) => ({ cfg: { engine: 'llamacpp', chatWhileBusy: true, models: { bob: 'big', small: 'small' }, sessionBrains: { small: 'small' } }, turns: new Map([['talk', {}]]), state: { state: 'painting' }, engine: {}, ...over });
+  const chat = { kind: 'chat', refs: [], effort: 'low' };
+  check('busy switch on, painting, room in RAM: a chat goes beside', sideOk(base(), chat, { freeMem: 16 * GB }));
+  check('on to start with (no setting saved)', sideOk(base({ cfg: { ...base().cfg, chatWhileBusy: undefined } }), chat, { freeMem: 16 * GB }));
+  check('switched off: it waits', !sideOk(base({ cfg: { ...base().cfg, chatWhileBusy: false } }), chat, { freeMem: 16 * GB }));
+  check('not in a media step (e.g. the big brain is writing code): it waits', !sideOk(base({ state: { state: 'thinking' } }), chat, { freeMem: 16 * GB }));
+  check('not enough free RAM: it waits', !sideOk(base(), chat, { freeMem: 5 * GB }));
+  check('a picture attached, Medium effort, or a picture request: it waits', !sideOk(base(), { ...chat, refs: ['x'] }, { freeMem: 16 * GB }) && !sideOk(base(), { ...chat, effort: 'medium' }, { freeMem: 16 * GB }) && !sideOk(base(), { ...chat, kind: 'picture' }, { freeMem: 16 * GB }));
+  check('only one reply beside a job at a time', !sideOk(base({ turns: new Map([['talk', {}], [SIDE_LANE, {}]]) }), chat, { freeMem: 16 * GB }));
+  check('Gaming: never (the processor is the game\'s)', !sideOk(base({ cfg: { ...base().cfg, session: 'light' } }), chat, { freeMem: 16 * GB }));
+  check('the reply beside always uses the small brain on the processor', JSON.stringify(sideBrain(base().cfg)) === JSON.stringify({ model: 'small', cpu: true }));
+  const src = fs.readFileSync(new URL('../src/handoff.js', import.meta.url), 'utf8');
+  check('the media job waits for that reply before loading its own brain back', /turns\?\.get\?\.\('side'\)/.test(src) && /sideIdle\?\.\(signal\)/.test(src));
+  const bsrc = fs.readFileSync(new URL('../src/brain.js', import.meta.url), 'utf8');
+  check('a second media step keeps the reply\'s processor brain loaded', /this\.turns\?\.has\(SIDE_LANE\)\) && this\.engine\.unloadGpu/.test(bsrc));
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

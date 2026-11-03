@@ -11,7 +11,7 @@ import { pickFolder } from './pick-folder.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { loadConfig, appDir, saveSettings, replaceSettings, cleanProjects, VERSION } from './config.js';
+import { loadConfig, appDir, saveSettings, replaceSettings, cleanProjects, VERSION, findOutput, saveDirProblem, applySaveDir } from './config.js';
 import { Brain } from './brain.js';
 import { transcribe } from './stt.js';
 import { ModelShop } from './models.js';
@@ -27,6 +27,7 @@ import { plan as uninstallPlan, startUninstall } from './uninstall.js';
 import { voiceList, publicView, sampleFor, clearSamples } from './voice-samples.js';
 import { checkUpdate, startUpdate, updateStatus, requestRestart } from './update.js';
 import { describe as describeFile, openFile, peek as peekFile } from './files.js';
+import { wavePeaks } from './wave.js';
 import { refuseForeign } from './guard.js';
 import { search } from './search.js';
 import { hkSettings, cleanHousekeeping, KINDS, UNITS } from './housekeeping.js';
@@ -45,6 +46,10 @@ const publicDir = path.join(appDir, 'public');
 function speedView() {
   const lc = cfg.llamacpp || {};
   return { fit: typeof lc.fit === 'boolean' ? lc.fit : null, threads: lc.threads || null, batch: lc.batch || null, ubatch: lc.ubatch || null, ctx: lc.ctx || null, draft: lc.draft || { enabled: false, model: '', max: 16, min: 1, ngld: 99 }, modelArgs: lc.modelArgs || {}, args: lc.args || null };
+}
+// 1.5.41 Where Bob saves things, as Settings shows it: the folder now, Bob's own, and whether a picked one has gone.
+function saveDirView() {
+  return { folder: cfg.painterDir, own: cfg.defaultPainterDir, picked: cfg.saveDir || '', custom: Boolean(cfg.saveDir) && !cfg.saveDirMissing, missing: cfg.saveDirMissing === true };
 }
 const clients = new Set();
 
@@ -239,11 +244,11 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && p === '/api/hardware') return send(res, 200, await shop.hardware());
     if (req.method === 'GET' && p === '/api/settings') {
-      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, lookText: lookText(cfg.look), personality: cleanPersonality(cfg.personality), lookComments: cfg.lookComments !== false, userName: cfg.userName || '', callMe: cfg.callMe || '', windowsName: cfg.windowsName || '', engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, allTools: cfg.allTools === true, resumeJobs: cfg.resumeJobs === true, quickOnCpu: cfg.quickOnCpu === true, webSearch: cfg.webSearch === true, gamingCard: gamingCard(cfg), gamingCardNow: brain.engine?.currentCard || null, pictureNoWait: cfg.pictureNoWait !== false, ...tuning(cfg), downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: keepTime(cfg), brainMode: brainMode(cfg), tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, windowsVoice: cfg.tts?.windowsVoice || '', voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg), hands: handsSettings(cfg), houseStyle: cleanHouseStyle(cfg.houseStyle), projectList: Object.entries(cfg.projects || {}).map(([name, p]) => ({ name, path: p, missing: !fs.existsSync(p) })), defaultProject: cfg.defaultProject || '' });
+      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, lookText: lookText(cfg.look), personality: cleanPersonality(cfg.personality), lookComments: cfg.lookComments !== false, userName: cfg.userName || '', callMe: cfg.callMe || '', windowsName: cfg.windowsName || '', engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, allTools: cfg.allTools === true, resumeJobs: cfg.resumeJobs === true, quickOnCpu: cfg.quickOnCpu === true, chatWhileBusy: cfg.chatWhileBusy !== false, webSearch: cfg.webSearch === true, gamingCard: gamingCard(cfg), gamingCardNow: brain.engine?.currentCard || null, pictureNoWait: cfg.pictureNoWait !== false, ...tuning(cfg), downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: keepTime(cfg), brainMode: brainMode(cfg), tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, windowsVoice: cfg.tts?.windowsVoice || '', voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg), hands: handsSettings(cfg), houseStyle: cleanHouseStyle(cfg.houseStyle), projectList: Object.entries(cfg.projects || {}).map(([name, p]) => ({ name, path: p, missing: !fs.existsSync(p) })), defaultProject: cfg.defaultProject || '', saveDir: saveDirView() });
     }
     if (req.method === 'POST' && p === '/api/pick-folder') { // 1.5.34 Settings > Projects: "Browse..."
       if (!isLocal) return send(res, 403, { error: 'Folders can only be picked on the PC itself.' });
-      try { return send(res, 200, { folder: await pickFolder() }); } catch (e) { return send(res, 200, { error: e.message }); }
+      try { const b = await body(req).catch(() => ({})); return send(res, 200, { folder: await pickFolder({ purpose: b?.purpose === 'save' ? 'save' : 'project' }) }); } catch (e) { return send(res, 200, { error: e.message }); }
     }
     if (req.method === 'POST' && p.startsWith('/api/models/') || req.method === 'POST' && p === '/api/settings') {
       if (!isLocal) return send(res, 403, { error: 'Downloads and settings can only be changed on the PC itself.' });
@@ -307,6 +312,19 @@ const server = http.createServer(async (req, res) => {
             out.projectList = Object.entries(cfg.projects || {}).map(([name, p]) => ({ name, path: p, missing: !fs.existsSync(p) }));
             out.defaultProject = cfg.defaultProject || '';
           }
+          // 1.5.41 Where Bob saves things (Settings): a folder the user picked, or '' for Bob's own (Made by Bob).
+          if (typeof b.saveDir === 'string') {
+            const want = b.saveDir.trim();
+            const bad = want ? saveDirProblem(cfg, want) : '';
+            if (bad) out.saveDirError = bad;
+            else {
+              const used = [...new Set([...(cfg.saveDirsUsed || []), ...(cfg.saveDir ? [cfg.saveDir] : [])])].slice(-10);
+              replaceSettings(cfg, { saveDir: want ? path.resolve(want) : '', saveDirsUsed: used });
+              applySaveDir(cfg);
+              brain.log('settings', `saving what Bob makes in ${cfg.painterDir}`);
+            }
+            out.saveDir = saveDirView();
+          }
           if ('lookComments' in b) { saveSettings(cfg, { lookComments: b.lookComments !== false }); out.lookComments = cfg.lookComments !== false; }
           if (b.style && typeof b.style === 'object') { saveSettings(cfg, { style: { ...(cfg.style || {}), ...b.style } }); out.style = cfg.style; }
           if (typeof b.session === 'string') { saveSettings(cfg, { session: b.session }); out.session = await brain.setSession(cfg.session || 'normal'); }
@@ -334,6 +352,7 @@ const server = http.createServer(async (req, res) => {
           for (const k of TUNING_KEYS) if (typeof b[k] === 'boolean') { saveSettings(cfg, { [k]: b[k] }); out[k] = cfg[k] === true; if (k === 'pictureFit') pictureFitReset(); }
           if (typeof b.webSearch === 'boolean') { saveSettings(cfg, { webSearch: b.webSearch }); out.webSearch = cfg.webSearch === true; }
           if (GAMING_CARD.includes(b.gamingCard)) { saveSettings(cfg, { gamingCard: b.gamingCard }); out.gamingCard = gamingCard(cfg); out.gamingCardNow = brain.engine?.currentCard || null; }
+          if (typeof b.chatWhileBusy === 'boolean') { saveSettings(cfg, { chatWhileBusy: b.chatWhileBusy }); out.chatWhileBusy = cfg.chatWhileBusy !== false; brain.pump?.(); }
           if (typeof b.quickOnCpu === 'boolean') { saveSettings(cfg, { quickOnCpu: b.quickOnCpu }); out.quickOnCpu = cfg.quickOnCpu === true; brain.applyBrainMode?.().catch?.(() => {}); }
           if (b.housekeeping && typeof b.housekeeping === 'object') {
             const cur = hkSettings(cfg), h = b.housekeeping, next = { ...cur };
@@ -542,6 +561,13 @@ const server = http.createServer(async (req, res) => {
       const r = peekFile(cfg, d.path, url.searchParams.get('max'));
       return r.ok ? send(res, 200, r) : send(res, 404, { error: 'not found' });
     }
+    // 1.5.41: a song's player: its title, style and lyrics (from the Made by Bob list) and the bars of its shape (wave.js).
+    if (req.method === 'GET' && p === '/api/song') {
+      const d = describeFile(cfg, url.searchParams.get('path') || '');
+      if (!d.ok || d.kind !== 'audio' || (!isLocal && !d.path.startsWith(path.resolve(cfg.innDir) + path.sep) && !brain.made.has(d.path))) return send(res, 404, { error: 'not found' });
+      const w = wavePeaks(d.path, url.searchParams.get('bars'));
+      return send(res, 200, { ok: true, name: d.name, bytes: d.bytes, ...(brain.made.songInfo(d.path) || {}), seconds: w.seconds, peaks: w.peaks });
+    }
     if (req.method === 'GET' && p === '/api/made') {
       const list = brain.made.list({ kind: url.searchParams.get('kind') || '', q: url.searchParams.get('q') || '', limit: Math.min(200, Number(url.searchParams.get('limit')) || 60) });
       const inn = path.resolve(cfg.innDir) + path.sep;
@@ -559,7 +585,10 @@ const server = http.createServer(async (req, res) => {
       catch (e) { return send(res, 409, { error: e.message }); }
     }
     if (req.method === 'GET' && p.startsWith('/images/')) {
-      return serveFile(res, cfg.painterDir, path.basename(decodeURIComponent(p.slice(8))));
+      const f = findOutput(cfg, decodeURIComponent(p.slice(8))); // 1.5.41: where Bob saves now, his own folder, or an older pick
+      // Over the home network, a folder the user picked only gives out what Bob made there (it can hold their own files too).
+      if (!isLocal && path.resolve(path.dirname(f)) !== path.resolve(cfg.defaultPainterDir) && !brain.made.has(f)) return send(res, 404, { error: 'not found' });
+      return serveFile(res, path.dirname(f), path.basename(f));
     }
     if (req.method === 'GET') return serveFile(res, publicDir, p === '/' ? 'index.html' : decodeURIComponent(p.slice(1)));
     send(res, 404, { error: 'not found' });

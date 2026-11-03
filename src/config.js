@@ -44,6 +44,7 @@ export function loadConfig() {
   cfg.dataDir = path.join(cfg.innDir, 'bob');
   cfg.ledgerDir = path.join(cfg.innDir, 'ledger');
   cfg.painterDir = path.join(cfg.innDir, 'painter');
+  cfg.defaultPainterDir = cfg.painterDir; // 1.5.41: Bob's own folder for what he makes; "Where Bob saves things" can pick another
   cfg.archiveDir = path.join(cfg.innDir, 'archive');
   cfg.noticeBoard = path.join(cfg.innDir, 'notice-board.md');
   cfg.logbook = path.join(cfg.innDir, 'logbook.md');
@@ -84,6 +85,7 @@ export function loadConfig() {
   // "What should Bob call you?" (Attributes, first-run). Kept in inn\bob\settings.json, never in config.json.
   if (cfg.callMe) cfg.userName = cfg.callMe;
   cfg.autostart = cfg.autostart === true; // opt-in: off unless the user turned it on
+  applySaveDir(cfg);
   return cfg;
 }
 
@@ -113,7 +115,7 @@ export const VERSION = (() => {
   } catch { return { release: '0.9', branch: '', build: 0, label: '0.9.0' }; }
 })();
 
-export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask', 'brainMode', 'allTools', 'quickOnCpu', 'quarantine', 'resumeJobs', 'pictureNoWait', 'readyWhileTyping', 'gamesFirst', 'pictureFit', 'webSearch', 'gamingCard', 'houseStyle', 'projectList', 'defaultProject'];
+export const SETTING_KEYS = ['engine', 'models', 'painter', 'stt', 'llamacpp', 'autostart', 'setupDone', 'gpuVramGB', 'maestro', 'look', 'cloudHelpers', 'tts', 'workshop', 'catName', 'oneBrain', 'ollamaKeepAlive', 'style', 'session', 'sessionBrains', 'sessionCtx', 'downloads', 'updates', 'housekeeping', 'personality', 'lookComments', 'lookChange', 'callMe', 'hands', 'scheduleTask', 'brainMode', 'allTools', 'quickOnCpu', 'chatWhileBusy', 'quarantine', 'resumeJobs', 'pictureNoWait', 'readyWhileTyping', 'gamesFirst', 'pictureFit', 'webSearch', 'gamingCard', 'houseStyle', 'projectList', 'defaultProject', 'saveDir', 'saveDirsUsed'];
 const LOCKED_LLAMACPP = ['exe', 'preArgs'];
 
 function deepMerge(into, from) {
@@ -140,9 +142,12 @@ function clean(patch) {
   if ('allTools' in out) out.allTools = out.allTools === true;
   if ('resumeJobs' in out) out.resumeJobs = out.resumeJobs === true; // 1.5.16, off unless switched on
   if ('quickOnCpu' in out) out.quickOnCpu = out.quickOnCpu === true;
+  if ('chatWhileBusy' in out) out.chatWhileBusy = out.chatWhileBusy !== false;
   if ('webSearch' in out) out.webSearch = out.webSearch === true;
   if ('houseStyle' in out) out.houseStyle = cleanHouseStyle(out.houseStyle); // 1.5.34 House style (public/house-style.js)
   if ('projectList' in out) out.projectList = cleanProjects(out.projectList); // 1.5.34 Projects in Settings
+  if ('saveDir' in out) out.saveDir = cleanDir(out.saveDir); // 1.5.41 Where Bob saves things ('' = Bob's own folder)
+  if ('saveDirsUsed' in out) out.saveDirsUsed = [].concat(out.saveDirsUsed || []).map(cleanDir).filter(Boolean).slice(0, 10);
   if ('defaultProject' in out) out.defaultProject = typeof out.defaultProject === 'string' ? out.defaultProject.slice(0, 60) : '';
   if ('gamingCard' in out) out.gamingCard = ['auto', 'never', 'always'].includes(out.gamingCard) ? out.gamingCard : 'auto'; // 1.5.32
   for (const k of ['readyWhileTyping', 'gamesFirst', 'pictureFit']) if (k in out) out[k] = out[k] === true; // 1.5.24, off unless switched on
@@ -267,6 +272,53 @@ export function cleanProjects(list) {
   }
   return out;
 }
+// ---------- 1.5.41: Where Bob saves things ----------
+// Pictures, clips, songs and sounds go to cfg.painterDir. That is Bob's own folder (inn\painter, shown as
+// "Made by Bob") unless the user picked another in Settings (saveDir). Folders used before stay readable
+// (saveDirsUsed), so pictures and songs in older chats still show after a change.
+// A picked folder that has gone (an unplugged drive) means saving in Bob's own folder until it's back.
+function cleanDir(d) {
+  const s = typeof d === 'string' ? d.replace(/[\u0000-\u001f]/g, '').trim() : '';
+  return s && path.isAbsolute(s) && s.length < 260 ? path.resolve(s) : '';
+}
+export function applySaveDir(cfg) {
+  const own = cfg.defaultPainterDir || cfg.painterDir;
+  cfg.defaultPainterDir = own;
+  const want = cleanDir(cfg.saveDir);
+  let ok = false;
+  try { ok = Boolean(want) && fs.statSync(want).isDirectory(); } catch {}
+  cfg.painterDir = ok ? want : own;
+  cfg.saveDirMissing = Boolean(want) && !ok;
+  return cfg;
+}
+// Every folder Bob's pictures and songs may be in: where he saves now first, then his own, then older picks.
+export function outputDirs(cfg) {
+  const all = [cfg.painterDir, cfg.defaultPainterDir, cfg.saveDir, ...(cfg.saveDirsUsed || [])].map(cleanDir).filter(Boolean);
+  const seen = new Set();
+  return all.filter((d) => { const k = norm(d); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+// The file a /images/<name> link or a bare file name Bob made points at: the first folder that has it
+// (or where he saves now, when none has it yet).
+export function findOutput(cfg, name) {
+  const base = path.basename(String(name || ''));
+  for (const d of outputDirs(cfg)) { const f = path.join(d, base); if (fs.existsSync(f)) return f; }
+  return path.join(cfg.painterDir, base);
+}
+// Why a folder can't hold what Bob makes, or '' if it can. Bob's own code, settings and backups stay off-limits.
+export function saveDirProblem(cfg, dir) {
+  const d = cleanDir(dir);
+  if (!d) return 'Type the whole folder path, like D:\\Bob pictures, or use Browse… to pick it.';
+  let st = null;
+  try { st = fs.statSync(d); } catch {}
+  if (!st) return "Bob can't find that folder. Check the spelling, or use Browse… to pick it.";
+  if (!st.isDirectory()) return 'That\'s a file, not a folder. Pick the folder it\'s in, or use Browse….';
+  if (/^[a-z]:\\?$/i.test(d) || d === path.parse(d).root) return 'Pick a folder, not a whole drive.';
+  if ((cfg.ownReadOnlyRoots || []).some((r) => isInside(r, d))) return 'That\'s Bob\'s own program or settings folder. Pick another one.';
+  const probe = path.join(d, `.bob-write-test-${process.pid}`);
+  try { fs.writeFileSync(probe, ''); fs.rmSync(probe, { force: true }); } catch { return `Bob isn't allowed to save in ${d}. Pick a folder you can save files in.`; }
+  return '';
+}
+
 function applyProjects(cfg) {
   if (Array.isArray(cfg.projectList)) cfg.projects = Object.fromEntries(cfg.projectList.map((p) => [p.name, p.path]));
   if (cfg.defaultProject && !(cfg.projects || {})[cfg.defaultProject]) cfg.defaultProject = '';

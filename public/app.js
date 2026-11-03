@@ -21,6 +21,7 @@ import { quarantineCard, quarantineResult, createQuarantineBanner } from './quar
 import { createEffort } from './effort.js';
 import { createCatAntics } from './cat-antics.js';
 import { createViewer, outCard, fillPeeks } from './viewer.js';
+import { songListHtml, wireSongs } from './song-player.js';
 import { moreBar } from './more-bar.js';
 
 const cellar = createCellar();
@@ -106,10 +107,22 @@ function ensureReply(ev) {
 }
 // 1.5.11: a reply's pictures, sounds and clips live in the same bubble as its words (as history shows them), so
 // the words arriving later never wipe them and an image-only bubble never collapses to an empty box.
-function drawReply(r) { r.el.innerHTML = render(r.text.replace(/^\s+/, '').replace(/\s+$/, '')) + mediaHtml(r.media); if (r.media.length) fillPeeks(r.el); }
+// 1.5.41: while the words stream in, the cards already there stay as they are (not drawn again), so a song that's
+// playing keeps playing and a picture doesn't flicker. The cards sit in .reply-media (display: contents).
+function drawReply(r) {
+  const words = render(r.text.replace(/^\s+/, '').replace(/\s+$/, ''));
+  const key = r.media.map((m) => m.url).join('\n');
+  const keep = key && r.mediaKey === key ? r.el.querySelector(':scope > .reply-media') : null;
+  r.mediaKey = key;
+  if (!keep) { r.el.innerHTML = words + (r.media.length ? `<div class="reply-media">${mediaHtml(r.media)}</div>` : ''); if (r.media.length) fillPeeks(r.el); return; }
+  const tpl = document.createElement('template');
+  tpl.innerHTML = words;
+  for (const c of [...r.el.childNodes]) if (c !== keep) c.remove();
+  r.el.insertBefore(tpl.content, keep);
+}
 function addMedia(ev, type) {
   const r = ensureReply(ev);
-  const item = { type, url: ev.url, name: decodeURIComponent(String(ev.url).split('/').pop() || '') };
+  const item = { type, url: ev.url, name: decodeURIComponent(String(ev.url).split('/').pop() || ''), ...(ev.song?.title ? { title: ev.song.title, sound: ev.song.sound } : {}) };
   r.media.push(item); drawReply(r); scrollDown();
   viewer.made([{ ...item, kind: type }]); // the side panel shows it too, if it's open
   return r;
@@ -633,10 +646,14 @@ function mediaHtml(media) {
   const items = media.map((m) => ({ ...m, kind: m.kind || (m.type === 'file' ? 'file' : m.type) }));
   // 1.5.21: two or more pictures or clips sit in a grid sized to fit the window, so all of them show without scrolling.
   const visual = items.filter((m) => m.kind === 'image' || m.kind === 'video');
-  if (visual.length < 2) return items.map(outCard).join('');
+  // 1.5.41: songs and sounds get the song player; two or more sit in a list that plays one after another.
+  const songs = items.filter((m) => m.kind === 'audio' && m.url);
+  const rest = items.filter((m) => !visual.includes(m) && !songs.includes(m)).map(outCard).join('');
+  const sounds = songs.length ? songListHtml(songs) : '';
+  if (visual.length < 2) return visual.map(outCard).join('') + sounds + rest;
   const cols = Math.ceil(Math.sqrt(visual.length)), rows = Math.ceil(visual.length / cols);
   const grid = `<div class="media-grid" style="--cols:${cols};--rows:${rows}">${visual.map(outCard).join('')}</div>`;
-  return grid + items.filter((m) => !visual.includes(m)).map(outCard).join('');
+  return grid + sounds + rest;
 }
 // ---------- Copy buttons and file cards (right-click and Ctrl+C often don't get through remote desktop) ----------
 const rawText = new WeakMap();
@@ -723,6 +740,7 @@ function picsHtml(pics) {
 
 // Every message is its own job in Bob's queue: send as many as you like, none get dropped.
 const jobBubbles = new Map();
+wireSongs(); // 1.5.41 the song player's clicks, keys and dragging
 const more = moreBar({ composer: $('composer'), post, focus: () => $('input').focus() });
 $('composer').onsubmit = async (e) => {
   e.preventDefault();

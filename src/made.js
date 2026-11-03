@@ -46,13 +46,27 @@ export class Made {
   }
 
   // Add one file Bob made. Returns what the chat shows for it (or null if it isn't there or isn't allowed).
-  add(file, { tool = '', chat = '' } = {}) {
+  // song (1.5.41): a song's or sound's title, style and lyrics, for its player in the chat (songInfo).
+  add(file, { tool = '', chat = '', song = null } = {}) {
     const d = describe(this.cfg, file);
     if (!d.ok) return null;
     const list = this.load().filter((x) => path.resolve(x.path).toLowerCase() !== path.resolve(d.path).toLowerCase());
-    list.unshift({ path: d.path, at: Date.now(), tool: String(tool).slice(0, 40), chat: String(chat).slice(0, 80) });
+    const s = cleanSong(song);
+    list.unshift({ path: d.path, at: Date.now(), tool: String(tool).slice(0, 40), chat: String(chat).slice(0, 80), ...(s ? { song: s } : {}) });
     this.save(list);
     return view(d, list[0]);
+  }
+
+  // Whether Bob made (or saved) this file.
+  has(file) {
+    const key = path.resolve(String(file || '')).toLowerCase();
+    return this.load().some((x) => path.resolve(x.path).toLowerCase() === key);
+  }
+
+  // What the list knows about one song or sound (title, style, lyrics, music or sfx), or null.
+  songInfo(file) {
+    const key = path.resolve(String(file || '')).toLowerCase();
+    return this.load().find((x) => path.resolve(x.path).toLowerCase() === key)?.song || null;
   }
 
   // Newest first. kind: image / video / audio / document / folder / file (or empty for all). q: words in the name.
@@ -67,9 +81,12 @@ export class Made {
     }
     // Pictures, clips and sounds in the painter folder that the list doesn't know about yet.
     try {
-      for (const n of fs.readdirSync(this.cfg.painterDir)) {
+      // 1.5.41: Bob's own folder only. A folder the user picked for saving can hold their own files, which
+      // aren't "made by Bob"; what he saves there is on the list already (add()).
+      const own = this.cfg.defaultPainterDir || this.cfg.painterDir;
+      for (const n of fs.readdirSync(own)) {
         if (!MEDIA.test(n)) continue;
-        const p = path.join(this.cfg.painterDir, n);
+        const p = path.join(own, n);
         const key = path.resolve(p).toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
@@ -95,8 +112,18 @@ export class Made {
   }
 }
 
+// 1.5.41: what a song card shows. Short plain text only; lyrics at most 4000 characters.
+export function cleanSong(song) {
+  if (!song || typeof song !== 'object') return null;
+  const line = (v, n) => String(v || '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
+  const out = { title: line(song.title, 80), style: line(song.style, 200), sound: song.sound === 'sfx' ? 'sfx' : 'music' };
+  const lyrics = String(song.lyrics || '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f]/g, '').trim().slice(0, 4000);
+  if (lyrics) out.lyrics = lyrics;
+  return out.title || out.style || out.lyrics ? out : null;
+}
+
 function view(d, x) {
-  return { type: 'file', kind: kindOf(d), name: d.name, path: d.path, url: d.url, bytes: d.bytes, canOpen: d.canOpen, at: x.at, tool: x.tool || '' };
+  return { type: 'file', kind: kindOf(d), name: d.name, path: d.path, url: d.url, bytes: d.bytes, canOpen: d.canOpen, at: x.at, tool: x.tool || '', ...(x.song?.title ? { title: x.song.title, sound: x.song.sound } : {}) };
 }
 
 const WORDS = { picture: 'image', pictures: 'image', image: 'image', images: 'image', photo: 'image', pic: 'image', video: 'video', clip: 'video', clips: 'video', sound: 'audio', sounds: 'audio', song: 'audio', music: 'audio', audio: 'audio', document: 'document', documents: 'document', doc: 'document', spreadsheet: 'document', file: '', files: '', anything: '' };

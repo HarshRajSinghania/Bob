@@ -207,6 +207,14 @@ export class Gate {
 
   async needBrain({ model, opts = {} }, { signal, emit, who, announce }) {
     const ledger = this.ledgerOf(signal);
+    // 1.5.41: a quick reply is running beside this job on the small brain (Keep chatting while Bob is busy). Let it
+    // finish before loading another brain, which would stop it mid-sentence.
+    const side = this.brain.turns?.get?.('side');
+    if (side && side.controller?.signal !== signal) {
+      this.brain.setState?.('waiting', 'Finishing a quick reply first');
+      await this.brain.sideIdle?.(signal);
+      if (signal?.aborted) throw new Error('Stopped.');
+    }
     // A brain on the processor doesn't need the card; everything else holds the lease until the turn ends.
     if (!opts.cpu) await this.hold(signal, `the ${this.label(model, who).replace(/ \(.*$/, '')}`, emit);
     const tryLoad = async (m, o) => {
