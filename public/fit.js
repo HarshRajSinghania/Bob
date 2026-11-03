@@ -12,7 +12,9 @@ export const BRAIN_SLOTS = ['bob', 'small', 'gaming', 'deep', 'tinker', 'reviewe
 const isE4b = (...names) => names.some((n) => /e4b/i.test(String(n || '')));
 
 // The starter set for this PC's graphics card.
-export const packFor = (packs, vramGB) => packs.find((p) => (vramGB || 0) >= p.minVramGB) || packs.at(-1);
+// 1.5.71: graphics built into the processor (shared memory) get the set made for them; cards are picked by size.
+export const packFor = (packs, vramGB, integrated = false) => (integrated && packs.find((p) => p.integrated))
+  || packs.filter((p) => !p.integrated).find((p) => (vramGB || 0) >= p.minVramGB) || packs.filter((p) => !p.integrated).at(-1);
 
 // Billions of parameters from a model name (gemma4:e4b, qwen3-coder:30b, gpt-oss:20b), or null.
 export function paramsB(name) {
@@ -119,7 +121,7 @@ export function pickFor(slotId, models, ctx = {}) {
     const light = pool.some((m) => coverJobs(m).length > n);
     return { id: best.id, why: `${light ? 'Light, so it leaves room on your card for longer chats' : n > 1 ? `Covers ${n} jobs, so fewer brain swaps` : 'Made for this job'} · ${load}` };
   }
-  const pack = ctx.packs?.length ? packFor(ctx.packs, ctx.vramGB) : null;
+  const pack = ctx.packs?.length ? packFor(ctx.packs, ctx.vramGB, ctx.integrated) : null;
   const id = Object.entries(pack?.slots || {}).find(([, slots]) => slots.includes(slotId))?.[0];
   const m = id && models.find((x) => x.id === id);
   if (!m) return null;

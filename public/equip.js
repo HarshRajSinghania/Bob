@@ -101,7 +101,7 @@ const REC_TAG = '<span class="tag rec">★ Recommended for this job on your PC</
 const FIT_TAG = '<span class="tag">Fits your card</span>';
 function fitTags(f, ctx = {}) {
   if (f.level === 'unknown') return '<span class="muted fit-why">Not in Bob\'s list, so he can\'t say how well it runs here.</span>';
-  const tags = `${f.rec ? `${REC_TAG}<span class="muted fit-why">${esc(f.recWhy)}</span>` : ''}${f.fits && !f.rec ? (ctx?.unified ? FIT_TAG.replace('your card', 'your Mac') : FIT_TAG) : ''}${f.level !== 'ok' && !f.rec ? `<span class="tag warn">${f.level === 'blocked' ? 'Can\'t install on this PC' : 'Doesn\'t suit this PC'}</span>` : ''}`;
+  const tags = `${f.rec ? `${REC_TAG}<span class="muted fit-why">${esc(f.recWhy)}</span>` : ''}${f.fits && !f.rec ? (ctx?.integrated ? FIT_TAG.replace('your card', 'your PC') : ctx?.unified ? FIT_TAG.replace('your card', 'your Mac') : FIT_TAG) : ''}${f.level !== 'ok' && !f.rec ? `<span class="tag warn">${f.level === 'blocked' ? 'Can\'t install on this PC' : 'Doesn\'t suit this PC'}</span>` : ''}`;
   return `${tags}${f.why ? `<span class="muted fit-why">${esc(f.why)}</span>` : ''}`;
 }
 
@@ -213,7 +213,7 @@ export function starterPlan(pack, models, engines, picked) {
 export function starterHtml(ctx) {
   const packs = ctx.packs || [];
   if (!packs.length) return '';
-  const pack = packs.find((p) => p.id === ctx.packId) || packFor(packs, ctx.vramGB);
+  const pack = packs.find((p) => p.id === ctx.packId) || packFor(packs, ctx.vramGB, ctx.integrated);
   const picked = ctx.picks || starterTicks(pack, ctx.models, ctx.vramGB);
   const { ids } = starterPlan(pack, ctx.models, ctx.engines || [], picked);
   const total = ids.reduce((n, id) => n + (ctx.models.find((m) => m.id === id)?.sizeGB || 0), 0);

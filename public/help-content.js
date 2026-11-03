@@ -291,8 +291,8 @@ ${set('Alerts', 'Off', 'Pops up a Windows notification when I need you, for exam
 <li>Brains I found on this PC that aren't in my list sit at the end under <strong>Other brains on this PC</strong>, with their own Active switch.</li></ul>
 <p>Short version: the catalogue is the shop window, the slots are the shelf you actually reach for.</p>` },
 
-  { id: 'starter', group: 'Models', title: 'Starter sets', words: 'starter set pack 16 gb 8 gb 6 gb laptop processor only commercial equip starter set',
-    html: `<p>A starter set is a ready-made selection for your kind of graphics card: 16 GB or more, 8 GB, 6 GB (most laptops), or no graphics card. I pick the set by reading your card, and mark it <em>(this PC)</em>. You can pick another set and untick anything before you confirm.</p>
+  { id: 'starter', group: 'Models', title: 'Starter sets', words: 'starter set pack 16 gb 8 gb 6 gb laptop processor only built-in graphics shared memory handheld commercial equip starter set',
+    html: `<p>A starter set is a ready-made selection for your kind of graphics card: 16 GB or more, 8 GB, 6 GB (most laptops), built-in graphics (handhelds and thin laptops), or no graphics card. I pick the set by reading your card, and mark it <em>(this PC)</em>. You can pick another set and untick anything before you confirm.</p>
 <p>Everything in the starter sets is free to use, including for commercial work. The "8 GB" and "6 GB" versions are the same models squeezed to fit smaller cards: pictures lose a little fine detail but look much the same.</p>` },
 
   { id: 'memory-brains', group: 'Models', title: 'Memory, brains and swaps', words: 'free memory idle unload picture wait small brain big brain swap one brain context graphics memory ram keep light tools all tools at once',
@@ -688,7 +688,9 @@ ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for ti
   { id: 'faq-stop-moving', group: 'FAQ', title: 'Can I stop Bob and the cat moving?', words: 'faq stop moving animations still motion distracting cat antics off',
     html: `<p>Yes. Set <strong>Animations</strong> on the Style page to Off and we both keep still. Follow Windows does it whenever Windows' animation effects are off. My mouth still moves when I talk, so you can tell I'm talking.</p>` },
   { id: 'faq-no-gpu', group: 'FAQ', title: 'Do I need a graphics card?', words: 'faq graphics card gpu nvidia needed processor only',
-    html: `<p>No. I can chat, plan, read pictures, hear you and talk with no graphics card at all, just slower. An NVIDIA card makes me much faster and lets me paint and make clips.</p>` },
+    html: `<p>No. I can chat, plan, read pictures, hear you and talk with no graphics card at all, just slower. An NVIDIA card makes me much faster and lets me paint and make clips. Graphics built into the processor, like a handheld's, help too: I use them for my brains (not for pictures or video yet).</p>` },
+  { id: 'faq-built-in-graphics', group: 'FAQ', title: 'Does Bob use built-in graphics, like a handheld\'s?', words: 'faq built-in integrated graphics igpu amd radeon 780m 890m z1 extreme legion go rog ally steam deck intel arc iris shared memory handheld laptop vulkan',
+    html: `<p>Yes. If your PC has no NVIDIA card but its processor has good graphics built in (AMD's in Ryzen laptop and handheld chips like the Z1 Extreme, or Intel Arc and Iris Xe), I spot them and show them in Get models as built-in graphics, with the memory they share with the rest of the PC. I count about half the PC's memory as theirs, and suggest the <strong>Built-in graphics (handhelds and thin laptops)</strong> starter set. My brain engine runs on them through Vulkan, which is faster than the processor alone.</p><p>That set is brains only for now: pictures and video aren't in it until they've been tried on built-in graphics. A desktop Ryzen's small built-in graphics are slower than its processor, so there I stay on the processor. If the PC also has a separate AMD or Intel card, I don't use either yet, and run on the processor.</p>` },
   { id: 'faq-undo', group: 'FAQ', title: 'Bob changed a file. Can I undo it?', words: 'faq undo file recycle bin restore',
     html: `<p>Yes, for the Files Hand: say "undo that" or use <strong>Undo</strong> in Settings, Hands, Recent file jobs. Anything I removed is in the Recycle Bin (while <em>Recycle Bin only</em> is on). Every action is listed in my logbook (inn\\logbook.md).</p>` },
   { id: 'faq-stop', group: 'FAQ', title: 'How do I stop Bob right now?', words: 'faq stop now kill cancel emergency',
@@ -732,6 +734,7 @@ ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for ti
 <dt>GitHub release</dt><dd>A finished version of me published on github.com/MouseWurX/Bob, with a file for each kind of computer. <strong>Update Bob</strong> uses the one marked Latest.</dd>
 <dt>Checksum (.sha256)</dt><dd>A long number worked out from a file's contents. If even one byte changes, so does the number, so matching it proves the file is exactly the one on my GitHub release page. I'm not code-signed yet, so Windows or macOS may still warn the first time after an update.</dd>
 <dt>Brain</dt><dd>A model that thinks and chats. Bigger brains are usually smarter but slower and need more memory.</dd>
+<dt>Built-in graphics</dt><dd>Graphics that are part of the processor and share the PC's memory, as in handhelds and thin laptops. Bob runs his brains on them.</dd>
 <dt>Link hand-off</dt><dd>With the Quick brain on the processor, a message with a link goes to the main Brain instead, which reads web pages better. Not in Gaming.</dd>
 <dt>Thinking first</dt><dd>Some brains think quietly before they answer. With Qwen3.6, coding jobs always do; everyday chat at Low answers straight away.</dd>
 <dt>Borrowed brain</dt><dd>When another of your Bobs thinks a quick reply for me over Tailscale (📡 in the chat). I still run the tools.</dd>

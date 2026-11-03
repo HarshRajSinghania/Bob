@@ -12,6 +12,7 @@ import { ENGINES, engineStatus, installEngine, latestEngine } from './engines.js
 import { audioReady, voicesReady, aceModelsDir, aceFileOk, tidyAceCache } from './audio.js';
 import { maestroModels } from './maestro.js';
 import { gpuInfo } from './platform.js';
+import { packFor } from '../public/fit.js';
 
 const MODEL_EXT = new Set(['.gguf', '.safetensors', '.ckpt', '.pt', '.pth', '.bin', '.sft']);
 const SKIP = new Set(['node_modules', '.git', '__pycache__', 'site-packages', 'venv', '.venv', 'env', 'cache', '.cache', 'Lib', 'include', 'temp', 'tmp', 'logs', 'blobs']);
@@ -277,12 +278,13 @@ export class ModelShop {
   }
 
   async hardware() {
-    // NVIDIA cards through nvidia-smi; a Mac's share of its shared memory (src/platform.js).
+    // NVIDIA cards through nvidia-smi; a Mac's share of its shared memory; built-in graphics (src/platform.js).
     const gpu = await gpuInfo();
     let freeGB = null;
     try { const s = fs.statfsSync(this.cfg.agentDir); freeGB = Math.round((s.bavail * s.bsize) / 1e9); } catch {}
     const vram = gpu?.vramGB ?? this.cfg.gpuVramGB ?? 0;
-    const pack = this.catalog.packs.find((p) => vram >= p.minVramGB) || this.catalog.packs.at(-1);
+    // 1.5.71: built-in graphics get their own set (brains only: pictures and video aren't tested there yet).
+    const pack = packFor(this.catalog.packs, vram, Boolean(gpu?.integrated));
     const ramGB = Math.round(os.totalmem() / 1024 ** 3) || null; // for brains that spill out of the graphics card into RAM
     return { gpu, freeGB, vramGB: vram || null, ramGB, suggestedPack: pack.id };
   }

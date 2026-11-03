@@ -117,7 +117,7 @@ export function createCellar() {
     // Three separate things: Bob's pick for a job on this PC (★), fits the card (quiet), or doesn't suit (with why).
     const badge = covered(m) ? '<span class="tag good">Faster replies after voice notes</span>'
       : mine.length ? `<span class="tag rec">★ Recommended for your PC: ${esc(mine.map((id) => SLOT_NAMES[id]).join(', '))}</span>`
-      : fit.level === 'ok' ? (fit.fits ? `<span class="tag">${hw?.gpu?.unified ? 'Fits your Mac' : 'Fits your card'}</span>` : '')
+      : fit.level === 'ok' ? (fit.fits ? `<span class="tag">${hw?.gpu?.integrated ? 'Fits your PC' : hw?.gpu?.unified ? 'Fits your Mac' : 'Fits your card'}</span>` : '')
       : fit.level === 'blocked' ? '<span class="tag bad">Can\'t install on this PC</span>' : '<span class="tag warn">Doesn\'t suit this PC</span>';
     const dim = fit.level !== 'ok' && !mine.length && m.status.state !== 'installed' ? ' dim' : '';
     const jobs = jobNames(m);
@@ -179,7 +179,7 @@ export function createCellar() {
     const card = hw?.gpu?.unified ? `${esc(hw.gpu.name.replace(/ \(shared memory\)$/, ''))}, memory shared with graphics (about ${hw.gpu.vramGB} GB of it for models)` : hw?.gpu ? `${esc(hw.gpu.name)} (${hw.gpu.vramGB} GB graphics memory)` : hw?.vramGB ? `a ${hw.vramGB} GB graphics card (set in Bob's settings; not detected right now)` : 'no graphics card found';
     return `<div class="fit-banner"><p><strong>Picked for this PC:</strong> ${card}${hw?.ramGB ? `, ${hw.ramGB} GB RAM` : ''}. <button type="button" class="mini help-link" data-help="recommended" aria-label="Help: how Bob picks models">? How Bob picks</button></p>
       ${picksSummary()}
-      <p class="muted"><span class="tag rec">★ Recommended</span>: Bob's pick for that job on your PC. <span class="tag">${hw?.gpu?.unified ? 'Fits your Mac' : 'Fits your card'}</span>: also runs well here, just not the first pick.</p>
+      <p class="muted"><span class="tag rec">★ Recommended</span>: Bob's pick for that job on your PC. <span class="tag">${hw?.gpu?.integrated ? 'Fits your PC' : hw?.gpu?.unified ? 'Fits your Mac' : 'Fits your card'}</span>: also runs well here, just not the first pick.</p>
       ${pillSwitch('unsuitedsw', showUnsuited, 'Show models that don\'t suit this PC', 'Off unless you turn it on. Each one says why it doesn\'t suit.')}</div>`;
   }
   function groupHtml(g) {
@@ -434,7 +434,7 @@ export function createCellar() {
       ${sswitch('webSearch', settings.webSearch === true, 'Let Bob search the web', keep('Off unless you turn it on. Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page addresses leave your PC.'))}
       ${sswitch('autoCheck', settings.updates?.autoCheck, 'Check for updates when Bob starts', 'Off unless you turn it on. Bob looks at his GitHub page for a newer version and only tells you; updating always takes your click.')}
 `)}${EVERY_EXTRA.map(([id, label, note, body]) => panel(id, label, typeof note === 'function' ? note() : note, body())).join('')}${panel('ev-pc', settings.os === 'mac' ? '💻 This Mac and updates' : '💻 This PC and updates', pcSum, `
-      <div class="updates srow-foot"><span class="muted">Bob ${esc(settings.version?.label || '')} · ${hw?.gpu?.unified ? `Chip: ${esc(hw.gpu.name)}, about ${hw.gpu.vramGB} GB of it for graphics` : `Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'}`} · Free disk: ${hw?.freeGB ?? '?'} GB</span>
+      <div class="updates srow-foot"><span class="muted">Bob ${esc(settings.version?.label || '')} · ${hw?.gpu?.integrated ? `Built-in graphics: ${esc(hw.gpu.name.replace(/ \(shared memory\)$/, ''))}, using up to about ${hw.gpu.vramGB} GB of your RAM` : hw?.gpu?.unified ? `Chip: ${esc(hw.gpu.name)}, about ${hw.gpu.vramGB} GB of it for graphics` : `Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'}`} · Free disk: ${hw?.freeGB ?? '?'} GB</span>
         <div class="row"><button type="button" data-checkupdate>Check for updates</button><button type="button" data-welcome>Run first-time setup</button>${settings.features?.pcCheck === false ? '' : '<button type="button" data-pccheck>Check this PC</button>'}<span class="update-out muted"></span></div>
         <div class="update-steps"></div><div class="pc-check" aria-live="polite"></div></div>`)}
     </div>`;
@@ -451,7 +451,7 @@ export function createCellar() {
   // 1.5.32: a three-position switch for how the Gaming session uses the graphics card.
   const GCARD_NOW = { none: 'processor only', borrow: 'borrowing about 0.6 GB', whole: 'small brain on the card (processor busy)' };
   function gamingCardHtml() {
-    if (settings.features?.gamingCard === false) return ''; // a Mac shares its memory: there's no separate card to lend
+    if (settings.features?.gamingCard === false || hw?.gpu?.integrated) return ''; // a Mac or built-in graphics share memory: no separate card to lend
     const cur = settings.gamingCard || 'auto';
     const opts = [['auto', 'Automatic', 'Bob borrows about 0.6 GB of the card only when your game leaves room, and none while the game needs it. If your processor is maxed out, Bob\'s small brain (about 3.5 GB) moves onto the card instead, but only when it fits with room to spare.'],
       ['never', 'Never use the card', 'Processor only: the card is all yours. Bob\'s first reply after loading can take about half a minute, sometimes longer.'],
@@ -644,7 +644,7 @@ export function createCellar() {
   let houseFocus = null; // 1.5.34: "Change" on a "Used your house style" line opens that House style box
   let eqSelected = 'bob', eqView = (() => { try { return localStorage.getItem('bob-equip-view') || 'doll'; } catch { return 'doll'; } })();
   function eqCtx() {
-    return { roles, models: data?.models || [], brains: settings?.sessionBrains || {}, embed: roles?.current?.embed || '', selected: eqSelected, vramGB: hw?.vramGB || hw?.gpu?.vramGB || null, unified: Boolean(hw?.gpu?.unified), ramGB: hw?.ramGB || null, freeGB: hw?.freeGB ?? null, platform: settings?.platform, showUnsuited,
+    return { roles, models: data?.models || [], brains: settings?.sessionBrains || {}, embed: roles?.current?.embed || '', selected: eqSelected, vramGB: hw?.vramGB || hw?.gpu?.vramGB || null, unified: Boolean(hw?.gpu?.unified), integrated: Boolean(hw?.gpu?.integrated), ramGB: hw?.ramGB || null, freeGB: hw?.freeGB ?? null, platform: settings?.platform, showUnsuited,
       packs: data?.packs || [], packId: starterPack, picks: starterPicks, engines: data?.engines || [], starterOpen,
       houseStyle: settings?.houseStyle || {}, active: settings?.activeModels || {},
       attributes: settings ? attributesHtml({ personality: settings.personality, look: settings.look, lookText: settings.lookText, lookComments: settings.lookComments, user: settings.userName, callMe: settings.callMe, windowsName: settings.windowsName }) : '' };
@@ -654,7 +654,7 @@ export function createCellar() {
   const PLAN_KEY = 'bob-starter-plan';
   const readPlan = () => { try { return JSON.parse(localStorage.getItem(PLAN_KEY) || '{}'); } catch { return {}; } };
   const savePlan = (p) => { try { Object.keys(p).length ? localStorage.setItem(PLAN_KEY, JSON.stringify(p)) : localStorage.removeItem(PLAN_KEY); } catch {} };
-  const currentPack = () => { const ps = data?.packs || []; return ps.find((p) => p.id === starterPack) || packFor(ps, eqCtx().vramGB); };
+  const currentPack = () => { const ps = data?.packs || []; return ps.find((p) => p.id === starterPack) || packFor(ps, eqCtx().vramGB, eqCtx().integrated); };
   const currentPicks = () => starterPicks || starterTicks(currentPack(), data.models, eqCtx().vramGB);
   // Put each starter model that is now on this PC into its slots (the person pressed "Equip starter set" for this).
   async function applyStarter() {

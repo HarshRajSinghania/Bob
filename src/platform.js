@@ -117,9 +117,45 @@ export async function gpuInfo({ os_ = OS, execImpl = execFile, arch = process.ar
     return { name: `${chip} (shared memory)`, vramGB: unifiedGraphicsGB(totalmem), unified: true };
   }
   const out = await run('nvidia-smi', ['--query-gpu=name,memory.total', '--format=csv,noheader,nounits'], 5000, execImpl);
-  if (!out) return null;
-  const [name, mb] = out.split('\n')[0].split(',').map((s) => s.trim());
-  return name ? { name, vramGB: Math.round(Number(mb) / 1024) } : null;
+  const [name, mb] = (out || '').split('\n')[0].split(',').map((s) => s.trim());
+  if (name) return { name, vramGB: Math.round(Number(mb) / 1024) };
+  // 1.5.71: no NVIDIA card: graphics built into the processor (handhelds, thin laptops), like the Radeon 780M.
+  return integratedGpu({ os_, execImpl, totalmem });
+}
+
+// ---- 1.5.71: graphics built into the processor ----
+// Windows lets built-in graphics borrow up to half the PC's memory, so that's what Bob counts as its "graphics memory".
+// The engine already runs on it (the Vulkan build of llama.cpp is what Bob fetches without an NVIDIA card).
+export function sharedGraphicsGB(totalBytes = os.totalmem()) { return Math.floor(totalBytes / 1024 ** 3 / 2); }
+// A separate card next to it (AMD Radeon RX, Intel Arc A/B, NVIDIA): not handled here, so Bob stays on the processor.
+const DISCRETE = /Radeon\s*(?:\(TM\)\s*)?(?:RX|Pro)\b|\bRX\s?\d{3,4}|Arc\s*(?:\(TM\)\s*)?[AB]\d{3}|NVIDIA|GeForce|Quadro/i;
+// AMD's built-in graphics are worth using only in laptop and handheld chips (Z1/Z2, HS/H/HX/U, Ryzen AI). The tiny
+// one in desktop Ryzen chips (like the 9800X3D) is slower than the processor itself, so it doesn't count.
+const AMD_MOBILE_CPU = /Ryzen.*\b(?:Z\d\b|Z\d\s|AI\b|\d{4}(?:HS|HX|H|U)\b)|Ryzen\s+AI/i;
+const AMD_GPU = /\bAMD\b|\bATI\b|Radeon/i;
+// Intel: the newer Arc and Iris Xe graphics; the older UHD graphics are too slow to help.
+const INTEL_GOOD = /Intel.*(?:Arc\s*(?:\(TM\)\s*)?Graphics|Iris)/i;
+export function pickIntegrated(names = [], cpu = '') {
+  const list = names.map((n) => String(n || '').trim()).filter(Boolean);
+  if (!list.length || list.some((n) => DISCRETE.test(n))) return null;
+  return list.find((n) => INTEL_GOOD.test(n)) || (AMD_MOBILE_CPU.test(cpu) ? list.find((n) => AMD_GPU.test(n)) : null) || null;
+}
+let integratedCache = null;
+export async function integratedGpu({ os_ = OS, execImpl = execFile, totalmem = os.totalmem(), cpu = os.cpus()?.[0]?.model || '', fresh = false } = {}) {
+  if (os_ !== 'win' && os_ !== 'linux') return null;
+  if (integratedCache && !fresh) return integratedCache.val;
+  let names = [];
+  if (os_ === 'win') {
+    const out = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '(Get-CimInstance Win32_VideoController).Name'], 8000, execImpl);
+    names = String(out || '').split(/\r?\n/);
+  } else {
+    const out = await run('lspci', [], 4000, execImpl);
+    names = String(out || '').split('\n').filter((l) => /VGA compatible|Display controller|3D controller/i.test(l)).map((l) => l.replace(/^\S+\s+[^:]+:\s*/, ''));
+  }
+  const chip = pickIntegrated(names, cpu);
+  const val = chip ? { name: `${chip.replace(/\s*\(rev [^)]*\)$/, '')} (shared memory)`, vramGB: sharedGraphicsGB(totalmem), unified: true, integrated: true } : null;
+  integratedCache = { val };
+  return val;
 }
 
 // Memory that's free to use right now, in bytes. Windows and Linux: os.freemem() (on Linux that is MemAvailable).
