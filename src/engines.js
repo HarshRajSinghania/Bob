@@ -6,6 +6,16 @@ import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { hostAllowed } from './models.js';
 import { setupWorkshop, setupVoice, audioReady, voicesReady } from './audio.js';
+import { findOffice, findFfmpeg } from './office.js';
+
+// The opt-in office helpers are pinned to exact versions and checksums (src/office-pins.json, installer/pin-office.js).
+export function officePins() {
+  try { return JSON.parse(fs.readFileSync(new URL('./office-pins.json', import.meta.url), 'utf8')); } catch { return {}; }
+}
+const PIN = officePins();
+// LibreOffice comes from The Document Foundation's own archive, not GitHub.
+const TDF_HOSTS = [/^downloadarchive\.documentfoundation\.org$/, /^download\.documentfoundation\.org$/];
+const tdfAllowed = (u) => { try { const x = new URL(u); return x.protocol === 'https:' && TDF_HOSTS.some((r) => r.test(x.hostname)); } catch { return false; } };
 
 export const ENGINES = [
   {
@@ -56,6 +66,26 @@ export const ENGINES = [
     runtime: () => null,
     after: (cfg, o) => setupVoice(cfg, 'chatterbox', o),
     ready: (cfg) => voicesReady(cfg).chatterbox
+  },
+  {
+    // Gyan's "essentials" Windows build of FFmpeg, a numbered release pinned with its sha256. One already on the PC counts.
+    id: 'ffmpeg', name: 'FFmpeg', what: 'Converting sound and video (mp3, wav, mp4, webm, GIF...) and WebP pictures, for the Office documents and converting Hand. About 100 MB. Runs only while it converts. If FFmpeg is already on your PC, Bob uses that one.',
+    repo: PIN.ffmpeg?.repo || 'GyanD/codexffmpeg', tag: PIN.ffmpeg?.tag || '', sha256: PIN.ffmpeg?.sha256 || '', needsPin: true, pinned: true, dir: 'ffmpeg', exe: 'ffmpeg.exe',
+    nvidia: [], other: [/^ffmpeg-[\d.]+-essentials_build\.zip$/],
+    runtime: () => null,
+    ready: (cfg) => Boolean(findFfmpeg(cfg)),
+    found: (cfg) => { const f = findFfmpeg(cfg); return f && f.where !== 'own' ? `found on this PC (${f.exe})` : ''; }
+  },
+  {
+    // LibreOffice (MPL-2.0) for documents, spreadsheets and slides. One already installed (or Apache OpenOffice) counts.
+    // Bob's copy is unpacked from the official installer into his own folder (msiexec /a: nothing is installed,
+    // no admin, nothing in the Start menu). Deleting its folder removes it.
+    id: 'libreoffice', name: 'LibreOffice', what: 'Documents, spreadsheets and slides for the Office documents and converting Hand: convert Word, Excel and PowerPoint files to and from PDF and OpenDocument, read them, make new ones and change them. About 350 MB download, about 1 GB unpacked. Runs hidden only while it has a job. If LibreOffice or OpenOffice is already on your PC, Bob uses that instead.',
+    pinned: true, dir: 'libreoffice', exe: 'soffice.exe',
+    ready: (cfg) => Boolean(findOffice(cfg)),
+    found: (cfg) => { const o = findOffice(cfg); return o && o.where !== 'own' ? `found on this PC: ${o.name}${o.version ? ' ' + o.version : ''}` : ''; },
+    version: (cfg) => { const o = findOffice(cfg); return o?.version || null; },
+    install: installLibreOffice
   }
 ];
 
@@ -71,7 +101,7 @@ export function installedVersion(cfg, e) {
 }
 
 export function engineStatus(cfg) {
-  return ENGINES.map((e) => ({ id: e.id, name: e.name, what: e.what, installed: e.ready ? Boolean(e.ready(cfg)) : Boolean(engineExe(cfg, e)), version: installedVersion(cfg, e), pinned: Boolean(e.tag), folder: path.join(cfg.agentDir, e.dir) }));
+  return ENGINES.map((e) => ({ id: e.id, name: e.name, what: e.what, installed: e.ready ? Boolean(e.ready(cfg)) : Boolean(engineExe(cfg, e)), version: installedVersion(cfg, e) || e.version?.(cfg) || null, pinned: Boolean(e.tag || e.pinned), found: e.found?.(cfg) || '', pin: e.id === 'libreoffice' ? (PIN.libreoffice?.version || '') : e.id === 'ffmpeg' ? (PIN.ffmpeg?.tag || '') : '', folder: path.join(cfg.agentDir, e.dir) }));
 }
 
 // The newest release with a Windows build, for "Get newer build". Same rules as installing.
@@ -94,12 +124,12 @@ export function pickAsset(assets, e, nvidia) {
   return null;
 }
 
-async function grab(asset, folder, pub, signal, tick) {
-  if (!hostAllowed(asset.browser_download_url)) throw new Error('That download isn\'t from GitHub. Stopped.');
+async function grab(asset, folder, pub, signal, tick, { allowed = hostAllowed, unpack = true } = {}) {
+  if (!allowed(asset.browser_download_url)) throw new Error('That download isn\'t from where it should be. Stopped.');
   const zip = path.join(folder, asset.name + '.part');
   const res = await fetch(asset.browser_download_url, { redirect: 'follow', signal, headers: { 'user-agent': 'Bob' } });
   if (!res.ok) throw new Error(`Download failed (${res.status}).`);
-  if (!hostAllowed(res.url)) throw new Error('The download was redirected somewhere I don\'t trust. Stopped.');
+  if (!allowed(res.url)) throw new Error('The download was redirected somewhere I don\'t trust. Stopped.');
   const hash = crypto.createHash('sha256');
   const out = fs.createWriteStream(zip);
   const base = pub.done;
@@ -118,6 +148,7 @@ async function grab(asset, folder, pub, signal, tick) {
   // GitHub publishes a sha256 for every release file; no checksum means we can't trust it.
   if (!/^[0-9a-f]{64}$/.test(want)) { fs.rmSync(zip, { force: true }); throw new Error(`GitHub gave no checksum for ${asset.name}, so I won't install it.`); }
   if (hash.digest('hex') !== want) { fs.rmSync(zip, { force: true }); throw new Error(`${asset.name} came through damaged (checksum didn't match).`); }
+  if (!unpack) { const done = zip.replace(/\.part$/, ''); fs.renameSync(zip, done); return done; }
   pub.phase = 'unpacking'; tick();
   // Windows 10+ ships tar (bsdtar), which unpacks zip files.
   await new Promise((resolve, reject) => execFile('tar', ['-xf', zip, '-C', folder], { windowsHide: true, timeout: 300000 }, (err) => (err ? reject(new Error('Couldn\'t unpack ' + asset.name + ': ' + err.message)) : resolve())));
@@ -166,6 +197,9 @@ export async function installEngine(cfg, id, { nvidia, pub, signal, tick }) {
   const e = ENGINES.find((x) => x.id === id);
   if (!e) throw new Error('No such engine.');
   if (process.platform !== 'win32') throw new Error('Engines can only be fetched on Windows.');
+  if (e.install) return e.install(cfg, { pub, signal, tick });
+  // Office helpers: only the exact pinned release with its checksum, never "the newest".
+  if (e.needsPin && !(e.tag && /^[0-9a-f]{64}$/.test(e.sha256 || ''))) throw new Error(`${e.name} isn't pinned to a checked version in this build of Bob yet, so I won't download it. If it's already on your PC, I use that one.`);
   const { rel, asset } = await findRelease(e, nvidia, signal);
   const rtRe = nvidia && e.runtime(asset.name);
   const rt = rtRe ? (rel.assets || []).find((a) => rtRe.test(a.name)) : null;
@@ -183,4 +217,26 @@ export async function installEngine(cfg, id, { nvidia, pub, signal, tick }) {
   if (e.id === 'sdcpp' && !fs.existsSync(path.join(folder, 'sd-cli.exe'))) fs.copyFileSync(path.join(folder, 'sd.exe'), path.join(folder, 'sd-cli.exe'));
   try { fs.writeFileSync(path.join(folder, `bob-${e.id}.json`), JSON.stringify({ version: rel.tag_name, asset: asset.name, at: new Date().toISOString() }, null, 2)); } catch {}
   return { version: rel.tag_name, asset: asset.name };
+}
+
+// LibreOffice: the official installer (pinned version and sha256) from TDF's archive, unpacked into Bob's folder
+// with msiexec /a (an "administrative image": files only, no install, no admin rights, no Start menu entries).
+async function installLibreOffice(cfg, { pub, signal, tick }) {
+  const pin = PIN.libreoffice || {};
+  if (!pin.version || !tdfAllowed(pin.url) || !/^[0-9a-f]{64}$/.test(pin.sha256 || '')) throw new Error('LibreOffice isn\'t pinned to a checked version in this build of Bob yet, so I won\'t download it. You can install it yourself from libreoffice.org (or use OpenOffice): I find either by myself.');
+  const folder = path.join(cfg.agentDir, 'libreoffice');
+  const tmp = path.join(cfg.agentDir, 'libreoffice-download');
+  fs.mkdirSync(tmp, { recursive: true });
+  pub.total = pin.bytes || 0; pub.done = 0;
+  const msi = await grab({ name: path.basename(new URL(pin.url).pathname), browser_download_url: pin.url, size: pin.bytes, pinnedSha256: pin.sha256 }, tmp, pub, signal, tick, { allowed: tdfAllowed, unpack: false });
+  pub.phase = 'unpacking'; tick();
+  fs.rmSync(folder, { recursive: true, force: true });
+  fs.mkdirSync(folder, { recursive: true });
+  const sys = process.env.SystemRoot || 'C:\\Windows';
+  await new Promise((resolve, reject) => execFile(path.join(sys, 'System32', 'msiexec.exe'), ['/a', msi, '/qn', `TARGETDIR=${folder}`], { windowsHide: true, timeout: 20 * 60_000 }, (err) => (err ? reject(new Error(`Windows couldn't unpack LibreOffice (${err.code ?? err.message}). You can install it from libreoffice.org instead: I find it by myself.`)) : resolve())));
+  fs.rmSync(tmp, { recursive: true, force: true });
+  const o = findOffice(cfg);
+  if (!o || o.where !== 'own') throw new Error('LibreOffice unpacked, but soffice.exe isn\'t where I expected. You can install it from libreoffice.org instead: I find it by myself.');
+  try { fs.writeFileSync(path.join(folder, 'bob-libreoffice.json'), JSON.stringify({ version: pin.version, asset: path.basename(pin.url), at: new Date().toISOString() }, null, 2)); } catch {}
+  return { version: pin.version, asset: path.basename(pin.url) };
 }

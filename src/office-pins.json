@@ -1,0 +1,17 @@
+{
+  "note": "Exact versions and checksums for the opt-in LibreOffice and FFmpeg downloads (Settings, Engines & speed). Filled in by installer/pin-office.js on a PC with internet; Bob refuses to download either while a field here is empty.",
+  "ffmpeg": {
+    "repo": "GyanD/codexffmpeg",
+    "tag": "9.0.2",
+    "asset": "ffmpeg-9.0.2-essentials_build.zip",
+    "sha256": "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba",
+    "bytes": 114768076
+  },
+  "libreoffice": {
+    "version": "26.8.2.2",
+    "url": "https://downloadarchive.documentfoundation.org/libreoffice/old/26.8.2.2/win/x86_64/LibreOffice_26.8.2.2_Win_x86-64.msi",
+    "sha256": "ff4b911403b67ee9e6249f820f9782c44bb32c94fdaa45b0da53a8e419e5307a",
+    "bytes": 375934976,
+    "checkedAgainstTdf": true
+  }
+}

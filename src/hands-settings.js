@@ -25,6 +25,11 @@ export const HANDS = {
     label: 'Open and use apps',
     what: 'Open apps from your Start menu, read a window\'s buttons and fields, and click, type or press keys in it, one approved action at a time. A red "Bob is driving" bar shows while he does; move the mouse or press Esc to stop him at once. Never terminals, admin tools, password managers, password fields, sign-in or security prompts, or his own window.',
     tools: ['open_app', 'app_look', 'app_act']
+  },
+  office: {
+    label: 'Office documents and converting',
+    what: 'Converts files (Word, Excel, PowerPoint, PDF, pictures, sound, video), reads office files, and makes or changes documents, spreadsheets and slides. Every file he makes or changes is shown on a card first; he never overwrites and backs up before changing. Documents use LibreOffice (or OpenOffice) and sound and video use FFmpeg, found on your PC or got in Settings, Show advanced settings, Engines & speed; each runs only while it has a job. He saves only in the folders ticked below, plus his own Documents folder.',
+    tools: ['convert_file', 'office_read', 'office_make', 'office_edit']
   }
 };
 

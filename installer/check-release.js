@@ -19,5 +19,13 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 if (pkg.license !== 'GPL-3.0-or-later') problems.push('package.json license should be GPL-3.0-or-later');
 if (!/^\d+\.\d+\.\d+$/.test(pkg.devDependencies?.electron || '')) problems.push('devDependencies.electron must be an exact version');
 if (!/## Code signing policy/.test(fs.readFileSync(path.join(root, 'README.md'), 'utf8'))) problems.push('README is missing "## Code signing policy"');
+// CHANGELOG.md is made from docs/releases (node installer/make-changelog.js) and must be current.
+{
+  const { buildChangelog } = await import('./make-changelog.js');
+  const file = path.join(root, 'CHANGELOG.md');
+  const have = fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n') : '';
+  if (!fs.existsSync(path.join(root, 'docs', 'releases', `v${pkg.version}.md`))) problems.push(`docs/releases/v${pkg.version}.md is missing`);
+  if (have !== buildChangelog()) problems.push('CHANGELOG.md is out of date: run node installer/make-changelog.js');
+}
 if (problems.length) { console.log(problems.map((p) => `FAIL ${p}`).join('\n')); process.exit(1); }
 console.log('PASS release check');

@@ -222,6 +222,16 @@ export async function afterTool(name, args, text, ctx = {}) {
     if (notDone) return { ok: true, partly: true, why: `${done} done, some not: ${notDone[1].slice(0, 160)}`, retry: false };
     return { ok: true, why: `${Number.isNaN(done) ? 'done' : `${done} done`}`, retry: false };
   }
+  if (name === 'convert_file' || name === 'office_make' || name === 'office_edit') {
+    const files = [...s.matchAll(/^Saved (.+?) \([\d.]+ [KM]B\)/gm)].map((m) => m[1]);
+    if (!files.length) return fail('no file came out', { text: `Error: ${name} finished, but no new file came out of it. (Checked by the app.) Don't say it was made.` });
+    const bad = [];
+    for (const f of files) { let n = 0; try { n = fs.statSync(f).size; } catch {} if (!n) bad.push(path.basename(f)); }
+    if (bad.length) return fail(`${bad.join(', ')} isn't there or is empty`, { text: `Error: the app looked for ${bad.join(', ')} after saving, and ${bad.length === 1 ? 'it isn\'t there or is empty' : 'they aren\'t there or are empty'}. Don't say ${bad.length === 1 ? 'it was' : 'they were'} made.` });
+    const notDone = /^Not done: (.+)$/m.exec(s);
+    if (notDone) return { ok: true, partly: true, why: `${files.length} saved, some not: ${notDone[1].slice(0, 160)}`, retry: false, files };
+    return { ok: true, why: `${files.length} file${files.length === 1 ? '' : 's'} saved and checked`, retry: false, files };
+  }
   if (name === 'schedule_job') return /^Scheduled\b/.test(s) ? { ok: true, why: 'scheduled', retry: false } : fail(plainWhy(s));
   return { ok: true, why: 'ran', retry: false };
 }
@@ -244,7 +254,7 @@ const MEDIA_OF = { picture: 'image', show: 'image', video: 'video', music: 'audi
 const TOOL_OF = { picture: 'make_image', show: 'make_image', video: 'make_video', music: 'make_music', sound: 'make_sound', file: 'write_file', app: 'open_app' };
 const GROUPS_OF = { picture: ['pictures'], show: ['pictures'], video: ['pictures'], music: ['pictures'], sound: ['pictures'], file: ['documents'], app: ['apps'] };
 const WHAT = { picture: 'a picture', show: 'a picture', video: 'a clip', music: 'some music', sound: 'a sound', file: 'a file saved', app: 'something done in an app' };
-const FILE_TOOLS = new Set(['write_file', 'edit_file', 'save_spreadsheet', 'file_hands']);
+const FILE_TOOLS = new Set(['write_file', 'edit_file', 'save_spreadsheet', 'file_hands', 'convert_file', 'office_make', 'office_edit']);
 const APP_TOOLS = new Set(['open_app', 'app_act']);
 const LOOKS = new Set(['app_look', 'list_schedules', 'read_file', 'list_files', 'search_files', 'workshop_list', 'use_tools', 'recall', 'web_search', 'fetch_page', 'bob_help']);
 const isDoing = (n) => n in MEDIA || FILE_TOOLS.has(n) || APP_TOOLS.has(n) || ['run_command', 'run_recipe', 'schedule_job', 'change_schedule', 'undo_files'].includes(n);
@@ -265,6 +275,9 @@ export function describe(name, args = {}) {
     case 'save_spreadsheet': return `Saving the spreadsheet${args.name ? ` "${args.name}"` : ''}`;
     case 'file_hands': return FILE_JOBS[String(args.action || '').toLowerCase()] || 'The file job';
     case 'undo_files': return 'Undoing the file job';
+    case 'convert_file': return `Converting ${[].concat(args.paths || []).length === 1 ? base([].concat(args.paths)[0]) : 'the files'}${args.to ? ` to ${String(args.to).toUpperCase()}` : ''}`;
+    case 'office_make': return `Making the ${({ writer: 'document', calc: 'spreadsheet', impress: 'presentation' })[args.kind] || 'document'}`;
+    case 'office_edit': return `Changing ${base(args.path)}`;
     case 'open_app': return `Opening ${args.name || 'the app'}`;
     case 'app_act': return `${args.action === 'type' ? 'Typing' : args.action === 'click' ? `Clicking${args.name ? ` "${args.name}"` : ''}` : args.action === 'keys' ? `Pressing ${args.keys || 'keys'}` : 'The step'} in ${args.window || 'the app'}`;
     case 'run_command': return `Running ${args.cmd || 'the command'}`;

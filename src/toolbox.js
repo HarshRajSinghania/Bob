@@ -39,6 +39,7 @@ const HAND_WORDS = {
   files: /\b(move|copy|rename|zip|unzip|extract|tidy|organi[sz]e|sort|clean ?up|downloads|undo|folder|folders)\b/i,
   run: /\b(run|execute|command|script|terminal|powershell|cmd|install|build|npm|python|node|git|recipe)\b/i,
   schedules: /\b(schedules?|scheduled|every (?:day|morning|afternoon|evening|night|week|weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|month|hour|\d+)|each (?:day|morning|evening|night|week|weekday|hour)|daily|nightly|weekly|hourly|on a timer)\b/i,
+  office: /\b(convert\w*|turn (?:it|this|that|them|these) into|save (?:it |this |that )?as|export\w*|pdf|docx?|xlsx?|pptx?|odt|ods|odp|word (?:doc\w*|file)|excel|powerpoint|libre ?office|open ?office|writer|calc|impress|slides?|presentation|slideshow|deck|spreadsheet|sheet|cells?|template|mp3|mp4|wav|webm|webp|flac|ogg|mkv|gif|jpe?g|png)\b/i,
   apps: /\b(open|launch|click|press|button|type (?:in|into)|app|apps|notepad|browser|chrome|explorer|blender|paint\.net|drive|driving|take (?:the )?(?:wheel|control|over)|screen control|control (?:my|the) (?:pc|computer|screen)|use my (?:screen|pc|computer|mouse|keyboard)|do it in)\b/i
 };
 
@@ -46,7 +47,8 @@ const HAND_WHAT = {
   files: 'move, copy, rename, zip, unzip, tidy files and folders, undo',
   run: 'run commands, scripts, programs',
   schedules: 'repeat a job at set times (every morning...)',
-  apps: 'open apps and click, type or press keys in them'
+  apps: 'open apps and click, type or press keys in them',
+  office: 'convert files (documents, PDF, pictures, sound, video), read, make and change Word, Excel, PowerPoint and LibreOffice files'
 };
 // What each picture-group tool adds, so the group says only what this PC can really make.
 const PICTURE_WHAT = { make_image: 'make pictures', make_video: 'make video clips', make_music: 'make music', make_sound: 'make sound effects', save_reference: 'save reference pictures', workshop_run: 'run ComfyUI workflows' };
@@ -77,7 +79,7 @@ export function guessGroups(brain, text) {
 }
 
 // The chat chip when a group is added (clarity reviewer's words; Hands match their names in Settings).
-const CHIP = { pictures: 'Using his picture, video and music tools', documents: 'Using his document tools', files: 'Using his file tools', run: 'Using Hands: run programs', schedules: 'Using Hands: schedules', apps: 'Using Hands: apps', memory: 'Forgetting a topic', cloud: 'Using a cloud helper' };
+const CHIP = { pictures: 'Using his picture, video and music tools', documents: 'Using his document tools', files: 'Using his file tools', run: 'Using Hands: run programs', schedules: 'Using Hands: schedules', apps: 'Using Hands: apps', office: 'Using Hands: office and converting', memory: 'Forgetting a topic', cloud: 'Using a cloud helper' };
 
 export const allToolsOn = (cfg) => cfg.allTools === true;
 

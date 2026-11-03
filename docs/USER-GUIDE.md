@@ -177,7 +177,7 @@ At the bottom of the menu is the **session** picker. A session tells Bob how to 
 
 Session: what the graphics card is kept for. Effort: how hard Bob works on each message.
 
-Bob may suggest a session, but he never switches by himself.
+With **Let Bob pick the session** on (Settings > Everyday, on to start with), Bob moves into the session that suits the job (Art, Coding, Office or Gaming) and goes back to Normal, the lightest, once he has been quiet for 2 minutes. While something else is using the graphics card, like a game, he stays in Gaming. You can still pick a session yourself from the menu: Bob keeps it while you work, then goes back to Normal once he has been quiet for 2 minutes. To keep him in Gaming, press 🎮 Gaming next to Effort.
 
 ### Effort
 
@@ -256,6 +256,18 @@ Hands are Bob's way of doing things for you on your PC rather than just talking 
 - **Run:** run a program, command or script you've approved.
 - **Schedules:** do a job at a set time.
 - **Apps:** click and type in another program for you.
+- **Office documents and converting:** convert files (Word, Excel, PowerPoint and OpenDocument to and from each other or to PDF; pictures; sound; video), read office files, make new documents, spreadsheets and slides, and change them (fill cells, add rows and slides, replace text, fill a template).
+
+### Office documents and converting
+
+Ask things like "turn report.docx into a PDF", "what's in budget.xlsx?", "make a 5-slide deck about the game", "set B4 to 1300 in budget.xlsx", "make this song an mp3" or "turn the clip into a GIF".
+
+- Documents, spreadsheets and slides use **LibreOffice** (free). If LibreOffice or Apache OpenOffice is already installed, Bob finds it. If not: Settings → Show advanced settings → Engines & speed → Engine downloads → **LibreOffice** (about 350 MB, pinned version and checksum, unpacked into Bob's folder with no admin rights).
+- Sound, video and WebP pictures use **FFmpeg**: one already on the PC, or **FFmpeg** in the same Engine downloads list (about 100 MB, pinned).
+- Other pictures (PNG, JPG, BMP, GIF, TIFF) need nothing extra: Windows does them.
+- Every file Bob makes or changes is on a card first, one row each (a new document in his own Documents folder, which shows in Made by Bob under Documents, needs no OK). Nothing is overwritten (report-2.pdf), conversions never change the original, and a file changed in place is backed up first.
+- He saves only in the folders ticked for Hands, plus his own Documents folder. LibreOffice runs hidden with Bob's own settings, never runs macros in the files, and closes when the job is done; so does FFmpeg.
+- He can't turn a PDF back into a good Word file, because the layout breaks. He can read its words and make a new Word document from them instead.
 
 Hands are built to be careful:
 

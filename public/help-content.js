@@ -307,7 +307,7 @@ ${set('Alerts', 'Off', 'Pops up a Windows notification when I need you, for exam
 
   // ---------------- Hands and safety ----------------
   { id: 'hands', group: 'Hands and safety', title: 'Hands: letting Bob do things on your PC', words: 'hands files run commands schedules apps permission preview allow undo stop everything kill switch self-test read-only without asking free unimpeded hard limits delete secrets passwords send out upload',
-    html: `<p>Hands let me do things on your PC instead of only talking about them: <strong>Files</strong> (zip, move, copy, rename, tidy folders), <strong>Run</strong> (programs and scripts), <strong>Schedules</strong> (a job at a set time) and <strong>Apps</strong> (click and type in another program). I'll be straight with you: I'm careful with these, and I've been built to be.</p>
+    html: `<p>Hands let me do things on your PC instead of only talking about them: <strong>Files</strong> (zip, move, copy, rename, tidy folders), <strong>Run</strong> (programs and scripts), <strong>Schedules</strong> (a job at a set time), <strong>Apps</strong> (click and type in another program) and <strong>Office documents and converting</strong> (Word, Excel, PowerPoint and PDF, pictures, sound and video). I'll be straight with you: I'm careful with these, and I've been built to be.</p>
 <ul><li><strong>Every Hand is off</strong> until you switch it on in Settings, Show advanced settings, Hands.</li>
 <li><strong>I show exactly what I'm about to do</strong> on a card and wait for your click. "Allow the rest of this job" is your choice and ends with the job.</li>
 <li><strong>✋ Hands</strong> at the top of the chat is a kill switch: anything running stops, waiting cards are answered No, and it shows <em>Stopped</em>. Click it again to let me carry on. It never switches a Hand on: if Hands are off in Settings it says <em>Off in Settings</em>.</li>
@@ -339,6 +339,32 @@ ${set('Alerts', 'Off', 'Pops up a Windows notification when I need you, for exam
 <ul><li>A red <strong>Bob is driving</strong> bar shows while I do. Move the mouse or press Esc to stop me at once.</li>
 <li>I never touch terminals, admin tools, password managers, password fields, sign-in or security prompts, or my own window.</li>
 <li>I read windows on this PC only; nothing is sent anywhere.</li></ul>` },
+
+  { id: 'hands-office', group: 'Hands and safety', title: 'The Office documents and converting Hand', words: 'office libreoffice openoffice word excel powerpoint docx xlsx pptx odt ods odp pdf convert export save as turn into spreadsheet slides presentation template fill cells read document ffmpeg mp3 mp4 wav webm gif webp png jpg picture sound video audio',
+    html: `<p>With <strong>Office documents and converting</strong> on, I can turn one kind of file into another, and read, make and change office files. I do the paperwork; you keep the glory. Some things to ask:</p>
+<ul><li>"Turn report.docx into a PDF", or "convert every Word file in my Downloads to PDF".</li>
+<li>"What's in budget.xlsx?", "read me the slides in pitch.pptx".</li>
+<li>"Make a spreadsheet of my bills with a total", "make a 5-slide deck about the game", "write this up as a Word document".</li>
+<li>"In budget.xlsx set B4 to 1300 and add a row for gas", "fill in the invoice template: replace {name} with Sam", "add a slide at the end of pitch.pptx".</li>
+<li>"Make this song an mp3", "turn the clip into a GIF", "cut the video from 0:30 to 1:10", "make these pictures JPGs, 1920 wide at most".</li></ul>
+<p><strong>What turns into what</strong></p>
+<table><tr><th>From</th><th>To</th><th>Done with</th></tr>
+<tr><td>Word, OpenDocument text, RTF, text, web page</td><td>PDF, docx, doc, odt, rtf, txt, html, epub</td><td>LibreOffice</td></tr>
+<tr><td>Excel, OpenDocument spreadsheet, CSV</td><td>PDF, xlsx, xls, ods, csv, html</td><td>LibreOffice</td></tr>
+<tr><td>PowerPoint, OpenDocument presentation</td><td>PDF, pptx, ppt, odp, png, jpg (the first slide)</td><td>LibreOffice</td></tr>
+<tr><td>Pictures (png, jpg, bmp, gif, tiff)</td><td>each other, or PDF</td><td>Windows itself (PDF: LibreOffice)</td></tr>
+<tr><td>WebP pictures, to or from</td><td>png, jpg, webp…</td><td>FFmpeg</td></tr>
+<tr><td>Sound (mp3, wav, ogg, flac, m4a, opus)</td><td>each other</td><td>FFmpeg</td></tr>
+<tr><td>Video (mp4, mkv, webm, mov, avi)</td><td>each other, a GIF, or just the sound</td><td>FFmpeg</td></tr></table>
+<p>I can't turn a PDF back into a good Word file, because the layout breaks. I can read its words and make a new Word document from them instead.</p>
+<p><strong>How it stays safe</strong></p>
+<ul><li>Every file I'll make or change is on a card first, one row each, with a tick. The only exception: a new document in my own Documents folder (it shows in Made by Bob, under Documents), which needs no OK, like any note I save there.</li>
+<li>The original is never changed by a conversion, and nothing is overwritten: if report.pdf is there, I save report-2.pdf.</li>
+<li>Before I change a file in place, a copy goes in my backups, so the card says <em>(a backup is kept)</em>. Or ask me to save the changes as a new file and leave the original alone.</li>
+<li>I only open files in the folders I may read, and only save in the folders ticked for Hands (the same tick boxes as the Files Hand) plus my own Documents folder. Read-only projects and files with keys or passwords stay off-limits while those limits are on.</li>
+<li>LibreOffice runs hidden, with my own settings, so a LibreOffice window you have open isn't touched. It never runs macros in the files I open. Macro files (.xlsm, .docm, .pptm) are only saved as a new copy, because changing them in place would lose the macros.</li>
+<li>LibreOffice and FFmpeg run only while they have a job, then close. They're not sitting in your memory between jobs.</li></ul>
+<p><strong>Getting the helpers.</strong> If LibreOffice, Apache OpenOffice or FFmpeg is already installed, I find it by myself. If not, get them in Settings, Show advanced settings, Engines &amp; speed, Engine downloads. Pictures need nothing extra. OpenOffice can read Word, Excel and PowerPoint files but can't save them, so with OpenOffice I save as PDF or OpenDocument instead.</p>` },
 
   { id: 'quarantine', group: 'Hands and safety', title: 'Quarantine', words: 'quarantine reviewer off track loop rogue crazy release stop',
     html: `<p>Even I can go off the rails. Off unless you turn on <strong>Let the reviewer quarantine Bob</strong> (Settings, Show advanced settings, Hands). Then my reviewer copy watches for me going off track: trying again after you said no, doing the same thing over and over, failing again and again, pushing against your limits, saying I did things that never ran, or racing through actions while working without asking. At High or Extreme effort its check can flag me too. Watching is simple counting, so no extra brain loads.</p><p>When it spots one, I stop at my next action and a card asks you: <strong>Quarantine</strong> or <strong>Let him carry on</strong>. Nothing happens without your click. If nobody answers, that job stops but I'm not quarantined. In quarantine I can still talk, read and search, but every action is refused. Nothing I did is undone and the logbook keeps everything. A copy can be quarantined on its own. Click <strong>Release</strong> on the banner above the chat (or in Settings) to let me act again. <strong>Last quarantines</strong> in Settings lists past ones.</p>` },
@@ -399,7 +425,7 @@ ${set('Let games go first', 'Off', 'When I work on the processor, I use fewer co
 ${set('Match picture settings to my graphics card', 'Off', 'Big cards keep the picture model in graphics memory, which is faster. On cards with 8 GB or less, pictures are made at 768 px so they fit. If a picture fails with these settings, I go back to the usual ones.')}</dl>
 <p><strong>Test Bob's speed</strong> times me and keeps your last 6 results. See ${go('speed', 'Making Bob faster')}.</p>
 <dl>${set('Bob\'s engine', 'Bob\'s own (llama.cpp)', '<em>Bob\'s own</em> needs nothing else installed. <em>Ollama</em> is for people who already have it. Takes effect next time I start.')}</dl>
-<p><strong>Engine downloads:</strong> the programs that run the models, from their official GitHub pages, matched to your graphics card. <strong>Get</strong> installs one; <strong>Check for a newer build</strong> looks for an update.</p>
+<p><strong>Engine downloads:</strong> the programs that run the models, from their official GitHub pages, matched to your graphics card. <strong>Get</strong> installs one; <strong>Check for a newer build</strong> looks for an update. Two more are for the ${go('hands-office', 'Office documents and converting Hand')}: <strong>LibreOffice</strong> (about 350 MB, from The Document Foundation) and <strong>FFmpeg</strong> (about 100 MB). Both are pinned to one exact version and checked against its checksum, and if either is already on your PC, it shows <em>found on this PC</em> and I use that one instead.</p>
 <dl>${set('Pick up where Bob left off after a restart', 'Off', 'If I close in the middle of a job (an update, a restart or a crash), I carry on when I open again: finished steps aren\'t done again, and the step that got cut off is done again from the start. Unfinished downloads carry on too. More under Picking up where Bob left off.')}
 ${set('Give Bob all his tools at once', 'Off', 'Sends every tool with each message, which leaves less room for the chat. Leave off to keep chats light; turn on only if I say I can\'t find a tool.')}</dl>
 <p><strong>Speed (Bob's own engine)</strong>, for people who like to tinker. I'm one of them. Changes apply the next time a brain loads; leave a box empty for llama.cpp's default.</p>
@@ -420,7 +446,8 @@ ${set('Let Bob work without asking', 'Off', 'No approval cards: I just do the jo
 ${set('Files', 'Off', go('hands-files', 'The Files Hand') + '.')}
 ${set('Run programs and scripts', 'Off', go('hands-run', 'The Run Hand') + '.')}
 ${set('Schedules', 'Off', go('hands-schedules', 'The Schedules Hand') + '.')}
-${set('Open and use apps', 'Off', go('hands-apps', 'The Apps Hand') + '.')}</dl>
+${set('Open and use apps', 'Off', go('hands-apps', 'The Apps Hand') + '.')}
+${set('Office documents and converting', 'Off', go('hands-office', 'The Office documents and converting Hand') + '. Under it, <strong>Office helpers</strong> shows whether I found LibreOffice (or OpenOffice) and FFmpeg on this PC.')}</dl>
 <p><strong>Hard limits</strong> hold whether or not I ask first. Switch one off only if you need what it blocks; an orange line then says what it allows.</p>
 <dl>${set('Recycle Bin only', 'On', 'Things I throw away go to the Recycle Bin, so you can get them back. Off: I can delete for good.')}
 ${set('Keep secret files private', 'On', 'I never read, list, move, zip or write files with keys or passwords (.env, keystores, SSH keys, password databases).')}
@@ -486,6 +513,10 @@ ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for ti
 <p><strong>Removing:</strong> Settings, Show advanced settings, Remove Bob, <strong>Remove Bob…</strong>. It takes off my program, my Start menu shortcut, "Launch on start-up" and the "Bob schedules" Windows task. My chats, settings and models stay unless you tick those boxes; ticked ones go to the Recycle Bin. No hard feelings.</p>` },
 
   // ---------------- FAQ ----------------
+  { id: 'faq-convert', group: 'FAQ', title: 'Can Bob convert my files?', words: 'faq convert pdf word excel powerpoint mp3 mp4 gif picture turn into export',
+    html: `<p>Yes, once you switch on ${go('hands-office', 'Office documents and converting')} in Settings, Show advanced settings, Hands, and tick the folders I may save in. Then ask: "turn this into a PDF", "make these mp3s", "convert the clip to a GIF". You see each file on a card before I start. Pictures work straight away; documents need LibreOffice and sound or video need FFmpeg, both free and both offered in Engines &amp; speed if you don't have them.</p>` },
+  { id: 'faq-ms-office', group: 'FAQ', title: 'Do I need Microsoft Office for Bob to work with Word and Excel files?', words: 'faq microsoft office word excel powerpoint need buy libreoffice openoffice free',
+    html: `<p>No. I use LibreOffice, which is free and open source, and it reads and saves Word, Excel and PowerPoint files. If you already have it, or Apache OpenOffice, I use that. Microsoft Office can stay installed or not; I don't touch it.</p>` },
   { id: 'faq-online', group: 'FAQ', title: 'Does Bob send my chats anywhere?', words: 'faq privacy send chats online internet telemetry',
     html: `<p>No. I have no accounts and send no telemetry. The only things that can leave your PC are search words and page addresses (only if you turn on web search), downloads you confirm, and jobs you approve for a cloud helper. See ${go('privacy', 'What stays on your PC')}.</p>` },
   { id: 'faq-ok-together', group: 'FAQ', title: 'Why did Bob ask for several things on one card?', words: 'faq several permissions one card all at once together allow ticked deny all approvals many cards',
@@ -563,13 +594,16 @@ ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for ti
 <dt>Copy (of Bob)</dt><dd>A helper version of me for one kind of job, with its own Bob-pun name.</dd>
 <dt>Draft brain</dt><dd>A small brain that guesses ahead for a big one (speculative decoding).</dd>
 <dt>Effort</dt><dd>How hard I work on each message: Low, Medium, High or Extreme.</dd>
+<dt>Convert</dt><dd>Turning a file into another kind (Word into PDF, a WAV into an MP3). The original stays as it is.</dd>
 <dt>Engine</dt><dd>The program that runs a kind of model, such as llama.cpp for brains. I offer it when a model needs it.</dd>
 <dt>Equip Bob</dt><dd>The page where you choose which model does each job.</dd>
+<dt>FFmpeg</dt><dd>A free program I use to convert sound and video (and WebP pictures). Runs only while it converts.</dd>
 <dt>Graphics card, graphics memory</dt><dd>The part of your PC that makes AI fast. Its memory (6, 8, 16 GB) decides which models fit. Also called GPU and VRAM.</dd>
 <dt>Hands</dt><dd>Me doing things on your PC (files, programs, schedules, apps). Off until you turn them on.</dd>
 <dt>Hard limit</dt><dd>A safety rule for Hands that holds even when I work without asking. On to start with.</dd>
 <dt>Housekeeping</dt><dd>Me tidying old chats and files while I'm idle. Off until you turn it on.</dd>
 <dt>Inn</dt><dd>My notes folder: chats, topics, pictures, logbook.</dd>
+<dt>LibreOffice</dt><dd>A free office suite that reads and saves Word, Excel and PowerPoint files. I use it, hidden, to convert, read, make and change documents.</dd>
 <dt>llama.cpp</dt><dd>My own engine for brains. Needs nothing else installed.</dd>
 <dt>Logbook</dt><dd>The file (inn\\logbook.md) where I write down every action I take.</dd>
 <dt>Model</dt><dd>The file that does one kind of AI job: a brain, a painter, a voice.</dd>
