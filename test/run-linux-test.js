@@ -19,17 +19,21 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-linux-'));
 {
   const data = path.join(tmp, 'inn', 'bob'); fs.mkdirSync(data, { recursive: true });
   const cfg = { dataDir: data, innDir: path.join(tmp, 'inn'), painterDir: path.join(tmp, 'inn', 'painter'), recycleBin: true, desktopTrashDir: path.join(tmp, 'Trash') };
-  const f = path.join(data, 'old notes #1.txt'); fs.writeFileSync(f, 'x');
-  const r = recycle(cfg, [f]);
-  const info = path.join(cfg.desktopTrashDir, 'info', 'old notes #1.txt.trashinfo');
-  check('Linux: a thrown-away file goes to the desktop Trash', r.gone.length === 1 && !fs.existsSync(f) && fs.existsSync(path.join(cfg.desktopTrashDir, 'files', 'old notes #1.txt')));
-  const note = fs.existsSync(info) ? fs.readFileSync(info, 'utf8') : '';
-  check('Linux: it leaves a .trashinfo the file manager can restore from', /^\[Trash Info\]\nPath=.*\/old%20notes%20%231\.txt\nDeletionDate=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\n$/.test(note), note);
-  fs.writeFileSync(f, 'y');
-  const r2 = recycle(cfg, [f]);
-  check('Linux: a second one with the same name gets its own name', r2.trashed[f]?.endsWith('old notes #1.2.txt'));
-  fs.renameSync(r2.trashed[f], f); forgetTrashInfo(r2.trashed[f]);
-  check('Linux: Undo takes the .trashinfo away too', !fs.existsSync(path.join(cfg.desktopTrashDir, 'info', 'old notes #1.2.txt.trashinfo')) && fs.existsSync(info));
+  // recycle() picks the desktop Trash by the real platform, so on Windows this would reach the real Recycle Bin.
+  if (process.platform === 'win32') console.log('SKIP Linux desktop Trash checks (on Windows recycle() uses the real Recycle Bin)');
+  else {
+    const f = path.join(data, 'old notes #1.txt'); fs.writeFileSync(f, 'x');
+    const r = recycle(cfg, [f]);
+    const info = path.join(cfg.desktopTrashDir, 'info', 'old notes #1.txt.trashinfo');
+    check('Linux: a thrown-away file goes to the desktop Trash', r.gone.length === 1 && !fs.existsSync(f) && fs.existsSync(path.join(cfg.desktopTrashDir, 'files', 'old notes #1.txt')));
+    const note = fs.existsSync(info) ? fs.readFileSync(info, 'utf8') : '';
+    check('Linux: it leaves a .trashinfo the file manager can restore from', /^\[Trash Info\]\nPath=.*\/old%20notes%20%231\.txt\nDeletionDate=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\n$/.test(note), note);
+    fs.writeFileSync(f, 'y');
+    const r2 = recycle(cfg, [f]);
+    check('Linux: a second one with the same name gets its own name', r2.trashed[f]?.endsWith('old notes #1.2.txt'));
+    fs.renameSync(r2.trashed[f], f); forgetTrashInfo(r2.trashed[f]);
+    check('Linux: Undo takes the .trashinfo away too', !fs.existsSync(path.join(cfg.desktopTrashDir, 'info', 'old notes #1.2.txt.trashinfo')) && fs.existsSync(info));
+  }
   check('Linux: outside the allowed folders is still refused', recycle(cfg, ['/etc/hostname']).refused.length === 1);
   check('Linux from source (no Electron) keeps Bob\'s own trash folder', usesBin({}, 'linux') === Boolean(process.versions.electron) && usesBin({ recycleBin: false }, 'linux') === false);
 }

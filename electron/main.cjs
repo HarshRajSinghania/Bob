@@ -172,7 +172,7 @@ function mindOptions(parent) {
   const width = 380, height = 480;
   return {
     width, height, minWidth: 260, minHeight: 200, x: area.x + area.width - width - 16, y: area.y + area.height - height - 16,
-    title: 'Bob\'s thinking', icon: path.join(root, 'public', 'icons', 'bob.ico'), backgroundColor: '#1d1510',
+    title: 'Bob\'s thinking', icon: path.join(root, 'public', 'icons', process.platform === 'win32' ? 'bob.ico' : 'bob-512.png'), backgroundColor: '#1d1510',
     autoHideMenuBar: true, alwaysOnTop: true, minimizable: true, maximizable: false, fullscreenable: false,
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false }
   };

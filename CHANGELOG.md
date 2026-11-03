@@ -4,6 +4,16 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.57
+
+### New: the phone can lend its brain too (Bob for Android)
+- The other half of Share brains: Bob for Android gets its own **Lend my brain** switch, off to start with, so your PC Bob can borrow the phone's small brain for a quick reply while you game.
+- The phone brain now runs on its own built-in engine.
+
+### Fixes for Mac
+- Bob's thinking window uses the Mac-friendly icon.
+- Let my other devices in now finds Tailscale where the Mac app installs it.
+
 ## 1.5.56
 
 ### New: Bob for Mac and Linux (preview)
