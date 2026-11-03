@@ -42,7 +42,7 @@ import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUs
 import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff, carryOnPlan, carryOnLine, finishedSteps, MAX_AUTO_RESUMES } from './handoff.js';
 import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
-import { WEB_TOOLS, WEB_OFF, webOn, webPrompt, linkPrompt, findLinks } from './web.js';
+import { WEB_TOOLS, WEB_OFF, webOn, webPrompt, linkPrompt, findLinks, refersToLink } from './web.js';
 import { autoSessionOn, pickSessionTool, autoSessionPrompt, switchLine, switchedNote, idleSession, cardBusy, IDLE_CHECK_MS } from './auto-session.js';
 import { readCard } from './gaming-card.js';
 import { Lenders, wantsBorrow } from './share-brains.js';
@@ -243,6 +243,7 @@ export function quickHandBack(cfg, ctx, reply) {
   return p.kind === 'video' ? "Here's the clip. Tell me what to change, or ask for another." : "Here's the picture. Tell me what to change, or ask for another.";
 }
 const callKey = (name, args) => { let a = args; if (typeof a === 'string') { try { a = JSON.parse(a); } catch {} } return `${name}|${JSON.stringify(a ?? {})}`; };
+const LINK_NUDGE = 'Web search is on, and the page from the link is just above (the fetch_page result). Answer from it now; never say you have no web access.';
 const CANT_NUDGE = 'You now have every tool you can use on this PC. If one of them does what was asked, call it now. If none does, say so in one line; don\'t repeat yourself.';
 const EMPTY_NUDGE = 'Your last reply was empty. You now have every tool you can use on this PC. Do what was asked: call the right tool now (for a picture, make_image), or answer in words.';
 export const EMPTY_NOTE = 'Bob didn\'t answer that one. Send it again, or put it another way.';
@@ -1537,14 +1538,25 @@ export class Brain {
 
     // 1.5.60: a link in the message, with web search on: open it first, so even a small brain that would say
     // "I have no web access" answers from the page. Only the first link; it shows as a normal 🔧 Read the page line.
-    if (!again && webOn(this.cfg) && this.usable('fetch_page')) {
+    // 1.5.65: "check out the page I told you about" has no link in it: then the newest link from the last few
+    // messages counts. And if he still says he can't, he gets that page and one more go (see saysCant below).
+    const webLinks = !again && webOn(this.cfg) && this.usable('fetch_page');
+    const openLink = async (url, why) => {
+      ctx.linkOpened = true;
+      const res = await this.runTool('fetch_page', { url }, ctx).catch((e) => ({ text: `Error: ${e.message}` }));
+      msgs.push({ role: 'assistant', content: '', tool_calls: [{ function: { name: 'fetch_page', arguments: { url } } }] });
+      msgs.push({ role: 'tool', tool_name: 'fetch_page', content: String(res.text) });
+      this.log('tool', `${why}: ${url}`);
+    };
+    const earlierLink = () => {
+      const users = msgs.slice(0, turnStart).filter((m) => m.role === 'user').slice(-4).reverse();
+      for (const m of users) { const [u] = findLinks(m.text ?? m.content, 1); if (u) return u; }
+      return null;
+    };
+    if (webLinks) {
       const [url] = findLinks(text, 1);
-      if (url) {
-        const res = await this.runTool('fetch_page', { url }, ctx).catch((e) => ({ text: `Error: ${e.message}` }));
-        msgs.push({ role: 'assistant', content: '', tool_calls: [{ function: { name: 'fetch_page', arguments: { url } } }] });
-        msgs.push({ role: 'tool', tool_name: 'fetch_page', content: String(res.text) });
-        this.log('tool', `opened the link in the message first: ${url}`);
-      }
+      if (url) await openLink(url, 'opened the link in the message first');
+      else if (refersToLink(text)) { const u = earlierLink(); if (u) await openLink(u, 'opened the link from earlier in the chat first'); }
     }
 
     for (let step = 0; step < MAX_STEPS; step++) {
@@ -1610,6 +1622,15 @@ export class Brain {
       // "I can't..." with groups still not added: add them all and give him one more go (router test fix).
       const empty = !reply.tool_calls && !String(reply.content || '').trim();
       if (!reply.tool_calls && !ctx.cantRetried && saysCant(reply.content)) {
+        // 1.5.65: web search is on and a link is there (this message or a recent one): open it and give him one more go.
+        const u = webLinks && !ctx.linkOpened && String(reply.content || '').trim() ? (findLinks(text, 1)[0] || earlierLink()) : null;
+        if (u) {
+          ctx.cantRetried = true;
+          await openLink(u, 'Bob said he could not; opened the link and asked again');
+          msgs.push({ role: 'system', content: LINK_NUDGE, hidden: true });
+          emit({ type: 'token', text: '\n\n' });
+          continue;
+        }
         const missing = allToolsOn(this.cfg) ? [] : Object.keys(groupsFor(this)).filter((g) => !ctx.loaded.has(g));
         // An empty reply always gets its one more go, even with every tool already there.
         if (missing.length || empty) {

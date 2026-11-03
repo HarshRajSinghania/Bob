@@ -3,7 +3,7 @@
 // Models are found by Ollama name in Ollama's model folder (no duplicate downloads), or set by path in config.
 import { replyStats } from './speed-stats.js';
 import fs from 'node:fs';
-import { saveNameOf } from './models.js';
+import { saveNameOf, idFolderFile } from './models.js';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
@@ -156,9 +156,10 @@ export class LlamaCpp {
       const f = e?.files?.find((x) => x.role === 'gguf');
       if (!f) return null;
       const root = this.cfg.bobModelsDir || path.join(this.cfg.agentDir, 'models', 'bob');
-      const dirs = [e.category, ...fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)];
+      let dirs = [e.category];
+      try { dirs = [e.category, ...fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)]; } catch {}
       // Its own folder first; an older Bob may have filed it under another one (for example chat instead of coding).
-      const find = (x) => { const name = saveNameOf(x); return dirs.map((dir) => path.join(root, dir, name)).find((p) => fs.existsSync(p) && !fs.existsSync(p + '.part')); };
+      const find = (x) => { const name = saveNameOf(x); return dirs.map((dir) => path.join(root, dir, name)).find((p) => fs.existsSync(p) && !fs.existsSync(p + '.part')) || idFolderFile(this.cfg, e, x); };
       const file = find(f);
       if (!file) return null;
       // 1.5.56: a brain that sees pictures has a second file, its picture reader (mmproj), saved under its own name.

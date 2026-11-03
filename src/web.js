@@ -45,3 +45,7 @@ export function findLinks(text, max = 2) {
 // Said to the brain while web search is on, so a link is never taken for a file on the PC.
 export const LINK_PROMPT = 'A link (https://..., or a bare address like github.com/name/project) is a web page on the internet, not a file on this PC. fetch_page opens it and gives you its text; use it, never say you have no web access.';
 export const linkPrompt = (cfg) => (webOn(cfg) ? `\n\n${LINK_PROMPT}` : '');
+
+// 1.5.65: "the page I told you about", "that link", "check the repo": a message that points back at a link from earlier.
+const BACK = /\b(?:the|that|this|my|your|our)\s+(?:page|link|site|website|repo|repository|url|address|article|post|github(?:\s+page)?)\b|\b(?:i|we)\s+(?:told|sent|gave|showed|mentioned|linked)\s+(?:you|earlier|before)\b|\b(?:from|mentioned)\s+(?:before|earlier)\b/i;
+export const refersToLink = (text) => BACK.test(String(text || ''));

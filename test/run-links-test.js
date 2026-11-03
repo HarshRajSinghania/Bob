@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Brain } from '../src/brain.js';
-import { findLinks, normaliseUrl, linkPrompt, LINK_PROMPT } from '../src/web.js';
+import { findLinks, normaliseUrl, linkPrompt, LINK_PROMPT, refersToLink } from '../src/web.js';
 
 let pass = 0, fail = 0;
 const check = (name, ok, extra = '') => { ok ? pass++ : fail++; console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra && !ok ? ' -> ' + extra : ''}`); };
@@ -64,6 +64,34 @@ const run = async (b, text) => { const evs = []; await b.brain.runOn([], text, (
   const b = make(true);
   await run(b, 'hi Bob, how are you?');
   check('no link: nothing is fetched', b.fetched.length === 0);
+}
+
+// ---------- 1.5.65: a link from earlier in the chat ----------
+check('"the github page i told you about" points back at a link', refersToLink('check out the github page i told you about now'));
+check('"that link" and "the repo" do too', refersToLink('what does that link say?') && refersToLink('look at the repo'));
+check('a plain chat does not', !refersToLink('hi Bob, how are you?') && !refersToLink('make me a picture of a fox'));
+const history = [{ role: 'user', content: 'Check out github.com/MouseWurX/Bob', text: 'Check out github.com/MouseWurX/Bob' }, { role: 'assistant', content: 'Will do.' }];
+const runWith = async (b, prior, text) => { await b.brain.runOn(prior.map((m) => ({ ...m })), text, () => {}, new AbortController().signal, [], null, 's2'); };
+{
+  const b = make(true);
+  await runWith(b, history, 'check out the github page i told you about now');
+  check('web on: "the page I told you about" opens the link from earlier', b.fetched[0] === 'https://github.com/MouseWurX/Bob' && b.seen.length === 1, JSON.stringify(b.fetched));
+}
+{
+  const b = make(false);
+  await runWith(b, history, 'check out the github page i told you about now');
+  check('web off: nothing from earlier is opened either', b.fetched.length === 0);
+}
+{
+  // No pointing-back words, the brain refuses: the earlier link is opened and he gets one more go.
+  const b = make(true);
+  await runWith(b, history, 'so what is it?');
+  check('a refusal with a link from earlier: the page is opened and he answers on the second go', b.fetched.length === 1 && b.seen.length === 2, `fetched=${b.fetched.length} calls=${b.seen.length}`);
+}
+{
+  const b = make(false);
+  await runWith(b, history, 'so what is it?');
+  check('web off: a refusal never opens a page', b.fetched.length === 0);
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });

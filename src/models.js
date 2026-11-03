@@ -57,6 +57,25 @@ export function saveNameOf(f) {
   return typeof f?.saveAs === 'string' && /^[\w][\w.+-]{0,150}$/.test(f.saveAs) ? f.saveAs : fileNameOf(f.url);
 }
 
+// 1.5.65: a copy that was put in a folder named after the model, next to Bob's own folder
+// (Agent 00\models\<id>\, as a hand download or a test lands), counts too: the saved name or the name in the link,
+// at the right size when the catalog knows it, and not half downloaded. Then Get models doesn't fetch it again.
+export function idFolderFile(cfg, entry, f) {
+  if (!entry?.id || !/^[\w.-]+$/.test(entry.id) || !f?.url) return null;
+  const bobDir = cfg.bobModelsDir || path.join(cfg.agentDir || '', 'models', 'bob');
+  const dir = path.join(path.dirname(bobDir), entry.id);
+  for (const name of [...new Set([saveNameOf(f), fileNameOf(f.url)])]) {
+    const p = path.join(dir, name);
+    try {
+      if (fs.existsSync(p + '.part')) continue;
+      const size = fs.statSync(p).size;
+      if (f.bytes && size !== f.bytes) continue;
+      return p;
+    } catch {}
+  }
+  return null;
+}
+
 // Fill in "$model" and "$file:role" in an entry's "use" block.
 export function resolveUse(use, values) {
   if (typeof use === 'string') {
@@ -220,6 +239,8 @@ export class ModelShop {
       const name = saveNameOf(f);
       const mine = path.join(this.dir, entry.category, name);
       if (fs.existsSync(mine)) { out[f.role] = mine; continue; }
+      const byId = idFolderFile(this.cfg, entry, f);
+      if (byId) { out[f.role] = byId; continue; }
       const alt = [name, ...(f.aka || [])].map((n) => n.toLowerCase());
       const hit = this.found.files.find((x) => alt.includes(x.name.toLowerCase()));
       if (hit && fs.existsSync(hit.path)) out[f.role] = hit.path; // the scan can be out of date

@@ -4,6 +4,15 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.65
+
+### Fix: Bob finds a model you already have in its own folder
+- A model already downloaded into a folder named after it (for example models\qwen3.6-35b-a3b) now counts as installed, so Bob runs it from there and **Get models** doesn't download it again. It has to be the right size and fully downloaded.
+
+### Fix: "the page I told you about"
+- With web search on, if you mention a link from earlier ("check out the github page I told you about"), Bob goes back through the last few messages, finds it and opens it before he answers. He looks through the last few messages.
+- Before, when his quick brain said it had no web access even though web search was on, that's where it stopped. Now he opens the page and tries again. With web search off, nothing changes.
+
 ## 1.5.64
 
 ### New: a squeezed Coding brain for 8 GB cards
