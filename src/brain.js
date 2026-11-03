@@ -67,16 +67,41 @@ export function sideOk(brain, job, { freeMem = os.freemem() } = {}) {
   if (job.refs?.length || (job.effort && job.effort !== 'low')) return false;
   if (currentSession(cfg).id === 'light') return false; // Gaming: the processor is the game's
   if (!brain.turns?.has('talk') || brain.turns.has(SIDE_LANE) || brain.state?.state !== 'painting') return false;
+  if (brain.cfg?.engine === 'llamacpp' && !talkerModel(brain)) return false; // 1.5.54: no Instruct, no E4B on the processor: it waits
   return freeMem >= sideBrainBytes(brain) + 2 * 1024 ** 3;
 }
 function sideBrainBytes(brain) {
-  try { const f = brain.engine?.resolve?.(sessionBrains(brain.cfg).small)?.gguf; if (f) return fs.statSync(f).size; } catch {}
+  try { const f = brain.engine?.resolve?.(talkerModel(brain))?.gguf; if (f) return fs.statSync(f).size; } catch {}
   return 4 * 1024 ** 3; // unknown: assume a 4B brain
 }
 
 // A side-lane reply: always the small brain on the processor, so it never touches the card the painter holds.
 // 1.5.51: beside a big text job it goes to the engine's second server (beside: true), so the main brain stays loaded.
 export const sideBrain = (cfg, job) => ({ model: sessionBrains(cfg).small, cpu: true, ...(job?.beside ? { beside: true } : {}) });
+
+// 1.5.53 (the owner, 2026-11-03: E4B should not run on the processor, and never during a game; Instruct can): the
+// talker for quick replies beside a job. On the processor it's Qwen3 4B Instruct 2507 (the Gaming slot, no thinking,
+// 2 to 7 s to the first word on an idle processor) when it's downloaded; E4B only when it goes on the graphics card.
+const runnable = (brain, m) => { try { return Boolean(m && brain.engine?.resolve?.(m)?.gguf); } catch { return false; } };
+// Not on the PC: null, and quick replies beside a job wait (E4B never runs on the processor; settings sign-off 1.5.54).
+export function talkerModel(brain) {
+  const sb = sessionBrains(brain.cfg || {});
+  return sb.gaming && runnable(brain, sb.gaming) ? sb.gaming : null;
+}
+export const isTalker = (brain, m) => { const sb = sessionBrains(brain.cfg || {}); return Boolean(m) && (sameModel(m, sb.small) || sameModel(m, sb.gaming)); };
+export async function sidePick(brain, job) {
+  const sb = sessionBrains(brain.cfg || {});
+  const base = { cpu: true, ...(job?.beside ? { beside: true } : {}) };
+  if (job?.beside) {
+    const held = brain.engine?.beside?.current;
+    if (held && isTalker(brain, held) && brain.engine.besideLoaded?.()) return { model: held, ...base }; // already there: no load
+    const place = sb.small && brain.engine?.besidePlace ? await brain.engine.besidePlace(sb.small, chatBrain(brain.cfg).ctx).catch(() => 'none') : 'none';
+    if (place === 'whole' && currentSession(brain.cfg || {}).id !== 'light') return { model: sb.small, ...base }; // E4B never in Gaming
+  }
+  return { model: talkerModel(brain) || sb.small, ...base }; // sideOk / besideBigOk only start a side reply when a talker exists
+}
+const fullName = (name) => (/^Qwen3 4B Instruct$/.test(name) ? `${name} 2507` : name); // the name Get models and Equip use
+export const TALKER_LINE = (name) => `Keeping a small brain (${fullName(name)}) on the processor, so we can keep talking while the big one works.`;
 
 // 1.5.51 "Keep chatting while Bob is busy", part 2: beside a big text job (Medium effort and up, the Coding session, or
 // any job that has run 20 seconds), a plain chat message is answered by the small brain on a second llama-server, on
@@ -110,12 +135,13 @@ export function besideBigOk(brain, job, { freeMem = os.freemem(), now = Date.now
   if (!brain.turns?.has('talk') || brain.turns.has(SIDE_LANE)) return false;
   if (brain.state?.state === 'painting') return false; // part 1 (sideOk) answers beside a media step
   if (brain.engine.currentCpu) return false; // the main brain is on the processor itself: two would fight over it
-  const small = sessionBrains(cfg).small;
-  if (!small) return false;
+  const talker = talkerModel(brain);
+  if (!talker) return false;
   const held = brain.engine.beside?.current; // the second server holds the reviewer for a moot: leave it be
-  if (held && !sameModel(held, small)) return false;
+  if (held && !isTalker(brain, held)) return false;
+  if (held && brain.engine.besideLoaded?.()) return true; // 1.5.53: a talker is already waiting beside the job
   if (!bigJob(brain, now)) return false;
-  return freeMem >= besideBytes(brain, small, chatBrain(cfg).ctx) + 2 * GB;
+  return freeMem >= besideBytes(brain, talker, chatBrain(cfg).ctx) + 2 * GB;
 }
 
 // 1.5.51 opt-in "Let the reviewer sit beside the main brain" (mootBeside): at High and Extreme effort the reviewer
@@ -275,6 +301,8 @@ export class Brain {
     this.broadcast = broadcast;
     this.engine = cfg.engine === 'llamacpp' ? new LlamaCpp(cfg) : new Ollama(cfg);
     this.engine.log = (kind, text) => this.log(kind, text); // 1.5.35: the engine can note things in the logbook
+    // 1.5.53: a second brain joined or left (chat page: Bob's head grows / shrinks; see public docs in the HANDOFF).
+    this.engine.onBeside = (ev) => { this.broadcast({ type: 'second-brain', ...ev, label: ev.model ? this.brainLabel(ev.model) : '' }); this.broadcast({ type: 'brain' }); };
     this.sleepy = { since: 0, recent: [] }; // Gaming-session asides (public/sleepy.js)
     // Bob's own engine unloads its brain when idle; it asks here first so it never does that mid-job.
     if (this.engine instanceof LlamaCpp) this.engine.isBusy = () => this.turns.size > 0 || this.queue.some((j) => j.state === 'working');
@@ -507,6 +535,7 @@ export class Brain {
   async ensureModel(model, emit, signal, who = 'bob', opts = {}) {
     if (this.waking) await this.waking.catch(() => {}); // typing already started loading it: don't load twice
     clearTimeout(this.graceTimer);
+    if (!opts.beside) await this.keepTalker(model, opts, emit, { signal });
     if (!signal) { try { await this.engine.isLoaded(model, opts); } catch (e) { throw new Error(`I can't reach my engine, ${this.engineName} (${e.message}).`); } }
     const name = BRAIN_NAMES[who] || who;
     const used = await this.gate.need({ id: 'brain', model, opts }, {
@@ -537,6 +566,32 @@ export class Brain {
     try { if (fs.existsSync(f)) return false; fs.writeFileSync(f, new Date().toISOString()); } catch { if (this.besideTipShown) return false; }
     this.besideTipShown = true;
     return true;
+  }
+
+  // 1.5.53 (the owner's idea): before a big brain pushes the quick brain off the card, a small talker starts on the
+  // processor beside it (second server), so chat carries on during the job. The chat page gets second-brain events and
+  // the brain bay shows the add. Under "Keep chatting while Bob is busy"; never in Gaming; only with room in RAM.
+  async keepTalker(model, opts = {}, emit = () => {}, { freeMem = os.freemem(), signal = null } = {}) {
+    const cfg = this.cfg;
+    if (cfg.chatWhileBusy === false || cfg.engine !== 'llamacpp' || typeof this.engine.besideServer !== 'function') return false;
+    if (currentSession(cfg).id === 'light' || opts.cpu) return false; // Gaming, or a brain on the processor (two would fight)
+    const talker = talkerModel(this);
+    if (!talker || !model || isTalker(this, model) || !runnable(this, talker)) return false;
+    if (this.engine.besideLoaded?.() || this.talking) return false;
+    let main = [];
+    try { main = (await this.engine.loaded()).filter((m) => !m.beside).map((m) => m.name); } catch {}
+    if (main.some((n) => sameModel(n, model))) return false; // already loaded: nothing gets pushed out
+    const ctx = chatBrain(cfg).ctx;
+    if (freeMem < besideBytes(this, talker, ctx) + 2 * GB) return false;
+    this.talking = true;
+    try {
+      await this.engine.preload(talker, undefined, { beside: true, cpu: true, ctx });
+      if (!signal || this.talkerSaid !== signal) emit({ type: 'announce', text: TALKER_LINE(this.brainLabel(talker).replace(/^.*?\((.*)\)$/, '$1')) }); // once per job
+      this.talkerSaid = signal;
+      this.log('model', `kept ${talker} on the processor beside the job, for chat`);
+      return true;
+    } catch (e) { this.log('model', `couldn't keep a talker beside the job: ${e.message}`); return false; }
+    finally { this.talking = false; }
   }
 
   // How a brain is named to the user: its Equip slot and its catalog name, never a model id.
@@ -1266,7 +1321,11 @@ export class Brain {
       if (job.after && !this.downloadReady(job)) continue; // 1.5.38: waits for the download it needs
       let lane = laneOf(this.cfg, job);
       let beside = false;
-      if (lane === 'talk' && this.turns.has('talk') && !seen.has(SIDE_LANE) && (sideOk(this, job) || (beside = besideBigOk(this, job)))) lane = SIDE_LANE;
+      if (lane === 'talk' && this.turns.has('talk') && !seen.has(SIDE_LANE) && (sideOk(this, job) || (beside = besideBigOk(this, job)))) {
+        lane = SIDE_LANE;
+        // 1.5.53: a talker already loaded beside the job answers there, even during a picture.
+        if (!beside && this.engine?.besideLoaded?.() && isTalker(this, this.engine.beside?.current)) beside = true;
+      }
       if (seen.has(lane)) continue;
       seen.add(lane);
       if (this.turns.has(lane)) continue;
@@ -1444,7 +1503,8 @@ export class Brain {
     out.ctx = ctx;
     const used = new Set();
     // High and Extreme effort draft on the big brain; Low is the usual chat brain.
-    let { model, cpu, think, ctx: wantCtx, beside } = job?.side ? sideBrain(this.cfg, job) : (bigThinker(job) && draftBrain(this.cfg, job.effort)) || modelFor(this.cfg, 'bob');
+    if (job?.side && !job.sidePick) job.sidePick = await sidePick(this, job);
+    let { model, cpu, think, ctx: wantCtx, beside } = job?.side ? job.sidePick : (bigThinker(job) && draftBrain(this.cfg, job.effort)) || modelFor(this.cfg, 'bob');
     // 1.5.16: a Low-effort chat reply doesn't think first (gemma4 and others think by default, which delays every reply).
     // Medium and up, and sessions that set a level (Deep thought), keep their thinking.
     if (think === undefined && !bigThinker(job)) think = false;
@@ -1667,7 +1727,7 @@ export class Brain {
     // "One brain" mode: every hat runs on the main model, so there's no brain swap (about 20 s each) mid-chat.
     // Normal session: the hat's own brain (or the main one with "One brain"). Other sessions: the session's brain.
     // A moot (High/Extreme effort) passes force: the reviewer always runs on the Review slot brain.
-    let { model, cpu, think, ctx: wantCtx, beside } = ctx.job?.side ? sideBrain(this.cfg, ctx.job) : force || (bigThinker(ctx.job) && hat !== 'reviewer' && hatBrain(this.cfg, hat, ctx.job.effort)) || modelFor(this.cfg, hat);
+    let { model, cpu, think, ctx: wantCtx, beside } = ctx.job?.side ? (ctx.job.sidePick || await sidePick(this, ctx.job)) : force || (bigThinker(ctx.job) && hat !== 'reviewer' && hatBrain(this.cfg, hat, ctx.job.effort)) || modelFor(this.cfg, hat);
     const brainCtx = await this.fitCtx(model, wantCtx);
     // 1.5.51 (opt-in): the reviewer sits beside the main brain on the processor instead of swapping it out.
     if (hat === 'reviewer' && force && !ctx.job?.side && mootBesideOk(this, model, brainCtx)) { beside = true; cpu = true; }

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LlamaCpp, besideThreads } from '../src/llamacpp.js';
-import { Brain, besideBigOk, mootBesideOk, besideLater, bigJob, loadLine, loadMode, BIG_AFTER_MS, SIDE_LANE } from '../src/brain.js';
+import { Brain, talkerModel, sidePick, isTalker, TALKER_LINE, besideBigOk, mootBesideOk, besideLater, bigJob, loadLine, loadMode, BIG_AFTER_MS, SIDE_LANE } from '../src/brain.js';
 import { Gate } from '../src/handoff.js';
 import { mergeSettings } from '../src/config.js';
 
@@ -19,7 +19,7 @@ const job = (id, state, extra = {}) => ({ id, text: `job ${id}`, state, at: Date
 const now = Date.now();
 const fakeBrain = (over = {}) => ({
   cfg: { session: 'normal', engine: 'llamacpp', chatWhileBusy: true, models: { small: 'small:4b', bob: 'big:26b' } },
-  engine: { besideServer() {}, current: 'big:26b', currentCpu: false, resolve: () => ({}) },
+  engine: { besideServer() {}, current: 'big:26b', currentCpu: false, resolve: () => ({ gguf: '/x' }) },
   gate: { brainBytes: () => 6 * GB },
   state: { state: 'thinking' },
   turns: new Map([['talk', {}]]),
@@ -192,6 +192,65 @@ try {
 } finally {
   await eng.unloadAll().catch(() => {});
   clearInterval(eng.idleTimer); if (eng.beside) clearInterval(eng.beside.idleTimer);
+}
+
+// ---------- 1.5.53: Instruct talks on the processor, E4B only on the card; a talker starts before a big brain ----------
+{
+  const files = { 'small:4b': '/f/e4b', 'qwen3-4b': '/f/instruct' };
+  const mk = (over = {}) => ({
+    cfg: { session: 'normal', engine: 'llamacpp', chatWhileBusy: true, models: { small: 'small:4b', bob: 'big:26b' }, sessionBrains: { small: 'small:4b', gaming: 'qwen3-4b' } },
+    engine: { besideServer() {}, resolve: (m) => (files[m] ? { gguf: files[m] } : (() => { throw new Error('no file'); })()), besidePlace: async () => 'none', besideLoaded: () => false, loaded: async () => [{ name: 'small:4b' }], preload: async (m, sig, o) => { mk.loads.push([m, o]); } },
+    gate: { brainBytes: () => 5 * GB }, turns: new Map([['talk', {}]]), queue: [], log() {}, brainLabel: (m) => `Brain (${m === 'qwen3-4b' ? 'Qwen3 4B Instruct' : m})`,
+    ...over
+  });
+  mk.loads = [];
+  check('the talker on the processor is Instruct when it is downloaded', talkerModel(mk()) === 'qwen3-4b');
+  check('without Instruct on the PC: no talker (E4B never runs on the processor)', !talkerModel(mk({ engine: { ...mk().engine, resolve: (m) => (m === 'small:4b' ? { gguf: 'x' } : (() => { throw new Error('none'); })()) } })));
+  check('both count as talkers, a big brain doesn\'t', isTalker(mk(), 'qwen3-4b') && isTalker(mk(), 'small:4b') && !isTalker(mk(), 'big:26b'));
+  const pc = await sidePick(mk(), { beside: true });
+  check('a quick reply beside a job, card full: Instruct on the processor', pc.model === 'qwen3-4b' && pc.cpu && pc.beside, JSON.stringify(pc));
+  const card = await sidePick(mk({ engine: { ...mk().engine, besidePlace: async () => 'whole' } }), { beside: true });
+  check('room on the card: E4B goes there', card.model === 'small:4b' && card.beside, JSON.stringify(card));
+  const held = await sidePick(mk({ engine: { ...mk().engine, beside: { current: 'qwen3-4b' }, besideLoaded: () => true, besidePlace: async () => 'whole' } }), { beside: true });
+  check('a talker already beside answers, no new load', held.model === 'qwen3-4b');
+  check('beside a picture (single server): Instruct on the processor, never E4B', (await sidePick(mk(), { side: true })).model === 'qwen3-4b');
+
+  const emitted = [];
+  const b = mk(); b.cfg = { ...b.cfg };
+  const did = await Brain.prototype.keepTalker.call(b, 'big:26b', {}, (e) => emitted.push(e), { freeMem: 16 * GB });
+  check('a big brain about to load: the talker starts first, beside, on the processor', did === true && mk.loads.length === 1 && mk.loads[0][0] === 'qwen3-4b' && mk.loads[0][1].beside === true && mk.loads[0][1].cpu === true, JSON.stringify(mk.loads));
+  check('and the chat says so', emitted[0]?.text === TALKER_LINE('Qwen3 4B Instruct') && /^Keeping a small brain \(Qwen3 4B Instruct 2507\) on the processor, so we can keep talking/.test(emitted[0].text), emitted[0]?.text);
+  mk.loads = [];
+  const no = async (o, name, args = ['big:26b', {}]) => check(name, (await Brain.prototype.keepTalker.call(o, ...args, () => {}, { freeMem: 16 * GB })) === false && mk.loads.length === 0);
+  await no(mk({ cfg: { ...mk().cfg, session: 'light' } }), 'never in Gaming');
+  await no(mk({ cfg: { ...mk().cfg, chatWhileBusy: false } }), 'not with Keep chatting off');
+  await no(mk(), 'not for a talker itself', ['qwen3-4b', {}]);
+  await no(mk(), 'not for a brain on the processor', ['big:26b', { cpu: true }]);
+  await no(mk({ engine: { ...mk().engine, besideLoaded: () => true } }), 'not when something is already beside');
+  await no(mk({ engine: { ...mk().engine, loaded: async () => [{ name: 'big:26b' }] } }), 'not when the big brain is already loaded (nothing pushed out)');
+  check('not with too little RAM', (await Brain.prototype.keepTalker.call(mk(), 'big:26b', {}, () => {}, { freeMem: 5 * GB })) === false);
+  {
+    const e = []; const sig = new AbortController().signal; const t = mk();
+    await Brain.prototype.keepTalker.call(t, 'big:26b', {}, (x) => e.push(x), { freeMem: 16 * GB, signal: sig });
+    await Brain.prototype.keepTalker.call(t, 'coder:30b', {}, (x) => e.push(x), { freeMem: 16 * GB, signal: sig });
+    check('the talker line shows once per job, not on every brain swap in it', e.length === 1, String(e.length));
+    mk.loads = [];
+  }
+  check('Gaming: never E4B, even with room on the card', (await sidePick(mk({ cfg: { ...mk().cfg, session: 'light' }, engine: { ...mk().engine, besidePlace: async () => 'whole' } }), { beside: true })).model === 'qwen3-4b');
+  const fresh = fakeBrain({ engine: { besideServer() {}, current: 'big:26b', currentCpu: false, beside: { current: 'qwen3-4b' }, besideLoaded: () => true, resolve: () => ({ gguf: '/x' }) }, queue: [job('low', 'working', { startedAt: now })] });
+  fresh.cfg.sessionBrains = { small: 'small:4b', gaming: 'qwen3-4b' };
+  check('a talker waiting beside: a chat goes there at once, even behind a short job', besideBigOk(fresh, hi, { freeMem: 1 * GB, now }) === true);
+}
+{
+  const seen = [];
+  const e2 = new LlamaCpp({ ...cfg, llamacpp: { ...cfg.llamacpp, port: 18391 } });
+  e2.cardReaders = NO_CARD;
+  e2.onBeside = (ev) => seen.push(`${ev.action}:${ev.model}:${ev.where || ''}`);
+  try {
+    await e2.preload('small:4b', undefined, { beside: true });
+    await e2.dropBeside();
+    check('second-brain events: join (with where) when it starts, leave when it stops', seen.join() === 'join:small:4b:processor,leave:small:4b:', seen.join());
+  } finally { await e2.unloadAll().catch(() => {}); clearInterval(e2.idleTimer); if (e2.beside) clearInterval(e2.beside.idleTimer); }
 }
 
 // ---------- Help and settings text ----------

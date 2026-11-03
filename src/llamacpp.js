@@ -134,6 +134,8 @@ export class LlamaCpp {
       this.beside.resolve = (m) => this.resolve(m); // same model files (tests replace resolve on the main engine)
       this.beside.catalogFile = (id) => this.catalogFile(id);
       this.beside.main = this; // so a card reader set on the main engine (tests) also counts for the second server
+      // 1.5.53: the brain hears when a second brain joins or leaves (chat page: second-brain events, Bob's head grows).
+      this.beside.changed = (ev) => { try { this.onBeside?.(ev); } catch {} };
     }
     return this.beside;
   }
@@ -451,6 +453,7 @@ export class LlamaCpp {
 
   async stopServer() {
     const c = this.child;
+    if (this.role === BESIDE && this.current) this.changed?.({ action: 'leave', model: this.current });
     this.child = null;
     this.current = null;
     this.currentCtx = null;
@@ -521,6 +524,7 @@ export class LlamaCpp {
     if (cpu && tuning(this.cfg).readyWhileTyping) await this.restoreStart(model, ctx);
     const secs = (Date.now() - t0) / 1000;
     this.loadTimes[model] = secs;
+    if (this.role === BESIDE) this.changed?.({ action: 'join', model, where: card === 'whole' ? 'card' : 'processor' });
     try { fs.writeFileSync(this.timesFile, JSON.stringify(this.loadTimes, null, 2)); } catch {}
     return secs;
   }

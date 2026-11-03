@@ -48,7 +48,7 @@ check('"Try again" puts a task at the back of the line', f3.queue.map((j) => j.i
 // 1.5.41: Keep chatting while Bob is busy. A chat waiting behind a picture that's painting starts in the side lane.
 {
   const started = [];
-  const g = { cfg: { session: 'normal', engine: 'llamacpp', chatWhileBusy: true, models: { small: 's' } }, engine: {}, state: { state: 'painting' }, turns: new Map([['talk', {}]]),
+  const g = { cfg: { session: 'normal', engine: 'llamacpp', chatWhileBusy: true, models: { small: 's' } }, engine: { resolve: () => ({ gguf: '/x' }) }, state: { state: 'painting' }, turns: new Map([['talk', {}]]),
     queue: [job('pic', 'working', { kind: 'picture' }), job('hi', 'waiting'), job('hi2', 'waiting')], saveQueue() {}, startTurn(s, t, r, j, lane) { started.push(`${j.id}@${lane}`); this.turns.set(lane, {}); } };
   P.pump.call(g);
   check('busy switch on: a chat behind a painting picture starts beside it (one at a time)', started.join() === 'hi@side' && g.queue[1].side === true && g.queue[2].state === 'waiting', started.join());
