@@ -481,6 +481,11 @@ function onEvent(ev) {
       if (ev.hat === 'reviewer') add('note hat moot', `🛰 Moot: Bob calls in ${esc(ev.copy || 'his reviewer')}, his reviewer, for a second look`);
       else add('note hat', ev.copy ? `Bob hands this to ${esc(ev.copy)}, his ${esc(ev.label)} copy` : `Bob switches to ${esc(ev.label)}`);
       break;
+    case 'borrow': // 1.5.55 Share brains: another of your Bobs thinks this reply (src/share-brains.js)
+      endReply(ev);
+      if (ev.action === 'start') add('note borrow', `📡 Borrowed brain: ${esc(ev.name)}${ev.brain ? ` (${esc(ev.brain)})` : ''} thinks this one. The tools still run here.`);
+      else add('note borrow', `📡 ${esc(ev.name)} ${ev.why === 'too slow' ? 'didn\'t answer in time' : ev.partial ? 'dropped out mid-answer' : 'couldn\'t take it'}, so Bob thinks this one himself.`);
+      break;
     case 'tool':
       if (!/^hat:/.test(ev.summary)) note(`· ${ev.summary}`);
       endReply(ev);

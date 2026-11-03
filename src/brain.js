@@ -45,7 +45,9 @@ import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sl
 import { WEB_TOOLS, WEB_OFF, webOn, webPrompt } from './web.js';
 import { autoSessionOn, pickSessionTool, autoSessionPrompt, switchLine, switchedNote, idleSession, cardBusy, IDLE_CHECK_MS } from './auto-session.js';
 import { readCard } from './gaming-card.js';
+import { Lenders, wantsBorrow } from './share-brains.js';
 import { askTogether, takeEarlier, askTogetherTool } from './together.js';
+import { freeMemNow } from './platform.js';
 
 const MAX_STEPS = 8;
 
@@ -61,7 +63,7 @@ const HAND_TOOLS = new Set(Object.values(HANDS).flatMap((h) => h.tools));
 // message runs in a "side" lane on the small brain on the processor, if there's room in RAM. Nothing big is loaded
 // for it. The media job waits for that reply before it loads its own brain back (Gate.needBrain).
 export const SIDE_LANE = 'side';
-export function sideOk(brain, job, { freeMem = os.freemem() } = {}) {
+export function sideOk(brain, job, { freeMem = freeMemNow() } = {}) {
   const cfg = brain.cfg || {};
   if (cfg.chatWhileBusy === false || !job || job.kind !== 'chat') return false;
   if (job.refs?.length || (job.effort && job.effort !== 'low')) return false;
@@ -126,7 +128,7 @@ function besideBytes(brain, model, ctx) {
   try { const f = brain.engine?.resolve?.(model)?.gguf; if (f) return Math.round(fs.statSync(f).size * 1.1 + Math.min(ctx || 32768, 131072) * 60 * 1024); } catch {}
   return 6 * GB; // unknown: a 4B brain and its memory for the chat
 }
-export function besideBigOk(brain, job, { freeMem = os.freemem(), now = Date.now() } = {}) {
+export function besideBigOk(brain, job, { freeMem = freeMemNow(), now = Date.now() } = {}) {
   const cfg = brain.cfg || {};
   if (cfg.chatWhileBusy === false || !job || job.kind !== 'chat' || job.noBeside) return false;
   if (job.refs?.length || (job.effort && job.effort !== 'low')) return false;
@@ -158,7 +160,7 @@ export function besideLater(brain, now = Date.now()) {
   return due;
 }
 
-export function mootBesideOk(brain, model, ctx, { freeMem = os.freemem() } = {}) {
+export function mootBesideOk(brain, model, ctx, { freeMem = freeMemNow() } = {}) {
   const cfg = brain.cfg || {};
   if (cfg.mootBeside !== true || cfg.engine !== 'llamacpp' || typeof brain.engine?.besideServer !== 'function' || !model) return false;
   if (currentSession(cfg).id === 'light') return false;
@@ -195,7 +197,7 @@ export function claimsObservation(text) {
 export const OBSERVE_CORRECTION = 'Nothing was actually checked in that reply. Bob said he checked, but no check ran.';
 const OBSERVE_NUDGE = 'You described noticing, watching or checking something on the PC, but no tool ran this turn, so it was invented. Answer again in a line or two, using only the "Right now" line, the chat, or what {{USER}} said. No made-up system details, and no question unless you need the answer.';
 // The only things he knows about the PC without a tool, so small talk has something true to stand on.
-export function realState({ model, session, waiting = 0, cat, turn = 0, mem = { free: os.freemem(), total: os.totalmem() } }) {
+export function realState({ model, session, waiting = 0, cat, turn = 0, mem = { free: freeMemNow(), total: os.totalmem() } }) {
   const gb = (b) => (b / 1e9).toFixed(1);
   return `Right now (real, from the app): you're thinking on ${model || 'no brain'}${session ? ` in the ${session} session` : ''}; ${waiting ? `${waiting} more message${waiting === 1 ? '' : 's'} waiting` : 'nothing else waiting'}; the PC's RAM is ${gb(mem.total - mem.free)} of ${gb(mem.total)} GB in use; ${catMoment(cat, turn)}.`;
 }
@@ -312,6 +314,11 @@ export class Brain {
     this.waking = null;
     this.graceTimer = null;
     this.engineName = cfg.engine === 'llamacpp' ? 'llama.cpp' : 'Ollama';
+    // Share brains (1.5.55, src/share-brains.js): another Bob of yours may think quick replies for this one, and this one
+    // may lend. A lender only ever uses his quick brain (never a big one), on the card, and says no while gaming or busy.
+    this.lenders = new Lenders(cfg);
+    this.lending = null;
+    this.lendDeps = { currentSession, quickBrain: (b) => { const sb = sessionBrains(b.cfg); const m = sb.small && runnable(b, sb.small) ? sb.small : (b.cfg.engine === 'llamacpp' ? null : sb.small); return m ? { model: m, cpu: false, ctx: Math.min(chatBrain(b.cfg).ctx || 32768, 32768) } : null; } };
     this.tools = buildTools(cfg);
     this.refs = new RefShelf(cfg);
     this.sessions = new Map();
@@ -346,12 +353,18 @@ export class Brain {
     if (holdsChatBrain(cfg)) { const t = setTimeout(() => this.wake('always on').catch(() => {}), 4000); t.unref?.(); }
   }
 
+  // ---------- Share brains (1.5.55) ----------
+  borrowCase(job, pics) { return { session: currentSession(this.cfg).id, busy: this.turns.size > 1 || this.queue.some((j) => j.state === 'working' && j !== job), job, pics }; }
+  borrowLikely() { return wantsBorrow(this.cfg, this.borrowCase(null, [])) && this.lenders.likely(); }
+  lenderStatus() { return this.lenders.bobs().map((b) => { const s = this.lenders.state.get(b.address); return { address: b.address, name: b.name, ok: s ? s.ok : null, why: s?.why || '', brain: s?.brain || '', device: s?.device || '' }; }); }
+
   // ---------- Keep Bob light (1.5.2) ----------
   // Loads the chat brain ahead of a message: someone started typing, or "Always on" wants it back after a job.
   // Never during a job. Returns true when it loaded something.
   async wake(reason = 'typing') {
     if (this.waking) return this.waking;
     if (this.turns.size) return false;
+    if (reason === 'typing' && this.borrowLikely()) return false; // another Bob will think this one: stay light
     const { model, cpu, ctx: want } = chatBrain(this.cfg);
     if (!model) return false;
     clearTimeout(this.graceTimer);
@@ -571,7 +584,7 @@ export class Brain {
   // 1.5.53 (the owner's idea): before a big brain pushes the quick brain off the card, a small talker starts on the
   // processor beside it (second server), so chat carries on during the job. The chat page gets second-brain events and
   // the brain bay shows the add. Under "Keep chatting while Bob is busy"; never in Gaming; only with room in RAM.
-  async keepTalker(model, opts = {}, emit = () => {}, { freeMem = os.freemem(), signal = null } = {}) {
+  async keepTalker(model, opts = {}, emit = () => {}, { freeMem = freeMemNow(), signal = null } = {}) {
     const cfg = this.cfg;
     if (cfg.chatWhileBusy === false || cfg.engine !== 'llamacpp' || typeof this.engine.besideServer !== 'function') return false;
     if (currentSession(cfg).id === 'light' || opts.cpu) return false; // Gaming, or a brain on the processor (two would fight)
@@ -1517,15 +1530,43 @@ export class Brain {
     this.setState('thinking', '', this.state.model);
     const earlier = await this.recall(sessionId, text);
 
+    // Share brains (1.5.55): with "Borrow a brain" on and the owner's "when" met, one of his other Bobs thinks this reply.
+    // The tools still run here, with this Bob's own checks and OK cards. No answer in time: this Bob thinks for himself.
+    let lender = wantsBorrow(this.cfg, this.borrowCase(job, pics)) ? await this.lenders.pick().catch(() => null) : null;
+    if (lender) emit({ type: 'borrow', action: 'start', name: lender.name, brain: lender.brain, device: lender.device });
+
     for (let step = 0; step < MAX_STEPS; step++) {
-      model = (await this.ensureModel(model, emit, signal, 'bob', { cpu, ctx: brainCtx, ...(beside ? { beside: true } : {}) })) || model;
-      this.setState('thinking', '', model);
       const tools = this.frontDeskTools(ctx.loaded);
       const sys = { role: 'system', content: this.withLimits(systemPrompt({ now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName, look: lookPrompt(this.cfg), dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') }), ctx.loaded) + extras + (earlier ? `\n\n${earlier}` : '') };
-      const reply = await this.chatSafe({
-        model, messages: [sys, ...staleHandErrors(msgs, turnStart)], tools, signal, cpu, think, ctx: brainCtx, ...(beside ? { beside: true } : {}),
-        onToken: (t) => emit({ type: 'token', text: t })
-      }, { emit });
+      let reply = null;
+      if (lender) {
+        this.setState('thinking', `${lender.name} is thinking`, this.state.model);
+        let said = false;
+        try {
+          // A lender keeps the start of the chat it read last time (its prompt cache), so what changes every turn (the time,
+          // the Right now line, recalled bits) goes in a short note just before the latest message, not in the instructions.
+          const who = this.cfg.userName || 'the user';
+          const lentSys = { role: 'system', content: this.withLimits(systemPrompt({ now: 'given in the note just before the latest message', memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), cat: this.cfg.catName, look: lookPrompt(this.cfg), dials: personalityPrompt(this.cfg.personality, who) }), ctx.loaded) };
+          const hist = staleHandErrors(msgs, turnStart);
+          const at = hist.findLastIndex((m) => m.role === 'user');
+          const note = { role: 'system', content: `Current date and time for ${who}: ${this.now()}.${extras}${earlier ? `\n\n${earlier}` : ''}` };
+          const lentMsgs = at < 0 ? [lentSys, ...hist, note] : [lentSys, ...hist.slice(0, at), note, ...hist.slice(at)];
+          reply = await this.lenders.chat(lender, { messages: lentMsgs, tools, signal, from: this.cfg.windowsName || 'Bob', onToken: (t) => { said = true; emit({ type: 'token', text: t }); } });
+        } catch (e) {
+          if (signal?.aborted) throw e;
+          this.log('borrow', `${lender.name} couldn't think this one (${e.message}); thinking it myself`);
+          emit({ type: 'borrow', action: 'back', name: lender.name, why: e.message, partial: said });
+          lender = null;
+        }
+      }
+      if (!reply) {
+        model = (await this.ensureModel(model, emit, signal, 'bob', { cpu, ctx: brainCtx, ...(beside ? { beside: true } : {}) })) || model;
+        this.setState('thinking', '', model);
+        reply = await this.chatSafe({
+          model, messages: [sys, ...staleHandErrors(msgs, turnStart)], tools, signal, cpu, think, ctx: brainCtx, ...(beside ? { beside: true } : {}),
+          onToken: (t) => emit({ type: 'token', text: t })
+        }, { emit });
+      }
       // He's seen the new look once; that's enough.
       if (this.cfg.lookChange) { try { saveSettings(this.cfg, { lookChange: null }); } catch {} this.cfg.lookChange = null; }
       msgs.push(reply);

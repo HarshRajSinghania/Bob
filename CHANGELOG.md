@@ -4,6 +4,27 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.56
+
+### New: Bob for Mac and Linux (preview)
+- **Mac (Apple Silicon):** Bob.app comes as a zip on the release page. His brains and picture maker run on the Mac's own graphics through Metal. FFmpeg and LibreOffice are used when they're already installed. Speech-to-text and Piper voices aren't offered on a Mac yet.
+- **Linux (x86_64):** Bob comes as an AppImage on the release page, with a .sha256 file to check the download.
+- Settings only show what works on your system. On a Mac, the Gaming card switch, Check this PC and the Remove Bob window are hidden, and engines that aren't offered say why.
+- The Hands know which system they're on. The Apps Hand and the virus scan stay Windows only, the Security Hand runs read-only Mac checks, and the Run Hand knows the Mac's risky commands.
+- Both are previews: they're built and started by GitHub's checks on every release, but they haven't had much real use yet. Windows is unchanged.
+
+## 1.5.55
+
+### New: Share brains with my other Bobs (off to start with)
+- Settings, Connections, **Share brains with my other Bobs** has two switches, both off to start with.
+- **Lend my brain** lets another of your Bobs ask this one to think one quick reply. It only ever uses its small quick brain, it says no while it's gaming or busy, and nothing it thinks for the other Bob is saved.
+- **Borrow a brain** lets Bob ask one of your other Bobs to think a quick, Low-effort reply, by default only while you're gaming, so your gaming PC stays light. The tools still run on your own Bob, with its usual checks and OK cards. If no other Bob answers in time, Bob thinks the reply himself.
+- The chat says plainly when it happens: "📡 Borrowed brain: …".
+- The "Let my phone in" door is now called **Let my other devices in**, since your other Bobs use it too.
+
+### Fix
+- A test of the beside brain no longer fails on a PC whose graphics card is free.
+
 ## 1.5.54
 
 ### Keep talking while a big brain works

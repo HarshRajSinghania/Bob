@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { exeName, onPath } from './platform.js';
 
 export const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // Files other programs run (Python scripts) can't be read from inside Bob.exe's app.asar, so the build
@@ -34,12 +35,12 @@ export function loadConfig() {
   cfg.painter = cfg.painter || { engine: 'comfy' };
   cfg.painter.sdcpp = cfg.painter.sdcpp || {};
   // Engine programs: zips differ (some put them in bin\ or Release\), so look in each likely place.
-  cfg.painter.sdcpp.exe = findExe(cfg.painter.sdcpp.exe, path.join(cfg.agentDir, 'sd.cpp'), ['sd-cli.exe', 'sd.exe']);
+  cfg.painter.sdcpp.exe = findExe(cfg.painter.sdcpp.exe, path.join(cfg.agentDir, 'sd.cpp'), [exeName('sd-cli'), exeName('sd')]);
   cfg.llamacpp = cfg.llamacpp || {};
-  cfg.llamacpp.exe = findExe(cfg.llamacpp.exe, path.join(cfg.agentDir, 'llama.cpp'), ['llama-server.exe']);
-  if (cfg.stt?.provider === 'whispercpp') cfg.stt.exe = findExe(cfg.stt.exe, path.join(cfg.agentDir, 'whisper.cpp'), ['whisper-cli.exe']);
+  cfg.llamacpp.exe = findExe(cfg.llamacpp.exe, path.join(cfg.agentDir, 'llama.cpp'), [exeName('llama-server')]);
+  if (cfg.stt?.provider === 'whispercpp') cfg.stt.exe = findExe(cfg.stt.exe, path.join(cfg.agentDir, 'whisper.cpp'), [exeName('whisper-cli')]);
   cfg.tts = cfg.tts || {};
-  cfg.tts.exe = findExe(cfg.tts.exe, path.join(cfg.agentDir, 'piper'), ['piper.exe']);
+  cfg.tts.exe = findExe(cfg.tts.exe, path.join(cfg.agentDir, 'piper'), [exeName('piper')]);
 
   cfg.innDir = cfg.innDir || path.join(cfg.agentDir, 'inn');
   cfg.dataDir = path.join(cfg.innDir, 'bob');
@@ -91,11 +92,14 @@ export function loadConfig() {
 }
 
 // The configured program if it exists; otherwise the first match in the engine folder, its bin\ or Release\ subfolder.
-export function findExe(configured, dir, names) {
+export function findExe(configured, dir, names, platform = process.platform) {
   if (configured && fs.existsSync(configured)) return configured;
+  // Linux and Mac programs have no .exe; on Linux one the distro installed (on the PATH) counts too.
+  if (platform !== 'win32') names = [...new Set(names.map((n) => n.replace(/\.exe$/i, '')))];
   for (const sub of ['', 'bin', 'Release', path.join('build', 'bin')]) {
     for (const n of names) { const p = path.join(dir, sub, n); if (fs.existsSync(p)) return p; }
   }
+  if (platform === 'linux') for (const n of names) { const p = onPath(n); if (p) return p; }
   return configured || path.join(dir, names[0]);
 }
 

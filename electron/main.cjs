@@ -5,6 +5,8 @@
 //   2. otherwise a Bob folder Bob.exe sits inside (it has an "inn" folder), e.g. Agent 00\Bob app\Bob.exe
 // Bob.exe is Electron's official electron.exe, only renamed; Bob's files are in Bob app\resources\app.
 //   3. otherwise %LOCALAPPDATA%\Bob, with a fresh config.json made from config.example.json.
+// On a Mac (Bob.app, the same official Electron renamed, Bob's files in Bob.app/Contents/Resources/app) step 3 is
+// ~/Library/Application Support/Bob/home, and on Linux ~/.local/share/bob (src/platform.js defaultHome).
 const { app, BrowserWindow, shell, Menu, dialog, clipboard, screen } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -21,8 +23,29 @@ if (!app.requestSingleInstanceLock()) { app.quit(); return; }
 // this off by default; it costs nothing (Windows already tracks which windows are covered).
 app.commandLine.appendSwitch('enable-features', 'CalculateNativeWinOcclusion');
 
+// Linux AppImage: Chromium's sandbox needs unprivileged user namespaces, which Ubuntu 24.04+ (AppArmor) blocks for
+// programs it doesn't know, and an AppImage can't carry the setuid helper. Without this Bob wouldn't open at all there.
+// Only then is the extra sandbox switched off: Bob's window only ever shows Bob's own page from 127.0.0.1, with
+// context isolation and no Node in the page, and links to the web open in the normal browser.
+if (process.platform === 'linux' && process.env.APPIMAGE) {
+  let blocked = false;
+  try { blocked = fs.readFileSync('/proc/sys/kernel/apparmor_restrict_unprivileged_userns', 'utf8').trim() === '1'; } catch {}
+  try { if (fs.readFileSync('/proc/sys/kernel/unprivileged_userns_clone', 'utf8').trim() === '0') blocked = true; } catch {}
+  if (blocked) app.commandLine.appendSwitch('no-sandbox');
+}
+
 const root = path.join(__dirname, '..');
-const exeDir = process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.execPath);
+const MAC = process.platform === 'darwin';
+
+// A Mac app opened from Finder or the Dock gets a bare PATH (/usr/bin:/bin:/usr/sbin:/sbin), so programs from
+// Homebrew (FFmpeg, Ollama, Python) wouldn't be found. Add the usual places, after what's already there.
+if (MAC) {
+  const have = String(process.env.PATH || '').split(':').filter(Boolean);
+  for (const d of ['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin']) if (!have.includes(d)) have.push(d);
+  process.env.PATH = have.join(':');
+}
+// Linux: the AppImage file's own folder (APPIMAGE), not the read-only place it is mounted while it runs.
+const exeDir = process.env.PORTABLE_EXECUTABLE_DIR || (process.env.APPIMAGE && path.dirname(process.env.APPIMAGE)) || path.dirname(process.execPath);
 
 function readHome() {
   for (const f of [path.join(exeDir, 'home.json'), path.join(app.getPath('appData'), 'Bob', 'home.json')]) {
@@ -47,10 +70,11 @@ function findNearbyHome() {
   return {};
 }
 
-function setUpHome() {
+async function setUpHome() {
   let home = readHome();
   if (!home.agentDir) home = { ...findNearbyHome(), ...home };
-  const agentDir = home.agentDir || path.join(process.env.LOCALAPPDATA || app.getPath('userData'), 'Bob');
+  const { defaultHome } = await import(pathToFileURL(path.join(root, 'src', 'platform.js')).href);
+  const agentDir = home.agentDir || (process.platform === 'win32' && !process.env.LOCALAPPDATA ? path.join(app.getPath('userData'), 'Bob') : defaultHome());
   fs.mkdirSync(agentDir, { recursive: true });
   const config = home.config || path.join(agentDir, 'config.json');
   if (!fs.existsSync(config)) fs.copyFileSync(path.join(root, 'config.example.json'), config);
@@ -154,11 +178,22 @@ function mindOptions(parent) {
   };
 }
 
+// A Mac needs a menu bar: without one, Copy, Paste, Undo and Quit (Cmd+C, Cmd+V, Cmd+Z, Cmd+Q) don't work.
+// Windows and Linux keep Bob's window free of a menu, as before.
+function macMenu() {
+  return Menu.buildFromTemplate([
+    { role: 'appMenu' },
+    { role: 'editMenu' },
+    { label: 'View', submenu: [{ role: 'reload' }, { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'togglefullscreen' }] },
+    { role: 'windowMenu' }
+  ]);
+}
+
 async function start() {
-  Menu.setApplicationMenu(null);
+  Menu.setApplicationMenu(MAC ? macMenu() : null);
   if (handOverToNewBob()) { app.quit(); return; }
   let home;
-  try { home = setUpHome(); } catch (e) { dialog.showErrorBox('Bob', `Bob couldn't set up his folder: ${e.message}`); app.quit(); return; }
+  try { home = await setUpHome(); } catch (e) { dialog.showErrorBox('Bob', `Bob couldn't set up his folder: ${e.message}`); app.quit(); return; }
   // An older Bob (from before Bob.exe) may already be running on the port: use it rather than fight it.
   if (!(await up(home.port))) {
     try { await import(pathToFileURL(path.join(root, 'src', 'server.js')).href); }
@@ -167,7 +202,7 @@ async function start() {
   }
   win = new BrowserWindow({
     width: 1200, height: 820, minWidth: 360, minHeight: 480,
-    title: 'Bob', icon: path.join(root, 'public', 'icons', 'bob.ico'),
+    title: 'Bob', icon: path.join(root, 'public', 'icons', process.platform === 'win32' ? 'bob.ico' : 'bob-512.png'),
     backgroundColor: '#1d1510', autoHideMenuBar: true, show: !process.argv.includes('--hidden'),
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false }
   });
@@ -200,5 +235,7 @@ async function start() {
 }
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
+// Mac: clicking Bob in the Dock brings his window back (it may have been started hidden at login).
+app.on('activate', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
 app.on('window-all-closed', () => app.quit());
 app.whenReady().then(start);

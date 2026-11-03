@@ -40,6 +40,8 @@ import { tuning, TUNING_KEYS, pictureFitReset } from './tuning.js';
 import { gatherFacts, tipsFrom } from './pc-check.js';
 import { speedTest, speedHistory } from './speed-test.js';
 import { phoneView, cleanPhonePatch, findAddresses, newPasscode } from './phone-access.js';
+import { shareView, cleanSharePatch, saveShare, lendChat, lendRefusal, PROTOCOL as LEND_PROTOCOL } from './share-brains.js';
+import { OS, features } from './platform.js';
 
 const cfg = loadConfig();
 const publicDir = path.join(appDir, 'public');
@@ -253,7 +255,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && p === '/api/hardware') return send(res, 200, await shop.hardware());
     if (req.method === 'GET' && p === '/api/settings') {
-      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, lookText: lookText(cfg.look), personality: cleanPersonality(cfg.personality), lookComments: cfg.lookComments !== false, userName: cfg.userName || '', callMe: cfg.callMe || '', windowsName: cfg.windowsName || '', engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, allTools: cfg.allTools === true, resumeJobs: cfg.resumeJobs === true, autoSession: autoSessionOn(cfg), gamingLock: cfg.gamingLock === true, sessionBy: cfg.sessionBy === 'bob' ? 'bob' : 'you', quickOnCpu: cfg.quickOnCpu === true, chatWhileBusy: cfg.chatWhileBusy !== false, mootBeside: cfg.mootBeside === true, webSearch: cfg.webSearch === true, gamingCard: gamingCard(cfg), gamingCardNow: brain.engine?.currentCard || null, pictureNoWait: cfg.pictureNoWait !== false, ...tuning(cfg), downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: keepTime(cfg), brainMode: brainMode(cfg), tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, windowsVoice: cfg.tts?.windowsVoice || '', voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, housekeeping: hkSettings(cfg), hands: handsSettings(cfg), houseStyle: cleanHouseStyle(cfg.houseStyle), projectList: Object.entries(cfg.projects || {}).map(([name, p]) => ({ name, path: p, missing: !fs.existsSync(p) })), defaultProject: cfg.defaultProject || '', saveDir: saveDirView() });
+      return send(res, 200, { autostart: autostartOn(), setupDone: Boolean(cfg.setupDone), look: cfg.look || null, lookText: lookText(cfg.look), personality: cleanPersonality(cfg.personality), lookComments: cfg.lookComments !== false, userName: cfg.userName || '', callMe: cfg.callMe || '', windowsName: cfg.windowsName || '', engine: cfg.engine, workshop: workshopView(), catName: cfg.catName || 'Patches', version: VERSION, oneBrain: cfg.oneBrain === true, allTools: cfg.allTools === true, resumeJobs: cfg.resumeJobs === true, autoSession: autoSessionOn(cfg), gamingLock: cfg.gamingLock === true, sessionBy: cfg.sessionBy === 'bob' ? 'bob' : 'you', quickOnCpu: cfg.quickOnCpu === true, chatWhileBusy: cfg.chatWhileBusy !== false, mootBeside: cfg.mootBeside === true, webSearch: cfg.webSearch === true, gamingCard: gamingCard(cfg), gamingCardNow: brain.engine?.currentCard || null, pictureNoWait: cfg.pictureNoWait !== false, ...tuning(cfg), downloads: { concurrent: cfg.downloads?.concurrent === 2 ? 2 : 1, resumeOnStart: cfg.downloads?.resumeOnStart === true }, updates: { autoCheck: cfg.updates?.autoCheck === true }, ollamaKeepAlive: keepTime(cfg), brainMode: brainMode(cfg), tts: { provider: cfg.tts?.provider || '', voice: cfg.tts?.voice || 'am_michael', speed: cfg.tts?.speed || 1, windowsVoice: cfg.tts?.windowsVoice || '', voicesFolder: path.join(cfg.innDir, 'voices') }, kokoroVoices: KOKORO_VOICES, session: currentSession(cfg), sessions: Object.entries(SESSIONS).map(([id, x]) => ({ id, ...x, ...(OS === 'mac' && x.whatMac ? { what: x.whatMac } : {}) })), sessionBrains: sessionBrains(cfg), sessionCtx: cfg.sessionCtx || {}, speed: speedView(), style: cfg.style || {}, painter: cfg.painter?.engine || 'comfy', platform: process.platform, os: OS, features: features(), home: cfg.agentDir, housekeeping: hkSettings(cfg), hands: handsSettings(cfg), houseStyle: cleanHouseStyle(cfg.houseStyle), projectList: Object.entries(cfg.projects || {}).map(([name, p]) => ({ name, path: p, missing: !fs.existsSync(p) })), defaultProject: cfg.defaultProject || '', saveDir: saveDirView() });
     }
     // Let my phone in (Settings, Connections). Only from this PC; takes effect when Bob restarts.
     if (p === '/api/phone-access' && (req.method === 'GET' || req.method === 'POST')) {
@@ -269,6 +271,28 @@ const server = http.createServer(async (req, res) => {
       saveRemote(cfg, out.remote);
       brain.log('settings', `phone access: ${out.remote.enabled ? 'on' : 'off'}, ${out.remote.hosts.length} address(es)${made || 'passcode' in b ? ', new passcode' : ''}`);
       return send(res, 200, { ...phoneView(cfg), found, live: remoteOn, passcode: made || undefined, restart: (cfg.remote.enabled === true) !== remoteOn || 'passcode' in b || 'hosts' in b });
+    }
+    // Share brains between your Bobs (src/share-brains.js). Settings only from this PC; lending only through the phone door.
+    if (p === '/api/share-brains' && (req.method === 'GET' || req.method === 'POST')) {
+      if (!isLocal) return send(res, 403, { error: 'Sharing brains can only be changed on this computer itself.' });
+      if (req.method === 'GET') return send(res, 200, { ...shareView(cfg), lenders: brain.lenderStatus() });
+      const b = await body(req);
+      const out = cleanSharePatch(cfg, b);
+      if (out.error) return send(res, 400, { error: out.error });
+      saveShare(cfg, out.share);
+      brain.lenders.state.clear();
+      brain.log('settings', `share brains: lend ${out.share.lend ? 'on' : 'off'}, borrow ${out.share.borrow.on ? out.share.borrow.when : 'off'}, ${out.share.borrow.bobs.length} Bob(s)`);
+      if (b.check) await Promise.all(brain.lenders.bobs().map((x) => brain.lenders.hello(x, { force: true })));
+      return send(res, 200, { ...shareView(cfg), lenders: brain.lenderStatus() });
+    }
+    if (req.method === 'GET' && p === '/api/lend/hello') {
+      const why = lendRefusal(brain, brain.lendDeps);
+      const q = why ? null : brain.lendDeps.quickBrain(brain);
+      return send(res, 200, { protocol: LEND_PROTOCOL, lend: why !== 'off', busy: why === 'off' ? undefined : why || undefined, brain: q ? brain.brainLabel(q.model) : '', device: 'computer', version: VERSION });
+    }
+    if (req.method === 'POST' && p === '/api/lend/chat') {
+      if (!isRemote && !isLocal) return send(res, 403, { error: 'no' });
+      return lendChat(brain, req, res, await body(req).catch(() => ({})), brain.lendDeps);
     }
     // 1.5.41 the 🎮 Gaming button on the chat page: on locks Gaming and clears the graphics card, off goes back to Normal.
     if (req.method === 'POST' && p === '/api/gaming-lock') { const b = await body(req); return send(res, 200, await brain.setGamingLock(b.on === true)); }
