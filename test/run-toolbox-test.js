@@ -127,7 +127,9 @@ const size = (step) => JSON.stringify(step.tools).length;
 {
   check('word check: "draw me a fox" points at pictures', guessGroups({ usable: () => true, tools: brain.tools }, 'draw me a fox').includes('pictures'));
   check('hats still get their own tool lists (tinker can edit)', brain.toolSchemas(['list_folder', 'read_file', 'search_files', 'edit_file']).length === 4);
-  check('every non-core tool is in exactly one group', (() => { const g = groupsFor({ usable: () => true, cfg }); const all = Object.values(g).flatMap((x) => x.tools); return Object.keys(brain.tools).filter((n) => !CORE.includes(n)).every((n) => all.filter((x) => x === n).length === 1); })());
+  // ask_together (1.5.41) isn't in a group: it comes along with any group whose tools ask for an OK.
+  check('ask_together comes along once a group that asks for OKs is added', !brain.frontDeskTools(new Set()).some((t) => t.function?.name === 'ask_together') && brain.frontDeskTools(new Set(['documents'])).some((t) => t.function?.name === 'ask_together'));
+  check('every non-core tool is in exactly one group', (() => { const g = groupsFor({ usable: () => true, cfg }); const all = Object.values(g).flatMap((x) => x.tools); return Object.keys(brain.tools).filter((n) => !CORE.includes(n) && n !== 'ask_together').every((n) => all.filter((x) => x === n).length === 1); })());
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });

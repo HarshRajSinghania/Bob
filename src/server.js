@@ -375,8 +375,8 @@ const server = http.createServer(async (req, res) => {
       return send(res, 404, { error: 'not found' });
     }
     if (req.method === 'POST' && p === '/api/approve') {
-      const { id, allow, rows } = await body(req);
-      return send(res, brain.answerApproval(id, allow, rows) ? 200 : 404, { ok: true });
+      const { id, allow, rows, items } = await body(req);
+      return send(res, brain.answerApproval(id, allow, rows, items) ? 200 : 404, { ok: true });
     }
     if (p === '/api/hands/schedules' && await schedulesRoute({ req, res, p, isLocal, brain, body, send })) return;
     if (p.startsWith('/api/hands') && await handsRoute({ req, res, p, isLocal, brain, cfg, body, send })) return;

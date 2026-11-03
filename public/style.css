@@ -943,3 +943,13 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .save-pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .save-pick input { flex: 1; min-width: 220px; }
 .save-fact { font-weight: 600; }
+
+/* 1.5.42: one card with every OK a job needs (hands.js togetherApproval) */
+.together .together-list { margin: 0 0 8px; padding: 0; list-style: none; display: grid; gap: 8px; }
+.together .together-step { border: 1px solid var(--line); border-radius: calc(var(--r) * 0.75); padding: 8px; }
+.together .together-head { display: flex; gap: 10px; align-items: center; cursor: pointer; margin: -4px -4px 4px; padding: 4px; min-height: 36px; border-radius: calc(var(--r) * 0.5); }
+.together .together-head:hover, .together tr.tap:hover td { background: #ffffff0d; }
+.together tr.tap { cursor: pointer; }
+.together tr.tap td { height: 32px; }
+.together .together-head input { flex: none; margin-top: 1px; }
+.together .together-step:has(input.pick:not(:checked)) > :not(.together-head) { opacity: 0.5; }

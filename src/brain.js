@@ -40,6 +40,7 @@ import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff, ca
 import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
 import { WEB_TOOLS, WEB_OFF, webOn, webPrompt } from './web.js';
+import { askTogether, takeEarlier, askTogetherTool } from './together.js';
 
 const MAX_STEPS = 8;
 
@@ -196,7 +197,8 @@ export class Brain {
     this.housekeeper = new Housekeeper(cfg, this);
     this.tools.forget_topic = forgetTopicTool(this);
     Object.assign(this.tools, handsTools(this), scheduleTools(this)); // Hands: off until the user turns them on (see hands-settings.js)
-    this.tools.use_tools = useToolsTool(this); // the toolbox (toolbox.js): groups added only when a job needs them
+    this.tools.use_tools = useToolsTool(this);
+    this.tools.ask_together = askTogetherTool(this); // 1.5.42: every OK a job needs on one card (together.js) // the toolbox (toolbox.js): groups added only when a job needs them
     this.made = new Made(cfg); // Made by Bob (made.js): everything he made, for the side panel and show_made
     this.tools.show_made = showMadeTool(this);
     this.stickyGroups = new Map(); // chat id -> Map(group -> messages left)
@@ -502,8 +504,9 @@ export class Brain {
   // Asks the user. need: a string, or { text, diff, plan, command, cwd } (plan = rows the user can tick one by one,
   // command = the exact command line). Resolves false, true or 'all'; when the card had rows, out.picked holds
   // the ids the user ticked (null = all of them).
-  async approve(need, emit, signal, group, { hand = false, out = {} } = {}) {
-    const id = crypto.randomUUID();
+  // need.together (1.5.42, together.js): every OK a job needs on one card. Resolves { allow, items }, where items
+  // is null for Allow all / Deny all, else the steps the person ticked ([{ n, rows? }]).
+  async approve(need, emit, signal, group, { hand = false, out = {}, id = crypto.randomUUID() } = {}) {
     const prev = this.state;
     const text = typeof need === 'string' ? need : need.text;
     this.setState('waiting', text);
@@ -511,15 +514,24 @@ export class Brain {
     if (Array.isArray(need.plan)) card.plan = need.plan;
     if (need.command) { card.command = need.command; card.cwd = need.cwd || ''; if (need.button) card.button = String(need.button).slice(0, 30); }
     if (hand) card.hand = true;
+    if (Array.isArray(need.together)) card.together = need.together.map(({ key, ...it }) => it);
     emit(card);
     if (hand) this.handApprovals.add(id);
-    let picked = null;
+    let picked = null, steps = null;
     const allowed = await new Promise((resolve) => {
       const timer = setTimeout(() => resolve(false), APPROVAL_TIMEOUT_MS);
-      const done = (v, rows) => { clearTimeout(timer); this.approvals.delete(id); this.handApprovals.delete(id); picked = rows ?? null; resolve(v); };
+      const done = (v, rows, items) => { clearTimeout(timer); this.approvals.delete(id); this.handApprovals.delete(id); picked = rows ?? null; steps = items ?? null; resolve(v); };
       this.approvals.set(id, done);
       signal.addEventListener('abort', () => done(false), { once: true });
     });
+    if (Array.isArray(need.together)) {
+      const ns = new Set(need.together.map((i) => i.n));
+      const items = Array.isArray(steps) ? steps.filter((p) => ns.has(Number(p?.n))).map((p) => ({ n: Number(p.n), rows: Array.isArray(p.rows) ? p.rows.map(String) : undefined })) : null;
+      const allow = Boolean(allowed) && !(items && !items.length);
+      emit({ type: 'approval-result', id, allowed: allow });
+      this.setState(prev.state === 'waiting' ? 'thinking' : prev.state, '', prev.model);
+      return { allow, items: allow ? items : null };
+    }
     if (Array.isArray(need.plan)) {
       const ok = new Set(need.plan.filter((r) => !r.blocked).map((r) => r.id));
       out.picked = Array.isArray(picked) ? picked.map(String).filter((x) => ok.has(x)) : null;
@@ -533,10 +545,11 @@ export class Brain {
   }
 
   // rows: for a card with a plan, the ids of the rows the user ticked.
-  answerApproval(id, allow, rows) {
+  // items: for a card with every OK on it (together.js), the steps the person ticked: [{ n, rows? }].
+  answerApproval(id, allow, rows, items) {
     const done = this.approvals.get(id);
     if (!done) return false;
-    done(allow === 'all' ? 'all' : Boolean(allow), Array.isArray(rows) ? rows.slice(0, 1000).map(String) : null);
+    done(allow === 'all' ? 'all' : Boolean(allow), Array.isArray(rows) ? rows.slice(0, 1000).map(String) : null, Array.isArray(items) ? items.slice(0, 100) : null);
     return true;
   }
 
@@ -631,12 +644,23 @@ export class Brain {
           this.log('approval', `done without asking: ${text}${need.command ? ` [${need.command}]` : ''}`);
           ctx.emit({ type: 'auto-approved', text, command: need.command || '', rows: Array.isArray(need.plan) ? need.plan.filter((r) => !r.blocked).length : null });
         } else if (need && !(group && ctx.allowAll.has(group))) {
+          // 1.5.42: already answered on the card with all of this job's OKs (together.js)?
+          const earlier = (ctx.preOk || ctx.preNo) ? takeEarlier(ctx, name, args, need) : null;
+          if (earlier?.no) { ctx.ledger?.action(name, args, true, 'declined'); this.log('approval', `denied on the combined card: ${typeof need === 'string' ? need : need.text}`); return { text: 'The user said no to this on the card. Do not try again; say it is fine and ask what to do instead.' }; }
+          if (earlier?.ok) {
+            this.log('approval', `allowed on the combined card: ${typeof need === 'string' ? need : need.text}${need.command ? ` [${need.command}]` : ''}`);
+            ctx.emit({ type: 'allowed-earlier', text: typeof need === 'string' ? need : need.text });
+            if (Array.isArray(need.plan)) ctx.picked = earlier.rows;
+          } else {
           const hand = Boolean(need && typeof need === 'object' && (need.plan || need.command));
           const out = {};
-          const answer = await this.approve(need, ctx.emit, ctx.signal, group, { hand, out });
+          // Not on the card (or changed since): its own card, saying so, so the person isn't surprised by it.
+          const unlisted = ctx.preOk ? (earlier?.changed ? ' (This changed since the list you saw, so Bob is asking again.)' : ' (This wasn\'t on the list you saw.)') : '';
+          const answer = await this.approve(unlisted ? (typeof need === 'string' ? need + unlisted : { ...need, text: need.text + unlisted }) : need, ctx.emit, ctx.signal, group, { hand, out });
           if (!answer) { ctx.ledger?.action(name, args, true, 'declined'); return { text: 'The user said no. Do not try again; say it is fine and ask what to do instead.' }; }
           if (answer === 'all' && group) ctx.allowAll.add(group);
           if (Array.isArray(need.plan)) ctx.picked = out.picked ?? null;
+          }
         }
       }
       const startedAt = Date.now();
@@ -773,9 +797,11 @@ export class Brain {
   offTools() {
     let can = {};
     try { can = capabilities(this.cfg); } catch {}
-    return new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud', ...(webOn(this.cfg) ? [] : WEB_TOOLS), ...toolsOff(this.cfg)].filter(Boolean));
+    return new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud', freeOn(this.cfg) && 'ask_together', ...(webOn(this.cfg) ? [] : WEB_TOOLS), ...toolsOff(this.cfg)].filter(Boolean));
   }
   usable(name, off = this.offTools()) { return Boolean(this.tools[name]) && !off.has(name); }
+  // 1.5.41: whether OKs are asked on cards right now (so a job's OKs can go on one card). Not with "work without asking".
+  together() { return !freeOn(this.cfg); }
 
   toolSchemas(names) {
     const who = this.cfg.userName || 'the user';
@@ -789,6 +815,8 @@ export class Brain {
     if (allToolsOn(this.cfg)) return this.toolSchemas(Object.keys(this.tools));
     const groups = groupsFor(this);
     const names = [...CORE, ...[...loaded].flatMap((g) => groups[g]?.tools || [])];
+    // 1.5.41: ask_together comes along once a group with tools that ask for an OK is added.
+    if (names.some((n) => this.tools[n]?.check && this.usable(n))) names.push('ask_together');
     const list = this.toolSchemas([...new Set(names)]);
     const use = fillUseTools(this.tools.use_tools.schema, groups, loaded);
     if (use) list.push(tidySchema(use));
@@ -1249,6 +1277,7 @@ export class Brain {
       if (!reply.tool_calls) { this.keepGroups(sessionId, used); return; }
       let ended = false;
       ctx.painted = null; // what the painter made in this round (for the quick hand-back below)
+      await askTogether(this, reply.tool_calls, ctx); // 1.5.41: two or more OKs in this reply go on one card
       for (const call of reply.tool_calls) {
         const name = call.function?.name;
         // A tool from a group that isn't added yet: small brains sometimes call it straight away. Add its group and run it.
@@ -1430,6 +1459,7 @@ export class Brain {
       messages.push(reply);
       final += reply.content;
       if (!reply.tool_calls) break;
+      await askTogether(this, reply.tool_calls, ctx); // 1.5.41: one card for every OK in this reply
       for (const call of reply.tool_calls) {
         const res = await this.runTool(call.function?.name, call.function?.arguments, ctx);
         messages.push({ role: 'tool', tool_name: call.function?.name, content: res.text });

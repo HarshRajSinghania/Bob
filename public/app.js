@@ -13,7 +13,7 @@ import { esc, render, renderRich } from './rich.js';
 import { createTopics } from './topics.js';
 import { createTidy } from './tidy.js';
 import { createHelp } from './help.js';
-import { handsApproval, onHandsEvent } from './hands.js';
+import { handsApproval, togetherApproval, onHandsEvent } from './hands.js';
 import { createBrainBar } from './brain-bar.js';
 import { createHandsSwitch } from './hands-switch.js';
 import { createWebSwitch } from './web-switch.js';
@@ -455,6 +455,8 @@ function onEvent(ev) {
       endReply(ev);
       // The reviewer asks whether to quarantine Bob (quarantine.js, opt-in).
       if (quarantineCard(ev, { add, answer: (q) => post('/api/approve', { id: ev.id, allow: q }) })) { ping('Bob\'s reviewer needs you', ev.text); layout.needsYou(); break; }
+      // 1.5.41: every OK a job needs, on one card (hands.js togetherApproval).
+      if (togetherApproval(ev, { add, answer: (allow, items) => post('/api/approve', { id: ev.id, allow, items }) })) { ping('Bob needs your OK', `${ev.together.length} things for one job`); layout.needsYou(); break; }
       // Hands cards: rows to tick (files) or the exact command (run).
       if (handsApproval(ev, { add, answer: (allow, rows) => post('/api/approve', { id: ev.id, allow, rows }) })) { ping('Bob needs your OK', ev.text); layout.needsYou(); break; }
       const diff = ev.diff ? `<pre class="diff"><code>${esc(ev.diff)}</code></pre>` : '';

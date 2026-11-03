@@ -50,6 +50,69 @@ export function handsApproval(ev, { add, answer }) {
   return card;
 }
 
+// ---- One card with every OK a job needs (1.5.42, src/together.js) ----
+// Each step has its own tick box (and its own rows to tick, for files), so the person can see the whole job and
+// allow all of it, some of it, or none. Returns the card, or null if this isn't one.
+const lower = (t) => (t && !/^[A-Z]{2}/.test(t) ? t[0].toLowerCase() + t.slice(1) : t);
+export function togetherApproval(ev, { add, answer }) {
+  if (!Array.isArray(ev.together)) return null;
+  const step = (it) => {
+    let body = '';
+    if (it.later) body = `${it.details ? `<pre class="cmd"><code>${esc(it.details)}</code></pre>` : ''}<p class="muted">Bob can't check this one until the steps before it are done (${esc(lower(String(it.later).replace(/[.\s]+$/, '')))}). He checks again when he gets there, and if anything doesn't match, he asks you again.</p>`;
+    else if (it.plan) body = `<div class="hands-plan"><table><thead><tr><th></th><th>What</th><th>From</th><th>To</th></tr></thead><tbody>
+      ${it.plan.map((r) => `<tr class="${r.blocked ? 'blocked' : 'tap'}"><td><input type="checkbox" data-step="${it.n}" data-row="${esc(r.id)}" ${r.blocked ? 'disabled' : 'checked'} aria-label="Step ${it.n}, row ${esc(r.id)}"></td>
+        <td>${esc(OPS[r.op] || r.op)}${r.note ? `<br><span class="muted">${esc(r.note)}</span>` : ''}</td><td class="path">${esc(r.from)}</td>
+        <td class="path">${esc(r.to)}${r.blocked ? `<br><span class="why">✗ ${esc(r.blocked)}</span>` : ''}</td></tr>`).join('')}
+      </tbody></table></div>`;
+    else if (it.command) body = `<pre class="cmd"><code>${esc(it.command)}</code></pre><p class="muted">In ${esc(it.cwd || '')}</p>`;
+    else if (it.diff) body = `<pre class="diff"><code>${esc(it.diff)}</code></pre>`;
+    return `<li class="together-step"><label class="together-head"><input type="checkbox" class="pick" data-n="${it.n}" checked aria-label="Allow step ${it.n}"><span><strong>${it.n}.</strong> ${esc(it.text)}</span></label>${body}</li>`;
+  };
+  const card = add('approval hands-card together', `<p><strong>Bob wants to do ${ev.together.length} things, all for one job.</strong> ${esc(ev.text)}</p>
+    <ol class="together-list">${ev.together.map(step).join('')}</ol>
+    <p class="muted">Untick anything you don't want. Nothing starts until you answer, and anything that isn't on this list still asks you on its own.</p>
+    <div class="row"><button type="button" class="yes big all-of-it">Allow all</button><button type="button" class="yes big ticked" hidden>Allow ticked</button><button type="button" class="no big">Deny all</button></div>`);
+  const picks = () => [...card.querySelectorAll('input.pick')];
+  const rowsOf = (n) => [...card.querySelectorAll(`input[data-step="${n}"]`)];
+  const chosen = () => picks().filter((p) => p.checked).map((p) => {
+    const n = Number(p.dataset.n);
+    const rows = rowsOf(n);
+    return rows.length ? { n, rows: rows.filter((r) => r.checked).map((r) => r.dataset.row) } : { n };
+  }).filter((c) => !c.rows || c.rows.length);
+  const yes = card.querySelector('.all-of-it'), ticked = card.querySelector('.ticked');
+  // A step with no rows ticked is the same as unticking the step, and the other way round.
+  const sync = (e) => {
+    const t = e?.target;
+    if (t?.classList.contains('pick')) { for (const r of rowsOf(t.dataset.n)) if (!r.disabled) r.checked = t.checked; }
+    else if (t?.dataset.step) { const p = card.querySelector(`input.pick[data-n="${t.dataset.step}"]`); if (p) p.checked = rowsOf(t.dataset.step).some((r) => r.checked); }
+    const all = picks().every((p) => p.checked) && card.querySelectorAll('input[data-row]:not(:disabled):not(:checked)').length === 0;
+    const n = chosen().length;
+    yes.hidden = !all;
+    ticked.hidden = all;
+    ticked.disabled = !n;
+    ticked.textContent = n ? `Allow ticked (${n} of ${ev.together.length})` : 'Nothing ticked';
+  };
+  card.querySelector('.together-list').addEventListener('change', sync);
+  // Big targets (remote desktop): a click anywhere on a file row ticks it, like its box.
+  card.querySelector('.together-list').addEventListener('click', (e) => {
+    const tr = e.target.closest('tr.tap');
+    if (!tr || e.target.closest('input')) return;
+    const box = tr.querySelector('input[data-row]');
+    if (!box || box.disabled) return;
+    box.checked = !box.checked;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  const go = (allow, items) => {
+    card.querySelector('.row').outerHTML = `<div class="done">${allow ? (items ? `Allowed ${items.length} of ${ev.together.length}` : `Allowed all ${ev.together.length}`) : 'Denied all'}</div>`;
+    for (const i of card.querySelectorAll('input')) i.disabled = true;
+    answer(allow, items);
+  };
+  yes.onclick = () => go(true, null);
+  ticked.onclick = () => go(true, chosen());
+  card.querySelector('.no').onclick = () => go(false, null);
+  return card;
+}
+
 // ---- Live output, Stop, files done ----
 const runs = new Map(); // runId -> card
 export function onHandsEvent(ev, { add, scrollDown, note }) {
@@ -93,6 +156,7 @@ export function onHandsEvent(ev, { add, scrollDown, note }) {
     return true;
   }
   // Working without asking: no card, just a plain line of what he did (it's in the logbook too).
+  if (ev.type === 'allowed-earlier') { add('hands-done auto', `<span>Allowed on the card above: ${esc(ev.text)}</span>`); return true; }
   if (ev.type === 'auto-approved') { add('hands-done auto', `<span>Did without asking: ${esc(ev.text)}${ev.command && ev.command !== ev.text ? ` <code>${esc(ev.command)}</code>` : ''}</span>`); return true; }
   if (ev.type === 'apps-stopped') { add('hands-done', `<span>You ${esc(ev.why || 'took over')}, so Bob stopped using apps for this job.</span>`); return true; }
   if (ev.type === 'hands') { showStopAll(ev.settings?.enabled); return true; }

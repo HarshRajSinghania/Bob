@@ -85,9 +85,13 @@ export const HELP = [
 <li><strong>🎙</strong> lets you talk instead of typing: click, speak, then pause. It needs the 👂 Hearing you slot filled.</li></ul>
 <p>Photos you attach are turned upright and resized to at most 2048 px. Hidden camera details, such as where a photo was taken, are removed. The file on your PC isn't changed.</p>` },
 
-  { id: 'approvals', group: 'The chat page', title: 'Approval cards: Allow, Deny, Allow the rest of this job', words: 'approval card allow deny ask permission outside folder rest of this job ok',
+  { id: 'approvals', group: 'The chat page', title: 'Approval cards: Allow, Deny, Allow the rest of this job, and all your OKs on one card', words: 'approval card allow deny ask permission permissions outside folder rest of this job ok together at once all at once one card combined several many allow all allow ticked deny all',
     html: `<p>Before I do something outside my own folder, or use a Hand, I show a card that says exactly what I want to do (the files, the exact command, or the change) and I wait. Your PC, your call.</p>
 <ul><li><strong>Allow</strong>: just this once.</li><li><strong>Allow the rest of this job</strong> (only on some cards): the same kind of thing is allowed until this job ends. The next job asks again.</li><li><strong>Deny</strong>: I don't do it, and I carry on without it.</li></ul>
+<p><strong>When a job needs more than one OK, you get them all on one card.</strong> Say you ask me to back up a folder, zip it and run a script on it: I don't drip-feed you three cards, because one thing that looks fine on its own can look a lot less fine next to the other two. You see the whole job first, each step with its own tick box (and its own rows to tick, for files):</p>
+<ul><li><strong>Allow all</strong>: every step on the card.</li><li><strong>Allow ticked</strong>: untick what you don't want and this button shows up. The rest I skip, and I don't go looking for another way round.</li><li><strong>Deny all</strong>: none of it.</li></ul>
+<p>Each OK on that card is for that exact step, once, in this job. When I get to a step I still check it again: if its files or command changed since you saw the card, or I want to do something that wasn't on it, you get a card for that one, saying so. The hard limits still say no to what they say no to, even if it was ticked. Some steps can't be checked until the ones before them are done (clicking in an app that isn't open yet); the card says so, and shows exactly what I'll do.</p>
+<p>If you untick a step that a later one needs (say, the copy, but not the zip of the copies), I skip the later one too and tell you why, instead of guessing.</p>
 <p>If you turned on <strong>Let Bob work without asking</strong>, Hands skip these cards (see ${go('hands', 'Hands')}). Cloud helpers always ask.</p>
 <p>When a card is waiting, <strong>Alerts</strong> can pop up a Windows notification, and Now running can open by itself (Settings, Look &amp; feel).</p>` },
 
@@ -461,6 +465,8 @@ ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for ti
   // ---------------- FAQ ----------------
   { id: 'faq-online', group: 'FAQ', title: 'Does Bob send my chats anywhere?', words: 'faq privacy send chats online internet telemetry',
     html: `<p>No. I have no accounts and send no telemetry. The only things that can leave your PC are search words and page addresses (only if you turn on web search), downloads you confirm, and jobs you approve for a cloud helper. See ${go('privacy', 'What stays on your PC')}.</p>` },
+  { id: 'faq-ok-together', group: 'FAQ', title: 'Why did Bob ask for several things on one card?', words: 'faq several permissions one card all at once together allow ticked deny all approvals many cards',
+    html: `<p>Because the job needed all of them, and you should see the whole job before you say yes to any part of it. Untick what you don't like and press <strong>Allow ticked</strong>, or <strong>Deny all</strong>. Each OK is for that exact step, once; anything else still asks on its own. See ${go('approvals', 'Approval cards')}.</p>` },
   { id: 'faq-cant-look-up', group: 'FAQ', title: 'Bob says he can\'t look things up online', words: 'faq internet offline web search cant look up off switch',
     html: `<p>Web search is off until you turn it on. Click <strong>🌐 Web search</strong> next to Effort, under the chat (or turn on <strong>Let Bob search the web</strong> in Settings), then ask again. If it's already on, check your internet connection. I can't fix the Wi-Fi from in here. I've tried.</p>` },
   { id: 'faq-help-me-set-up', group: 'FAQ', title: 'Can Bob help me set him up?', words: 'faq set up setup help me ask bob settings where is',
