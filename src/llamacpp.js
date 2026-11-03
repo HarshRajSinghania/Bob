@@ -72,6 +72,32 @@ export function besideThreads(cpus = os.cpus()) {
   return Math.max(2, Math.floor((pairs ? logical / 2 : logical) / 2));
 }
 
+// 1.5.52: some chat templates (Qwen 3.8, for one) refuse a system message anywhere but first:
+// raise_exception('System message must be at the beginning'). Bob adds short system notes mid-chat (nudges, "Thinking
+// time is up", the session-switch note), so for those brains the notes go in as the user's side instead: the first
+// system message stays, later ones become "[Note from Bob's own system] ..." on a user turn, merged with a user turn
+// right next to it so roles still alternate.
+export const MID_SYSTEM_REFUSED = /system message must be at the beginning|system message.{0,40}(only|first|beginning)/i;
+export function foldSystem(messages) {
+  const out = [];
+  let seenOther = false;
+  for (const m of messages || []) {
+    if (m.role === 'system' && !seenOther) {
+      const first = out[0];
+      if (first?.role === 'system') out[0] = { ...first, content: `${first.content || ''}\n\n${m.content || ''}`.trim() };
+      else out.push(m);
+      continue;
+    }
+    seenOther = true;
+    const msg = m.role === 'system' ? { role: 'user', content: `[Note from Bob's own system] ${m.content || ''}` } : m;
+    const prev = out[out.length - 1];
+    const plain = (x) => x?.role === 'user' && typeof x.content === 'string' && !x.images?.length;
+    if (plain(prev) && plain(msg)) out[out.length - 1] = { ...prev, content: `${prev.content}\n\n${msg.content}` };
+    else out.push(msg);
+  }
+  return out;
+}
+
 export class LlamaCpp {
   // Read fresh each time, so speed settings changed in the app apply to the next brain load.
   get lc() { return this.cfg.llamacpp || {}; }
@@ -107,6 +133,7 @@ export class LlamaCpp {
       this.beside.log = (k, t) => this.log?.(k, t);
       this.beside.resolve = (m) => this.resolve(m); // same model files (tests replace resolve on the main engine)
       this.beside.catalogFile = (id) => this.catalogFile(id);
+      this.beside.main = this; // so a card reader set on the main engine (tests) also counts for the second server
     }
     return this.beside;
   }
@@ -117,7 +144,7 @@ export class LlamaCpp {
     if (gaming(this.cfg) || this.lc.besideOnCard === false) return 'none';
     let mb = 0;
     try { mb = fs.statSync(this.resolve(model).gguf).size / 1048576; } catch { return 'none'; }
-    const card = await (b.cardReaders?.card || this.cardReaders?.card || readCard)().catch(() => null);
+    const card = await (b.cardReaders?.card || this.cardReaders?.card || this.main?.cardReaders?.card || readCard)().catch(() => null);
     if (!card) return 'none';
     const need = mb * 1.15 + Math.min(ctx || this.lc.ctx || DEFAULT_CTX, 131072) * 60 / 1024 + CARD_MIN_FREE_MB;
     const place = card.util < CARD_BUSY_PCT && card.freeMB >= need ? 'whole' : 'none';
@@ -553,7 +580,24 @@ export class LlamaCpp {
   }
 
   async chatStream({ model, messages, tools, signal, onToken, think, budget, onOver }) {
-    const res = await fetch(this.url + '/v1/chat/completions', {
+    // 1.5.52: a brain whose template refused a mid-chat system note gets them folded in from then on (foldSystem).
+    this.noMidSystem ||= new Set();
+    if (this.noMidSystem.has(model)) messages = foldSystem(messages);
+    const res = await this.post(model, messages, tools, signal, think);
+    if (!res.ok) {
+      const text = (await res.text()).slice(0, 300);
+      if (!this.noMidSystem.has(model) && MID_SYSTEM_REFUSED.test(text)) {
+        this.noMidSystem.add(model);
+        this.log?.('engine', `${model}: its chat template only takes a system message first, so Bob's notes go in as user notes from now on`);
+        return this.chatStream({ model, messages, tools, signal, onToken, think, budget, onOver });
+      }
+      throw new Error(`llama-server returned ${res.status}: ${text}`);
+    }
+    return this.readStream(res, { model, messages, tools, signal, onToken, think, budget, onOver });
+  }
+
+  post(model, messages, tools, signal, think) {
+    return fetch(this.url + '/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ model, messages: LlamaCpp.toOpenAI(messages), tools: tools && tools.length ? tidySchema(tools) : undefined, stream: true, // 1.5.26: no empty enums (llama.cpp rejects them)
@@ -562,7 +606,9 @@ export class LlamaCpp {
         ...(think === false ? { chat_template_kwargs: { enable_thinking: false } } : {}) }),
       signal
     });
-    if (!res.ok) throw new Error(`llama-server returned ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  }
+
+  async readStream(res, { model, messages, tools, signal, onToken, think, budget, onOver }) {
     let content = '';
     let held = null; // null: not decided yet; false: streaming normally; a string: held back
     let thought = 0;

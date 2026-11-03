@@ -136,6 +136,9 @@ addModel('big', '26b', 'aaa111');
 addModel('small', '4b', 'bbb222');
 const cfg = { dataDir: tmp, agentDir: tmp, engine: 'llamacpp', models: {}, llamacpp: { exe: process.execPath, preArgs: [path.join(here, 'mock-llama-server.js')], ollamaModelsDir: models, port: 18291, fit: false } };
 const eng = new LlamaCpp(cfg);
+// No real card reading in tests: a PC with nvidia-smi and a free card would otherwise put the second brain on it.
+const NO_CARD = { card: async () => null };
+eng.cardReaders = NO_CARD;
 try {
   await eng.preload('big:26b', undefined, {});
   await eng.preload('small:4b', undefined, { beside: true, cpu: true });
@@ -181,7 +184,7 @@ try {
   check('loaded marks it as on the card', lc.find((m) => m.beside)?.onCard === true);
   await eng.unloadGpu();
   check('making room on the card lets an on-card second brain go too', !(await eng.isLoaded('small:4b', { beside: true })));
-  eng.cardReaders = null;
+  eng.cardReaders = NO_CARD;
   await eng.preload('big:26b', undefined, {});
   await eng.preload('small:4b', undefined, { beside: true });
   const all = await eng.unloadAll();

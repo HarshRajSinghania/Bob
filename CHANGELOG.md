@@ -4,6 +4,12 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.52
+
+### Fix: some brains failed with "System message must be at the beginning"
+- Some brains (Qwen 3.8, for one) only accept Bob's own instructions at the very start of a chat. When Bob added a short note mid-chat (for example "Thinking time is up" at Medium effort, or a nudge to use his tools), Bob's engine refused the request with an error, and the job failed.
+- Now, when a brain refuses like that, Bob sends the request again with those notes folded into the chat as marked notes from his own system, and he remembers to do that for that brain from then on. Other brains are unchanged.
+
 ## 1.5.51
 
 ### A second brain beside long jobs
