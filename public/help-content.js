@@ -389,8 +389,8 @@ ${set('Alerts', 'Off', 'Pops up a Windows notification when I need you, for exam
 <p><strong>Only while I'm open:</strong> check-ins happen while I'm open, on Windows, Mac and Linux alike. If one was missed (this replicant matrix was asleep, or I was closed), I do it once when I'm back, not once for every missed day.</p>
 <p>Set it up in ${go('settings-checkins', 'Settings: Check-ins')}.</p>` },
 
-  { id: 'pictures', group: 'Using Bob', title: 'Pictures, edits and video', words: 'paint picture edit video clip references painter make it gold editor replicant matrix pc computer laptop mac device machine',
-    html: `<p>Just ask: "paint a lighthouse at dusk". To change a picture, attach it with 📎 and say what to change ("make it winter"). Follow-ups such as "make it gold" edit the last picture again. Edits keep the person and the picture's own shape.</p>
+  { id: 'pictures', group: 'Using Bob', title: 'Pictures, edits and video', words: 'paint picture edit change photo look like restyle new picture video clip references painter make it gold editor replicant matrix pc computer laptop mac device machine',
+    html: `<p>Just ask: "paint a lighthouse at dusk". To change a picture, attach it with 📎 and say what to change, any way you like: "edit this picture", "I want this to look like a watercolour", "make her hair red", "get rid of the guy on the left". Right after I make or you send a picture, a follow-up such as "now make the sky purple" or "lose the tree" edits that same picture. Edits keep the person, and the picture's size and shape. Want a fresh one instead? Say "a new picture of..." and I start from a blank canvas. (If you don't say "new", I edit. One extra word beats repainting your friend's face by accident.)</p>
 <ul><li>Keep characters, places and styles on the ${go('references', 'References')} shelf and ask me to use one.</li>
 <li>Clips are a few seconds long. On small cards keep them short; I tell you roughly how long a job will take before I start.</li>
 <li>While I paint I put my chat brain away, so chat waits until the picture is done (unless you use the Art session).</li>

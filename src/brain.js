@@ -40,6 +40,7 @@ import { imageInfoOf, sizeLike } from './imageinfo.js';
 import { scheduleTools } from './hands-schedules.js';
 import { toolsOff, HANDS, handOn, handOffWhy, freeOn } from './hands-settings.js';
 import { gate as qGate, after as qAfter, maybeAsk as qAsk, noteStrike, copyHeld } from './quarantine.js';
+import { wantsPictureEdit, recentPicture, editHint } from './intent.js';
 import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUseTools, tidySchema, STICKY_TURNS, toolboxPrompt, saysCant } from './toolbox.js';
 import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff, carryOnPlan, carryOnLine, finishedSteps, MAX_AUTO_RESUMES } from './handoff.js';
 import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
@@ -1715,6 +1716,11 @@ export class Brain {
 
   async runOn(msgs, text, emit, signal, pics, job = null, sessionId = null, out = {}) {
     const user = { role: 'user', content: text, at: Date.now() };
+    // 1.5.94: a picture edit in plain English ("change this picture", "make her hair red", "now make the sky purple"):
+    // the picture attached now, or else the newest one in this chat (attached or made a moment ago).
+    let recent = null;
+    if (!pics.length) { try { recent = recentPicture(msgs, { findRef: (id) => { const r = this.refs.find(id); return r ? { ...r, path: this.refs.pathOf(r) } : null; }, findPainted: (n) => this.findPicture(n) }); } catch {} }
+    const wantsEdit = wantsPictureEdit(text, { pic: pics.length > 0, recent: Boolean(recent) });
     let picNote = '';
     if (pics.length) {
       const { note, images } = await this.look(pics, emit, signal);
@@ -1726,6 +1732,7 @@ export class Brain {
     }
     // 1.5.38: after a restart, the brain is told which steps already finished and which was cut off (the chat shows only
     // the user's own words).
+    if (wantsEdit) { user.content = `${user.content}\n\n${editHint(pics.length ? pics.map((r) => r.name) : [recent.name])}`; user.text = text; }
     if (job?.carryOn) { user.content = `${user.content}\n\n${job.carryOn}`; user.text = text; }
     // 1.5.41: run again after Bob switched session: the user's message is already in the chat once, so the brain gets the
     // note only (hidden), and the turn starts at the user's message from before.
@@ -1741,11 +1748,12 @@ export class Brain {
       if (['image', 'video', 'audio'].includes(ev?.type) && ev.file) { try { this.made.add(ev.file, { tool: ev.type, chat: sessionId, song: ev.song || null }); } catch {} }
       return emit(ev);
     };
-    const ctx = { emit: emitMade, signal, brain: this, cfg: this.cfg, allowAll: new Set(), pics, picNote, msgs, turnText: text, job, sessionId };
+    const ctx = { emit: emitMade, signal, brain: this, cfg: this.cfg, allowAll: new Set(), pics, picNote, msgs, turnText: text, job, sessionId, wantsEdit, editFrom: wantsEdit ? recent : null };
     // The ledger (handoff.js): what was asked for, every load, tool and output this turn, kept by the system.
     ctx.ledger = new Ledger({ job, expect: expectFrom(text, { pics }), save: () => this.saveQueue() });
     this.gate.track(signal, ctx.ledger);
     ctx.loaded = this.startGroups(sessionId, text); // toolbox groups this turn (use_tools adds more)
+    if (wantsEdit && groupsFor(this).pictures) ctx.loaded.add('pictures'); // 1.5.94: an edit needs make_image at hand
     out.ctx = ctx;
     const used = new Set();
     // High and Extreme effort draft on the big brain; Low is the usual chat brain.
@@ -2351,7 +2359,13 @@ export class Brain {
   }
 
   async makeImage({ prompt, width, height, reference, mode, strength }, ctx) {
-    const refs = this.pickRefs(reference);
+    let refs = this.pickRefs(reference);
+    // 1.5.94: the user asked to change a picture but the brain named none (or asked for a new one): use that picture.
+    // A new picture only when the user's own words asked for one (intent.js), never because a small brain forgot.
+    if (!refs.length && ctx.wantsEdit) {
+      const from = ctx.pics?.length ? ctx.pics.map((r) => ({ ...r, path: this.refs.pathOf(r) })) : ctx.editFrom ? [ctx.editFrom] : [];
+      if (from.length) { refs = from; if (mode === 'new') mode = undefined; this.log('image', `edit meant: using ${from.map((r) => r.name).join(', ')}`); }
+    }
     // A picture is attached but none was named: never paint something new by mistake when an edit was meant.
     if (!refs.length && ctx.pics?.length && mode !== 'new') {
       const names = ctx.pics.map((r) => `"${r.name}"`).join(', ');

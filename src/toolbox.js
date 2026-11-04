@@ -17,12 +17,12 @@ const WORK_GROUPS = {
   pictures: {
     what: 'make pictures, video clips, music and sound effects; save reference pictures; ComfyUI workflows', // narrowed to what this PC has, see groupsFor
     tools: ['make_image', 'make_video', 'save_reference', 'make_music', 'make_sound', 'workshop_list', 'workshop_run'],
-    words: /\b((?:picture|image|photo|pic)s? of|pic|pics|picture|image|photo|draw|drawing|paint|painting|render|sketch|artwork|art|portrait|wallpaper|logo|icon|sprite|concept|illustrat\w*|video|clip|animat\w*|music|song|tune|melody|beat|chiptune|soundtrack|jingle|sound|sfx|workflow|comfy\w*|reference|character sheet)s?\b/i
+    words: /\b((?:picture|image|photo|pic)s? of|pic|pics|picture|image|photo|draw|drawing|paint|painting|render|sketch|artwork|art|portrait|wallpaper|logo|icon|sprite|concept|illustrat\w*|video|clip|animat\w*|music|song|tune|melody|beat|chiptune|soundtrack|jingle|sound|sfx|workflow|comfy\w*|reference|character sheet)s?\b|\b(?:visuali[sz]e|doodle|poster|banner|thumbnail|album (?:art|cover)|cover art|pfp|profile pic\w*|avatar|emoji|sticker|meme|comic|photoshop|show me what|movie|gif|mock ?up|(?:a )?cover for my (?:book|album|game|ep|single|podcast)|bring (?:it|this|that|him|her) to life|make (?:it|this|that|him|her) (?:move|dance|talk|walk)|lo-?fi|track|theme (?:song|tune|music)|(?:a|the) theme for|noise|sound effect|foley)\b/i // 1.5.94: plain-English phrasings (test/phrasings.js)
   },
   documents: {
     what: 'write or edit files, save spreadsheets, search inside files',
     tools: ['write_file', 'edit_file', 'save_spreadsheet', 'search_files'],
-    words: /\b(save|write|edit|document|txt|csv|xlsx|spreadsheet|excel|search (?:my|the|in|for)|find (?:in|where)|grep)\b/i
+    words: /\b(save|write|edit|document|txt|csv|xlsx|spreadsheet|excel|search (?:my|the|in|for)|find (?:in|where)|grep|jot|text file|notes? file|(?:in|through) my files|where did I (?:mention|write|put|say))\b/i
   },
   memory: {
     what: 'forget a topic you keep notes on',
@@ -43,11 +43,11 @@ const WORK_GROUPS = {
 
 // The Hands each get their own group, only when that Hand is switched on.
 const HAND_WORDS = {
-  files: /\b(move|copy|rename|zip|unzip|extract|tidy|organi[sz]e|sort|clean ?up|downloads|undo|folder|folders)\b/i,
-  run: /\b(run|execute|command|script|terminal|powershell|cmd|install|build|npm|python|node|git|recipe)\b/i,
-  schedules: /\b(schedules?|scheduled|every (?:day|morning|afternoon|evening|night|week|weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|month|hour|\d+)|each (?:day|morning|evening|night|week|weekday|hour)|daily|nightly|weekly|hourly|on a timer)\b/i,
-  office: /\b(convert\w*|turn (?:it|this|that|them|these) into|save (?:it |this |that )?as|export\w*|pdf|docx?|xlsx?|pptx?|odt|ods|odp|word (?:doc\w*|file)|excel|powerpoint|libre ?office|open ?office|writer|calc|impress|slides?|presentation|slideshow|deck|spreadsheet|sheet|cells?|template|mp3|mp4|wav|webm|webp|flac|ogg|mkv|gif|jpe?g|png)\b/i,
-  security: /\b(secur\w*|virus\w*|malware|antivirus|defender|scan(?:s|ning)?|threats?|quarantin\w*|trojan|ransomware|spyware|adware|hack(?:ed|er|ers|ing)|phish\w*|scam\w*|suspicious|dodgy|sketchy|legit\w*|genuine|fake|spoof\w*|firewall|start(?:s|ing)? (?:up )?with windows|startup (?:apps?|items?|programs?)|open ports?|breach\w*|pwned|leak(?:ed|s)?|password|2fa|two.?factor|privacy|op.?sec|metadata|exif|gps|location data|hidden (?:details|info)|osint|who owns|whois|is (?:this|that|it) (?:real|safe|legit)|look ?up (?:this|that|a) (?:site|website|link|sender|email|ip)|footprint|dork\w*)\b/i,
+  files: /\b(move|copy|rename|zip|unzip|unpack|archive|extract|(?:clear|free) (?:up )?(?:some )?(?:disk )?space|biggest files|disk space|tidy|organi[sz]e|sort|clean ?up|downloads|undo|folder|folders)\b/i,
+  run: /\b(run|execute|command|script|terminal|powershell|cmd|install|build|npm|python|node|git|recipe|(?:start|fire|spin|boot) (?:up )?(?:the |my |a )?(?:dev |local |web )?(?:server|app|game|project|bot)|dev server|compile)\b/i,
+  schedules: /\b(schedules?|scheduled|every (?:day|morning|afternoon|evening|night|week|weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|month|hour|\d+)|each (?:day|morning|evening|night|week|weekday|hour)|daily|nightly|weekly|hourly|on a timer|automatically|at \d{1,2}(?::\d\d)?\s*(?:am|pm)|(?:on |every )?weekdays|(?:on |every )?weekends)\b/i,
+  office: /\b(convert\w*|shrink|compress\w*|make (?:it|this|that) smaller|turn (?:it|this|that|them|these) into|save (?:it |this |that )?as|export\w*|pdf|docx?|xlsx?|pptx?|odt|ods|odp|word (?:doc\w*|file)|excel|powerpoint|libre ?office|open ?office|writer|calc|impress|slides?|presentation|slideshow|deck|spreadsheet|sheet|cells?|template|mp3|mp4|wav|webm|webp|flac|ogg|mkv|gif|jpe?g|png)\b/i,
+  security: /\b(secur\w*|virus\w*|malware|antivirus|defender|scan(?:s|ning)?|threats?|quarantin\w*|trojan|ransomware|spyware|adware|hack(?:s|ed|er|ers|ing)?|phish\w*|scam\w*|suspicious|dodgy|sketchy|legit\w*|genuine|fake|spoof\w*|firewall|start(?:s|ing)? (?:up )?with windows|startup (?:apps?|items?|programs?)|open ports?|breach\w*|pwned|leak(?:ed|s)?|password|2fa|two.?factor|privacy|op.?sec|metadata|exif|gps|location data|hidden (?:details|info)|osint|who owns|whois|is (?:this|that|it) (?:real|safe|legit)|look ?up (?:this|that|a) (?:site|website|link|sender|email|ip)|footprint|dork\w*|(?:is|are) (?:this|that|it|these|those) (?:\w+ )?safe|safe to (?:click|open|download|install|run|use)|infect\w*|feels? off with my (?:computer|pc|laptop)|location)\b/i,
   apps: /\b(open|launch|click|press|button|type (?:in|into)|app|apps|notepad|browser|chrome|explorer|blender|paint\.net|drive|driving|take (?:the )?(?:wheel|control|over)|screen control|control (?:my|the) (?:pc|computer|screen)|use my (?:screen|pc|computer|mouse|keyboard)|do it in)\b/i
 };
 

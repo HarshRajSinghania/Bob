@@ -32,7 +32,7 @@ const kt = fs.readFileSync(path.join(root, 'android/app/src/main/java/ca/mousewu
 check('NetBob.kt has the same Tailscale rule', /second in 64\.\.127/.test(kt) && /\\\.ts\\\.net\$/.test(kt));
 
 // Big jobs: the card only shows when it's clearly one.
-const big = { 'draw me a fox': 'pictures', 'make a picture of a castle at night': 'pictures', 'can you make a song about cats': 'music', 'make a short video of rain': 'video', 'tidy my downloads folder': 'files', 'run my build script': 'programs', 'convert this to pdf': 'office', 'scan my pc for viruses': 'security' };
+const big = { 'draw me a fox': 'pictures', 'make a picture of a castle at night': 'pictures', 'can you make a song about cats': 'music', 'make a short video of rain': 'video', 'tidy my downloads folder': 'files', 'run my build script': 'programs', 'convert this to pdf': 'office', 'scan my pc for viruses': 'security', 'edit my selfie so the sky is blue': 'pictures', 'restyle that photo as a comic': 'pictures', 'design a poster for my band': 'pictures', 'I want the picture to look like winter': 'pictures' };
 for (const [t, id] of Object.entries(big)) check(`big job: "${t}"`, L.bigJob(t)?.id === id, JSON.stringify(L.bigJob(t)));
 for (const t of ["what's a good song for a road trip?", 'I saw a nice picture yesterday', 'how do videos get compressed?', 'what is a virus, in biology?', 'remind me what we said about the fox'.replace('fox', 'garden')]) check(`not a big job: "${t}"`, L.bigJob(t) === null, JSON.stringify(L.bigJob(t)));
 
