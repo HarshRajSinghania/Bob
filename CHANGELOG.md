@@ -4,6 +4,12 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.84
+
+### Passcode made when you switch on
+- Turning on **Let my other devices in** for the first time now makes the passcode for you and shows it once under **Passcode**. There's no separate **Make a passcode** step first. The passcode lock works exactly as before.
+- On the phone, turning on **Lend my brain** does the same: the first time, it makes the passcode and shows it once.
+
 ## 1.5.83
 
 ### Phone brain fix
