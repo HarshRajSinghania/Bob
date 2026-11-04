@@ -304,6 +304,20 @@ export class LlamaCpp {
     } catch { return false; }
   }
 
+  // llama.cpp build number from bob-llamacpp.json (0 when unknown).
+  buildNo() {
+    try { return Number(String(JSON.parse(fs.readFileSync(path.join(this.cfg.agentDir, 'llama.cpp', 'bob-llamacpp.json'), 'utf8')).version).replace(/^b/, '')) || 0; } catch { return 0; }
+  }
+
+  // 1.5.90: no memory-mapping when some of the brain is placed in RAM on the card route (see buildArgs).
+  readsWhole(args, cpu) {
+    if (cpu || this.lc.loadMode === 'mmap') return false;
+    if (args.some((a) => ['--mmap', '--no-mmap', '--load-mode', '-lm'].includes(a))) return false; // set by hand
+    return args.some((a) => ['--fit', '--n-cpu-moe', '-ncmoe', '--cpu-moe', '-ot', '--override-tensor'].includes(a));
+  }
+  // --load-mode is in the builds Bob ships (b12032, the one tested); older builds only know --no-mmap.
+  noMmapArgs() { return this.buildNo() >= 12032 ? ['--load-mode', 'none'] : ['--no-mmap']; }
+
   // A model can see pictures when it has a vision projector (mmproj) and vision isn't switched off.
   async hasVision(model) {
     try { return Boolean(this.resolve(model).mmproj) && this.lc.vision !== false; } catch { return false; }
@@ -350,6 +364,10 @@ export class LlamaCpp {
     // Without fit, every layer goes on the card as before.
     if (this.fitsItself(args, cpu)) args.push('--fit', 'on');
     else if (!args.includes('-ngl')) args.push('-ngl', '999');
+    // When part of the brain stays in RAM (fit, or experts kept on the processor), read it all in at load instead of
+    // letting Windows page it in during the first request. PC test 2026-11-04 (Qwen3.6, --fit, 128K): first reply
+    // 27 s -> 1.4 s and RAM 21 -> 12 GB, for about 10 s more load. llamacpp.loadMode "mmap" keeps the old way.
+    if (this.readsWhole(args, cpu)) args.push(...this.noMmapArgs());
     // 1.5.19: one conversation at a time, so it gets the whole context (more slots split it into small pieces).
     if (!args.some((a) => ['-np', '--parallel'].includes(a))) args.push('-np', '1');
     args.push(...this.templateArgs(model, gguf, args));

@@ -76,6 +76,21 @@ fs.mkdirSync(path.join(tmp, 'data'), { recursive: true });
   const lc = new LlamaCpp(lcCfg());
   const a = lc.buildArgs('qwen3:4b', { cpu: true });
   check(!a.includes('--slot-save-path') && !a.includes('--cpu-range'), 'switches off: the engine starts as before');
+  // 1.5.90: brains partly in RAM are read in at load, not paged in during the first reply.
+  const ver = (v) => { fs.mkdirSync(path.join(tmp, 'llama.cpp'), { recursive: true }); fs.writeFileSync(path.join(tmp, 'llama.cpp', 'bob-llamacpp.json'), JSON.stringify({ version: v })); };
+  const has = (args, ...xs) => xs.every((x) => args.includes(x));
+  lc.cfg.llamacpp.fit = true; ver('b12032');
+  check(has(lc.buildArgs('qwen3:4b', {}), '--fit', '--load-mode', 'none'), 'fit on: the brain is read in at load (--load-mode none)');
+  ver('b11500'); lc.cfg.llamacpp.fit = false; lc.cfg.llamacpp.nCpuMoe = { 'qwen3:4b': 8 };
+  check(has(lc.buildArgs('qwen3:4b', {}), '--n-cpu-moe', '--no-mmap'), 'older build with experts in RAM: --no-mmap');
+  delete lc.cfg.llamacpp.nCpuMoe;
+  check(!lc.buildArgs('qwen3:4b', {}).some((x) => ['--load-mode', '--no-mmap'].includes(x)), 'all on the card: no change');
+  check(!lc.buildArgs('qwen3:4b', { cpu: true }).some((x) => ['--load-mode', '--no-mmap'].includes(x)), 'on the processor: no change');
+  lc.cfg.llamacpp.fit = true; ver('b12032'); lc.cfg.llamacpp.loadMode = 'mmap';
+  check(!lc.buildArgs('qwen3:4b', {}).includes('--load-mode'), 'loadMode "mmap" keeps the old way');
+  delete lc.cfg.llamacpp.loadMode; lc.cfg.llamacpp.args = ['-fa', 'on', '--mmap'];
+  check(!lc.buildArgs('qwen3:4b', {}).includes('--load-mode'), 'a load mode set by hand wins');
+  delete lc.cfg.llamacpp.args; lc.cfg.llamacpp.fit = false; fs.rmSync(path.join(tmp, 'llama.cpp'), { recursive: true, force: true });
   clearInterval(lc.idleTimer);
 }
 {
