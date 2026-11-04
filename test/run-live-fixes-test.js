@@ -77,9 +77,9 @@ check('the models list says where a hand-set brain is', /where = pulled \? \['Ol
 {
   // 1.5.110: the ⏳ line follows the job, once per change.
   const sent = [];
-  const fake = { state: { state: 'painting' }, cfg: { chatWhileBusy: false }, broadcast: (e) => sent.push(e), pump() {}, queue: [{ id: 'w', state: 'waiting', sessionId: 's', queuedLine: true, queuedText: queuedLine(plainDoing('Loading the picture engine')) }, { id: 'x', state: 'waiting', sessionId: 's' }] };
+  const fake = { state: { state: 'painting' }, cfg: { chatWhileBusy: false }, busyLine: (j) => (j.id === 'late' ? 'busy' : null), broadcast: (e) => sent.push(e), pump() {}, queue: [{ id: 'w', state: 'waiting', sessionId: 's', queuedLine: true, queuedText: queuedLine(plainDoing('Loading the picture engine')) }, { id: 'x', state: 'waiting', sessionId: 's' }] };
   for (const d of ['Loading the picture engine', 'Painting 1/20', 'Painting 1/20', 'Painting 2/20']) Brain.prototype.setState.call(fake, 'painting', d);
-  const lines = sent.filter((e) => e.type === 'waiting-line');
+  const lines = sent.filter((e) => e.type === 'waiting-line' && e.id === 'queued-w');
   check('the waiting ⏳ line moves on from loading to the steps, once per change, in place', lines.length === 2 && lines.every((e) => e.id === 'queued-w') && /making a picture, step 1 of 20/.test(lines[0].text) && /step 2 of 20/.test(lines[1].text), JSON.stringify(lines));
 }
 {
@@ -91,6 +91,17 @@ check('the models list says where a hand-set brain is', /where = pulled \? \['Ol
   check('the ⏳ line is taken away once, and only for a job that had one', sent.length === 1 && sent[0].type === 'waiting-line-done' && sent[0].id === 'queued-w');
   check('it happens when the job starts and when it is stopped', /job\.state = 'working'; job\.startedAt = Date\.now\(\); job\.steps = \[\]; this\.waitOver\(job\);/.test(brainSrc) && /j\.state = 'cancelled';\n    this\.waitOver\(j\);/.test(brainSrc));
   check('the chat removes the line', /case 'waiting-line-done': \{[^}]*waitLines\.get\(ev\.id\)\?\.remove\(\);/.test(read('public/app.js')));
+}
+{
+  // 1.5.112: a chat queued just before the painter took over (busyLine said no then) gets its ⏳ line when painting starts.
+  const sent = [];
+  const late = { id: 'late', state: 'waiting', sessionId: 's' }, other = { id: 'pic2', state: 'waiting', sessionId: 's' };
+  const fake = { state: { state: 'idle' }, cfg: { chatWhileBusy: false }, busyLine: (j) => (j.id === 'late' ? 'busy' : null), broadcast: (e) => sent.push(e), pump() {}, queue: [late, other] };
+  Brain.prototype.setState.call(fake, 'painting', 'Loading the picture engine');
+  Brain.prototype.setState.call(fake, 'painting', 'Painting 1/20');
+  const lines = sent.filter((e) => e.type === 'waiting-line');
+  check('a chat queued a moment before painting started still gets its ⏳ line, then it follows the steps', lines.length === 2 && lines.every((e) => e.id === 'queued-late') && /loading the picture engine/.test(lines[0].text) && /step 1 of 20/.test(lines[1].text) && late.queuedLine === true, JSON.stringify(lines));
+  check('a job that would not wait behind it (busyLine says no) gets none', !other.queuedLine);
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exitCode = fail ? 1 : 0;

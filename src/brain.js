@@ -526,7 +526,9 @@ export class Brain {
     // 1.5.41: a media step just started; a chat message already waiting may now go beside it.
     // 1.5.110: a chat waiting behind the job keeps its ⏳ line current ("loading the picture engine", then "step 3 of 20").
     if (state === 'painting') for (const j of this.queue || []) {
-      if (j.state !== 'waiting' || !j.queuedLine) continue;
+      if (j.state !== 'waiting') continue;
+      // 1.5.112: a chat sent in the second before the painter took over got no ⏳ line (busyLine said not yet); give it one now.
+      if (!j.queuedLine) { if (!this.busyLine(j)) continue; j.queuedLine = true; }
       const text = queuedLine(plainDoing(detail));
       if (text !== j.queuedText) { j.queuedText = text; this.broadcast({ type: 'waiting-line', sessionId: j.sessionId, jobId: j.id, id: `queued-${j.id}`, text }); }
     }

@@ -4,6 +4,10 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.112
+
+- **Every waiting chat gets its ⏳ line.** A message sent in the second before a picture started (while Bob was freeing the graphics card) now gets the line too, as soon as the painting begins.
+
 ## 1.5.111
 
 - **The ⏳ line goes away when the wait is over.** Once Bob starts on the waiting message (or it is stopped in Tasks), its ⏳ line leaves the chat, so it no longer sits frozen above the answer.
