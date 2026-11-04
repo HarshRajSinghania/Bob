@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { saveNameOf, idFolderFile } from './models.js';
 import path from 'node:path';
 import os from 'node:os';
-import { spawn, execFile } from 'node:child_process';
+import { spawn, execFile, spawnSync } from 'node:child_process';
 import { tidySchema } from './toolbox.js';
 import { templateFor, samplingFor } from './model-family.js';
 import { gaming, LONG_CODER } from './sessions.js';
@@ -298,15 +298,36 @@ export class LlamaCpp {
   // --fit came in with newer llama.cpp builds; older ones would refuse to start with it.
   fitOn() {
     if (typeof this.lc.fit === 'boolean') return this.lc.fit;
-    try {
-      const v = JSON.parse(fs.readFileSync(path.join(this.cfg.agentDir, 'llama.cpp', 'bob-llamacpp.json'), 'utf8')).version;
-      return Number(String(v).replace(/^b/, '')) >= 12000;
-    } catch { return false; }
+    return this.buildNo() >= 12000; // 1.5.91: the same marker lookup as the load flag
   }
 
-  // llama.cpp build number from bob-llamacpp.json (0 when unknown).
+  // The llama-server Bob starts: the one set by hand, or the one in his engine folder.
+  exePath() { return this.lc.exe || path.join(this.cfg.agentDir, 'llama.cpp', exeName('llama-server')); }
+  // llama.cpp build number (0 when unknown). 1.5.91: the marker next to the exe first (the bundled engine and an
+  // engine set by hand carry their own), then the one in Bob's engine folder.
   buildNo() {
-    try { return Number(String(JSON.parse(fs.readFileSync(path.join(this.cfg.agentDir, 'llama.cpp', 'bob-llamacpp.json'), 'utf8')).version).replace(/^b/, '')) || 0; } catch { return 0; }
+    for (const dir of [path.dirname(this.exePath()), path.join(this.cfg.agentDir, 'llama.cpp')]) {
+      try { const n = Number(String(JSON.parse(fs.readFileSync(path.join(dir, 'bob-llamacpp.json'), 'utf8')).version).replace(/^b/, '')); if (n) return n; } catch {}
+    }
+    return 0;
+  }
+  // 1.5.91: with no marker, ask the engine itself once (its --help) which load flag it knows. Only a real
+  // llama-server is asked; anything else, or no answer within 5 s, counts as unknown.
+  loadFlag() {
+    const n = this.buildNo();
+    if (n) return n >= 12032 ? 'load-mode' : 'no-mmap';
+    const exe = this.exePath();
+    if (this._loadFlag && this._loadFlag.exe === exe) return this._loadFlag.flag; // asked once per exe
+    let flag = null;
+    if (/llama-server/i.test(path.basename(exe)) && fs.existsSync(exe)) {
+      try {
+        const r = spawnSync(exe, ['--help'], { timeout: 5000, encoding: 'utf8', windowsHide: true });
+        const text = `${r.stdout || ''}${r.stderr || ''}`;
+        flag = /--load-mode\b/.test(text) ? 'load-mode' : /--no-mmap\b/.test(text) ? 'no-mmap' : null;
+      } catch {}
+    }
+    this._loadFlag = { exe, flag };
+    return flag;
   }
 
   // 1.5.90: no memory-mapping when some of the brain is placed in RAM on the card route (see buildArgs).
@@ -316,7 +337,8 @@ export class LlamaCpp {
     return args.some((a) => ['--fit', '--n-cpu-moe', '-ncmoe', '--cpu-moe', '-ot', '--override-tensor'].includes(a));
   }
   // --load-mode is in the builds Bob ships (b12032, the one tested); older builds only know --no-mmap.
-  noMmapArgs() { return this.buildNo() >= 12032 ? ['--load-mode', 'none'] : ['--no-mmap']; }
+  // 1.5.91: when the build can't be told, no flag at all (b12032 refuses --no-mmap, so a guess can stop the engine).
+  noMmapArgs() { const f = this.loadFlag(); return f === 'load-mode' ? ['--load-mode', 'none'] : f === 'no-mmap' ? ['--no-mmap'] : []; }
 
   // A model can see pictures when it has a vision projector (mmproj) and vision isn't switched off.
   async hasVision(model) {
@@ -514,7 +536,7 @@ export class LlamaCpp {
     // A llama-server left over from a crash would hold the port: stop it first.
     const pidFile = path.join(this.cfg.dataDir, `llama-server${this.tag}.pid`);
     try { process.kill(Number(fs.readFileSync(pidFile, 'utf8')), 'SIGTERM'); await new Promise((r) => setTimeout(r, 800)); } catch {}
-    const exe = this.lc.exe || path.join(this.cfg.agentDir, 'llama.cpp', exeName('llama-server'));
+    const exe = this.exePath();
     // The exact command, so speed settings can be checked (e.g. that the draft model really went in).
     try { fs.writeFileSync(path.join(this.cfg.dataDir, `llama-server${this.tag}-args.txt`), [exe, ...args].map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ') + '\n'); } catch {}
     let log = '';

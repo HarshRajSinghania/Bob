@@ -183,8 +183,16 @@ export function freeMemNow({ os_ = OS, now = Date.now(), run = () => spawnSync('
 // "Ryzen 7 9800X3D · RTX 5070 Ti 16 GB · 32 GB RAM", "Ryzen Z1 Extreme · built-in graphics · 32 GB RAM",
 // "Apple M3 · 16 GB memory", or "specs not read yet".
 export function cpuName(model = os.cpus()?.[0]?.model || '') {
-  return String(model).replace(/\((R|TM)\)/gi, '').replace(/\b(AMD|Intel)\s+/i, '').replace(/\s+(w\/|with)\s+Radeon.*$/i, '')
-    .replace(/\s+\d+-Core( Processor)?$/i, '').replace(/\s+(CPU|Processor)\b.*$/i, '').replace(/\s+@.*$/, '').replace(/\s+/g, ' ').trim();
+  return String(model).trim().replace(/\((R|TM)\)/gi, '').replace(/\b(AMD|Intel)\s+/i, '').replace(/\s+(w\/|with)\s+Radeon.*$/i, '')
+    .replace(/\s+\d+-Core\b.*$/i, '').replace(/\s+(CPU|Processor)\b.*$/i, '').replace(/\s+@.*$/, '').replace(/\s+/g, ' ').trim();
+}
+// RAM as it's sold: Windows reports a little under what's installed (31.1 for 32 GB), so the spec line shows the
+// common size it's nearest to. Only for showing; the real number stays for the spill maths.
+const RAM_SIZES = [2, 3, 4, 6, 8, 12, 16, 18, 24, 32, 36, 48, 64, 96, 128, 192, 256, 384, 512];
+export function shownRamGB(totalBytes) {
+  const gib = Number(totalBytes) / 1024 ** 3;
+  if (!(gib > 0)) return null;
+  return RAM_SIZES.find((n) => n >= gib - 0.05 && gib >= n * 0.85) || Math.ceil(gib);
 }
 export function specLine({ cpu, gpu, ramGB } = {}) {
   const parts = [];

@@ -90,7 +90,16 @@ fs.mkdirSync(path.join(tmp, 'data'), { recursive: true });
   check(!lc.buildArgs('qwen3:4b', {}).includes('--load-mode'), 'loadMode "mmap" keeps the old way');
   delete lc.cfg.llamacpp.loadMode; lc.cfg.llamacpp.args = ['-fa', 'on', '--mmap'];
   check(!lc.buildArgs('qwen3:4b', {}).includes('--load-mode'), 'a load mode set by hand wins');
-  delete lc.cfg.llamacpp.args; lc.cfg.llamacpp.fit = false; fs.rmSync(path.join(tmp, 'llama.cpp'), { recursive: true, force: true });
+  delete lc.cfg.llamacpp.args;
+  // 1.5.91: no marker anywhere (bundled engine, an exe set by hand): no guessed flag, so b12032 still starts.
+  fs.rmSync(path.join(tmp, 'llama.cpp'), { recursive: true, force: true }); lc._loadFlag = null;
+  check(lc.buildArgs('qwen3:4b', {}).includes('--fit') && !lc.buildArgs('qwen3:4b', {}).some((x) => ['--load-mode', '--no-mmap'].includes(x)), 'no build marker: no load flag at all (b12032 refuses --no-mmap)');
+  // A marker next to the exe counts (the bundled engine has its own).
+  const exeDir = path.join(tmp, 'own-engine'); fs.mkdirSync(exeDir, { recursive: true }); fs.writeFileSync(path.join(exeDir, 'bob-llamacpp.json'), JSON.stringify({ version: 'b12032' }));
+  const keepExe = lc.cfg.llamacpp.exe; lc.cfg.llamacpp.exe = path.join(exeDir, 'llama-server.exe'); lc._loadFlag = null;
+  check(lc.loadFlag() === 'load-mode', 'the marker next to the exe is read');
+  lc.cfg.llamacpp.exe = keepExe; lc._loadFlag = null; fs.rmSync(exeDir, { recursive: true, force: true });
+  lc.cfg.llamacpp.fit = false;
   clearInterval(lc.idleTimer);
 }
 {

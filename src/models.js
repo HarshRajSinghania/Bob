@@ -11,7 +11,7 @@ import { appDir, saveSettings } from './config.js';
 import { ENGINES, engineStatus, installEngine, latestEngine } from './engines.js';
 import { audioReady, voicesReady, aceModelsDir, aceFileOk, tidyAceCache } from './audio.js';
 import { maestroModels } from './maestro.js';
-import { gpuInfo, cpuName, specLine } from './platform.js';
+import { gpuInfo, cpuName, specLine, shownRamGB } from './platform.js';
 import { packFor } from '../public/fit.js';
 
 const MODEL_EXT = new Set(['.gguf', '.safetensors', '.ckpt', '.pt', '.pth', '.bin', '.sft']);
@@ -288,7 +288,7 @@ export class ModelShop {
     const ramGB = Math.round(os.totalmem() / 1024 ** 3) || null; // for brains that spill out of the graphics card into RAM
     // 1.5.89: the replicant matrix's name tag (processor, graphics, memory) for the muted spec line beside its name.
     const cpu = cpuName() || null;
-    return { gpu, freeGB, vramGB: vram || null, ramGB, suggestedPack: pack.id, cpu, spec: specLine({ cpu, gpu, ramGB }) };
+    return { gpu, freeGB, vramGB: vram || null, ramGB, suggestedPack: pack.id, cpu, spec: specLine({ cpu, gpu, ramGB: shownRamGB(os.totalmem()) || ramGB }) };
   }
 
   // ---- The download manager ----
