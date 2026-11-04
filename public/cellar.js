@@ -5,7 +5,7 @@ import { createStylePage } from './style-page.js';
 import { createSampler, sampleButton, sampleHint } from './voice-samples.js';
 import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks, starterPlan, enginesFor, readyPlan, slotValue, slotTakes, isActive, tipHtml, readyList, readyDefaults, readyToggle, readyOrder } from './equip.js';
 import { suit as fitSuit, picksOf, unsuited, jobNames, SLOT_NAMES, canDo, packsFor } from './fit.js';
-import { catalogueHtml } from './catalogue.js';
+import { catalogueHtml, familyOf } from './catalogue.js';
 import { drawBob } from './bob-sprite.js';
 import { handsSettingsHtml, mountHandsSettings } from './hands.js';
 import { quarantineSettingsHtml, mountQuarantineSettings } from './quarantine.js';
@@ -217,6 +217,16 @@ export function createCellar() {
     // now always stays. Get more opens the catalogue at that job.
     const listFor = (kind, job, cur) => (roles.options[kind] || []).filter((o) => o.value === cur || ((kind !== 'llm' || canDo(job, { entry: entryOf(data.models, o.value), name: o.value, caps: o.caps }))
       && isActive({ entry: entryOf(data.models, o.value), value: o.value, installed: true }, settings.activeModels)));
+    // 1.5.101: brain menus group their choices by family (Qwen, Gemma...), the same families as the Brain catalogue.
+    // Only when there are two or more families; brains Bob doesn't know go under Other brains.
+    const optsHtml = (list, cur, kind = 'llm') => {
+      const one = (o) => `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(o.label)}</option>`;
+      if (kind !== 'llm') return list.map(one).join('');
+      const groups = new Map();
+      for (const o of list) { const e = o.value && entryOf(data.models, o.value); const f = e ? familyOf(e) : o.value ? 'Other brains' : ''; if (!groups.has(f)) groups.set(f, []); groups.get(f).push(o); }
+      if (groups.size < 2) return list.map(one).join('');
+      return [...groups].map(([f, os]) => (f ? `<optgroup label="${esc(f)}">${os.map(one).join('')}</optgroup>` : os.map(one).join(''))).join('');
+    };
     const getMore = (job) => `<button type="button" class="mini get-more-btn" data-catjob="${esc(job)}">📚 Get more</button>`;
     const row = (j) => {
       const cur = roles.current[j.id] || '';
@@ -227,7 +237,7 @@ export function createCellar() {
         <td><select data-role="${esc(j.id)}" aria-label="${esc(j.label)}" ${opts.length ? '' : 'disabled'}>
           ${has || !cur ? '' : `<option value="${esc(cur)}" selected>${esc(entryOf(data.models, cur)?.name || cur)} (not downloaded)</option>`}
           ${cur ? '' : '<option value="" selected>Pick one</option>'}
-          ${list.map((o) => `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
+          ${optsHtml(list, cur, j.kind)}
         </select>${getMore(j.id)}${j.id === 'speech' && cur ? nestedVoiceHtml() : ''}${!cur && opts.length && j.kind !== 'llm' ? `<div class="ready-hint"><span class="tag good">On this replicant matrix, not assigned yet</span> <button data-userole="${esc(j.id)}" data-value="${esc(opts[0].value)}">Use ${esc(opts[0].label)}</button></div>` : ''}</td></tr>`;
     };
     const thinkers = roles.jobs.filter((j) => j.kind === 'llm');
@@ -239,7 +249,7 @@ export function createCellar() {
       <table class="roles">${[['small', 'Quick brain', 'The Art session', 'small'], ['gaming', 'Gaming', 'Chats on the processor while you play (Qwen3 4B Instruct 2507)', 'gaming'], ['deep', 'Deep thinking', 'Medium, High and Extreme effort', 'deep'], ['coding', 'Coding session', 'The brain used when the session is Coding. The Coding slot on the paper doll is the copy Bob hands code jobs to in any session.', 'tinker'], ['office', 'Office', 'Does everything in an Office session', 'office']].map(([k, label, what, job]) => {
         const cur = settings.sessionBrains?.[k] || '';
         const list = listFor('llm', job, cur);
-        return `<tr><th scope="row">${esc(label)} ${tipHtml(what, `About ${label}`)}</th><td><select data-sbrain="${k}" aria-label="${esc(label)}">${list.some((o) => o.value === cur) || !cur ? '' : `<option value="${esc(cur)}" selected>${esc(entryOf(data.models, cur)?.name || cur)} (not downloaded)</option>`}${list.map((o) => `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>${getMore(job)}</td></tr>`;
+        return `<tr><th scope="row">${esc(label)} ${tipHtml(what, `About ${label}`)}</th><td><select data-sbrain="${k}" aria-label="${esc(label)}">${list.some((o) => o.value === cur) || !cur ? '' : `<option value="${esc(cur)}" selected>${esc(entryOf(data.models, cur)?.name || cur)} (not downloaded)</option>`}${optsHtml(list, cur)}</select>${getMore(job)}</td></tr>`;
       }).join('')}</table>
       <h3>How much each session keeps in mind</h3><p class="muted">Context (how much he keeps in mind): more lets Bob read longer files and chats, but uses more graphics memory and loads slower. Default uses the engine's own setting.</p>
       <table class="roles">${(settings.sessions || []).map((x) => `<tr><th scope="row">${x.icon} ${esc(x.label)}</th><td><select data-sctx="${esc(x.id)}" aria-label="${esc(x.label)} context"><option value="">Default${({ normal: ' (32K)', light: ' (32K)', art: ' (32K)', office: ' (64K)' })[x.id] || ' (engine\'s own)'}</option>${[8192, 16384, 32768, 65536, 131072, 262144].map((v) => `<option value="${v}" ${settings.sessionCtx?.[x.id] === v ? 'selected' : ''}>${v / 1024}K${v === 262144 ? ' (slow to read when it\'s full)' : ''}</option>`).join('')}</select></td></tr>`).join('')}</table>
@@ -781,11 +791,15 @@ export function createCellar() {
 
   // ---- Equip Bob ----
   let catFocus = ''; // 1.5.56: which job the Brain catalogue opened at
+  // 1.5.101: which model families are open in the Brain catalogue (job:family -> true). All start closed.
+  const FAM_KEY = 'bob-cat-families';
+  let famOpen = (() => { try { const v = JSON.parse(localStorage.getItem(FAM_KEY)); return v && typeof v === 'object' ? v : {}; } catch { return {}; } })();
+  const saveFam = () => { try { localStorage.setItem(FAM_KEY, JSON.stringify(famOpen)); } catch {} };
   let houseFocus = null; // 1.5.34: "Change" on a "Used your house style" line opens that House style box
   let eqSelected = 'bob', eqView = (() => { try { return localStorage.getItem('bob-equip-view') || 'doll'; } catch { return 'doll'; } })();
   function eqCtx() {
     return { roles, models: data?.models || [], brains: settings?.sessionBrains || {}, embed: roles?.current?.embed || '', selected: eqSelected, vramGB: hw?.vramGB || hw?.gpu?.vramGB || null, unified: Boolean(hw?.gpu?.unified), integrated: Boolean(hw?.gpu?.integrated), arm: hw?.board === 'arm', ramGB: hw?.ramGB || null, freeGB: hw?.freeGB ?? null, platform: settings?.platform, showUnsuited,
-      packs: data?.packs || [], packId: starterPack, picks: starterPicks, engines: data?.engines || [], starterOpen,
+      famOpen, packs: data?.packs || [], packId: starterPack, picks: starterPicks, engines: data?.engines || [], starterOpen,
       houseStyle: settings?.houseStyle || {}, active: settings?.activeModels || {},
       attributes: settings ? attributesHtml({ personality: settings.personality, look: settings.look, lookText: settings.lookText, lookComments: settings.lookComments, user: settings.userName, callMe: settings.callMe, windowsName: settings.windowsName }) : '' };
   }
@@ -960,6 +974,7 @@ export function createCellar() {
       // 1.5.56 Brain catalogue: Get more (from a kit or a menu) opens it at that job; Active switches; Equip from a row.
       if ('recheck' in b.dataset) { b.disabled = true; const y = dlg.scrollTop; await load(); dlg.scrollTop = y; return; } // 1.5.56
       if (b.dataset.catjob) { catFocus = b.dataset.catjob; setTab('catalogue'); draw(); dlg.querySelector('#catjob-' + CSS.escape(catFocus))?.scrollIntoView({ block: 'start' }); return; }
+      if (b.dataset.famall) { const open = b.dataset.famall === 'open'; for (const d of dlg.querySelectorAll('details.cat-fam')) { d.open = open; if (open) famOpen[d.dataset.fam] = true; else delete famOpen[d.dataset.fam]; } saveFam(); return; } // 1.5.101
       if (b.dataset.catjump) { catFocus = b.dataset.catjump; dlg.querySelector('#catjob-' + CSS.escape(catFocus))?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
       if (b.dataset.active) {
         const on = b.getAttribute('aria-checked') !== 'true';
@@ -1229,6 +1244,7 @@ export function createCellar() {
   const mid = dlg.closest('.mid');
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && dlg.open && !e.defaultPrevented && !document.querySelector('dialog:modal') && !e.target.closest?.('dialog:not(#cellar), input, textarea, select')) { e.preventDefault(); dlg.close(); } });
   dlg.addEventListener('toggle', (e) => { if (e.target.classList?.contains('starter')) starterOpen = e.target.open; }, true);
+  dlg.addEventListener('toggle', (e) => { const k = e.target.dataset?.fam; if (!k) return; if (e.target.open) famOpen[k] = true; else delete famOpen[k]; saveFam(); }, true); // 1.5.101
   dlg.addEventListener('close', () => { mid?.classList.remove('paged'); for (const id of ['cellarBtn', 'settingsBtn', 'styleBtn']) $(id)?.classList.remove('on'); $('chatBtn')?.classList.add('on'); sampler.stop(); stylePage.closing(settings); window.dispatchEvent(new Event('bob-caps')); });
 
   return {

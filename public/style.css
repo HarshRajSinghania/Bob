@@ -1068,6 +1068,15 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .cat-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); }
 .cat-row.dim { opacity: 0.75; }
 .cat-row .confirm { flex-basis: 100%; }
+/* 1.5.101: one header per model family inside each catalogue job; press it to open or close the list. */
+.cat-fam { border: 1px solid var(--line); border-radius: var(--r); margin: 0 0 8px; background: var(--card); scroll-margin-top: calc(var(--cellar-head-h, 56px) + var(--cellar-tabs-h, 0px) + 8px); }
+.cat-fam > summary { cursor: pointer; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 48px; padding: 8px 12px; }
+.cat-fam > summary::-webkit-details-marker { display: none; }
+.cat-fam > summary::before { content: '▸'; font-size: 18px; width: 1em; transition: transform .15s; }
+.cat-fam[open] > summary::before { transform: rotate(90deg); }
+.cat-fam > summary:hover .fam-name { color: var(--accent); }
+.cat-fam .fam-name { font-weight: 600; }
+.cat-fam > .cat-list { margin: 0; padding: 0 10px 10px; }
 .cat-act { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .src-link { text-decoration: none; color: var(--muted); padding: 0 4px; }
 .mini-switch { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 2px 8px; font: inherit; font-size: 12px; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }

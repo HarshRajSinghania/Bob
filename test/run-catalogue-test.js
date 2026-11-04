@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { catalogueHtml, catJobs, modelsFor } from '../public/catalogue.js';
+import { catalogueHtml, catJobs, modelsFor, familyOf, FAMILIES } from '../public/catalogue.js';
 import { deviceFit, sourceOf, pickFor } from '../public/fit.js';
 import { allSlots, isActive } from '../public/equip.js';
 import { saveNameOf } from '../src/models.js';
@@ -54,6 +54,25 @@ const ctx = { roles, models, brains: {}, active: {}, vramGB: 16, ramGB: 32, free
   check('brains not in Bob\'s list get their own Active switch', /Other brains on this replicant matrix[^]*data-active="mystery:7b"/.test(html));
   check('the phone section has no Active switch or Get', !/id="cat-phone-[^"]*"[^]*?data-active[^]*?<\/li>/.test(html.slice(html.indexOf('catjob-phone'), html.indexOf('catjob-voice'))));
   check('nothing nasty gets through a model name', !/<script/.test(catalogueHtml({ ...ctx, roles: { ...roles, options: { llm: [{ value: 'x', label: '<script>x</script>' }] } } })));
+}
+
+// ---- 1.5.101: model families, each behind its own header ----
+{
+  check('every catalog model names its family', models.every((m) => typeof m.family === 'string' && m.family), models.filter((m) => !m.family).map((m) => m.id).join(','));
+  check('every family has a line about who makes it', [...new Set(models.map(familyOf))].every((f) => FAMILIES[f]), [...new Set(models.map(familyOf))].filter((f) => !FAMILIES[f]).join(','));
+  check('a model without a family falls back to the first word of its name', familyOf({ name: 'Mistral Small 3' }) === 'Mistral');
+  const html = catalogueHtml(ctx);
+  const tinker = html.slice(html.indexOf('id="catjob-tinker"'), html.indexOf('id="catjob-office"'));
+  check('Coding has one header per family (Qwen, Gemma, GPT-OSS)', ['Qwen', 'Gemma', 'GPT-OSS'].every((f) => tinker.includes(`data-fam="tinker:${f}"`)));
+  check('families start closed', !/<details class="cat-fam"[^>]* open>/.test(html));
+  check('a family opened before stays open', /data-fam="tinker:Qwen" id="catfam-tinker-Qwen" open>/.test(catalogueHtml({ ...ctx, famOpen: { 'tinker:Qwen': true } })) && !/data-fam="bob:Qwen"[^>]* open>/.test(catalogueHtml({ ...ctx, famOpen: { 'tinker:Qwen': true } })));
+  check('each model row sits inside its family', /data-fam="tinker:Qwen"[^]*?id="cat-tinker-qwen3-coder-30b"[^]*?<\/details>/.test(tinker) && !/data-fam="tinker:Gemma"[^>]*>(?:(?!<\/details>)[^])*cat-tinker-qwen3-coder-30b/.test(tinker));
+  check('a closed header says how many, the size range, and what is here', /data-fam="tinker:Qwen"[^]*?<summary>[^]*?\d+ models · [\d.]+ (GB|MB) to [\d.]+ GB[^]*?On this replicant matrix|data-fam="tinker:Qwen"[^]*?<summary>[^]*?on this replicant matrix/.test(tinker));
+  const pick = byId(pickFor('tinker', models, ctx).id);
+  check('the header of the family holding Bob\'s pick says so', new RegExp(`data-fam="tinker:${familyOf(pick)}"[^>]*>\\s*<summary>(?:(?!</summary>)[^])*★ Recommended inside`).test(tinker));
+  check('the family with Bob\'s pick comes first', tinker.indexOf(`data-fam="tinker:${familyOf(pick)}"`) === tinker.indexOf('data-fam="tinker:'));
+  check('Open all families and Close all buttons are there', /data-famall="open">Open all families/.test(html) && /data-famall="close">Close all/.test(html));
+  check('a family name can\'t inject markup', !/<img/.test(catalogueHtml({ ...ctx, models: [...models, { ...byId('qwen3-4b'), id: 'evil', family: '<img src=x>' }] })));
 }
 
 // ---- fit on other machines ----

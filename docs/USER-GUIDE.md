@@ -119,6 +119,7 @@ Each slot only lists active models that can do its job: a brain that can't see p
 **📚 Brain catalogue** (on the Get models bar, or **📚 Get more** under any slot) is Bob's full list of models, sorted by job: Quick brain, Gaming, Brain, Deep thinking, Review, Coding, Office, Seeing pictures, Phone, then hearing, voices, pictures, video, music and memory.
 
 - Each model is one line: name, download size and a tag or two. The **i** holds the rest: what it's good at, how much graphics memory it wants, how it does on a 16 GB card, an 8 GB card, a 6 GB laptop card, no graphics card and an 8 GB phone, its licence and its source. The **↗** opens that source: the exact Hugging Face commit Bob downloads from, or the model's Ollama page.
+- **Families:** inside each job, models sit under one header per family (Qwen, Gemma, GPT-OSS...). Every family starts closed. Press a family's name to open its list, press it again to fold it away. The header shows how many models, the size range, **★ Recommended inside** when Bob's pick is inside, and how many are already on your PC. **Open all families** and **Close all** are at the top. Bob remembers which ones you left open. The brain menus in Settings, Brains are split by family too.
 - **Active** (on for models on your PC, off for the rest): active models show in the Equip Bob slots and the brain menus; the rest stay in the catalogue. Switching one off only hides it. It stays on your PC, and if it's equipped it stays equipped.
 - **Get** downloads it after asking first. **Equip** puts a model that's already here into that job's slot.
 - **New** marks a model Bob lists but doesn't recommend until it's been tried on a real PC.
@@ -414,6 +415,7 @@ The full glossary and an FAQ are in Help inside Bob (left menu, or F1).
 - **Graphics card (GPU) and graphics memory (VRAM):** the part of your PC that makes AI fast. The amount of graphics memory (6 GB, 8 GB, 16 GB) decides which models fit.
 - **RAM:** your PC's main memory. Bob can use it for parts of a model that don't fit on the graphics card. It works, but more slowly.
 - **Squeezed (GGUF) version:** a smaller copy of a model that fits small cards, with a little less detail.
+- **Model family:** models made by the same team the same way, like Qwen or Gemma, in many sizes. Each family has its own header in the Brain catalogue.
 - **Brain catalogue:** Bob's full list of models, sorted by job. **Active** models show in the slots and menus; the rest wait there.
 - **Engine:** the program that runs a kind of model, for example the painter engine for pictures. Bob offers it when a model needs it.
 - **Commercial use:** using what you make for money. All starter set models allow it. A few optional extras don't, and Bob marks those.

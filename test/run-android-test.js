@@ -169,6 +169,13 @@ check('photo: never goes to the phone brain', /if \(photo && !to\)/.test(js) && 
   check('pair: the card, Pair with this Bob, and nothing switched on', /'Yes, pair us'/.test(js) && /id="pair-bob"/.test(html) && !/setOn\(true\)/.test(pairKt) && !/settings\.(phoneOn|mode)\s*=/.test((js.match(/function onPair[\s\S]*?\n  \}\n/) || [''])[0]));
 }
 
+// Model families: every phone brain names its family; the picker groups them under headers you open and close.
+{
+  const pm = JSON.parse(fs.readFileSync(path.join(root, 'android/phone-models.json'), 'utf8'));
+  check('families: every phone brain has a family', pm.models.every((m) => typeof m.family === 'string' && m.family.length > 0));
+  check('families: the picker groups them under headers that open and close (remembered)', /el\('details', \{ class: 'fam'/.test(js) && /store\.set\('openFamilies'/.test(js));
+}
+
 // The page's lock: no inline scripts or styles, no network from the page itself.
 check('page has a strict Content-Security-Policy', /script-src 'self'/.test(html) && /connect-src 'none'/.test(html) && !/<script>(?!<)/.test(html.replace(/<script src[^>]*><\/script>/g, '')) && !/ style="/.test(html));
 

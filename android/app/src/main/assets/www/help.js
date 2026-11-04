@@ -127,6 +127,7 @@ globalThis.BobHelp = {
 <dt>Bob on your network</dt><dd>A Bob running on one of your replicant matrices that lets this phone in. He does the heavy lifting.</dd>
 <dt>Phone brain</dt><dd>A small AI model that runs on this phone, without the internet.</dd>
 <dt>Tailscale</dt><dd>A free app that makes a private, scrambled link between your own devices, wherever they are.</dd>
+<dt>Model family</dt><dd>Models made by the same team and built the same way, like Qwen or Gemma. One family comes in many sizes, from phone-sized to big. Under Phone brain each family has its own header you open and close.</dd>
 <dt>Replicant matrix</dt><dd>What I call the computer a Bob runs on. Here that's this replicant matrix (this phone); your other Bobs each live on their own, like your other replicant matrix at home. It's still your computer or phone; it's just my name for it.</dd>
 <dt>Passcode</dt><dd>The code you make on your other replicant matrix under Let my other replicant matrices in (or on the phone under Lend my brain). It proves the device asking is yours.</dd>
 <dt>Lend my brain</dt><dd>This phone thinks quick replies for your other Bobs. They send words; the phone sends words back. The phone only thinks: no tools, files or programs run here for them, and nothing is kept.</dd>

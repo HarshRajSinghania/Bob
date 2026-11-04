@@ -659,6 +659,24 @@
     $('idle-min').value = String(settings.idleMinutes);
     const box = $('brain-models');
     box.textContent = '';
+    // Each model family (Gemma, Qwen, ...) behind its own header, closed until you open it, like the Brain catalogue.
+    const fams = new Map();
+    for (const m of S.models) { const f = m.family || 'Other brains'; if (!fams.has(f)) fams.set(f, []); fams.get(f).push(m); }
+    const openFams = new Set(store.get('openFamilies', []));
+    const famList = {};
+    for (const [f, list] of [...fams].sort((a, b) => Number(b[1].some((m) => m.pick === 'recommended')) - Number(a[1].some((m) => m.pick === 'recommended')))) {
+      const inUse = list.some((m) => settings.phoneModel === m.id && phoneStatus.files?.[m.file.name]);
+      const getting = list.some((m) => dl && dl.file === m.file.name);
+      const gb = list.map((m) => m.file.bytes);
+      const d = el('details', { class: 'fam', open: openFams.has(f) || getting },
+        el('summary', {}, el('strong', { text: f }),
+          el('span', { class: 'dim', text: `${list.length} ${list.length === 1 ? 'model' : 'models'} · ${list.length === 1 ? L.size(gb[0]) : `${L.size(Math.min(...gb))} to ${L.size(Math.max(...gb))}`}` }),
+          list.some((m) => m.pick === 'recommended') ? el('span', { class: 'badge', text: "★ Recommended inside" }) : null,
+          inUse ? el('span', { class: 'badge quiet', text: 'In use' }) : null),
+        famList[f] = el('div', { class: 'fam-list' }));
+      d.addEventListener('toggle', () => { const s = new Set(store.get('openFamilies', [])); if (d.open) s.add(f); else s.delete(f); store.set('openFamilies', [...s]); });
+      box.append(d);
+    }
     for (const m of S.models) {
       const have = Boolean(phoneStatus.files?.[m.file.name]);
       const fit = L.fits(m, phoneStatus.ramTotalMB);
@@ -690,7 +708,7 @@
           } }) : null),
         bench[m.file.name] ? el('p', { class: 'help-line', text: bench[m.file.name] }) : null,
         confirm);
-      box.append(b);
+      famList[m.family || 'Other brains'].append(b);
     }
     const s = phoneStatus;
     drawLend();
