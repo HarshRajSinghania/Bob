@@ -74,5 +74,13 @@ check('the engine\'s own counters are ignored: only lines counting to this job\'
 }
 check('the models list says where a hand-set brain is', /where = pulled \? \['Ollama'\] : byHand \? \['config\.json'\]/.test(read('src/models.js')));
 
+{
+  // 1.5.110: the ⏳ line follows the job, once per change.
+  const sent = [];
+  const fake = { state: { state: 'painting' }, cfg: { chatWhileBusy: false }, broadcast: (e) => sent.push(e), pump() {}, queue: [{ id: 'w', state: 'waiting', sessionId: 's', queuedLine: true, queuedText: queuedLine(plainDoing('Loading the picture engine')) }, { id: 'x', state: 'waiting', sessionId: 's' }] };
+  for (const d of ['Loading the picture engine', 'Painting 1/20', 'Painting 1/20', 'Painting 2/20']) Brain.prototype.setState.call(fake, 'painting', d);
+  const lines = sent.filter((e) => e.type === 'waiting-line');
+  check('the waiting ⏳ line moves on from loading to the steps, once per change, in place', lines.length === 2 && lines.every((e) => e.id === 'queued-w') && /making a picture, step 1 of 20/.test(lines[0].text) && /step 2 of 20/.test(lines[1].text), JSON.stringify(lines));
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exitCode = fail ? 1 : 0;

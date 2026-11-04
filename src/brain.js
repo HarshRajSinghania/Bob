@@ -524,6 +524,12 @@ export class Brain {
     this.state = { state, detail, model, ...(extra || {}) }; // extra (1.5.49): how a brain loads, { mode, from }
     this.broadcast({ type: 'status', ...this.state });
     // 1.5.41: a media step just started; a chat message already waiting may now go beside it.
+    // 1.5.110: a chat waiting behind the job keeps its ⏳ line current ("loading the picture engine", then "step 3 of 20").
+    if (state === 'painting') for (const j of this.queue || []) {
+      if (j.state !== 'waiting' || !j.queuedLine) continue;
+      const text = queuedLine(plainDoing(detail));
+      if (text !== j.queuedText) { j.queuedText = text; this.broadcast({ type: 'waiting-line', sessionId: j.sessionId, jobId: j.id, id: `queued-${j.id}`, text }); }
+    }
     if (state === 'painting' && was !== 'painting' && this.cfg?.chatWhileBusy !== false && this.queue?.some((j) => j.state === 'waiting')) setTimeout(() => this.pump(), 0);
   }
 
@@ -1361,7 +1367,7 @@ export class Brain {
     // 1.5.37: a message sent while Bob is making a picture, song or clip waits for the card. Say so straight away
     // (a plain line, no brain needed), so a long job never looks like Bob has stopped answering.
     const busy = this.busyLine(job);
-    if (busy) { job.queuedLine = true; setTimeout(() => this.broadcast({ type: 'waiting-line', sessionId, jobId: job.id, id: `queued-${job.id}`, text: busy }), 0); }
+    if (busy) { job.queuedLine = true; job.queuedText = busy; setTimeout(() => this.broadcast({ type: 'waiting-line', sessionId, jobId: job.id, id: `queued-${job.id}`, text: busy }), 0); }
     queueMicrotask(() => this.pump());
     const tip = autoSessionOn(this.cfg) ? null : suggestSession(this.cfg, this.queue); // 1.5.41: Bob picks, so no tips
     if (tip && this.suggested !== tip.id) { this.suggested = tip.id; this.broadcast({ type: 'suggest', ...tip }); }
