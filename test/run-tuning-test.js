@@ -1,4 +1,4 @@
-// Tests "Speed for this PC" (1.5.24): the three switches, the PC check tips and the speed test.
+// Tests "Speed for this replicant matrix" (1.5.24): the three switches, this replicant matrix check tips and the speed test.
 // Run: node test/run-tuning-test.js
 import fs from 'node:fs';
 import os from 'node:os';
@@ -42,7 +42,7 @@ pictureFitFailed();
 check(paintFlags({ ...sd(), pictureFit: true }, 'image', {}, { gb: 16, files: 11 }).fit === 'safe', 'after a failure: back to the small-card settings');
 pictureFitReset();
 
-// ---------- Check this PC ----------
+// ---------- Check this replicant matrix ----------
 check(ratedSpeed('UD5-6000') === 6000 && ratedSpeed('CMK32GX5M2B6000C36') === 6000 && ratedSpeed('F5-6000J3038F16G') === 6000 && ratedSpeed('M425R1GB4BB0') === 0, 'rated memory speed is read from part numbers');
 const today = new Date('2026-11-02');
 const slow = tipsFrom({ memory: [{ speed: 4800, configured: 4800, part: 'UD5-6000' }, { speed: 4800, configured: 4800, part: 'UD5-6000' }] }, { today });
@@ -122,12 +122,12 @@ try {
   check(t.status === 200 && t.result?.first?.firstWord >= 0 && t.result.first.full >= t.result.first.firstWord && t.result.switches.readyWhileTyping === true, 'speed test: times the first word and the full answer, with the switches that were on');
   check(t.history.length === 1, 'speed test: the result is kept for comparing');
   const pc = await (await fetch(base + '/api/pc-check')).json();
-  check(Array.isArray(pc.tips) && Array.isArray(pc.fine), 'Check this PC answers with tips and what looked fine');
+  check(Array.isArray(pc.tips) && Array.isArray(pc.fine), 'Check this replicant matrix answers with tips and what looked fine');
 } finally {
   bob.kill();
 }
 const html = fs.readFileSync(path.join(here, '..', 'public', 'cellar.js'), 'utf8');
-check(/Get Bob ready while you type/.test(html) && /Let games go first/.test(html) && /Match picture settings to my graphics card/.test(html) && /Test Bob's speed/.test(html) && /Check this PC/.test(html) && /<th>Load<\/th>/.test(html) && /<th>Second reply<\/th>/.test(html), 'the settings page has the switches and both buttons');
+check(/Get Bob ready while you type/.test(html) && /Let games go first/.test(html) && /Match picture settings to my graphics card/.test(html) && /Test Bob's speed/.test(html) && /Check this replicant matrix/.test(html) && /<th>Load<\/th>/.test(html) && /<th>Second reply<\/th>/.test(html), 'the settings page has the switches and both buttons');
 
 
 // 1.5.27: saved chat starts are kept for the newest 2 brains only.

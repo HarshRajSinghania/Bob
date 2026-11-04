@@ -17,7 +17,7 @@ check('Intel Arc and Iris Xe built-in graphics count', !!pickIntegrated(['Intel(
 check('older Intel UHD graphics do not', pickIntegrated(['Intel(R) UHD Graphics 630'], 'Intel(R) Core(TM) i7-9700K') === null);
 check('a separate card next to it: not handled, so no graphics card', pickIntegrated(['AMD Radeon(TM) Graphics', 'AMD Radeon RX 7800 XT'], 'AMD Ryzen 7 7840HS') === null && pickIntegrated(['Intel(R) Iris(R) Xe Graphics', 'Intel(R) Arc(TM) A770 Graphics'], 'Intel i7') === null);
 check('nothing listed: nothing', pickIntegrated([], 'AMD Ryzen Z1 Extreme') === null && pickIntegrated(['Microsoft Basic Display Adapter'], 'x') === null);
-check('shared memory counted as half the PC\'s memory (32 GB -> 16 GB)', sharedGraphicsGB(32 * GB) === 16 && sharedGraphicsGB(16 * GB) === 8);
+check('shared memory counted as half this replicant matrix\'s memory (32 GB -> 16 GB)', sharedGraphicsGB(32 * GB) === 16 && sharedGraphicsGB(16 * GB) === 8);
 
 // Windows: asked through PowerShell only when nvidia-smi has nothing; a fake execFile stands in (no real programs run).
 const fakeExec = (outs) => (file, args, opts, cb) => { const o = outs[file]; o == null ? cb(new Error('not here')) : cb(null, o); };
@@ -43,7 +43,7 @@ const t16 = starterTicks(shared, cat.models, 8), t32 = starterTicks(shared, cat.
 check('on a 16 GB handheld the painter and editor are ticked, clips are not', t16.has('z-image-turbo-q4') && t16.has('flux2-klein-4b-q4') && !t16.has('wan2.2-ti2v-5b-q4'), [...t16].join(','));
 check('on a 32 GB handheld clips are still unticked (very slow there)', !t32.has('wan2.2-ti2v-5b-q4'));
 const wanHere = cat.models.map((m) => (m.id === 'wan2.2-ti2v-5b-q4' ? { ...m, status: { state: 'installed' } } : m));
-check('a clip model already on the PC stays ticked', starterTicks(shared, wanHere, 8).has('wan2.2-ti2v-5b-q4'));
+check('a clip model already on this replicant matrix stays ticked', starterTicks(shared, wanHere, 8).has('wan2.2-ti2v-5b-q4'));
 const { pickFor } = await import('../public/fit.js');
 const ictx = { packs: cat.packs, vramGB: 8, ramGB: 16, freeGB: 200, integrated: true };
 check('the Painter slot recommends the small painter on built-in graphics', pickFor('image', cat.models, ictx)?.id === 'z-image-turbo-q4', JSON.stringify(pickFor('image', cat.models, ictx)));
@@ -55,11 +55,11 @@ check('clips keep their own size there', paintFlags(on, 'video', {}, { gb: 0, fi
 check('the switch off: the usual settings, as before', paintFlags({ sharedGraphics: true }, 'image', {}, { gb: 0 }).fit === 'safe');
 check('a real card is still judged by its size', paintFlags({ pictureFit: true, sharedGraphics: true }, 'image', {}, { gb: 16, files: 6 }).fit === 'big');
 const equipSrc = fs.readFileSync(new URL('../public/equip.js', import.meta.url), 'utf8');
-check('the set marked (this PC) is the built-in one on a handheld', /packFor\(packs, ctx\.vramGB, ctx\.integrated\)\.id \? ' \(this PC\)'/.test(equipSrc));
+check('the set marked (this replicant matrix) is the built-in one on a handheld', /packFor\(packs, ctx\.vramGB, ctx\.integrated\)\.id \? ' \(this replicant matrix\)'/.test(equipSrc));
 check('it still covers chat, quick brain, eyes, ears, voice, memory and coding', ['bob', 'small', 'eyes', 'voice', 'speech', 'embed', 'tinker'].every((s) => Object.values(shared.slots).flat().includes(s)));
 
 const cellar = fs.readFileSync(new URL('../public/cellar.js', import.meta.url), 'utf8');
-check('Get models says "Fits your PC" and names the built-in graphics', /'Fits your PC'/.test(cellar) && /Built-in graphics: /.test(cellar));
+check('Get models says "Fits your replicant matrix" and names the built-in graphics', /'Fits your replicant matrix'/.test(cellar) && /Built-in graphics: /.test(cellar));
 const server = fs.readFileSync(new URL('../src/server.js', import.meta.url), 'utf8');
 check('built-in graphics are not treated as a card for pictures', /!h\.gpu\.integrated\) cfg\.cardGB/.test(server));
 check('built-in graphics are remembered for picture settings', /h\?\.gpu\?\.integrated\) cfg\.sharedGraphics = true/.test(server));

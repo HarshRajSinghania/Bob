@@ -197,7 +197,7 @@ export class TelegramBridge {
     if (!s.ownerId || q.from?.id !== s.ownerId) return; // not the owner: no answer at all
     const m = /^ok:([0-9a-f-]{36}):([01])$/.exec(String(q.data || ''));
     if (!m) return answer('');
-    if (!s.approve) return answer('Answering OK cards on Telegram is off. Use the PC.');
+    if (!s.approve) return answer('Answering OK cards on Telegram is off. Use this replicant matrix.');
     const allow = m[2] === '1';
     const done = this.brain.answerApproval(m[1], allow);
     this.log(`OK card ${allow ? 'allowed' : 'denied'} on Telegram${done ? '' : ' (already answered)'}`);
@@ -241,10 +241,10 @@ export class TelegramBridge {
         break;
       case 'approval': {
         const text = String(ev.text || 'I need your OK.').slice(0, 1500);
-        if (!s.approve) { this.say(`I need your OK for this, on the PC: ${text}`); break; }
+        if (!s.approve) { this.say(`I need your OK for this, on this replicant matrix: ${text}`); break; }
         const extra = ev.command ? `\n\nCommand: ${String(ev.command).slice(0, 500)}` : '';
         const many = Boolean(ev.together || ev.planCard || ev.plan);
-        this.say(`I need your OK: ${text}${extra}${many ? '\n\nTo pick single steps, use the PC.' : ''}`, { reply_markup: { inline_keyboard: [[{ text: many ? 'Allow the rest of this job' : 'Allow', callback_data: `ok:${ev.id}:1` }, { text: 'Deny', callback_data: `ok:${ev.id}:0` }]] } });
+        this.say(`I need your OK: ${text}${extra}${many ? '\n\nTo pick single steps, use this replicant matrix.' : ''}`, { reply_markup: { inline_keyboard: [[{ text: many ? 'Allow the rest of this job' : 'Allow', callback_data: `ok:${ev.id}:1` }, { text: 'Deny', callback_data: `ok:${ev.id}:0` }]] } });
         break;
       }
       case 'done': {
@@ -276,7 +276,7 @@ export async function telegramRoute({ req, res, p, isLocal, brain, body, send })
   if (p !== '/api/telegram') return false;
   const bridge = brain.telegram;
   if (!bridge) { send(res, 404, { error: 'not ready' }); return true; }
-  if (!isLocal) { send(res, 403, { error: 'Telegram can only be set up on the PC itself.' }); return true; }
+  if (!isLocal) { send(res, 403, { error: 'Telegram can only be set up on this replicant matrix itself.' }); return true; }
   if (req.method === 'GET') { bridge.sync(); send(res, 200, telegramView(bridge)); return true; }
   const b = await body(req);
   if (b.forget) { saveTelegram(brain.cfg, { ownerId: undefined, ownerName: undefined, chatId: undefined }); bridge.pair = null; brain.log('settings', 'Telegram account forgotten (your click)'); }

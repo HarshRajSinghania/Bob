@@ -510,7 +510,7 @@ function onEvent(ev) {
       break;
     case 'away': // 1.5.72 Share jobs: this whole job runs on another of your Bobs (src/share-jobs.js)
       endReply(ev);
-      if (ev.action === 'start') add('note borrow', `📡 Sent to ${esc(ev.name)}: ${ev.why === 'cant' ? `I can't ${esc(ev.what)} on this computer, and ${esc(ev.name)} can` : ev.why === 'gaming' ? `I'd have to wait while you game, and ${esc(ev.name)} is free` : `I'm busy, and ${esc(ev.name)} can ${esc(ev.what)} now`}. OK cards and finished files come back here.`);
+      if (ev.action === 'start') add('note borrow', `📡 Sent to ${esc(ev.name)}: ${ev.why === 'cant' ? `I can't ${esc(ev.what)} on this replicant matrix, and ${esc(ev.name)} can` : ev.why === 'gaming' ? `I'd have to wait while you game, and ${esc(ev.name)} is free` : `I'm busy, and ${esc(ev.name)} can ${esc(ev.what)} now`}. OK cards and finished files come back here.`);
       else add('note borrow', `📡 ${esc(ev.name)} ${esc(ev.why || 'couldn\'t take it')}, so I'll do this one here.`);
       break;
     case 'tool':
@@ -932,7 +932,7 @@ async function start() {
   try {
     const st = await (await fetch('/api/settings')).json(); winVoiceName = st.tts?.windowsVoice || ''; setLook(st.look); applyStyle(st.style); autoSession = st.autoSession !== false; drawSessions(st.sessions, st.session, st.sessionBy);
     // Opt-in: look at GitHub (and the source folder) and tell the user about a newer Bob. Never updates by itself.
-    if (st.updates?.autoCheck) { const c = await (await fetch('/api/update/check')).json(); if (c.newer) note(`A newer Bob (${c.available.label}) is out${c.from === 'github' ? ' on GitHub' : ''}. Settings, This PC and updates, Check for updates.`); }
+    if (st.updates?.autoCheck) { const c = await (await fetch('/api/update/check')).json(); if (c.newer) note(`A newer Bob (${c.available.label}) is out${c.from === 'github' ? ' on GitHub' : ''}. Settings, This replicant matrix and updates, Check for updates.`); }
   } catch {}
   try { drawQueue(await (await fetch('/api/queue')).json()); } catch {}
   try { const d = await (await fetch('/api/downloads')).json(); downloads.update(d); layout.downloads(d); drawDownloadsBadge(d); for (const x of d) if (x.state === 'downloading') showDownload({ ...x, phase: 'downloading' }); } catch {}
@@ -970,7 +970,7 @@ async function askRestart(st) {
   const el = add('suggest', `<span>The new Bob (${esc(st.version || 'update')}) is ready.${busyWith ? ` I'm working on ${esc(busyWith)}; ${esc(after)}` : ''}</span>
     <button type="button" data-r="now">${busyWith ? 'Restart anyway' : 'Restart Bob now'}</button>${busyWith ? '<button type="button" data-r="done">Wait until I\'m done</button>' : ''}<button type="button" class="link" data-r="later">Later</button>`);
   for (const b of el.querySelectorAll('button')) b.onclick = async () => {
-    if (b.dataset.r === 'later') { el.remove(); note(st.mode === 'github' ? 'OK. Press "Restart Bob now" whenever you like: Settings, This PC and updates, Check for updates.' : 'OK. The new Bob takes over the next time Bob starts, or press Restart in the update window.'); return; }
+    if (b.dataset.r === 'later') { el.remove(); note(st.mode === 'github' ? 'OK. Press "Restart Bob now" whenever you like: Settings, This replicant matrix and updates, Check for updates.' : 'OK. The new Bob takes over the next time Bob starts, or press Restart in the update window.'); return; }
     const r = await post('/api/update/restart', { when: b.dataset.r });
     el.remove();
     note(r.ok ? (b.dataset.r === 'done' ? 'I\'ll restart as soon as I\'ve finished.' : 'Restarting...') : (r.data.error || 'The update window didn\'t answer.'), r.ok ? '' : 'error');

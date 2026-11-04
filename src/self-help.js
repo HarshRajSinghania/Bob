@@ -69,7 +69,7 @@ export function settingsNow(cfg) {
     `House style (Equip Bob): ${houseStylePrompt(cfg.houseStyle).replace(/^\s+/, '').replace(/^.*?: /, '') || 'none set (Bob picks)'}`,
     `Projects (Settings): ${Object.keys(cfg.projects || {}).join(', ') || 'none'}${cfg.defaultProject ? `; main project ${cfg.defaultProject}` : ''}`,
     `Where Bob saves things (Settings): ${cfg.saveDirMissing ? `the picked folder ${cfg.saveDir} is missing, so saving in Bob's own folder ${cfg.painterDir} for now` : cfg.saveDir ? cfg.painterDir : `Bob's own folder (Made by Bob), ${cfg.painterDir || 'inn\\painter'}`}`,
-    `Speed for this PC: Get Bob ready while you type ${onOff(cfg.readyWhileTyping === true)}, Let games go first ${onOff(cfg.gamesFirst === true)}, Match picture settings to my graphics card ${onOff(cfg.pictureFit === true)}`
+    `Speed for this replicant matrix: Get Bob ready while you type ${onOff(cfg.readyWhileTyping === true)}, Let games go first ${onOff(cfg.gamesFirst === true)}, Match picture settings to my graphics card ${onOff(cfg.pictureFit === true)}`
   ].join('\n');
 }
 
@@ -78,5 +78,5 @@ export function bobHelp(cfg, query, max = 3) {
   const body = hits.length
     ? hits.map((e) => `## ${e.title}\n${plainText(e.html)}`).join('\n\n').slice(0, 5000)
     : `Nothing in Help matches "${query}". Help topics: ${[...new Set(HELP.map((e) => e.group))].join(', ')}.`;
-  return `${body}\n\n## Set right now on this PC\n${settingsNow(cfg)}\n\n(Help opens with F1 or Help in the left menu.)`;
+  return `${body}\n\n## Set right now on this replicant matrix\n${settingsNow(cfg)}\n\n(Help opens with F1 or Help in the left menu.)`;
 }

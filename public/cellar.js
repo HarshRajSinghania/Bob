@@ -63,7 +63,7 @@ export function createCellar() {
   function engineStep(eng, what = 'Downloaded') {
     if (!eng || eng.installed) return '';
     if (live.has('engine:' + eng.id)) return `<div class="engine-step">${progress(live.get('engine:' + eng.id))}</div>`;
-    if (eng.available === false) return `<p class="muted">${esc(what)}. ${esc(eng.note || `${eng.name} doesn't run on this computer yet.`)}</p>`;
+    if (eng.available === false) return `<p class="muted">${esc(what)}. ${esc(eng.note || `${eng.name} doesn't run on this replicant matrix yet.`)}</p>`;
     return `<div class="model engine-step"><p><strong>${esc(what)}. One more step:</strong> get the ${esc(eng.name)} engine${ENGINE_SIZE[eng.id] ? ` (${ENGINE_SIZE[eng.id]})` : ''}, which runs it.</p><button class="get" data-engine="${esc(eng.id)}">Get ${esc(eng.name)}</button><div class="confirm" hidden></div></div>`;
   }
 
@@ -73,7 +73,7 @@ export function createCellar() {
     const waiting = (data.downloads || []).find((d) => d.id === m.id && ['queued', 'paused', 'failed'].includes(d.state));
     if (waiting) return `<div class="muted">${waiting.state === 'queued' ? 'Waiting its turn in Downloads.' : waiting.state === 'paused' ? 'Paused in Downloads.' : 'Failed: see Downloads.'}</div><button data-opendl>Open Downloads</button>`;
     if (s.state === 'installed') {
-      const where = s.where.length ? `On this PC (${esc(s.where.join(', '))})` : 'On this PC';
+      const where = s.where.length ? `On this replicant matrix (${esc(s.where.join(', '))})` : 'On this replicant matrix';
       const eng = m.needs && (data.engines || []).find((e) => e.name === m.needs);
       return `<div class="have">✓ ${where}</div>${m.use ? `<button data-use="${esc(m.id)}">Use this</button>` : ''}${engineStep(eng)}`;
     }
@@ -81,7 +81,7 @@ export function createCellar() {
     if (!s.canDownload) return `<div class="muted">Needs Ollama running to download. Start Ollama, then press Check again.</div><button type="button" data-recheck>Check again</button>`;
     const part = s.state === 'partial' ? ' (some files are already here)' : '';
     const fit = suit(m);
-    if (fit.level === 'blocked') return `<div class="muted">Can't install on this PC: ${esc(fit.why)}</div>`;
+    if (fit.level === 'blocked') return `<div class="muted">Can't install on this replicant matrix: ${esc(fit.why)}</div>`;
     if (fit.level !== 'ok' && picks(m).length) return `<div class="muted">${esc(fit.why)}</div><button class="get" data-get="${esc(m.id)}">Download ${gb(m.sizeGB)}${part}</button>`;
     if (fit.level !== 'ok') return `<div class="muted">${esc(fit.why)}</div><button class="link" data-anyway="${esc(m.id)}">Download anyway</button>`;
     return `<button class="get" data-get="${esc(m.id)}">Download ${gb(m.sizeGB)}${part}</button>`;
@@ -118,9 +118,9 @@ export function createCellar() {
     const mine = picks(m);
     // Three separate things: Bob's pick for a job on this PC (★), fits the card (quiet), or doesn't suit (with why).
     const badge = covered(m) ? '<span class="tag good">Faster replies after voice notes</span>'
-      : mine.length ? `<span class="tag rec">★ Recommended for your PC: ${esc(mine.map((id) => SLOT_NAMES[id]).join(', '))}</span>`
-      : fit.level === 'ok' ? (fit.fits ? `<span class="tag">${hw?.gpu?.integrated ? 'Fits your PC' : hw?.gpu?.unified ? 'Fits your Mac' : 'Fits your card'}</span>` : '')
-      : fit.level === 'blocked' ? '<span class="tag bad">Can\'t install on this PC</span>' : '<span class="tag warn">Doesn\'t suit this PC</span>';
+      : mine.length ? `<span class="tag rec">★ Recommended for your replicant matrix: ${esc(mine.map((id) => SLOT_NAMES[id]).join(', '))}</span>`
+      : fit.level === 'ok' ? (fit.fits ? `<span class="tag">${hw?.gpu?.integrated ? 'Fits your replicant matrix' : hw?.gpu?.unified ? 'Fits your Mac' : 'Fits your card'}</span>` : '')
+      : fit.level === 'blocked' ? '<span class="tag bad">Can\'t install on this replicant matrix</span>' : '<span class="tag warn">Doesn\'t suit this replicant matrix</span>';
     const dim = fit.level !== 'ok' && !mine.length && m.status.state !== 'installed' ? ' dim' : '';
     const jobs = jobNames(m);
     return `<article class="model${dim}" id="m-${esc(m.id)}">
@@ -137,7 +137,7 @@ export function createCellar() {
   function extrasHtml(kind = tab) {
     const ex = data.extras.filter((f) => kind === 'found' || f.kind === kind);
     if (!ex.length) return '';
-    return `<h3>Also on this PC</h3><p class="muted">Bob found these in other apps. He can use the ones his painter understands; Maestro's own video models still need Maestro.</p>
+    return `<h3>Also on this replicant matrix</h3><p class="muted">Bob found these in other apps. He can use the ones his painter understands; Maestro's own video models still need Maestro.</p>
       <ul class="found">${ex.map((f) => `<li><span>${esc(f.name)}</span><span class="muted">${esc(f.owner)} · ${gb(f.size / 1e9)}</span></li>`).join('')}</ul>`;
   }
 
@@ -158,7 +158,7 @@ export function createCellar() {
     const all = data.models.filter((m) => m.category === id).sort((a, b) => rank(a) - rank(b));
     const hide = all.filter((m) => unsuited(m, picks(m), suit(m)) && !live.has(m.id));
     const shown = showUnsuited ? all : all.filter((m) => !hide.includes(m));
-    const note = hide.length ? `<p class="muted unsuited-note">${showUnsuited ? `Showing ${hide.length} that ${hide.length === 1 ? 'doesn\'t' : 'don\'t'} suit this PC.` : `${hide.length} more ${hide.length === 1 ? 'doesn\'t' : 'don\'t'} suit this PC.`} <button type="button" class="link" data-unsuited>${showUnsuited ? 'Hide them' : 'Show them'}</button></p>` : '';
+    const note = hide.length ? `<p class="muted unsuited-note">${showUnsuited ? `Showing ${hide.length} that ${hide.length === 1 ? 'doesn\'t' : 'don\'t'} suit this replicant matrix.` : `${hide.length} more ${hide.length === 1 ? 'doesn\'t' : 'don\'t'} suit this replicant matrix.`} <button type="button" class="link" data-unsuited>${showUnsuited ? 'Hide them' : 'Show them'}</button></p>` : '';
     return shown.map(card).join('') + note;
   }
   function catBody(id) {
@@ -169,7 +169,7 @@ export function createCellar() {
   function picksSummary() {
     const rows = data.models.map((m) => [m, picks(m)]).filter(([, p]) => p.length);
     if (!rows.length) return '';
-    return `<details class="fit-sum"><summary>Bob's picks for this PC (${rows.length} models)</summary><ul class="fit-picks">${rows.map(([m, p]) => `<li><button type="button" class="link" data-gomodel="${esc(m.id)}" data-gocat="${esc(m.category)}">${esc(m.name)}</button>: ${esc(p.map((id) => SLOT_NAMES[id]).join(', '))}${m.status.state === 'installed' ? ' <span class="muted">(on this PC)</span>' : ''}</li>`).join('')}</ul></details>`;
+    return `<details class="fit-sum"><summary>Bob's picks for this replicant matrix (${rows.length} models)</summary><ul class="fit-picks">${rows.map(([m, p]) => `<li><button type="button" class="link" data-gomodel="${esc(m.id)}" data-gocat="${esc(m.category)}">${esc(m.name)}</button>: ${esc(p.map((id) => SLOT_NAMES[id]).join(', '))}${m.status.state === 'installed' ? ' <span class="muted">(on this replicant matrix)</span>' : ''}</li>`).join('')}</ul></details>`;
   }
   // An ON/OFF pill switch like Read aloud and Alerts: the whole row is the button.
   // 1.5.56: the hint shows in the bubble when you point at, Tab to or press and hold the switch.
@@ -179,10 +179,10 @@ export function createCellar() {
     // Same detection as Now running and the Settings footer; a size set by hand in Bob's settings says so.
     // A Mac: one memory pool shared with graphics, and models are sized against the part macOS lets graphics use.
     const card = hw?.gpu?.unified ? `${esc(hw.gpu.name.replace(/ \(shared memory\)$/, ''))}, memory shared with graphics (about ${hw.gpu.vramGB} GB of it for models)` : hw?.gpu ? `${esc(hw.gpu.name)} (${hw.gpu.vramGB} GB graphics memory)` : hw?.vramGB ? `a ${hw.vramGB} GB graphics card (set in Bob's settings; not detected right now)` : 'no graphics card found';
-    return `<div class="fit-banner"><p><strong>Picked for this PC:</strong> ${card}${hw?.ramGB ? `, ${hw.ramGB} GB RAM` : ''}. <button type="button" class="mini help-link" data-help="recommended" aria-label="Help: how Bob picks models">? How Bob picks</button></p>
+    return `<div class="fit-banner"><p><strong>Picked for this replicant matrix:</strong> <span class="muted spec">${hw?.spec ? esc(hw.spec) : `${card}${hw?.ramGB ? `, ${hw.ramGB} GB RAM` : ''}`}</span>. <button type="button" class="mini help-link" data-help="recommended" aria-label="Help: how Bob picks models">? How Bob picks</button></p>
       ${picksSummary()}
-      <p class="muted"><span class="tag rec">★ Recommended</span>: Bob's pick for that job on your PC. <span class="tag">${hw?.gpu?.integrated ? 'Fits your PC' : hw?.gpu?.unified ? 'Fits your Mac' : 'Fits your card'}</span>: also runs well here, just not the first pick.</p>
-      ${pillSwitch('unsuitedsw', showUnsuited, 'Show models that don\'t suit this PC', 'Off unless you turn it on. Each one says why it doesn\'t suit.')}</div>`;
+      <p class="muted"><span class="tag rec">★ Recommended</span>: Bob's pick for that job on your replicant matrix. <span class="tag">${hw?.gpu?.integrated ? 'Fits your replicant matrix' : hw?.gpu?.unified ? 'Fits your Mac' : 'Fits your card'}</span>: also runs well here, just not the first pick.</p>
+      ${pillSwitch('unsuitedsw', showUnsuited, 'Show models that don\'t suit this replicant matrix', 'Off unless you turn it on. Each one says why it doesn\'t suit.')}</div>`;
   }
   function groupHtml(g) {
     const parts = g.parts.filter((id) => data.categories.some((c) => c.id === id));
@@ -195,7 +195,7 @@ export function createCellar() {
     if (groupOf(tab)) setTab(tab);
     const cats = [], seen = new Set();
     for (const c of data.categories) { const g = groupOf(c.id); const item = g || c; if (!seen.has(item.id)) { seen.add(item.id); cats.push(item); } }
-    const tabs = [{ id: 'roles', label: 'Equip Bob', icon: '🧰' }, { id: 'catalogue', label: 'Brain catalogue', icon: '📚' }, ...cats, { id: 'found', label: 'On this PC', icon: '🔎' }, { id: 'style', label: 'Style', icon: '🎨' }, { id: 'settings', label: 'Settings', icon: '⚙' }];
+    const tabs = [{ id: 'roles', label: 'Equip Bob', icon: '🧰' }, { id: 'catalogue', label: 'Brain catalogue', icon: '📚' }, ...cats, { id: 'found', label: 'On this replicant matrix', icon: '🔎' }, { id: 'style', label: 'Style', icon: '🎨' }, { id: 'settings', label: 'Settings', icon: '⚙' }];
     const bar = `<nav class="tabs cellar-tabs" role="tablist" aria-label="Get models, Style and Settings pages">${tabs.map((c) => `<button role="tab" aria-selected="${c.id === tab}" data-tab="${c.id}">${c.icon} ${esc(c.label)}</button>`).join('')}</nav>`;
     let body = '';
     if (tab === 'settings') body = settingsHtml();
@@ -221,14 +221,14 @@ export function createCellar() {
     const row = (j) => {
       const cur = roles.current[j.id] || '';
       const opts = listFor(j.kind, j.id, cur);
-      const list = opts.length ? opts : [{ value: '', label: 'Not available on this PC yet: hidden from Bob' }];
+      const list = opts.length ? opts : [{ value: '', label: 'Not available on this replicant matrix yet: hidden from Bob' }];
       const has = list.some((o) => o.value === cur);
       return `<tr class="${opts.length ? '' : 'dim'}"><th scope="row">${esc(j.label)} ${tipHtml(j.what, `About ${j.label}`)}</th>
         <td><select data-role="${esc(j.id)}" aria-label="${esc(j.label)}" ${opts.length ? '' : 'disabled'}>
           ${has || !cur ? '' : `<option value="${esc(cur)}" selected>${esc(entryOf(data.models, cur)?.name || cur)} (not downloaded)</option>`}
           ${cur ? '' : '<option value="" selected>Pick one</option>'}
           ${list.map((o) => `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
-        </select>${getMore(j.id)}${j.id === 'speech' && cur ? nestedVoiceHtml() : ''}${!cur && opts.length && j.kind !== 'llm' ? `<div class="ready-hint"><span class="tag good">On this PC, not assigned yet</span> <button data-userole="${esc(j.id)}" data-value="${esc(opts[0].value)}">Use ${esc(opts[0].label)}</button></div>` : ''}</td></tr>`;
+        </select>${getMore(j.id)}${j.id === 'speech' && cur ? nestedVoiceHtml() : ''}${!cur && opts.length && j.kind !== 'llm' ? `<div class="ready-hint"><span class="tag good">On this replicant matrix, not assigned yet</span> <button data-userole="${esc(j.id)}" data-value="${esc(opts[0].value)}">Use ${esc(opts[0].label)}</button></div>` : ''}</td></tr>`;
     };
     const thinkers = roles.jobs.filter((j) => j.kind === 'llm');
     const makers = roles.jobs.filter((j) => j.kind !== 'llm');
@@ -362,7 +362,7 @@ export function createCellar() {
   function howtosHtml() {
     const on = settings?.howtos === true;
     if (howtosList === null) { loadHowtos(); return '<p class="muted">Loading…</p>'; }
-    const intro = `<p class="muted">${on ? 'After a job with a few steps goes well, Bob offers a card to keep the steps. When you ask for something like it again, he follows them.' : 'Off. Turn on "Let Bob learn how-tos" in How Bob works to have Bob offer them. How-tos you already saved stay here, and he doesn\'t use them while it\'s off.'} ${tip('A how-to is plain text: a name, what it\'s for, and the steps. It can\'t run anything by itself, and tools that ask for your OK still ask. How-tos stay on this PC.', 'How-tos')}</p>`;
+    const intro = `<p class="muted">${on ? 'After a job with a few steps goes well, Bob offers a card to keep the steps. When you ask for something like it again, he follows them.' : 'Off. Turn on "Let Bob learn how-tos" in How Bob works to have Bob offer them. How-tos you already saved stay here, and he doesn\'t use them while it\'s off.'} ${tip('A how-to is plain text: a name, what it\'s for, and the steps. It can\'t run anything by itself, and tools that ask for your OK still ask. How-tos stay on this replicant matrix (your computer).', 'How-tos')}</p>`;
     const rows = howtosList.map((r) => howtoEditing === r.id
       ? `<div class="howto-row" data-howto="${esc(r.id)}"><label>Name <input data-rname maxlength="60" value="${esc(r.name)}"></label>
           <label>What it's for <input data-rwhen maxlength="200" value="${esc(r.when || '')}"></label>
@@ -459,7 +459,7 @@ export function createCellar() {
     const voiceSum = t.provider === 'kokoro' ? `Kokoro, ${((settings.kokoroVoices || []).find(([id]) => id === (t.voice || 'am_michael'))?.[1] || t.voice).replace(/ \(.*$/, '')}` : t.provider === 'piper' ? 'Piper' : t.provider === 'chatterbox' ? 'Chatterbox' : 'Windows';
     const bobSum = `Voice: ${voiceSum} · Look: ${lookName} · Theme: ${theme?.name || 'Bob\'s Inn'}`;
     const howSum = `Bob picks the session: ${onoff(settings.autoSession !== false)} · One brain: ${onoff(settings.oneBrain)} · Starts with Windows: ${onoff(settings.autostart)} · Web search: ${onoff(settings.webSearch === true)} · Plans before big jobs: ${onoff(settings.planFirst === true)} · How-tos: ${onoff(settings.howtos === true)} · Update checks: ${onoff(settings.updates?.autoCheck)}`;
-    const pcSum = `Bob ${settings.version?.label || ''} · graphics card: ${hw?.gpu ? `${hw.gpu.name}, ${hw.gpu.vramGB} GB` : 'not detected'} · ${hw?.freeGB ?? '?'} GB free`;
+    const pcSum = `${hw?.spec || 'specs not read yet'} · Bob ${settings.version?.label || ''} · graphics card: ${hw?.gpu ? `${hw.gpu.name}, ${hw.gpu.vramGB} GB` : 'not detected'} · ${hw?.freeGB ?? '?'} GB free`;
     return `<div class="everyday">${panel('ev-bob', '🙂 Bob himself', bobSum, `
       ${srow('Bob\'s voice', voicePickHtml(), '<button type="button" class="mini" data-tab="speech">More voice settings</button>')}
       ${srow('Bob\'s look', esc(lookName), '<button type="button" class="mini" data-tab="style">Change</button>')}
@@ -471,12 +471,12 @@ export function createCellar() {
       ${sswitch('oneBrain', settings.oneBrain, 'One brain (snappier)', 'Every copy of Bob uses the main brain, so he never stops to swap brains (about 20 seconds).')}
       ${sswitch('autostart', settings.autostart, 'Launch Bob on start-up', 'Off unless you turn it on.', settings.platform === 'win32' || settings.platform === 'darwin' || settings.loginItems ? '' : 'disabled')}
       ${sswitch('howtos', settings.howtos === true, 'Let Bob learn how-tos', 'Off unless you turn it on. After a job with a few steps goes well, Bob offers to keep the steps as a how-to, and follows them next time you ask for something like it. Nothing is kept without your click. Your how-tos are in 📒 How-tos below.')}
-      ${sswitch('webSearch', settings.webSearch === true, 'Let Bob search the web', keep('Off unless you turn it on. Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page addresses leave your PC.'))}
+      ${sswitch('webSearch', settings.webSearch === true, 'Let Bob search the web', keep('Off unless you turn it on. Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page addresses leave your replicant matrix (your computer).'))}
       ${sswitch('planFirst', settings.planFirst === true, 'Show Bob\'s plan before big jobs', keep('Off unless you turn it on. Before a job with several steps, or any step that changes files or runs programs, Bob shows every step on one card and waits for you. Any OKs the job needs are ticked on the same card.'))}
       ${sswitch('autoCheck', settings.updates?.autoCheck, 'Check for updates when Bob starts', 'Off unless you turn it on. Bob looks at his GitHub page for a newer version and only tells you; updating always takes your click.')}
-`)}${EVERY_EXTRA.map(([id, label, note, body]) => panel(id, label, typeof note === 'function' ? note() : note, body())).join('')}${panel('ev-pc', settings.os === 'mac' ? '💻 This Mac and updates' : '💻 This PC and updates', pcSum, `
+`)}${EVERY_EXTRA.map(([id, label, note, body]) => panel(id, label, typeof note === 'function' ? note() : note, body())).join('')}${panel('ev-pc', '💻 This replicant matrix and updates', pcSum, `
       <div class="updates srow-foot"><span class="muted">Bob ${esc(settings.version?.label || '')} · ${hw?.gpu?.integrated ? `Built-in graphics: ${esc(hw.gpu.name.replace(/ \(shared memory\)$/, ''))}, about ${hw.gpu.vramGB} GB of memory shared with it` : hw?.gpu?.unified ? `Chip: ${esc(hw.gpu.name)}, about ${hw.gpu.vramGB} GB of it for graphics` : `Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'}`} · Free disk: ${hw?.freeGB ?? '?'} GB</span>
-        <div class="row"><button type="button" data-checkupdate>Check for updates</button><button type="button" data-welcome>Run first-time setup</button>${settings.features?.pcCheck === false ? '' : '<button type="button" data-pccheck>Check this PC</button>'}<span class="update-out muted"></span></div>
+        <div class="row"><button type="button" data-checkupdate>Check for updates</button><button type="button" data-welcome>Run first-time setup</button>${settings.features?.pcCheck === false ? '' : '<button type="button" data-pccheck>Check this replicant matrix</button>'}<span class="update-out muted"></span></div>
         <div class="update-steps"></div><div class="pc-check" aria-live="polite"></div></div>`)}
     </div>`;
   }
@@ -522,7 +522,7 @@ export function createCellar() {
         <span class="muted">Takes effect next time Bob starts.</span></label>
       <div><strong>Engine downloads</strong> ${tip('The programs that run the models, from their official GitHub pages, matched to your graphics card.', 'Engine downloads')}
         ${(data.engines || []).map((e) => `<article class="model" id="m-engine:${esc(e.id)}"><header><strong>${esc(e.name)}</strong></header><p>${esc(e.what)}</p>
-          <div class="act">${live.has('engine:' + e.id) ? progress(live.get('engine:' + e.id)) : e.installed ? `<div class="have">✓ ${e.found ? esc(e.found[0].toUpperCase() + e.found.slice(1)) : `Installed${e.version ? ` (${esc(e.version)})` : ''}`}</div>${e.pinned || e.available === false ? '' : `<button data-checkengine="${esc(e.id)}">Check for a newer build</button>`}${e.tested && e.version && e.version !== e.tested && !e.found ? `<button data-engine="${esc(e.id)}">Go back to the tested build (${esc(e.tested)})</button>` : ''}` : e.available === false ? `<div class="muted">${esc(e.note || 'Not for this computer yet.')}</div>` : `<button class="get" data-engine="${esc(e.id)}">Get ${esc(e.name)}</button>`}</div><div class="confirm" hidden></div></article>`).join('')}</div>
+          <div class="act">${live.has('engine:' + e.id) ? progress(live.get('engine:' + e.id)) : e.installed ? `<div class="have">✓ ${e.found ? esc(e.found[0].toUpperCase() + e.found.slice(1)) : `Installed${e.version ? ` (${esc(e.version)})` : ''}`}</div>${e.pinned || e.available === false ? '' : `<button data-checkengine="${esc(e.id)}">Check for a newer build</button>`}${e.tested && e.version && e.version !== e.tested && !e.found ? `<button data-engine="${esc(e.id)}">Go back to the tested build (${esc(e.tested)})</button>` : ''}` : e.available === false ? `<div class="muted">${esc(e.note || 'Not for this replicant matrix yet.')}</div>` : `<button class="get" data-engine="${esc(e.id)}">Get ${esc(e.name)}</button>`}</div><div class="confirm" hidden></div></article>`).join('')}</div>
       ${sswitch('resumeJobs', settings.resumeJobs, 'Pick up where Bob left off after a restart', 'If Bob closes in the middle of a job (an update, a restart or a crash), he carries on when he opens again. Steps that finished aren\'t done again, and the step that got cut off is done again from the start. Unfinished downloads carry on too. If the cut-off step was typing into an app, moving or deleting files, editing a file or running a command, the job waits in Tasks so you can check first.')}
       ${sswitch('allTools', settings.allTools, 'Give Bob all his tools at once', 'Sends every tool with each message, which leaves less room for the chat. Leave off to keep chats light.')}
       ${sswitch('memoryRecall', settings.memoryRecall === true, 'Remember only what fits', 'With each message, Bob reads only the memories that fit it (up to 8), not his whole memory file, so chats stay light. Off: he reads all of it every time.')}
@@ -545,8 +545,8 @@ export function createCellar() {
   function tuneHtml() {
     const sw = (on, name) => `${on ? '✓' : '–'} ${name}`;
     const rows = speedRuns.slice(-6).reverse().map((r) => `<tr><td>${esc(new Date(r.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</td><td>${esc(r.model)}<br><span class="muted">${esc(r.where)}</span></td><td>${r.wake} s</td><td><strong>${r.first.firstWord} s</strong></td><td>${r.first.full} s</td><td>${r.next.firstWord} s</td><td class="muted">${sw(r.switches?.readyWhileTyping, 'Ready while typing')} · ${sw(r.switches?.gamesFirst, 'Games first')} · ${sw(r.switches?.pictureFit, 'Matched pictures')}</td></tr>`).join('');
-    return `<div class="tune"><strong>Speed for this PC</strong> <span class="tag">off unless you turn it on</span>
-         ${tip('Try one switch at a time: run the speed test, turn the switch on, and run it again. The table keeps your last results so you can compare. Bob never changes Windows or driver settings; Check this PC (on the Everyday page) only suggests them.', 'Speed for this PC')}
+    return `<div class="tune"><strong>Speed for this replicant matrix</strong> <span class="tag">off unless you turn it on</span>
+         ${tip('Try one switch at a time: run the speed test, turn the switch on, and run it again. The table keeps your last results so you can compare. Bob never changes Windows or driver settings; Check this replicant matrix (on the Everyday page) only suggests them.', 'Speed for this replicant matrix')}
         ${sswitch('readyWhileTyping', settings.readyWhileTyping === true, 'Get Bob ready while you type', 'He reads his instructions as soon as you start typing, so replies start sooner.')}
         ${sswitch('gamesFirst', settings.gamesFirst === true, 'Let games go first', 'When Bob works on the processor, he uses fewer cores at lower priority. His replies may be a little slower.')}
         ${sswitch('pictureFit', settings.pictureFit === true, 'Match picture settings to my graphics card', 'Big cards keep the picture model in graphics memory, which is faster. On cards with 8 GB or less, and on built-in graphics, pictures are made at 768 px so they fit and come quicker.')}
@@ -566,11 +566,11 @@ export function createCellar() {
 
   function connectionsHtml() {
     return `<div><strong>ComfyUI workflows</strong> <span class="tag">off unless you turn it on</span>
-         ${tip('For jobs Bob\'s own engines can\'t do (custom nodes, face fixers, long multi-step graphs). Bob drives ComfyUI for you; it just has to be running on this PC (for example from Pinokio). Add workflows to the workflows folder as Workflow > Export (API) files.', 'ComfyUI workflows')}
+         ${tip('For jobs Bob\'s own engines can\'t do (custom nodes, face fixers, long multi-step graphs). Bob drives ComfyUI for you; it just has to be running on this replicant matrix (for example from Pinokio). Add workflows to the workflows folder as Workflow > Export (API) files.', 'ComfyUI workflows')}
         <label class="switch"><input type="checkbox" data-set="workshop" ${settings.workshop?.enabled ? 'checked' : ''}><span><strong>Let Bob use ComfyUI</strong><br><span class="muted">${settings.workshop?.enabled ? `Workflows folder: ${esc(settings.workshop.folder)} · ${settings.workshop.count} workflow${settings.workshop.count === 1 ? '' : 's'}` : 'Off.'}</span></span></label>
         <label class="pick"><strong>ComfyUI port</strong><input data-set="workshopPort" inputmode="numeric" value="${esc(settings.workshop?.port || 8188)}" aria-label="ComfyUI port" style="width:7em"></label></div>
       <div><strong>Cloud helpers</strong> <span class="tag">off unless you turn one on</span>
-        ${more('Paid cloud AIs Bob can hand one job to, as a helper copy. He asks you every time, shows the rough cost and exactly what text would leave your PC. Bob never stores or sees your keys: you add a key as a Windows environment variable yourself (Settings, System, About, Advanced system settings, Environment Variables, under "User variables").')}
+        ${more('Paid cloud AIs Bob can hand one job to, as a helper copy. He asks you every time, shows the rough cost and exactly what text would leave your replicant matrix (your computer). Bob never stores or sees your keys: you add a key as a Windows environment variable yourself (Settings, System, About, Advanced system settings, Environment Variables, under "User variables").')}
         ${cloud.map((c) => `<div class="cloud row${c.keyFound ? '' : ' dim'}">
           <label class="switch"><input type="checkbox" data-cloud="${esc(c.id)}" ${c.enabled ? 'checked' : ''} ${c.keyFound ? '' : 'disabled'}><span><strong>${esc(c.name)}</strong><br><span class="muted">${c.keyFound ? `Key found (${esc(c.apiKeyEnv)})` : `No key yet. Add a user variable named ${esc(c.apiKeyEnv)}.`}</span></span></label>
           ${c.models.length ? `<select data-cloudmodel="${esc(c.id)}" aria-label="${esc(c.name)} model" ${c.keyFound ? '' : 'disabled'}>${c.models.map((m) => `<option ${m === c.model ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>` : `<input data-cloudmodel="${esc(c.id)}" aria-label="${esc(c.name)} model" placeholder="model name" value="${esc(c.model)}" ${c.keyFound ? '' : 'disabled'}>`}
@@ -602,7 +602,7 @@ export function createCellar() {
     ['voice', '🔊 Voice details', 'kokoro chatterbox speed hey bob read aloud listen', () => voiceDetailsHtml()],
     ['look', '🎨 Look & feel', 'theme editor now running layout', () => lookExtrasHtml()],
     ['engines', '⚙ Engines & speed', 'unload idle keep alive graphics memory vram remember only what fits memory banks recall engine ollama llama.cpp downloads fit memory speculative decoding draft flags threads batch gaming graphics card borrow automatic never always', () => enginesHtml()],
-    ['connections', '🔌 Connections', 'comfyui workflows port cloud helpers api phone android tailscale passcode let my phone in let my other devices in share brains lend borrow', () => connectionsHtml()],
+    ['connections', '🔌 Connections', 'comfyui workflows port cloud helpers api phone android tailscale passcode let my phone in let my other replicant matrices in share brains lend borrow', () => connectionsHtml()],
     ['hands', '✋ Hands', 'files run commands schedules apps permission quarantine reviewer', () => handsSettingsHtml() + quarantineSettingsHtml()],
     ['housekeeping', '🧹 Housekeeping', 'tidy old chats pictures logs', () => housekeepingHtml()],
     ['checkins', '🔔 Check-ins', 'check in heartbeat schedule morning every day weekday hours notify alert tap shoulder downloads stuck failed tasks disk space own checks build finished', () => checkinsHtml()],
@@ -674,6 +674,7 @@ export function createCellar() {
     const short = readyFits(readyGB);
     const started = ids.some((id) => state(id));
     const step1 = `<section class="ready"><h3>Step 1: getting me ready</h3>
+      <p class="muted">I call this computer my replicant matrix. You'll see that name around the app. <span class="spec">${esc(hw.spec || 'specs not read yet')}</span></p>
       ${ids.length ? `<p>First the programs I run on and a starter brain, about ${gb(readyGB)} in all. Free disk: ${hw.freeGB ?? '?'} GB.</p>` : ''}
       <ul class="packlist">${rp.engines.map(engRow).join('')}${brainRow}</ul>
       ${short ? `<p class="error">Not enough free disk: free up ${short} GB, then press Try again.</p>` : ''}
@@ -683,10 +684,10 @@ export function createCellar() {
       <label class="callme"><strong>What should I call you?</strong> <input type="text" data-callme maxlength="40" value="${esc(settings?.callMe || '')}" placeholder="${esc(settings?.windowsName || 'your name')}" aria-label="What should Bob call you?" autocomplete="off"></label>
       ${step1}
       <h3>Step 2: the rest of my models</h3>
-      <p>Then the models for the jobs I do. Here's what I'd pick for this PC${hw.gpu ? ` (${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB)` : ''}:</p>
+      <p>Then the models for the jobs I do. Here's what I'd pick for this replicant matrix <span class="muted spec">(${esc(hw.spec || 'specs not read yet')})</span>:</p>
       <label class="pick"><strong>Setup</strong><select data-pack>${data.packs.map((p) => `<option value="${p.id}" ${p.id === pack.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
-      <ul class="packlist">${items.map((m) => { const extra = covered(m); return `<li><label><input type="checkbox" data-pick="${esc(m.id)}" ${m.status.state === 'installed' ? 'checked disabled' : extra ? '' : suit(m).level === 'ok' ? 'checked' : suit(m).level === 'blocked' ? 'disabled' : ''}> ${esc(m.name)} <span class="muted">· ${esc(data.categories.find((c) => c.id === m.category)?.label)} · ${m.status.state === 'installed' ? 'already here' : gb(m.sizeGB)}${extra ? ` · ${esc(extra)}` : m.status.state !== 'installed' && suit(m).level !== 'ok' ? ' · not recommended for this PC' : ''}</span></label></li>`; }).join('')}</ul>
-      <p class="muted">${needed.length ? `About ${gb(total)} to download${engNames.length ? `, including the programs they run on (${esc(engNames.join(', '))})` : ''}. Free disk: ${hw.freeGB ?? '?'} GB. You can change any of this later in Get models (left menu).` : items.some((m) => m.status.state !== 'installed') ? 'Everything you need is already here. The rest is optional: tick it if you want it.' : 'Everything is already on this PC.'}</p>
+      <ul class="packlist">${items.map((m) => { const extra = covered(m); return `<li><label><input type="checkbox" data-pick="${esc(m.id)}" ${m.status.state === 'installed' ? 'checked disabled' : extra ? '' : suit(m).level === 'ok' ? 'checked' : suit(m).level === 'blocked' ? 'disabled' : ''}> ${esc(m.name)} <span class="muted">· ${esc(data.categories.find((c) => c.id === m.category)?.label)} · ${m.status.state === 'installed' ? 'already here' : gb(m.sizeGB)}${extra ? ` · ${esc(extra)}` : m.status.state !== 'installed' && suit(m).level !== 'ok' ? ' · not recommended for this replicant matrix' : ''}</span></label></li>`; }).join('')}</ul>
+      <p class="muted">${needed.length ? `About ${gb(total)} to download${engNames.length ? `, including the programs they run on (${esc(engNames.join(', '))})` : ''}. Free disk: ${hw.freeGB ?? '?'} GB. You can change any of this later in Get models (left menu).` : items.some((m) => m.status.state !== 'installed') ? 'Everything you need is already here. The rest is optional: tick it if you want it.' : 'Everything is already on this replicant matrix.'}</p>
       ${job ? progress() : ''}
       <div class="row"><button class="get" data-getpack ${items.some((m) => m.status.state !== 'installed') ? '' : 'hidden'}>Download the checked ones</button><button data-skip>${needed.length ? 'Skip for now' : 'Done'}</button></div>
     </div>`;
@@ -704,7 +705,7 @@ export function createCellar() {
     dlg.classList.toggle('wide', mode === 'shop' && tab === 'roles' && eqView !== 'list');
     mountHandsSettings(dlg.querySelector('.hands-box')); // loads its own data; does nothing off the Settings tab
     mountQuarantineSettings(dlg.querySelector('.q-box'));
-    mountPhoneAccess(dlg.querySelector('.phone-box')); // Connections: Let my other devices in
+    mountPhoneAccess(dlg.querySelector('.phone-box')); // Connections: Let my other replicant matrices in
     mountTelegram(dlg.querySelector('.telegram-box')); // Connections: Talk to Bob on Telegram
     mountCheckins(dlg.querySelector('.checkins-box')); // 1.5.78 Check-ins
     mountShareBrains(dlg.querySelector('.share-box')); // Connections: Bob-Net: share work with my other Bobs
@@ -915,7 +916,7 @@ export function createCellar() {
         const names = ids.map((id) => { if (id.startsWith('engine:')) { const e = engineById(id.slice(7)); return `<li>${esc(e?.name || id)} <span class="muted">(engine, ${esc(ENGINE_SIZE[id.slice(7)] || 'small')})</span></li>`; } const m = data.models.find((x) => x.id === id); return `<li>${esc(m.name)} <span class="muted">${gb(m.sizeGB)} from ${m.ollama && (!m.files?.length || settings?.engine === 'ollama') ? 'Ollama' : 'Hugging Face'} · licence ${esc(m.license)}</span></li>`; }).join('');
         const total = ids.reduce((n, id) => n + (data.models.find((m) => m.id === id)?.sizeGB || 0), 0);
         box.hidden = false;
-        box.innerHTML = `${ids.length ? `<p>Download these, about ${gb(total)} in all${hw?.freeGB != null ? ` (${hw.freeGB} GB free)` : ''}. Each one is put in its slot when it's done.</p><ul>${names}</ul>${ids.some((id) => ['engine:kokoro', 'engine:audio'].includes(id)) ? '<p class="muted">The Kokoro voice engine needs Python 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> installed first.</p>' : ''}` : '<p>Everything ticked is already on this PC. Bob puts each one in its slot now.</p>'}
+        box.innerHTML = `${ids.length ? `<p>Download these, about ${gb(total)} in all${hw?.freeGB != null ? ` (${hw.freeGB} GB free)` : ''}. Each one is put in its slot when it's done.</p><ul>${names}</ul>${ids.some((id) => ['engine:kokoro', 'engine:audio'].includes(id)) ? '<p class="muted">The Kokoro voice engine needs Python 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> installed first.</p>' : ''}` : '<p>Everything ticked is already on this replicant matrix. Bob puts each one in its slot now.</p>'}
           <div class="row"><button class="get" data-starteryes>${ids.length ? 'Yes, download and equip' : 'Equip them'}</button><button data-no>Cancel</button></div>`;
         box.dataset.plan = JSON.stringify({ ids, plan });
         return;
@@ -963,9 +964,9 @@ export function createCellar() {
         box.hidden = false;
         const eng = (data.engines || []).find((x) => x.id === b.dataset.engine);
         box.innerHTML = ['kokoro', 'chatterbox'].includes(b.dataset.engine)
-          ? `<p>Set up ${esc(eng?.name)}: ${esc(eng?.what)} It goes in Bob's own folder; nothing else on your PC changes. If you don't have Python yet, get 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> first.</p>`
+          ? `<p>Set up ${esc(eng?.name)}: ${esc(eng?.what)} It goes in Bob's own folder; nothing else on your replicant matrix changes. If you don't have Python yet, get 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> first.</p>`
           : b.dataset.engine === 'audio'
-          ? `<p>Set up the audio tools: ACE-Step 1.5 for music (MIT, a song in seconds) and AudioLDM 2 for sound effects (personal use only), each in its own folder only Bob uses. You need Python 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> installed first. About 6 GB now. The music models (about 10 GB) are a separate download that you start; sound effects fetch their model the first time you make one. Nothing else on your PC changes.</p>`
+          ? `<p>Set up the audio tools: ACE-Step 1.5 for music (MIT, a song in seconds) and AudioLDM 2 for sound effects (personal use only), each in its own folder only Bob uses. You need Python 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> installed first. About 6 GB now. The music models (about 10 GB) are a separate download that you start; sound effects fetch their model the first time you make one. Nothing else on your replicant matrix changes.</p>`
           : b.dataset.engine === 'libreoffice'
           ? `<p>Download LibreOffice ${esc(eng?.pin || '')} (about 350 MB) from The Document Foundation, checked against its pinned checksum, and unpack it into Bob's own folder (about 1 GB). Nothing is installed in Windows and no admin rights are needed. You can also install LibreOffice yourself from <a href="https://www.libreoffice.org/download/" target="_blank" rel="noopener">libreoffice.org</a>, or use OpenOffice: Bob finds either by himself.</p>`
           : b.dataset.engine === 'ffmpeg'
@@ -979,8 +980,8 @@ export function createCellar() {
       else if (b.dataset.pausedl) await api('/api/models/pause', { id: b.dataset.pausedl });
       else if ('pccheck' in b.dataset) {
         const box = b.closest('.updates').querySelector('.pc-check');
-        b.disabled = true; box.innerHTML = '<p class="muted">Checking this PC...</p>';
-        try { box.innerHTML = pcCheckHtml(await api('/api/pc-check')); } catch (e) { box.innerHTML = `<p>Couldn't check this PC: ${esc(e.message)}</p>`; }
+        b.disabled = true; box.innerHTML = '<p class="muted">Checking this replicant matrix...</p>';
+        try { box.innerHTML = pcCheckHtml(await api('/api/pc-check')); } catch (e) { box.innerHTML = `<p>Couldn't check this replicant matrix: ${esc(e.message)}</p>`; }
         b.disabled = false;
       }
       else if ('speedtest' in b.dataset) {

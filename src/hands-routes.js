@@ -38,7 +38,7 @@ export async function handsRoute({ req, p, isLocal, brain, cfg, body, send, res 
   if (p === '/api/hands/stop-all') { send(res, 200, { stopped: stopEverything(brain), ...handsView(cfg) }); return true; }
   if (p === '/api/hands/hold' && b.held === true) { send(res, 200, { stopped: holdHands(brain, true), ...handsView(cfg) }); return true; }
   if (p === '/api/hands/stop') { const ok = stopRun(String(b.runId || '')); if (ok) brain.log('hands', `Stop pressed on run ${b.runId}`); send(res, ok ? 200 : 404, { ok }); return true; }
-  if (!isLocal) { send(res, 403, { error: 'Hands can only be changed on the PC itself.' }); return true; }
+  if (!isLocal) { send(res, 403, { error: 'Hands can only be changed on this replicant matrix itself.' }); return true; }
   try {
     if (p === '/api/hands/settings') {
       const cur = handsSettings(cfg);

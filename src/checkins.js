@@ -150,7 +150,7 @@ export class CheckIns {
       try {
         const st = this.statfs(this.cfg.agentDir || this.cfg.dataDir);
         const free = st.bavail * st.bsize;
-        if (free < LOW_DISK_GB * 1e9) out.push({ key: 'disk-low', title: `Only ${gb(free)} GB free on my drive`, detail: 'Downloads and new pictures need room. Tidy up, or delete a model in Get models, On this PC.' });
+        if (free < LOW_DISK_GB * 1e9) out.push({ key: 'disk-low', title: `Only ${gb(free)} GB free on my drive`, detail: 'Downloads and new pictures need room. Tidy up, or delete a model in Get models, On this replicant matrix.' });
       } catch { /* can't read the drive: say nothing rather than guess */ }
     }
     return out;
@@ -287,7 +287,7 @@ export async function checkinsRoute({ req, p, isLocal, brain, body, send, res })
   if (p !== '/api/checkins') return false;
   const c = checkinsFor(brain);
   if (req.method === 'GET') { send(res, 200, c.view()); return true; }
-  if (!isLocal) { send(res, 403, { error: 'Check-ins can only be changed on the PC itself.' }); return true; }
+  if (!isLocal) { send(res, 403, { error: 'Check-ins can only be changed on this replicant matrix itself.' }); return true; }
   const b = await body(req);
   try {
     if (b.runNow) { const r = await c.run({ force: true }); send(res, 200, { ...c.view(), ran: r }); return true; }

@@ -146,7 +146,7 @@ export function addressProblem(cfg, url) {
   let u;
   try { u = new URL(url); } catch { return 'That address isn\'t valid.'; }
   if (!/^https?:$/.test(u.protocol)) return 'The address must start with http:// or https://.';
-  if (limitOn(cfg, 'sendOut') && !LOOPBACK.test(u.hostname)) return `${u.hostname} isn't on this computer, and "Don't send anything out" is on. Bob only talks to apps on this computer (localhost or 127.0.0.1) while it is.`;
+  if (limitOn(cfg, 'sendOut') && !LOOPBACK.test(u.hostname)) return `${u.hostname} isn't on this replicant matrix, and "Don't send anything out" is on. Bob only talks to apps on this replicant matrix (localhost or 127.0.0.1) while it is.`;
   return '';
 }
 export function serverProblem(cfg, s) {

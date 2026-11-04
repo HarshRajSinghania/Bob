@@ -91,7 +91,7 @@ brain.mindWatchers = () => mindClients.size;
 const shop = new ModelShop(cfg, (ev) => { broadcast(ev); if (ev?.type === 'downloads') brain.downloadsChanged(); }, brain.engine);
 // 1.5.24: the card's size, for picture settings matched to it (only used when that switch is on).
 if (!cfg.gpuVramGB) shop.hardware().then((h) => { if (h?.gpu?.vramGB && !h.gpu.integrated) cfg.cardGB = h.gpu.vramGB; /* 1.5.71: built-in graphics aren't a card for pictures */ if (h?.gpu?.integrated) cfg.sharedGraphics = true; /* 1.5.79: but they get their own picture settings */ }).catch(() => {});
-brain.shop = shop; // so Bob can tell when a model is on the PC but not assigned to a job
+brain.shop = shop; // so Bob can tell when a model is on this replicant matrix but not assigned to a job
 startSchedules(brain); // ticks once a minute; nothing is ever due while the Schedules hand is off
 startCheckins(brain); // 1.5.78: ticks once a minute; does nothing while Check-ins are off
 telegram = startTelegram(brain); // does nothing (no request at all) unless Talk to Bob on Telegram is on and a bot token is set
@@ -224,13 +224,13 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, await brain.answerHowto(String(b.id || ''), b.save === true, typeof b.name === 'string' ? b.name : ''));
     }
     if (req.method === 'POST' && p === '/api/howtos/edit') {
-      if (!isLocal) return send(res, 403, { error: 'How-tos can only be changed on the PC itself.' });
+      if (!isLocal) return send(res, 403, { error: 'How-tos can only be changed on this replicant matrix itself.' });
       const b = await body(req);
       try { return send(res, 200, { ok: true, howto: brain.howtos.edit(String(b.id || ''), { name: b.name, when: b.when, steps: b.steps }) }); }
       catch (e) { return send(res, 400, { error: e.message }); }
     }
     if (req.method === 'POST' && p === '/api/howtos/delete') {
-      if (!isLocal) return send(res, 403, { error: 'How-tos can only be changed on the PC itself.' });
+      if (!isLocal) return send(res, 403, { error: 'How-tos can only be changed on this replicant matrix itself.' });
       const b = await body(req);
       return send(res, 200, { ok: brain.howtos.remove(String(b.id || '')) });
     }
@@ -301,7 +301,7 @@ const server = http.createServer(async (req, res) => {
     }
     // Let my phone in (Settings, Connections). Only from this PC; takes effect when Bob restarts.
     if (p === '/api/phone-access' && (req.method === 'GET' || req.method === 'POST')) {
-      if (!isLocal) return send(res, 403, { error: 'Phone access can only be changed on the PC itself.' });
+      if (!isLocal) return send(res, 403, { error: 'Phone access can only be changed on this replicant matrix itself.' });
       const found = await findAddresses(cfg.port);
       if (req.method === 'GET') return send(res, 200, { ...phoneView(cfg), found, live: remoteOn });
       const b = await body(req);
@@ -316,7 +316,7 @@ const server = http.createServer(async (req, res) => {
     }
     // Share brains between your Bobs (src/share-brains.js). Settings only from this PC; lending only through the phone door.
     if (p === '/api/share-brains' && (req.method === 'GET' || req.method === 'POST')) {
-      if (!isLocal) return send(res, 403, { error: 'Sharing brains can only be changed on this computer itself.' });
+      if (!isLocal) return send(res, 403, { error: 'Sharing brains can only be changed on this replicant matrix itself.' });
       if (req.method === 'GET') return send(res, 200, { ...shareView(cfg), lenders: brain.lenderStatus() });
       const b = await body(req);
       const out = cleanSharePatch(cfg, b);
@@ -341,11 +341,11 @@ const server = http.createServer(async (req, res) => {
     // 1.5.41 the 🎮 Gaming button on the chat page: on locks Gaming and clears the graphics card, off goes back to Normal.
     if (req.method === 'POST' && p === '/api/gaming-lock') { const b = await body(req); return send(res, 200, await brain.setGamingLock(b.on === true)); }
     if (req.method === 'POST' && p === '/api/pick-folder') { // 1.5.34 Settings > Projects: "Browse..."
-      if (!isLocal) return send(res, 403, { error: 'Folders can only be picked on the PC itself.' });
+      if (!isLocal) return send(res, 403, { error: 'Folders can only be picked on this replicant matrix itself.' });
       try { const b = await body(req).catch(() => ({})); return send(res, 200, { folder: await pickFolder({ purpose: b?.purpose === 'save' ? 'save' : 'project' }) }); } catch (e) { return send(res, 200, { error: e.message }); }
     }
     if (req.method === 'POST' && p.startsWith('/api/models/') || req.method === 'POST' && p === '/api/settings') {
-      if (!isLocal) return send(res, 403, { error: 'Downloads and settings can only be changed on the PC itself.' });
+      if (!isLocal) return send(res, 403, { error: 'Downloads and settings can only be changed on this replicant matrix itself.' });
       const b = await body(req);
       try {
         if (p === '/api/models/scan') return send(res, 200, { found: (await shop.scan()).files.length });
@@ -546,21 +546,21 @@ const server = http.createServer(async (req, res) => {
       const card = await gpuNow();
       const out = { ...card, ram: ramNow(), cpu: cpuNow(), app: { ramGB: memGB(process.memoryUsage.rss()) } };
       const c = process.cpuUsage(c0);
-      out.reads = ++gpuReads; // how many readings so far: lets a test on the PC confirm they stop under a full-screen game
+      out.reads = ++gpuReads; // how many readings so far: lets a test on this replicant matrix confirm they stop under a full-screen game
       out.costMs = { wait: Math.round((performance.now() - t0) * 10) / 10, bobCpu: Math.round((c.user + c.system) / 100) / 10, cardCheck: gpuCache.ms ?? null };
       return send(res, 200, out);
     }
     if (req.method === 'GET' && p === '/api/update/check') return send(res, 200, await checkAll());
     if (req.method === 'GET' && p === '/api/update/status') return send(res, 200, updateStatus(cfg) || {});
     if (req.method === 'POST' && p === '/api/update/restart') {
-      if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' });
+      if (!isLocal) return send(res, 403, { error: 'Only on this replicant matrix itself.' });
       const { when } = await body(req);
       try { return send(res, 200, requestRestart(cfg, when, { isBusy: () => brain.turns.size > 0 || brain.queue.some((j) => j.state === 'waiting') || Boolean(shop.job) })); } catch (e) { return send(res, 409, { error: e.message }); }
     }
     // "Remove Bob" (Settings): only on the PC itself, after the window's confirm.
     if (req.method === 'GET' && p === '/api/uninstall') { const pl = uninstallPlan(cfg); return send(res, 200, { canRun: pl.canRun, why: pl.why, app: pl.app, inn: pl.inn, models: pl.models }); }
     if (req.method === 'POST' && p === '/api/uninstall') {
-      if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' });
+      if (!isLocal) return send(res, 403, { error: 'Only on this replicant matrix itself.' });
       const { confirm, notes, models } = await body(req);
       if (confirm !== 'remove') return send(res, 400, { error: 'Confirm first.' });
       try {
@@ -574,7 +574,7 @@ const server = http.createServer(async (req, res) => {
       } catch (e) { return send(res, 409, { error: e.message }); }
     }
     if (req.method === 'POST' && (p === '/api/update/start' || p === '/api/quit')) {
-      if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' });
+      if (!isLocal) return send(res, 403, { error: 'Only on this replicant matrix itself.' });
       if (p === '/api/quit') { brain.log('settings', 'closing for an update'); brain.broadcast({ type: 'announce', text: 'Closing for a moment to switch to the new Bob. Back in a few seconds.' }); send(res, 200, { ok: true }); setTimeout(() => (globalThis.bobQuit ? globalThis.bobQuit() : process.exit(0)), 300); return; }
       try { const r = await startAny(cfg); brain.log('settings', `update started (${r.via}): ${r.from.label} -> ${r.to?.label}`); return send(res, 200, r); }
       catch (e) { return send(res, 409, { error: e.message }); }
@@ -610,7 +610,7 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, r);
       } catch (e) { return send(res, 409, { error: e.message }); }
     }
-    if (req.method === 'POST' && p === '/api/voice/samples/clear') { if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' }); clearSamples(cfg); return send(res, 200, { ok: true }); }
+    if (req.method === 'POST' && p === '/api/voice/samples/clear') { if (!isLocal) return send(res, 403, { error: 'Only on this replicant matrix itself.' }); clearSamples(cfg); return send(res, 200, { ok: true }); }
     if (req.method === 'POST' && p === '/api/stop') return send(res, 200, { stopped: brain.stop() });
 
     // Housekeeping, topics, past chats and search. Reading works from the phone too; changes only on the PC.
@@ -629,7 +629,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/search') return send(res, 200, search(cfg, { topics: hk.topics, summaries: hk.summaries() }, String(url.searchParams.get('q') || '').slice(0, 200)));
     if (req.method === 'GET' && p === '/api/hk') { const st = hk.state(); return send(res, 200, { settings: hkSettings(cfg), kinds: KINDS, units: Object.keys(UNITS), items: hk.publicItems(), lastRun: st.lastRun, lastScan: st.lastScan, working: hk.working }); }
     if (req.method === 'POST' && (p.startsWith('/api/hk/') || p.startsWith('/api/topics/') || p === '/api/pin')) {
-      if (!isLocal) return send(res, 403, { error: 'Tidying and topics can only be changed on the PC itself.' });
+      if (!isLocal) return send(res, 403, { error: 'Tidying and topics can only be changed on this replicant matrix itself.' });
       const b = await body(req);
       try {
         if (p === '/api/hk/scan') return send(res, 200, { items: hk.publicItems(hk.scan()) });
@@ -693,7 +693,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, isLocal ? list : list.filter((x) => x.path.startsWith(inn)).map((x) => ({ ...x, path: undefined })));
     }
     if (req.method === 'POST' && (p === '/api/open' || p === '/api/clipboard')) {
-      if (!isLocal) return send(res, 403, { error: 'Only on the PC itself.' });
+      if (!isLocal) return send(res, 403, { error: 'Only on this replicant matrix itself.' });
       const b = await body(req);
       if (p === '/api/clipboard') {
         if (!globalThis.bobShell?.copy) return send(res, 200, { ok: false });
@@ -731,7 +731,7 @@ server.listen(cfg.port, remoteOn ? (remote.bindAddress || '0.0.0.0') : cfg.host,
 // Browsers may send "localhost" to the IPv6 loopback (::1) first, so listen there too when Bob is local-only.
 if (!remoteOn && cfg.host === '127.0.0.1') {
   const v6 = http.createServer(server.listeners('request')[0]);
-  v6.on('error', () => {}); // no IPv6 on this PC: fine, 127.0.0.1 still works
+  v6.on('error', () => {}); // no IPv6 on this replicant matrix: fine, 127.0.0.1 still works
   v6.listen(cfg.port, '::1');
 }
 // One bad request or background job must never take Bob down: log it and keep serving.

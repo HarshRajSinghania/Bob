@@ -206,7 +206,7 @@ export function realState({ model, session, waiting = 0, cat, turn = 0, mem = { 
   const gb = (b) => (b / 1e9).toFixed(1);
   return `Right now (real, from the app): you're thinking on ${model || 'no brain'}${session ? ` in the ${session} session` : ''}; ${waiting ? `${waiting} more message${waiting === 1 ? '' : 's'} waiting` : 'nothing else waiting'}; the PC's RAM is ${gb(mem.total - mem.free)} of ${gb(mem.total)} GB in use; ${catMoment(cat, turn)}.`;
 }
-export const CLAIM_CORRECTION = 'Nothing was actually done on the PC in that reply. Bob said he did, but no action ran.';
+export const CLAIM_CORRECTION = 'Nothing was actually done on this replicant matrix in that reply. Bob said he did, but no action ran.';
 const CLAIM_NUDGE = 'You just said you did something on the PC, but no tool did it in this turn. Never claim that. If it should be done, call the right tool now; if you cannot, say plainly that you have not done it and why (the tool\'s own words if it gave an error).';
 // Always in the front desk's prompt (slim tools or not): he lives on a real PC and, with the Apps hand on, drives it.
 // The owner, 2026-11-02: "he should want to take control of the wheel". The model had said "I am the process inside
@@ -979,7 +979,7 @@ export class Brain {
     if (!this.usable(name)) {
       if (WEB_TOOLS.includes(name) && !webOn(this.cfg)) return { text: WEB_OFF };
       const hand = Object.entries(HANDS).find(([, h]) => h.tools.includes(name))?.[0];
-      return { text: hand ? handOffWhy(this.cfg, hand) : `Error: ${name} can't be used on this PC right now.` };
+      return { text: hand ? handOffWhy(this.cfg, hand) : `Error: ${name} can't be used on this replicant matrix right now.` };
     }
     // 1.5.34 House style: what the call left out comes from the defaults set on Equip Bob, and the chat says so.
     const house = applyHouseStyle(name, args, this.cfg.houseStyle);
@@ -1679,7 +1679,7 @@ export class Brain {
     const state = realState({ model, session: currentSession(this.cfg).label, waiting: this.queue.filter((j) => j.state === 'waiting').length, cat: this.cfg.catName, turn: turnNo });
     const extras = [state, guestNote(job, this.cfg.userName || 'the user'), effortPrompt(job?.effort), catPrompt({ cat: this.cfg.catName, turn: turnNo, dials: cleanPersonality(this.cfg.personality), user: this.cfg.userName || 'the user' })].filter(Boolean).map((x) => `\n\n${x.replaceAll('{{USER}}', this.cfg.userName || 'the user')}`).join('');
     const brainCtx = await this.fitCtx(model, wantCtx);
-    if (!model) throw new Error('I don\'t have a brain yet. Open Get models (in the menu on the left) and pick one; the first-time setup suggests the right one for this PC.');
+    if (!model) throw new Error('I don\'t have a brain yet. Open Get models (in the menu on the left) and pick one; the first-time setup suggests the right one for this replicant matrix.');
     this.setState('thinking', '', this.state.model);
     let earlier = await this.recall(sessionId, text);
     // 1.5.79 How-tos (off by default): the one saved how-to that fits this request goes in for this turn, and the chat says so.
@@ -1801,7 +1801,7 @@ export class Brain {
         reply.correction = CLAIM_CORRECTION;
         msgs.push({ role: 'system', content: CLAIM_NUDGE, hidden: true }); ctx.retrying = true;
         this.log('honesty', 'Bob claimed a PC action with no tool result; corrected and asked to retry');
-        noteStrike(this, ctx, 'claims', 'said he did something on the PC that no tool did');
+        noteStrike(this, ctx, 'claims', 'said he did something on this replicant matrix that no tool did');
         await qAsk(this, ctx);
         continue;
       }
@@ -1812,7 +1812,7 @@ export class Brain {
         reply.correction = OBSERVE_CORRECTION;
         msgs.push({ role: 'system', content: OBSERVE_NUDGE.replaceAll('{{USER}}', this.cfg.userName || 'the user'), hidden: true }); ctx.retrying = true;
         this.log('honesty', 'Bob described an observation with no tool result; corrected and asked to answer again');
-        noteStrike(this, ctx, 'claims', 'described something on the PC with no tool behind it');
+        noteStrike(this, ctx, 'claims', 'described something on this replicant matrix with no tool behind it');
         await qAsk(this, ctx);
         continue;
       }
@@ -2235,8 +2235,8 @@ export class Brain {
   async noEditModel(what) {
     const waiting = await this.editModelWaiting();
     const fix = waiting
-      ? `${waiting} is on this PC but isn't assigned to "Picture edits": Get models, Equip Bob, the Picture editor slot (one click).`
-      : 'No picture-edit model is on this PC yet: Get models, Pictures & video, a picture-edit model (Qwen Image Edit), then Equip Bob, the Picture editor slot.';
+      ? `${waiting} is on this replicant matrix but isn't assigned to "Picture edits": Get models, Equip Bob, the Picture editor slot (one click).`
+      : 'No picture-edit model is on this replicant matrix yet: Get models, Pictures & video, a picture-edit model (Qwen Image Edit), then Equip Bob, the Picture editor slot.';
     return `Didn't paint anything. Editing ${what} and keeping it looking the same needs a picture-edit model. ${fix} Tell the user that plainly. Offer the alternative too: rework the picture from itself (make_image with mode start_from), where the look can drift.`;
   }
 

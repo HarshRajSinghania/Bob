@@ -37,7 +37,7 @@ const cfg = { agentDir, innDir, dataDir, settingsFile: path.join(dataDir, 'setti
   check('a step turned down on a card is a failure', trailStep('run_command', 'npm i', 'The user said no to this on the card.')?.failed === true);
   check('bookkeeping tools are not steps', trailStep('use_tools', 'x') === null && trailStep('remember', 'x') === null && trailStep('bob_help', 'x') === null);
   const r = h.add({ name: 'Zip my pictures', when: 'resize the pictures in my downloads and zip them', steps });
-  check('saved in inn\\bob\\howtos.json on this PC', fs.existsSync(path.join(dataDir, 'howtos.json')) && h.list().length === 1);
+  check('saved in inn\\bob\\howtos.json on this replicant matrix', fs.existsSync(path.join(dataDir, 'howtos.json')) && h.list().length === 1);
   check('a matching request finds it by words', h.match('can you resize and zip the pictures in downloads again')?.id === r.id);
   check('an unrelated request finds nothing', h.match('what is the weather like tomorrow') === null);
   check('a one-word message finds nothing', h.match('pictures') === null);
@@ -138,9 +138,9 @@ let offer;
   check('Settings: the switch on How Bob works, off unless turned on', /sswitch\('howtos', settings\.howtos === true, 'Let Bob learn how-tos', 'Off unless you turn it on\./.test(cellar));
   check('Settings: the 📒 How-tos panel with Edit and a two-step Delete (no pop-up)', /'📒 How-tos'/.test(cellar) && /Delete for good/.test(cellar) && /Keep it/.test(cellar) && !/confirm\(/.test(cellar.slice(cellar.indexOf('function howtosHtml'), cellar.indexOf('function howtosHtml') + 3000)));
   check('the chat card has Save how-to and Not now', /Keep the steps as a how-to\?/.test(app) && /Save how-to/.test(app) && /Not now/.test(app));
-  check('the server: list, answer, and PC-only edit and delete', /\/api\/howtos'/.test(server) && /\/api\/howtos\/answer/.test(server) && /Recipes can only|How-tos can only be changed on the PC itself/.test(server));
+  check('the server: list, answer, and PC-only edit and delete', /\/api\/howtos'/.test(server) && /\/api\/howtos\/answer/.test(server) && /Recipes can only|How-tos can only be changed on this replicant matrix itself/.test(server));
   check('Help has an entry, the setting, the glossary and two FAQs', HELP.some((e) => e.id === 'howtos') && /Let Bob learn how-tos/.test(help) && /<dt>How-to<\/dt>/.test(help) && HELP.some((e) => e.id === 'faq-howto-recipe') && HELP.some((e) => e.id === 'faq-howto-asking'));
-  check('Help says how-tos never go online', /How-tos stay on this PC/.test(help) && /Topics and How-tos/.test(help));
+  check('Help says how-tos never go online', /How-tos stay on this replicant matrix/.test(help) && /Topics and How-tos/.test(help));
   check('release notes and the user guide', fs.existsSync(path.join(root, 'docs/releases/v1.5.80.md')) && /Let Bob learn how-tos/.test(read('docs/USER-GUIDE.md')));
   check('the store uses Bob\'s data folder, so Windows, Mac and Linux all work the same', /path\.join\(this\.cfg\.dataDir, 'howtos\.json'\)/.test(read('src/howtos.js')));
 }

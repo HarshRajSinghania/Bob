@@ -178,3 +178,20 @@ export function freeMemNow({ os_ = OS, now = Date.now(), run = () => spawnSync('
   macFree = { at: now, bytes: bytes > 0 ? Math.min(bytes, os.totalmem()) : os.freemem() };
   return macFree.bytes;
 }
+
+// 1.5.89: the replicant matrix (the computer Bob runs on), named with its specs, as one short muted line:
+// "Ryzen 7 9800X3D · RTX 5070 Ti 16 GB · 32 GB RAM", "Ryzen Z1 Extreme · built-in graphics · 32 GB RAM",
+// "Apple M3 · 16 GB memory", or "specs not read yet".
+export function cpuName(model = os.cpus()?.[0]?.model || '') {
+  return String(model).replace(/\((R|TM)\)/gi, '').replace(/\b(AMD|Intel)\s+/i, '').replace(/\s+(w\/|with)\s+Radeon.*$/i, '')
+    .replace(/\s+\d+-Core( Processor)?$/i, '').replace(/\s+(CPU|Processor)\b.*$/i, '').replace(/\s+@.*$/, '').replace(/\s+/g, ' ').trim();
+}
+export function specLine({ cpu, gpu, ramGB } = {}) {
+  const parts = [];
+  if (cpu) parts.push(cpu);
+  if (gpu?.unified) return [String(gpu.name || cpu || '').replace(/\s*\(shared memory\)$/, ''), ramGB ? `${ramGB} GB memory` : ''].filter(Boolean).join(' · ') || 'specs not read yet';
+  if (gpu?.integrated) parts.push('built-in graphics');
+  else if (gpu?.name) parts.push(`${String(gpu.name).replace(/^NVIDIA\s+/i, '').replace(/^GeForce\s+/i, '')}${gpu.vramGB ? ` ${gpu.vramGB} GB` : ''}`);
+  if (ramGB) parts.push(`${ramGB} GB RAM`);
+  return parts.length ? parts.join(' · ') : 'specs not read yet';
+}

@@ -118,7 +118,7 @@ for (const [, op, body] of bridge.matchAll(/"([\w.]+)" -> \{?([^\n]*)/g)) {
   check('plan card: shown when the OK carries a plan', /if \(ev\.planCard\) return planCard\(base, ev\)/.test(js));
   check('plan card: Go ahead, Change something, Not now', ['Go ahead', 'Change something', 'Not now (Bob drops this job)', 'Send to Bob', 'Back'].every((w) => pc.includes(`'${w}'`)));
   check('plan card: Go ahead allows all, Change sends a note of up to 500 characters', /allow: true, items: null/.test(pc) && /allow: false, items: null, note: t/.test(pc) && /slice\(0, 500\)/.test(pc) && /'\/api\/approve'/.test(pc));
-  check('plan card: says ticking some steps is on the PC', pc.includes('To tick some and not others, use the card on the PC.'));
+  check('plan card: says ticking some steps is on the PC', pc.includes('To tick some and not others, use the card on your other replicant matrix.'));
 }
 
 // Check-ins from a networked Bob: a card in chat and, in the background, a notification. Nothing changes them here.

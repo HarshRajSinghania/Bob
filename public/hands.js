@@ -16,7 +16,7 @@ const post = async (url, data) => {
 // the window; only the first 5 characters of the scramble go out, and the match is found here too.
 function securityLine(on) {
   return `<div class="hands-security muted${on ? '' : ' dim'}"><strong>Check a password safely</strong><br>
-    <span>Has a password turned up in a known breach? It's scrambled on this PC, and only the first 5 characters of the scramble are sent to Have I Been Pwned (haveibeenpwned.com) when you press Check, so the password never leaves. Nothing is saved.</span>${on ? '' : '<br><span>Turn on the Security and privacy Hand above to use this.</span>'}
+    <span>Has a password turned up in a known breach? It's scrambled on this replicant matrix, and only the first 5 characters of the scramble are sent to Have I Been Pwned (haveibeenpwned.com) when you press Check, so the password never leaves. Nothing is saved.</span>${on ? '' : '<br><span>Turn on the Security and privacy Hand above to use this.</span>'}
     <div class="row"><input type="password" data-hpw autocomplete="off" spellcheck="false" placeholder="Type a password" aria-label="Password to check" style="flex:1" ${on ? '' : 'disabled'}><button type="button" data-hpwcheck ${on ? '' : 'disabled'}>Check</button></div>
     <span class="hpw-out" role="status"></span></div>`;
 }
@@ -24,7 +24,7 @@ async function checkPassword(box) {
   const input = box.querySelector('[data-hpw]'), out = box.querySelector('.hpw-out');
   const pw = input.value;
   if (!pw) { out.textContent = 'Type a password first.'; return; }
-  if (!globalThis.crypto?.subtle) { out.textContent = 'This only works in Bob\'s window on the PC itself.'; return; }
+  if (!globalThis.crypto?.subtle) { out.textContent = 'This only works in Bob\'s window on this replicant matrix itself.'; return; }
   out.textContent = 'Checking…';
   try {
     const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(pw)))].map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
@@ -39,8 +39,8 @@ async function checkPassword(box) {
 // Under the Office switch: which helpers Bob found on this PC, so it's clear what works before asking.
 function officeLine(o, on) {
   if (!o) return '';
-  const doc = o.office ? `✓ ${esc(o.office.name)}${o.office.version ? ` ${esc(o.office.version)}` : ''} ${o.office.where === 'own' ? '(Bob\'s own copy)' : '(found on this PC)'}` : '✗ No LibreOffice or OpenOffice found: documents, spreadsheets and slides need one. <button type="button" data-hgetengine="libreoffice">Get LibreOffice (about 350 MB)</button>';
-  const media = o.ffmpeg ? `✓ FFmpeg ${o.ffmpeg.where === 'own' ? '(Bob\'s own copy)' : '(found on this PC)'}` : '✗ No FFmpeg: sound, video and WebP pictures need it. <button type="button" data-hgetengine="ffmpeg">Get FFmpeg (about 100 MB)</button>';
+  const doc = o.office ? `✓ ${esc(o.office.name)}${o.office.version ? ` ${esc(o.office.version)}` : ''} ${o.office.where === 'own' ? '(Bob\'s own copy)' : '(found on this replicant matrix)'}` : '✗ No LibreOffice or OpenOffice found: documents, spreadsheets and slides need one. <button type="button" data-hgetengine="libreoffice">Get LibreOffice (about 350 MB)</button>';
+  const media = o.ffmpeg ? `✓ FFmpeg ${o.ffmpeg.where === 'own' ? '(Bob\'s own copy)' : '(found on this replicant matrix)'}` : '✗ No FFmpeg: sound, video and WebP pictures need it. <button type="button" data-hgetengine="ffmpeg">Get FFmpeg (about 100 MB)</button>';
   return `<div class="hands-office muted${on ? '' : ' dim'}"><strong>Office helpers</strong><br>${doc}<br>${media}<br>${o.pictures === 'built in' ? `✓ Pictures (PNG, JPG, BMP, GIF, TIFF): built into ${/Mac/.test(navigator.userAgent) ? 'macOS' : 'Windows'}` : ''}</div>`;
 }
 
@@ -120,10 +120,10 @@ function selfToolsHtml(st, on) {
   if (!st) return '';
   const rows = st.tools.map((t) => `<li class="mytool"><label class="switch small"><input type="checkbox" data-hmytool="${esc(t.name)}" ${t.state === 'on' ? 'checked' : ''} ${t.state === 'changed' || t.state === 'missing' ? 'disabled' : ''}><span><strong>${esc(t.name)}</strong> ${TOOL_STATE[t.state] ? `<span class="warn-text">${esc(TOOL_STATE[t.state])}</span>` : ''}<br><span class="muted">${esc(t.what)}</span><br><span class="muted">Can change: ${esc(t.writes.join('; ') || 'nothing outside its folder')}. Internet: ${t.internet ? 'yes' : 'no'}. Made ${esc(when(t.at))}${t.lastUsed ? `, last used ${esc(when(t.lastUsed))}` : ', not used yet'}.</span></span></label>
       <div class="row"><button type="button" data-hmytoolcode="${esc(t.name)}">Show code</button><button type="button" data-hmytooldel="${esc(t.name)}">Remove</button></div><pre class="cmd mytool-code" hidden></pre></li>`).join('');
-  const sb = st.sandbox ? (st.sandbox.ok ? `Sandbox holds ✓ <span class="muted">checked ${esc(when(st.sandbox.at || Date.now()))}</span>` : `<span class="warn-text">Making and using tools is refused: the sandbox didn't hold on this PC (${esc(st.sandbox.why)}).</span>`) : '<span class="muted">Sandbox not checked yet.</span>';
+  const sb = st.sandbox ? (st.sandbox.ok ? `Sandbox holds ✓ <span class="muted">checked ${esc(when(st.sandbox.at || Date.now()))}</span>` : `<span class="warn-text">Making and using tools is refused: the sandbox didn't hold on this replicant matrix (${esc(st.sandbox.why)}).</span>`) : '<span class="muted">Sandbox not checked yet.</span>';
   return `<div class="hands-mytools${on ? '' : ' dim'}"><strong>Tools Bob made</strong> <span class="muted">${st.tools.length} of ${st.max}</span>
     ${st.tools.length ? `<ul>${rows}</ul>` : '<p class="muted">None yet. With "Make his own tools" on, Bob makes one when none of his tools fits a job, and shows you a card first.</p>'}
-    <p class="muted">${st.netGuard ? 'Tools without internet on their card are cut off from it.' : 'This PC can\'t cut one program off the internet without administrator rights, so the code is checked for it instead. That check isn\'t airtight.'}</p>
+    <p class="muted">${st.netGuard ? 'Tools without internet on their card are cut off from it.' : 'This replicant matrix can\'t cut one program off the internet without administrator rights, so the code is checked for it instead. That check isn\'t airtight.'}</p>
     <div class="row"><button type="button" data-hsandbox>Check the sandbox</button> <span>${sb}</span></div></div>`;
 }
 
@@ -134,7 +134,7 @@ function mcpHtml(m, on) {
   if (!m) return '';
   const rows = m.servers.map((s) => `<li class="mcp-app"><label class="switch small"><input type="checkbox" data-hmcp="${esc(s.id)}" ${s.on ? 'checked' : ''} aria-label="${esc(s.name)} on"><span><strong>${esc(s.name)}</strong> <span class="muted">On</span>${s.running ? ' <span class="tag">running</span>' : ''}<br>
       <span class="muted mcp-starts">${s.url ? `Address: ${esc(s.url)}` : `Starts: <code>${esc([s.cmd, ...s.args].join(' '))}</code>${s.cwd ? ` in ${esc(s.cwd)}` : ''}`}${s.env.length ? `. Its settings: ${esc(s.env.join(', '))}` : ''}</span><br>
-      <span class="muted">${s.error ? `<span class="warn-text">Last check: ${esc(s.error)}</span>` : s.checked ? `Last check: ${s.tools.length} tool${s.tools.length === 1 ? '' : 's'}, ${esc(when(s.checked))}` : 'Not checked yet.'}</span>${s.problem ? `<br><span class="warn-text">Bob won't start it: ${esc(s.problem)}</span>` : ''}${/^uvx?(\.exe)?$/i.test(s.cmd) && !m.uv ? '<br><span class="warn-text">It needs uv, which isn\'t on this PC yet.</span> <button type="button" data-hgetengine="uv">Get uv for me</button>' : ''}</span></label>
+      <span class="muted">${s.error ? `<span class="warn-text">Last check: ${esc(s.error)}</span>` : s.checked ? `Last check: ${s.tools.length} tool${s.tools.length === 1 ? '' : 's'}, ${esc(when(s.checked))}` : 'Not checked yet.'}</span>${s.problem ? `<br><span class="warn-text">Bob won't start it: ${esc(s.problem)}</span>` : ''}${/^uvx?(\.exe)?$/i.test(s.cmd) && !m.uv ? '<br><span class="warn-text">It needs uv, which isn\'t on this replicant matrix yet.</span> <button type="button" data-hgetengine="uv">Get uv for me</button>' : ''}</span></label>
       <div class="row"><button type="button" data-hmcpcheck="${esc(s.id)}">Check</button>${s.tools.length ? `<button type="button" data-hmcptools="${esc(s.id)}">Show tools</button>` : ''}<button type="button" data-hmcpdel="${esc(s.id)}">Remove</button></div>
       <ul class="mcp-tools muted" hidden>${s.tools.map((t) => `<li><code>${esc(t.name)}</code>${t.readOnly ? ' (only looks)' : t.code ? ' <span class="warn-text">(runs code: can change anything in the app)</span>' : t.risky ? ' <span class="warn-text">(can delete or overwrite)</span>' : ''}: ${esc(t.what)}</li>`).join('')}</ul></li>`).join('');
   return `<div class="hands-mcp${on ? '' : ' dim'}"><strong>Connected apps</strong>
@@ -142,7 +142,7 @@ function mcpHtml(m, on) {
     ${m.servers.length ? `<ul>${rows}</ul>` : '<p class="muted">None yet.</p>'}
     <details class="mcp-add"><summary>Add a connected app</summary>
       <div class="row"><button type="button" data-hmcppreset="blender">Fill in for Blender</button><button type="button" data-hmcppreset="unreal">Fill in for Unreal Engine</button></div>
-      <p class="muted mcp-presetnote"></p>${m.uv ? '' : '<p class="muted mcp-uv" hidden>uv isn\'t on this PC yet. <button type="button" data-hgetengine="uv">Get uv for me</button></p>'}
+      <p class="muted mcp-presetnote"></p>${m.uv ? '' : '<p class="muted mcp-uv" hidden>uv isn\'t on this replicant matrix yet. <button type="button" data-hgetengine="uv">Get uv for me</button></p>'}
       <label class="pick"><span>Name</span><input data-hm="name" placeholder="Blender"></label>
       <label class="pick"><span>Program to start</span><input data-hm="cmd" placeholder="uvx"></label>
       <label class="pick"><span>Arguments (one per line)</span><textarea data-hm="args" rows="2" placeholder="blender-mcp"></textarea></label>
@@ -299,7 +299,7 @@ export async function mountHandsSettings(box) {
     const s = v.settings;
     const folders = [...new Set([...(v.candidates || []), ...s.folders])];
     box.innerHTML = `<strong>Hands</strong> <span class="tag">off unless you turn them on</span>
-      <p class="muted">Hands let Bob do things on this PC, not just talk about them. Each one is off until you switch it on. Even then he shows you exactly what he'll do (every file, or the exact command) and waits for your click every time, unless you turn on "Let Bob work without asking" below. "Allow the rest of this job" only covers the same kind of thing until that job ends. The hard limits below are all on to start with. He never changes his own code or settings. Everything goes in the logbook.</p>
+      <p class="muted">Hands let Bob do things on this replicant matrix, not just talk about them. Each one is off until you switch it on. Even then he shows you exactly what he'll do (every file, or the exact command) and waits for your click every time, unless you turn on "Let Bob work without asking" below. "Allow the rest of this job" only covers the same kind of thing until that job ends. The hard limits below are all on to start with. He never changes his own code or settings. Everything goes in the logbook.</p>
       <label class="switch"><input type="checkbox" data-hmaster ${s.enabled ? 'checked' : ''}><span><strong>Let Bob use Hands</strong> ${tip('The master switch. Off turns every Hand below off.', 'Let Bob use Hands')}${s.enabled && s.held ? '<br><span class="warn-text">Stopped right now with the Hands switch on the chat page. Click it there to carry on.</span>' : ''}</span></label>
       <div class="hands-free${s.free ? ' on' : ''}"><label class="switch${s.enabled ? '' : ' dim'}"><input type="checkbox" data-hfree ${s.free ? 'checked' : ''} ${s.enabled ? '' : 'disabled'}><span><strong>Let Bob work without asking</strong> <span class="tag">off unless you turn it on</span><br><span class="muted">No approval cards: he just does the job and tells you what he did. The hard limits below still apply, every action is still in the chat and the logbook, and the ✋ Hands button on the chat page stops him at once. Cloud helpers still ask, because they cost money. Scheduled jobs also run by themselves.</span>${s.free && s.enabled ? '<br><span class="warn-text">On: Bob is working without asking.</span>' : ''}</span></label></div>
       ${v.hands.map((h) => `<label class="switch${s.enabled ? '' : ' dim'}"><input type="checkbox" data-hand="${esc(h.id)}" ${s[h.id]?.on ? 'checked' : ''} ${s.enabled ? '' : 'disabled'}><span><strong>${esc(h.label)}</strong> ${tip(esc(h.what || ''), h.label)}</span></label>`).join('')}
@@ -330,7 +330,7 @@ export async function mountHandsSettings(box) {
         <strong>Recent commands</strong>
         ${v.runs.length ? `<ul>${v.runs.map((r) => `<li>${esc(when(r.at))}: <code>${esc(r.line)}</code> <span class="muted">${r.why ? "didn't start" : r.killed ? esc(r.killed) : `exit ${r.code}`}</span></li>`).join('')}</ul>` : '<p class="muted">None yet.</p>'}
         <p class="muted">Every action is also in the logbook (inn\\logbook.md).</p></div>
-      <div class="hands-selftest"><strong>Self-test</strong> <span class="muted">Checks that Recycle Bin and Undo, tidying, running a program and Stop work on this PC. Uses a throwaway folder of dummy files, which is removed afterwards. Nothing of yours is touched, and no Hand needs to be on.</span>
+      <div class="hands-selftest"><strong>Self-test</strong> <span class="muted">Checks that Recycle Bin and Undo, tidying, running a program and Stop work on this replicant matrix. Uses a throwaway folder of dummy files, which is removed afterwards. Nothing of yours is touched, and no Hand needs to be on.</span>
         <div class="row"><button type="button" data-hselftest>Run the self-test</button></div>
         ${selftest ? `<ul class="selftest">${selftest.results.map((r) => `<li>${r.ok ? '✅' : '❌'} <strong>${esc(r.name)}</strong>: ${esc(r.says)}</li>`).join('')}</ul><p class="muted">${selftest.passed} of ${selftest.total} passed.${selftest.cleaned ? ' The throwaway folder is gone.' : ` Couldn't remove ${esc(selftest.folder)}.`}</p>` : ''}</div>
       <p class="muted hands-out" role="status"></p>`;

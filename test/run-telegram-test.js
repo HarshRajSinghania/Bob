@@ -83,7 +83,7 @@ check('the finished reply goes to Telegram, and only that chat\'s', sent().lengt
 b.watch({ type: 'approval', sessionId: TELEGRAM_SESSION, turnId: 't2', id: '11111111-2222-3333-4444-555555555555', text: 'Move 3 files' });
 await new Promise((r) => setTimeout(r, 10));
 const lastCall = () => calls.filter((c) => c.method === 'sendMessage').at(-1).body;
-check('with the OK switch off, Bob says the card waits on the PC (no buttons)', /on the PC/.test(lastCall().text) && !lastCall().reply_markup);
+check('with the OK switch off, Bob says the card waits on this replicant matrix (no buttons)', /on this replicant matrix/.test(lastCall().text) && !lastCall().reply_markup);
 await b.handle({ update_id: 2, callback_query: { id: 'q1', from: { id: 42 }, data: 'ok:11111111-2222-3333-4444-555555555555:1' } });
 check('a button press does nothing while the OK switch is off', answered.length === 0);
 saveTelegram(brain.cfg, { approve: true });

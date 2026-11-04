@@ -135,7 +135,7 @@ export class Housekeeper {
       add({ key: `ref:${r.id}`, kind: 'pictures', ref: `ref:${r.id}`, label: r.name, detail: `attached in a chat, ${dateOf(t)}`, bytes: sizeOf(f), touched: t, url: `/refs/${encodeURIComponent(r.file)}`, actions: ['delete'], def: 'delete', refId: r.id });
     }
     const vs = path.join(cfg.dataDir, 'voice-samples');
-    if (fs.existsSync(vs) && old('sounds', mtime(vs))) add({ key: 'voice-samples', kind: 'sounds', label: 'Voice samples made on this PC', detail: 'made again the next time you press ▶ Hear a sample', bytes: sizeOf(vs), touched: mtime(vs), actions: ['delete'], def: 'delete', paths: [vs] });
+    if (fs.existsSync(vs) && old('sounds', mtime(vs))) add({ key: 'voice-samples', kind: 'sounds', label: 'Voice samples made on this replicant matrix', detail: 'made again the next time you press ▶ Hear a sample', bytes: sizeOf(vs), touched: mtime(vs), actions: ['delete'], def: 'delete', paths: [vs] });
 
     const done = (this.brain.queue || []).filter((j) => ['done', 'failed', 'cancelled'].includes(j.state) && old('tasks', j.doneAt || j.at || 0));
     if (done.length) add({ key: 'tasks', kind: 'tasks', label: `${done.length} finished task${done.length === 1 ? '' : 's'}`, detail: 'from the Tasks list (the chats keep what was said)', bytes: 0, touched: Math.max(...done.map((j) => j.doneAt || j.at || 0)), actions: ['delete'], def: 'delete' });
@@ -289,7 +289,7 @@ export class Housekeeper {
       const v = await own.embed(model, texts);
       this.noEmbed = false;
       return v;
-    } catch { this.noEmbed = true; this.noEmbedAt = this.now(); return null; } // not on this PC: names and words are matched instead
+    } catch { this.noEmbed = true; this.noEmbedAt = this.now(); return null; } // not on this replicant matrix: names and words are matched instead
   }
 
   // Facts Bob should keep go to the memory file, tagged with their topic, without repeats.
