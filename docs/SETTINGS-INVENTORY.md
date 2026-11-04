@@ -32,6 +32,7 @@ Update this file in the same handover as any change to settings.
 | Connections | Let Bob use ComfyUI; ComfyUI port | off unless you turn it on | off, 8188 | ok |
 | Connections | Cloud helpers (per provider on/off + model) | Key found / No key yet | all off | ok |
 | Connections | Let my phone in; Make a passcode; Address for the phone (Check again) | off unless you turn it on | off, no passcode | new (Android), awaiting review |
+| Connections | Talk to Bob on Telegram; Bot token (BOB_TELEGRAM_TOKEN user variable); Your Telegram account (pairing code, New code, Forget my Telegram account); Send pictures Bob makes; Answer Bob's OK cards on Telegram | off unless you turn it on | all off, not paired | ok (approved with edits) |
 | Hands | Let Bob use Hands (master switch) | Off = every Hand below is off. | off | ok |
 | Hands | Files; Run programs and scripts; Schedules; Open and use apps; Office documents and converting; Security and privacy | long "what" text each | all off | ok (1.5.2; Office signed off; Security and privacy added, needs sign-off) |
 | Hands > Check a password safely | box + Check button under Security and privacy | password field (not saved) | empty | needs sign-off |

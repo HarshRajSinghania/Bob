@@ -10,6 +10,7 @@ import { drawBob } from './bob-sprite.js';
 import { handsSettingsHtml, mountHandsSettings } from './hands.js';
 import { quarantineSettingsHtml, mountQuarantineSettings } from './quarantine.js';
 import { phoneAccessHtml, mountPhoneAccess } from './phone-access.js';
+import { telegramHtml, mountTelegram } from './telegram.js';
 import { checkinsHtml, mountCheckins } from './checkins.js';
 import { shareBrainsHtml, mountShareBrains } from './share-brains.js';
 import { findTheme } from './themes.js';
@@ -559,6 +560,7 @@ export function createCellar() {
           ${c.models.length ? `<select data-cloudmodel="${esc(c.id)}" aria-label="${esc(c.name)} model" ${c.keyFound ? '' : 'disabled'}>${c.models.map((m) => `<option ${m === c.model ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>` : `<input data-cloudmodel="${esc(c.id)}" aria-label="${esc(c.name)} model" placeholder="model name" value="${esc(c.model)}" ${c.keyFound ? '' : 'disabled'}>`}
         </div>`).join('')}</div>
       ${phoneAccessHtml()}
+      ${telegramHtml()}
       ${shareBrainsHtml()}`;
   }
 
@@ -687,6 +689,7 @@ export function createCellar() {
     mountHandsSettings(dlg.querySelector('.hands-box')); // loads its own data; does nothing off the Settings tab
     mountQuarantineSettings(dlg.querySelector('.q-box'));
     mountPhoneAccess(dlg.querySelector('.phone-box')); // Connections: Let my other devices in
+    mountTelegram(dlg.querySelector('.telegram-box')); // Connections: Talk to Bob on Telegram
     mountCheckins(dlg.querySelector('.checkins-box')); // 1.5.78 Check-ins
     mountShareBrains(dlg.querySelector('.share-box')); // Connections: Bob-Net: share work with my other Bobs
     const page = mode === 'welcome' ? 'Welcome' : tab === 'settings' ? 'Settings' : tab === 'style' ? 'Style' : 'Get models';

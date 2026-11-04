@@ -38,6 +38,7 @@ import { handsRoute } from './hands-routes.js';
 import { quarantineRoute } from './quarantine-routes.js';
 import { schedulesRoute, startSchedules } from './hands-schedules.js';
 import { checkinsRoute, startCheckins } from './checkins.js';
+import { telegramRoute, startTelegram } from './telegram.js';
 import { handsSettings } from './hands-settings.js';
 import { tuning, TUNING_KEYS, pictureFitReset } from './tuning.js';
 import { gatherFacts, tipsFrom } from './pc-check.js';
@@ -74,10 +75,12 @@ const clients = new Set();
 // as it streams; while none is open, Bob doesn't even pass it along (brain.mindWatchers), so it costs nothing.
 const mindClients = new Set();
 
+let telegram = null; // Talk to Bob on Telegram (src/telegram.js), set once Bob's brain is ready
 function broadcast(ev) {
   if (ev?.type === 'think-start' && ev.model) ev = { ...ev, label: friendlyName(ev.model) }; // "Qwen 3.8 27B", not the raw tag
   const data = `data: ${JSON.stringify(ev)}\n\n`;
   for (const res of ev?.type === 'think' || ev?.type === 'think-start' ? mindClients : clients) res.write(data);
+  try { telegram?.watch(ev); } catch {} // Talk to Bob on Telegram: only the Telegram chat's events, and only while it's on
 }
 
 const brain = new Brain(cfg, broadcast);
@@ -89,6 +92,7 @@ if (!cfg.gpuVramGB) shop.hardware().then((h) => { if (h?.gpu?.vramGB && !h.gpu.i
 brain.shop = shop; // so Bob can tell when a model is on the PC but not assigned to a job
 startSchedules(brain); // ticks once a minute; nothing is ever due while the Schedules hand is off
 startCheckins(brain); // 1.5.78: ticks once a minute; does nothing while Check-ins are off
+telegram = startTelegram(brain); // does nothing (no request at all) unless Talk to Bob on Telegram is on and a bot token is set
 if (!shop.found.at) shop.scan().catch(() => {});
 
 function workshopView() {
@@ -476,6 +480,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, brain.answerApproval(id, allow, rows, items, note) ? 200 : 404, { ok: true });
     }
     if (p === '/api/checkins' && await checkinsRoute({ req, res, p, isLocal, brain, body, send })) return;
+    if (p === '/api/telegram' && await telegramRoute({ req, res, p, isLocal, brain, body, send })) return;
     if (p === '/api/hands/schedules' && await schedulesRoute({ req, res, p, isLocal, brain, body, send })) return;
     if (p.startsWith('/api/hands') && await handsRoute({ req, res, p, isLocal, brain, cfg, body, send })) return;
     if (p.startsWith('/api/quarantine') && await quarantineRoute({ req, res, p, isLocal, brain, cfg, body, send })) return;
