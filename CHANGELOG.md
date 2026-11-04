@@ -4,6 +4,10 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.109
+
+- **Picture and clip progress counts the real steps only.** While the picture engine loads, it prints counters of its own (for example 82/82), and those no longer show on the bar or in the ⏳ line. Until the first real step, Bob says he is loading the picture engine.
+
 ## 1.5.108
 
 - Under the hood: shared helpers live in one place instead of being copied into many files.

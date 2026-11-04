@@ -46,7 +46,18 @@ check('it goes out as a waiting-line (updated in place), not the old busy note',
 check('Telegram says each ⏳ line once', /case 'waiting-line': if \(!\(this\.waitSaid \|\|= new Set\(\)\)\.has\(ev\.id\)\)/.test(read('src/telegram.js')));
 
 // 3. "Painting 82/82" at the start: a full bar before the first real step is ignored.
-check('a finished-looking bar before the first step is ignored', /if \(!stepping && n >= total\) return; stepping = true;/.test(brainSrc));
+check('the engine\'s own counters are ignored: only lines counting to this job\'s steps move the bar (1.5.109)', /if \(Number\(total\) !== want \|\| !\(n >= 1\)\) return;/.test(brainSrc) && /const want = stepsFor\(this\.cfg\.painter\?\.sdcpp\?\.\[kind\], kind\);/.test(brainSrc));
+{
+  // The PC's live log: load counters, then 20 real steps, then the decode.
+  const states = [];
+  const fake = { cfg: { painter: { sdcpp: { image: { steps: 20 } } } }, setState: (st, d) => states.push(d) };
+  const want = (await import('../src/painter.js')).stepsFor(fake.cfg.painter.sdcpp.image, 'image');
+  const onProgress = (n, total) => { if (Number(total) !== want || !(n >= 1)) return; fake.setState('painting', `Painting ${Math.min(n, total)}/${total}`); };
+  for (const [n, t] of [[3, 82], [82, 82], [1, 49], [119, 519], [32, 338], [1, 1], [56, 1927], [1, 20], [12, 20], [20, 20], [104, 104], [1, 49]]) onProgress(n, t);
+  check('with the live log, the bar shows only the 20 real steps', states.join(',') === 'Painting 1/20,Painting 12/20,Painting 20/20', states.join(','));
+  check('a job\'s steps default to 8 for a picture and 10 for a clip', want === 20 && (await import('../src/painter.js')).stepsFor({}, 'image') === 8 && (await import('../src/painter.js')).stepsFor(undefined, 'video') === 10);
+  check('until the first step the ⏳ line says it\'s loading', plainDoing('Loading the picture engine') === 'loading the picture engine' && /this\.setState\('painting', 'Loading the picture engine', null\);/.test(brainSrc));
+}
 
 // 4. Set by hand in config.json counts as here.
 {

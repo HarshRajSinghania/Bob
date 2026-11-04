@@ -17,7 +17,7 @@ import { catPrompt, catMoment } from '../public/patches.js';
 import { sleepyAfterReply, sleepySwitch, SLEEPY_SESSION } from '../public/sleepy.js';
 import { cleanEffort, careful, bigThinker, draftBrain, hatBrain, effortPrompt, mootOpening, runMoot, phasedWork } from './moot.js';
 import { saveSettings, outputDirs, findOutput } from './config.js';
-import { paint, paintingAvailable } from './painter.js';
+import { paint, paintingAvailable, stepsFor } from './painter.js';
 import { PainterServer } from './painter-server.js';
 import { maestroMake } from './maestro.js';
 import { capabilities } from './capabilities.js';
@@ -2256,10 +2256,12 @@ export class Brain {
     const unloaded = await this.gate.need({ id: 'painter', kind }, { signal: ctx.signal, emit: ctx.emit });
     this.setState('painting', video ? 'Filming' : 'Painting', null);
     this.log(kind, `unloaded ${unloaded.join(', ') || 'nothing'}; painting with ${this.painter?.paint ? 'the picture engine' : 'sd.cpp'}`);
-    // 1.5.104: sd.cpp prints a full bar while it loads the model (for example 82/82). Until a real step shows
-    // (fewer than all done), keep "Painting" so the start of a picture doesn't read as finished.
-    let stepping = false;
-    const onProgress = (n, total) => { if (!stepping && n >= total) return; stepping = true; this.setState('painting', `${video ? 'Filming' : 'Painting'} ${n}/${total}`, null); };
+    // 1.5.109: while it loads, the picture engine prints counters of its own (82/82, 1/49, 119/519...), and after the
+    // last step it prints the decode (104/104). Only lines counting to this job's steps are the real ones; until the
+    // first of those the bar says it's loading.
+    const want = stepsFor(this.cfg.painter?.sdcpp?.[kind], kind);
+    this.setState('painting', 'Loading the picture engine', null);
+    const onProgress = (n, total) => { if (Number(total) !== want || !(n >= 1)) return; this.setState('painting', `${video ? 'Filming' : 'Painting'} ${Math.min(n, total)}/${total}`, null); };
     const type = video ? 'video' : 'image';
     const { file, name } = await withRetry(async () => {
       const made = this.painter?.paint ? await this.painter.paint(kind, args, { signal: ctx.signal, onProgress }) : await paint(this.cfg, kind, args, { signal: ctx.signal, onProgress });

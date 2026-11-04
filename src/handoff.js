@@ -174,6 +174,7 @@ export const NOTHING_TO_OK_BUSY = 'There\'s nothing to OK right now. I\'m still 
 export function plainDoing(detail = '') {
   const d = String(detail || '').trim();
   const steps = (n, m) => (n && m ? `, step ${n} of ${m}` : '');
+  if (d === 'Loading the picture engine') return 'loading the picture engine';
   let m = d.match(/^(Painting|Filming)(?: (\d+)\/(\d+))?$/);
   if (m) return `making a ${m[1] === 'Filming' ? 'clip' : 'picture'}${steps(m[2], m[3])}`;
   m = d.match(/^Maestro is (painting|filming)$/);
