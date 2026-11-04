@@ -32,7 +32,7 @@ export function createCellar() {
   const dlg = $('cellar');
   let speedModel = '';
   let speedRuns = [];
-  let data = null, hw = null, settings = null, roles = null, cloud = [], caps = {}, tab = 'roles', job = null, mode = 'shop', voices = [];
+  let data = null, hw = null, settings = null, roles = null, cloud = [], caps = {}, bctx = { on: false, brains: [] }, tab = 'roles', job = null, mode = 'shop', voices = [];
   const sampler = createSampler();
   const live = new Map(); // downloads running now (one or two), by id
   const stylePage = createStylePage({
@@ -242,8 +242,24 @@ export function createCellar() {
         return `<tr><th scope="row">${esc(label)} ${tipHtml(what, `About ${label}`)}</th><td><select data-sbrain="${k}" aria-label="${esc(label)}">${list.some((o) => o.value === cur) || !cur ? '' : `<option value="${esc(cur)}" selected>${esc(entryOf(data.models, cur)?.name || cur)} (not downloaded)</option>`}${list.map((o) => `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>${getMore(job)}</td></tr>`;
       }).join('')}</table>
       <h3>How much each session keeps in mind</h3><p class="muted">Context (how much he keeps in mind): more lets Bob read longer files and chats, but uses more graphics memory and loads slower. Default uses the engine's own setting.</p>
-      <table class="roles">${(settings.sessions || []).map((x) => `<tr><th scope="row">${x.icon} ${esc(x.label)}</th><td><select data-sctx="${esc(x.id)}" aria-label="${esc(x.label)} context"><option value="">Default${({ normal: ' (32K)', light: ' (32K)', art: ' (32K)', office: ' (64K)' })[x.id] || ' (engine\'s own)'}</option>${[8192, 16384, 32768, 65536, 131072, 262144].map((v) => `<option value="${v}" ${settings.sessionCtx?.[x.id] === v ? 'selected' : ''}>${v / 1024}K${v === 262144 ? ' (slow: one-off whole-project reads)' : ''}</option>`).join('')}</select></td></tr>`).join('')}</table>
+      <table class="roles">${(settings.sessions || []).map((x) => `<tr><th scope="row">${x.icon} ${esc(x.label)}</th><td><select data-sctx="${esc(x.id)}" aria-label="${esc(x.label)} context"><option value="">Default${({ normal: ' (32K)', light: ' (32K)', art: ' (32K)', office: ' (64K)' })[x.id] || ' (engine\'s own)'}</option>${[8192, 16384, 32768, 65536, 131072, 262144].map((v) => `<option value="${v}" ${settings.sessionCtx?.[x.id] === v ? 'selected' : ''}>${v / 1024}K${v === 262144 ? ' (slow to read when it\'s full)' : ''}</option>`).join('')}</select></td></tr>`).join('')}</table>
+      <div data-bctxbox>${brainCtxHtml()}</div>
       <p class="muted">Missing something? Press 📚 Get more next to it.</p>`;
+  }
+
+  // 1.5.87: how much each brain keeps in mind, per brain. Off: Bob picks. On: one menu per equipped brain, listing only
+  // the sizes that brain was made for (read from the model itself), with Bob's guideline under it.
+  function brainCtxHtml() {
+    const on = bctx?.on === true;
+    const k = (v) => `${Math.round(v / 1024)}K`;
+    const rows = (bctx?.brains || []).map((b) => {
+      const top = b.choices.at(-1);
+      const opts = b.choices.map((v) => `<option value="${v}" ${b.picked === v ? 'selected' : ''}>${k(v)}${v === top && b.max ? ' (the most it was made for)' : ''}${v === 32768 ? ' (enough for most chats)' : ''}</option>`).join('');
+      return `<tr><th scope="row">${esc(b.name)} ${tipHtml(b.guide, `About ${b.name}`)}<div class="muted">${esc(b.jobs.join(', '))}</div></th><td><select data-bctx="${esc(b.model)}" aria-label="${esc(b.name)}: how much it keeps in mind"><option value="">Bob's pick (${k(b.bobPick)})</option>${opts}</select></td></tr>`;
+    }).join('');
+    return `<h3>How much each brain keeps in mind</h3>
+      <label class="switch srow-switch"><input type="checkbox" data-set="brainCtxOn" ${on ? 'checked' : ''}><span><strong>Pick how much each brain keeps in mind</strong>${noteOrTip('Off to start with: Bob picks for each brain. On: pick a size for each brain you use. Each menu only lists sizes that brain was made for. A size you pick here is used for that brain everywhere, instead of the session sizes above.', 'Pick how much each brain keeps in mind')}</span></label>
+      ${on ? (rows ? `<table class="roles">${rows}</table>` : '<p class="muted">No brains equipped yet.</p>') : ''}`;
   }
 
   // Bob's own voice: which Kokoro voice and how fast. Piper voices and Chatterbox are picked in Model roles.
@@ -724,7 +740,7 @@ export function createCellar() {
     job = await api('/api/models/download', { ids: plan.ids });
   }
   async function load() {
-    [data, hw, settings, roles, cloud, caps] = await Promise.all([api('/api/models'), api('/api/hardware'), api('/api/settings'), api('/api/roles'), api('/api/cloud'), api('/api/capabilities').catch(() => ({}))]);
+    [data, hw, settings, roles, cloud, caps, bctx] = await Promise.all([api('/api/models'), api('/api/hardware'), api('/api/settings'), api('/api/roles'), api('/api/cloud'), api('/api/capabilities').catch(() => ({})), api('/api/brain-ctx').catch(() => ({ on: false, brains: [] }))]);
     speedRuns = (await api('/api/speed-test').catch(() => ({}))).history || [];
     voices = (await api('/api/voice/samples').catch(() => ({}))).voices || [];
     job = data.job;
@@ -774,7 +790,7 @@ export function createCellar() {
     if (changed) await eqReload();
     return changed;
   }
-  async function eqReload() { [roles, settings] = await Promise.all([api('/api/roles'), api('/api/settings')]); }
+  async function eqReload() { [roles, settings, bctx] = await Promise.all([api('/api/roles'), api('/api/settings'), api('/api/brain-ctx').catch(() => bctx)]); }
   // Puts a model in a slot (or takes it off with value ''), then redraws. Returns what the server said.
   async function equipSlot(slot, value) {
     let r = {};
@@ -1103,6 +1119,8 @@ export function createCellar() {
         if (args && kept.length !== args.length) alertIn(el, 'Some of that was left out: only flags and plain values are allowed, no file paths.');
         el.value = kept.join(' '); flash(el, 'Saved.'); return;
       }
+      if (el.dataset.set === 'brainCtxOn') { const r = await api('/api/settings', { brainCtxOn: el.checked }); settings.brainCtxOn = r.brainCtxOn; bctx = await api('/api/brain-ctx').catch(() => ({ ...bctx, on: r.brainCtxOn })); const box = el.closest('[data-bctxbox]'); if (box) box.innerHTML = brainCtxHtml(); flash(box || el, r.brainCtxOn ? 'On. Applies when each brain next loads.' : 'Off. Bob picks again.'); return; }
+      if (el.dataset.bctx) { const v = el.value ? Number(el.value) : null; const r = await api('/api/settings', { brainCtx: { [el.dataset.bctx]: v } }); settings.brainCtx = r.brainCtx; const b = (bctx.brains || []).find((x) => x.model === el.dataset.bctx); if (b) b.picked = v; flash(el, 'Saved. Applies when the brain next loads.'); return; }
       if (el.dataset.sctx) { const v = el.value ? Number(el.value) : null; const r = await api('/api/settings', { sessionCtx: { [el.dataset.sctx]: v } }); settings.sessionCtx = r.sessionCtx; flash(el, 'Saved. Applies when the brain next loads.'); return; }
       if (el.dataset.sbrain) { const r = await api('/api/settings', { sessionBrains: { [el.dataset.sbrain]: el.value } }); settings.sessionBrains = r.sessionBrains; flash(el, 'Saved.'); return; }
       if (el.dataset.set === 'pictureNoWait') { const r = await api('/api/settings', { pictureNoWait: el.checked }); settings.pictureNoWait = r.pictureNoWait; el.checked = r.pictureNoWait; return; }

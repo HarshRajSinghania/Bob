@@ -14,6 +14,7 @@ import { gamingCard, decideCard, readCard, CARD_BUSY_PCT, CARD_MIN_FREE_MB } fro
 import { tuning, cpuPlan, startDir, startFile, promptHash, tidyStarts } from './tuning.js';
 import { exeName } from './platform.js';
 import { Embedder } from './embedder.js';
+import { ggufInfo } from './gguf.js';
 
 // 1.5.19: the context a brain gets when nothing else picks one. 32K fits a 26B brain on a 16 GB card.
 
@@ -183,6 +184,11 @@ export class LlamaCpp {
   // uses it instead of Ollama's copy. Measured: Ollama's gpt-oss blob has no chat template and got 2 of 25 tool jobs
   // right on llama.cpp; the official file got 25 of 25.
   catalogFile(id) { return catalogFileFor(this.cfg, id); }
+
+  // 1.5.87: the longest context a model was made for, from its GGUF header, so nothing asks for more (null: unknown).
+  async maxCtx(model) {
+    try { return ggufInfo(this.resolve(model).gguf)?.ctxTrain || null; } catch { return null; }
+  }
 
   // Ollama name -> GGUF file (+ vision projector), by reading Ollama's manifest.
   resolve(model) {

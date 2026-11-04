@@ -26,6 +26,7 @@ import { copyName } from './clan.js';
 import { RefShelf } from './refs.js';
 import { makeAudio, songTitle, aceMissingFiles, aceModelsEntry, ACE_MODELS_ID } from './audio.js';
 import { runWorkflow } from './workshop.js';
+import { pickedCtx, GAMING_CTX } from './model-ctx.js';
 import { currentSession, modelFor, quickOnCpu, laneOf, suggestSession, SESSIONS, sessionBrains, brainDefaults, CTX_CHOICES, LONG_CODER, waitsForGaming, GAMING_TAG, GAMING_HINT, gaming } from './sessions.js';
 import { recallOn, alwaysText, parseMemory, pickMemories, activeProject, recallText, MemoryVectors } from './recall.js';
 import { stampMessages, keepOlder, readSummary } from './chats.js';
@@ -822,8 +823,13 @@ export class Brain {
 
   // A session's context size, but never more than the model was made for.
   async fitCtx(model, want) {
-    if (!want || !model) return want || null;
-    const max = await this.engine.maxCtx?.(model).catch?.(() => null) ?? null;
+    if (!model) return want || null;
+    const max = await this.engine.maxCtx?.(model)?.catch?.(() => null) ?? null;
+    // 1.5.87: a size picked for this brain (Settings > Brains, switch on) wins, for every copy on it: one load.
+    const pick = pickedCtx(this.cfg, model, max);
+    // Settings review: in Gaming the brain is on the processor beside the game, so a pick never makes it bigger there.
+    want = pick && gaming(this.cfg) ? Math.min(pick, want || GAMING_CTX) : pick || want;
+    if (!want) return null;
     return max ? Math.min(max, want) : want;
   }
 
@@ -1644,7 +1650,7 @@ export class Brain {
     // 1.5.16: a Low-effort chat reply doesn't think first (gemma4 and others think by default, which delays every reply).
     // Medium and up, and sessions that set a level (Deep thought), keep their thinking.
     if (think === undefined && !bigThinker(job)) think = false;
-    // 1.5.66: Qwen3.6 as the main Brain (everyday chat): no thinking first, and the same 128K load its Coding copy
+    // 1.5.66: Qwen3.6 as the main Brain (everyday chat): no thinking first, and the same long load (256K since 1.5.86) its Coding copy
     // uses, so chat and coding don't reload the brain between them. A context picked by hand for Normal still wins.
     if (!job?.side && !bigThinker(job) && currentSession(this.cfg).id === 'normal' && !CTX_CHOICES.includes(this.cfg.sessionCtx?.normal)) {
       const d = brainDefaults(model, 'bob');

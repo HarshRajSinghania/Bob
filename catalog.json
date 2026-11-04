@@ -465,7 +465,7 @@
       "license": "Apache 2.0",
       "commercial": true,
       "pick": "best",
-      "raced": "Beat Qwen3 Coder 30B on a 16 GB card (2026-11-03): 128K fits with part of it in RAM.",
+      "raced": "Beat Qwen3 Coder 30B on a 16 GB card (2026-11-03). At 256K (2026-11-04) it uses 15.0 GB on the card with the rest in RAM, writes about 49 tok/s, and found a fact hidden 201K tokens in.",
       "files": [
         {
           "url": "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/a483e9e6cbd595906af30beda3187c2663a1118c/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
@@ -1582,7 +1582,7 @@
       },
       "notes": {
         "gemma4-e4b": "the quick brain, and it sees pictures and hears you",
-        "qwen3.6-35b-a3b": "everyday chat and coding in one load: a big context (128K, how much it keeps in mind). It answers Low-effort chat straight off and always thinks coding jobs through",
+        "qwen3.6-35b-a3b": "everyday chat and coding in one load: a big context (256K, how much it keeps in mind). It answers Low-effort chat straight off and always thinks coding jobs through",
         "gemma4-26b": "Office and Deep thinking"
       },
       "times": "Pictures take about 10 seconds each, clips a few minutes.",
