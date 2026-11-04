@@ -338,6 +338,25 @@ export function createCellar() {
         <label for="proj-path">Folder</label><input id="proj-path" type="text" placeholder="C:\\Projects\\MyGame"> <button type="button" class="mini" data-projbrowse>Browse…</button>
         <button type="button" data-projadd disabled>Add project</button><p class="error proj-error" hidden></p></div>`;
   }
+  // 1.5.79 How-tos: the steps Bob kept from jobs that worked. Loaded when the panel is drawn; edit and delete on the PC.
+  let howtosList = null, howtosLoading = false, howtoEditing = null, howtoDeleting = null;
+  window.addEventListener('bob-howto-saved', () => { howtosList = null; });
+  const loadHowtos = () => { if (howtosLoading) return; howtosLoading = true; api('/api/howtos').then((r) => { howtosList = r.howtos || []; }).catch(() => { howtosList = []; }).finally(() => { howtosLoading = false; draw(); }); };
+  function howtosHtml() {
+    const on = settings?.howtos === true;
+    if (howtosList === null) { loadHowtos(); return '<p class="muted">Loading…</p>'; }
+    const intro = `<p class="muted">${on ? 'After a job with a few steps goes well, Bob offers a card to keep the steps. When you ask for something like it again, he follows them.' : 'Off. Turn on "Let Bob learn how-tos" in How Bob works to have Bob offer them. How-tos you already saved stay here, and he doesn\'t use them while it\'s off.'} ${tip('A how-to is plain text: a name, what it\'s for, and the steps. It can\'t run anything by itself, and tools that ask for your OK still ask. How-tos stay on this PC.', 'How-tos')}</p>`;
+    const rows = howtosList.map((r) => howtoEditing === r.id
+      ? `<div class="howto-row" data-howto="${esc(r.id)}"><label>Name <input data-rname maxlength="60" value="${esc(r.name)}"></label>
+          <label>What it's for <input data-rwhen maxlength="200" value="${esc(r.when || '')}"></label>
+          <label>Steps (one per line) <textarea data-rsteps rows="${Math.min(12, r.steps.length + 1)}">${esc(r.steps.map((x) => x.did).join('\n'))}</textarea></label>
+          <div class="row"><button type="button" data-howtosave="${esc(r.id)}">Save changes</button><button type="button" class="link" data-howtocancel>Cancel</button></div><p class="error howto-error" hidden></p></div>`
+      : `<div class="howto-row"><div class="row"><strong>${esc(r.name)}</strong><span class="muted">${r.steps.length} steps${r.used ? ` · used ${r.used} time${r.used === 1 ? '' : 's'}` : ' · not used yet'}</span></div>
+          ${r.when && r.when !== r.name ? `<div class="muted">For: ${esc(r.when)}</div>` : ''}
+          <ol class="howto-steps">${r.steps.map((x) => `<li>${esc(x.did)}</li>`).join('')}</ol>
+          <div class="row"><button type="button" class="mini" data-howtoedit="${esc(r.id)}">Edit</button>${howtoDeleting === r.id ? `<button type="button" class="mini danger" data-howtodel="${esc(r.id)}">Delete for good</button><button type="button" class="link" data-howtocancel>Keep it</button>` : `<button type="button" class="mini" data-howtoask="${esc(r.id)}">Delete</button>`}</div></div>`).join('');
+    return `${intro}<div class="howtos-list">${rows || '<p class="muted">No how-tos yet.</p>'}</div>`;
+  }
   // 1.5.41 Where Bob saves things: the folder for pictures, clips, songs and sounds. Bob's own folder unless one is picked.
   function saveDirHtml() {
     const sd = settings?.saveDir || {};
@@ -407,6 +426,8 @@ export function createCellar() {
   // The note is what a closed panel shows: what's set now.
   const EVERY_EXTRA = [['ev-projects', '📁 Projects', () => { const n = (settings?.projectList || []).length; return n ? `${n} project${n === 1 ? '' : 's'} · Main: ${settings.defaultProject || 'none'}` : 'No projects yet. Add the folders Bob searches when you say "my project".'; }, () => projectsHtml()],
     // 1.5.41 Where Bob saves things (closed, it shows the folder in use).
+    // 1.5.79 How-tos (closed, it shows how many and whether he learns new ones).
+    ['ev-howtos', '📒 How-tos', () => { const n = howtosList ? howtosList.length : (settings?.howtoCount || 0); return `${n ? `${n} how-to${n === 1 ? '' : 's'}` : 'No how-tos yet'} · Learning: ${settings?.howtos === true ? 'on' : 'off'}`; }, () => howtosHtml()],
     ['ev-save', '💾 Where Bob saves things', () => { const sd = settings?.saveDir || {}; return sd.missing ? 'Picked folder not found · saving in Bob\'s own folder' : sd.custom ? sd.folder : 'Bob\'s own folder (Made by Bob)'; }, () => saveDirHtml()]];
 
   function everydayHtml() {
@@ -420,7 +441,7 @@ export function createCellar() {
     const t = settings.tts || {};
     const voiceSum = t.provider === 'kokoro' ? `Kokoro, ${((settings.kokoroVoices || []).find(([id]) => id === (t.voice || 'am_michael'))?.[1] || t.voice).replace(/ \(.*$/, '')}` : t.provider === 'piper' ? 'Piper' : t.provider === 'chatterbox' ? 'Chatterbox' : 'Windows';
     const bobSum = `Voice: ${voiceSum} · Look: ${lookName} · Theme: ${theme?.name || 'Bob\'s Inn'}`;
-    const howSum = `Bob picks the session: ${onoff(settings.autoSession !== false)} · One brain: ${onoff(settings.oneBrain)} · Starts with Windows: ${onoff(settings.autostart)} · Web search: ${onoff(settings.webSearch === true)} · Plans before big jobs: ${onoff(settings.planFirst === true)} · Update checks: ${onoff(settings.updates?.autoCheck)}`;
+    const howSum = `Bob picks the session: ${onoff(settings.autoSession !== false)} · One brain: ${onoff(settings.oneBrain)} · Starts with Windows: ${onoff(settings.autostart)} · Web search: ${onoff(settings.webSearch === true)} · Plans before big jobs: ${onoff(settings.planFirst === true)} · How-tos: ${onoff(settings.howtos === true)} · Update checks: ${onoff(settings.updates?.autoCheck)}`;
     const pcSum = `Bob ${settings.version?.label || ''} · graphics card: ${hw?.gpu ? `${hw.gpu.name}, ${hw.gpu.vramGB} GB` : 'not detected'} · ${hw?.freeGB ?? '?'} GB free`;
     return `<div class="everyday">${panel('ev-bob', '🙂 Bob himself', bobSum, `
       ${srow('Bob\'s voice', voicePickHtml(), '<button type="button" class="mini" data-tab="speech">More voice settings</button>')}
@@ -432,6 +453,7 @@ export function createCellar() {
       ${sswitch('autoSession', settings.autoSession !== false, 'Let Bob pick the session', 'Bob moves into the session that suits the job (Art, Coding, Office or Gaming) and goes back to Normal, the lightest, once he has been quiet for 2 minutes. While something else is using the graphics card, like a game, he stays in Gaming. You can still pick a session yourself from the menu: Bob keeps it while you work, then goes back to Normal once he has been quiet for 2 minutes. To keep him in Gaming, press 🎮 Gaming next to Effort.')}
       ${sswitch('oneBrain', settings.oneBrain, 'One brain (snappier)', 'Every copy of Bob uses the main brain, so he never stops to swap brains (about 20 seconds).')}
       ${sswitch('autostart', settings.autostart, 'Launch Bob on start-up', 'Off unless you turn it on.', settings.platform === 'win32' || settings.platform === 'darwin' || settings.loginItems ? '' : 'disabled')}
+      ${sswitch('howtos', settings.howtos === true, 'Let Bob learn how-tos', 'Off unless you turn it on. After a job with a few steps goes well, Bob offers to keep the steps as a how-to, and follows them next time you ask for something like it. Nothing is kept without your click. Your how-tos are in 📒 How-tos below.')}
       ${sswitch('webSearch', settings.webSearch === true, 'Let Bob search the web', keep('Off unless you turn it on. Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page addresses leave your PC.'))}
       ${sswitch('planFirst', settings.planFirst === true, 'Show Bob\'s plan before big jobs', keep('Off unless you turn it on. Before a job with several steps, or any step that changes files or runs programs, Bob shows every step on one card and waits for you. Any OKs the job needs are ticked on the same card.'))}
       ${sswitch('autoCheck', settings.updates?.autoCheck, 'Check for updates when Bob starts', 'Off unless you turn it on. Bob looks at his GitHub page for a newer version and only tells you; updating always takes your click.')}
@@ -833,6 +855,19 @@ export function createCellar() {
         await saveProjects(list, settings.defaultProject || (list.length === 1 ? name : undefined));
         return;
       }
+      // 1.5.79 How-tos: edit, delete (two clicks, no pop-up), cancel.
+      if (b.dataset.howtoedit) { howtoEditing = b.dataset.howtoedit; howtoDeleting = null; draw(); return; }
+      if (b.dataset.howtoask) { howtoDeleting = b.dataset.howtoask; howtoEditing = null; draw(); return; }
+      if ('howtocancel' in b.dataset) { howtoEditing = howtoDeleting = null; draw(); return; }
+      if (b.dataset.howtodel) { await api('/api/howtos/delete', { id: b.dataset.howtodel }); howtoDeleting = null; howtosList = null; settings.howtoCount = Math.max(0, (settings.howtoCount || 1) - 1); draw(); return; }
+      if (b.dataset.howtosave) {
+        const row = b.closest('.howto-row');
+        try {
+          await api('/api/howtos/edit', { id: b.dataset.howtosave, name: row.querySelector('[data-rname]').value, when: row.querySelector('[data-rwhen]').value, steps: row.querySelector('[data-rsteps]').value.split('\n') });
+          howtoEditing = null; howtosList = null; draw();
+        } catch (err) { const eb = row.querySelector('.howto-error'); if (eb) { eb.textContent = err.message; eb.hidden = false; } }
+        return;
+      }
       if (b.dataset.projremove !== undefined) { const list = (settings.projectList || []).filter((_, i) => i !== Number(b.dataset.projremove)); await saveProjects(list); return; }
       if (b.dataset.removebob !== undefined) {
         const box = dlg.querySelector('.remove-confirm');
@@ -1070,6 +1105,7 @@ export function createCellar() {
       if (el.dataset.set === 'pictureNoWait') { const r = await api('/api/settings', { pictureNoWait: el.checked }); settings.pictureNoWait = r.pictureNoWait; el.checked = r.pictureNoWait; return; }
       if (['readyWhileTyping', 'gamesFirst', 'pictureFit'].includes(el.dataset.set)) { const k = el.dataset.set; const r = await api('/api/settings', { [k]: el.checked }); settings[k] = r[k]; el.checked = r[k]; flash(el, 'Saved. Applies when the brain or picture model next loads.'); return; }
       if (el.dataset.set === 'autoSession') { const r = await api('/api/settings', { autoSession: el.checked }); settings.autoSession = r.autoSession; el.checked = r.autoSession; window.dispatchEvent(new CustomEvent('bob-auto-session', { detail: { autoSession: r.autoSession } })); flash(el, r.autoSession ? 'On. Bob picks the session himself.' : 'Off. The session only changes when you pick one.'); return; }
+      if (el.dataset.set === 'howtos') { const r = await api('/api/settings', { howtos: el.checked }); settings.howtos = r.howtos; el.checked = r.howtos; flash(el, r.howtos ? 'On. After a job with a few steps goes well, Bob offers to keep them as a how-to.' : 'Off. Bob won\'t offer or use how-tos. Saved ones stay in 📒 How-tos.'); return; }
       if (el.dataset.set === 'webSearch') { const r = await api('/api/settings', { webSearch: el.checked }); settings.webSearch = r.webSearch; el.checked = r.webSearch; window.dispatchEvent(new CustomEvent('bob-web', { detail: { webSearch: r.webSearch } })); flash(el, r.webSearch ? 'On. Bob can search the web when a question needs it.' : 'Off. Bob won\'t go online to look things up.'); return; }
       if (el.dataset.gcard) {
         const r = await api('/api/settings', { gamingCard: el.dataset.gcard }); settings.gamingCard = r.gamingCard; settings.gamingCardNow = r.gamingCardNow;

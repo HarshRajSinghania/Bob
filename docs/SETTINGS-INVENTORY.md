@@ -128,3 +128,13 @@ Update this file in the same handover as any change to settings.
 | Bob's thinking > Clear | Empty this window. Nothing else changes. | button | ok |
 | Settings > Advanced > Engines & speed | "Keep the graphics card free for quick answers" (1.5.69) adds "A message with a link still goes to your main Brain, which reads web pages better." before "Applies in the Normal session; Gaming always does this." Chat line when it happens: "This one has a link in it, so my main Brain takes it." (adds "(loading it, about N seconds)" when the Brain isn't loaded) | off | ok (approved with edits, 1.5.69) |
 | Get models > Setup / Equip Bob > Set (1.5.71) | New starter set "Built-in graphics (handhelds and thin laptops)", suggested when Bob finds built-in AMD (laptop/handheld Ryzen) or Intel Arc/Iris Xe graphics and no NVIDIA card. Brains only; its note: "Not yet measured on built-in graphics. Pictures and video are left out of this set until they've been tried there." Hardware line: "Built-in graphics: <chip>, about N GB of memory shared with it"; tag "Fits your PC". | suggested by detection | pending sign-off |
+
+## Added in 1.5.79 (how-tos)
+
+| Where | Setting / text | Default | Status |
+|---|---|---|---|
+| Settings > Everyday > How Bob works | Let Bob learn how-tos: "Off unless you turn it on. After a job with a few steps goes well, Bob offers to keep the steps as a how-to, and follows them next time you ask for something like it. Nothing is kept without your click. Your how-tos are in 📒 How-tos below." | off | ok (approved with edits, 1.5.79) |
+| Settings > Everyday | 📒 How-tos panel: list (name, For:, steps, used N times), Edit (Name, What it's for, Steps one per line, Save changes / Cancel), Delete then Delete for good / Keep it. Closed: "N how-tos · Learning: on/off" | — | ok (approved with edits, 1.5.79) |
+| Chat page | Card: "📒 That worked. Keep the steps as a how-to?" + "Next time you ask for something like this, I'll follow them." + Name box + steps + Save how-to / Not now. After: "Saved the how-to "…". You can change or delete it in Settings, 📒 How-tos." | — | ok (approved with edits, 1.5.79) |
+| Chat page | Line when used: "📒 Following my how-to "…"" | — | ok (approved with edits, 1.5.79) |
+

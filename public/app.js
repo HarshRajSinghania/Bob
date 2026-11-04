@@ -430,6 +430,25 @@ function onEvent(ev) {
       no.onclick = () => el.remove();
       return;
     }
+    case 'howto-offer': { // 1.5.79: one card after a job that worked. Nothing is kept until Save how-to is pressed.
+      const steps = (ev.steps || []).map((x, i) => `<li>${esc(x)}</li>`).join('');
+      const el = add('suggest howto-card', `<div><strong>📒 That worked. Keep the steps as a how-to?</strong> <span class="muted">Next time you ask for something like this, I'll follow them.</span>
+        <label class="howto-name">Name <input maxlength="60" value="${esc(ev.name || '')}" aria-label="How-to name"></label>
+        <ol class="howto-steps">${steps}</ol></div><div class="howto-actions"><button type="button">Save how-to</button><button type="button" class="link">Not now</button></div>`);
+      const [yes, no] = el.querySelectorAll('button');
+      const answer = async (save) => {
+        yes.disabled = no.disabled = true;
+        try {
+          const r = await api('/api/howtos/answer', { id: ev.id, save, name: el.querySelector('input')?.value || '' });
+          el.remove();
+          if (!r.ok) note(r.why || 'That card is too old now.', 'error');
+          else if (save && r.saved) { window.dispatchEvent(new CustomEvent('bob-howto-saved')); } if (r.ok && save && r.saved) note(`Saved the how-to "${r.saved.name}". You can change or delete it in Settings, 📒 How-tos.`);
+        } catch (e) { yes.disabled = no.disabled = false; note(e.message, 'error'); }
+      };
+      yes.onclick = () => answer(true);
+      no.onclick = () => answer(false);
+      return;
+    }
     case 'offer-download': { // 1.5.37: a job needs a model that isn't here yet. Nothing downloads until this is pressed.
       const sz = ev.sizeGB ? `about ${ev.sizeGB} GB, ` : '';
       const el = add('suggest', `<span>${esc(ev.why === 'music' ? 'Music needs its models first' : 'This needs a model first')}: ${esc(ev.name)} (${esc(sz)}one time only). You can watch it in Downloads.</span><button type="button">${esc(ev.why === 'music' ? 'Download the music models' : 'Download it')}</button><button type="button" class="link">Not now</button>`);

@@ -51,6 +51,7 @@ import { GuestJobs, awayPlan, sendAway, stopAway, guestTools, guestNote, GUEST_T
 import { askTogether, takeEarlier, askTogetherTool } from './together.js';
 import { showPlanTool, planGate, planOn, planPrompt } from './plan.js';
 import { freeMemNow } from './platform.js';
+import { HowTos, howtoTools, howtosOn, trailStep, worthOffering, howtoPrompt, usingLine } from './howtos.js';
 
 const MAX_STEPS = 8;
 
@@ -351,7 +352,7 @@ export class Brain {
     this.reminderTimer.unref?.();
     this.housekeeper = new Housekeeper(cfg, this);
     this.tools.forget_topic = forgetTopicTool(this);
-    Object.assign(this.tools, handsTools(this), scheduleTools(this), officeTools(this), securityTools(this), selfToolsTools(this)); // Hands: off until the user turns them on (see hands-settings.js)
+    Object.assign(this.tools, handsTools(this), scheduleTools(this), officeTools(this), securityTools(this), selfToolsTools(this), howtoTools(this)); // Hands: off until the user turns them on (see hands-settings.js)
     this.tools.use_tools = useToolsTool(this);
     this.tools.show_plan = showPlanTool(this); // 1.5.78: the plan card before big jobs (plan.js), only with its setting on
     this.tools.ask_together = askTogetherTool(this); // 1.5.42: every OK a job needs on one card (together.js) // the toolbox (toolbox.js): groups added only when a job needs them
@@ -359,6 +360,8 @@ export class Brain {
     this.made = new Made(cfg); // Made by Bob (made.js): everything he made, for the side panel and show_made
     this.tools.show_made = showMadeTool(this);
     this.stickyGroups = new Map(); // chat id -> Map(group -> messages left)
+    this.howtos = new HowTos(cfg); // 1.5.79: know-how from jobs that worked (off by default)
+    this.lastTrail = new Map(); // chat id -> the steps of its last job worth keeping, for save_howto
     this.handApprovals = new Set(); // approvals waiting that came from a Hand, so Stop everything can deny them
     // Always on: load the small brain shortly after start-up. Wake when I type (the default) loads nothing.
     if (holdsChatBrain(cfg)) { const t = setTimeout(() => this.wake('always on').catch(() => {}), 4000); t.unref?.(); }
@@ -1145,7 +1148,7 @@ export class Brain {
   offTools() {
     let can = {};
     try { can = capabilities(this.cfg); } catch {}
-    return new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud', freeOn(this.cfg) && 'ask_together', !planOn(this.cfg) && 'show_plan', ...(webOn(this.cfg) ? [] : WEB_TOOLS), !autoSessionOn(this.cfg) && 'pick_session', ...toolsOff(this.cfg)].filter(Boolean));
+    return new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud', freeOn(this.cfg) && 'ask_together', !planOn(this.cfg) && 'show_plan', ...(webOn(this.cfg) ? [] : WEB_TOOLS), !autoSessionOn(this.cfg) && 'pick_session', ...(howtosOn(this.cfg) ? [] : ['save_howto', 'my_howtos']), ...toolsOff(this.cfg)].filter(Boolean));
   }
   usable(name, off = this.offTools()) { return Boolean(this.tools[name]) && !off.has(name); }
   // 1.5.41: whether OKs are asked on cards right now (so a job's OKs can go on one card). Not with "work without asking".
@@ -1516,7 +1519,9 @@ export class Brain {
     // reload, a restart or a missed live event (they used to exist only as a live event).
     const media = [];
     const out = {};
+    let rough = false; // an error or correction note this turn: no how-to card
     const keep = (ev) => {
+      if (['error', 'correction', 'held', 'waiting'].includes(ev?.type)) rough = true;
       if (['image', 'video', 'audio'].includes(ev.type) && typeof ev.url === 'string' && ev.url.startsWith('/images/')) {
         if (media.some((m) => m.url === ev.url)) return; // delivered once already
         media.push({ type: ev.type, url: ev.url, name: path.basename(decodeURIComponent(ev.url.slice(8))), ...(ev.song?.title ? { title: ev.song.title, sound: ev.song.sound } : {}) });
@@ -1531,6 +1536,7 @@ export class Brain {
       if (careful(job)) emit({ type: 'announce', text: mootOpening(this.cfg, job.effort, base) });
       await this.runOn(msgs, text, keep, signal, pics, job, sessionId, out);
       if (careful(job) && out.ctx && !signal?.aborted) await runMoot(this, { msgs, base, emit: keep, signal, job, ctx: out.ctx });
+      if (out.ctx && !signal?.aborted && !rough) this.howtoAfter(sessionId, text, out.ctx, keep, job);
     }
     finally {
       if (media.length) {
@@ -1541,6 +1547,36 @@ export class Brain {
       }
       shared.push(...msgs.slice(base));
     }
+  }
+
+  // 1.5.79: after a job went well, one card: save its steps as a how-to? Only with "Let Bob learn how-tos" on,
+  // never for a job from another Bob, not when a how-to was followed this turn or already covers it.
+  howtoAfter(sessionId, text, ctx, emit, job = null) {
+    if (!howtosOn(this.cfg) || job?.guest) return null;
+    const steps = worthOffering(ctx.trail);
+    if (!steps) return null;
+    if (sessionId) { this.lastTrail.set(sessionId, { when: text, steps }); if (this.lastTrail.size > 50) this.lastTrail.delete(this.lastTrail.keys().next().value); }
+    if (ctx.howtoOffered || ctx.howtoUsed) return null;
+    try { if (this.howtos.covered(text)) return null; } catch { return null; }
+    const o = this.howtos.offer({ sessionId, when: text, steps });
+    emit({ type: 'howto-offer', id: o.id, name: o.name, when: o.when, steps: o.steps.map((s) => s.did), sessionId });
+    this.log('howtos', `offered to keep ${steps.length} steps as "${o.name}"`);
+    return o;
+  }
+
+  // The card's answer. save: true keeps it (with the name typed on the card, if any). Returns the how-to, or null.
+  async answerHowto(id, save, name = '') {
+    const o = this.howtos.takeOffer(String(id || ''));
+    if (!o) return { ok: false, why: 'That card is too old now. Ask me to save the steps again.' };
+    if (!save) { this.log('howtos', `"${o.name}" not kept`); return { ok: true, saved: null }; }
+    const r = this.howtos.add({ name: String(name || '').trim() || o.name, when: o.when, steps: o.steps });
+    this.log('howtos', `saved the how-to "${r.name}" (${r.steps.length} steps)`);
+    // Its meaning, for matching, only when the Memory model is in use anyway (never started just for this).
+    try {
+      const hk = this.housekeeper;
+      if (hk && hkSettings(this.cfg).enabled) Promise.race([hk.embed([`${r.name}. ${r.when}`]), new Promise((ok) => setTimeout(() => ok(null), 3000))]).then((v) => { if (v?.[0]) this.howtos.setVec(r.id, v[0]); }).catch(() => {});
+    } catch {}
+    return { ok: true, saved: r };
   }
 
   // What Bob carries from earlier, instead of the whole old chat: the summary of this chat's older part,
@@ -1639,7 +1675,19 @@ export class Brain {
     const brainCtx = await this.fitCtx(model, wantCtx);
     if (!model) throw new Error('I don\'t have a brain yet. Open Get models (in the menu on the left) and pick one; the first-time setup suggests the right one for this PC.');
     this.setState('thinking', '', this.state.model);
-    const earlier = await this.recall(sessionId, text);
+    let earlier = await this.recall(sessionId, text);
+    // 1.5.79 How-tos (off by default): the one saved how-to that fits this request goes in for this turn, and the chat says so.
+    if (howtosOn(this.cfg) && !again && !job?.guest) {
+      let howto = null;
+      try { howto = this.howtos.match(text, this.recallVec?.text === text ? this.recallVec.vec : null); } catch {}
+      if (howto) {
+        ctx.howtoUsed = howto;
+        try { this.howtos.used(howto.id); } catch {}
+        emit({ type: 'tool', name: 'howto', summary: usingLine(howto) });
+        earlier = [earlier, howtoPrompt(howto, this.cfg.userName || 'the user').trim()].filter(Boolean).join('\n\n');
+        this.log('howtos', `following the how-to "${howto.name}"`);
+      }
+    }
 
     // Share brains (1.5.55): with "Borrow a brain" on and the owner's "when" met, one of his other Bobs thinks this reply.
     // The tools still run here, with this Bob's own checks and OK cards. No answer in time: this Bob thinks for himself.
@@ -1843,6 +1891,12 @@ export class Brain {
         }
         if (name === 'use_tools') { let a = call.function?.arguments; if (typeof a === 'string') { try { a = JSON.parse(a); } catch { a = {}; } } const id = String(a?.group || '').toLowerCase().trim(); if (ctx.loaded.has(id)) used.add(id); }
         msgs.push({ role: 'tool', tool_name: name, content: res.text });
+        if (howtosOn(this.cfg)) { // 1.5.79: the job's steps, in case it's worth a how-to
+          let a = call.function?.arguments; if (typeof a === 'string') { try { a = JSON.parse(a); } catch { a = {}; } }
+          let sum = name; try { sum = this.tools[name]?.summary ? this.tools[name].summary(a || {}) : name; } catch {}
+          const st = trailStep(name, sum, res.text);
+          if (st) (ctx.trail ||= []).push(st);
+        }
         if (HAND_TOOLS.has(name) && !/^Error:|said no/.test(String(res.text))) ctx.handsDid = true;
         if (res.endsTurn) ended = true;
         if (ctx.switchTo && !ended) { ended = true; emit({ type: 'announce', text: switchLine(ctx.switchTo.id, ctx.switchTo.why) }); } // 1.5.41: the job runs again in the new session
