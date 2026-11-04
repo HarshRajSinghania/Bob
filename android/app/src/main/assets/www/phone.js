@@ -113,11 +113,66 @@
     return t;
   }
 
+  // 1.5.95 Save as: keep something Bob made as another file type, on the replicant matrix that made it (same as the PC).
+  const SAVE_AS = { image: ['png', 'jpg', 'webp', 'gif'], video: ['mp4', 'webm', 'gif'], audio: ['wav', 'mp3', 'ogg', 'flac'], diagram: ['png', 'svg', 'pdf'] };
+  const SAVE_NOTE = { png: 'sharp, no quality lost', jpg: 'small, for photos', webp: 'small, for the web', gif: 'plays anywhere, low colour', mp4: 'plays anywhere', webm: 'small, for the web', wav: 'full quality, large', mp3: 'small, plays anywhere', ogg: 'small, open format', flac: 'full quality, smaller than WAV', svg: 'scales to any size', pdf: 'for printing and sharing' };
+  const fileOf = (x) => decodeURIComponent(String(x.url || '').split('/').pop() || '');
+  function saveRow(x, figure = null) {
+    if (!SAVE_AS[x.kind] || !x.base) return null;
+    const name = fileOf(x), have = x.kind === 'diagram' ? '' : name.split('.').pop().toLowerCase().replace('jpeg', 'jpg');
+    const b = () => bobs.find((y) => y.base === x.base);
+    const row = el('div', { class: 'save-as small' }, el('span', { class: 'dim', text: 'Save as ' }));
+    for (const f of SAVE_AS[x.kind]) {
+      const label = f === 'webp' ? 'WebP' : f.toUpperCase();
+      if (f === have) { row.append(el('span', { class: 'dim', text: ` ${label} · original ` })); continue; }
+      // Long-press shows what the type is good for (no hover on a phone).
+      const btn = el('button', { text: label, 'aria-label': `Save as ${label}: ${SAVE_NOTE[f]}`, oncontextmenu: (e) => { e.preventDefault(); toast(`${label}: ${SAVE_NOTE[f]}`); }, onclick: async () => {
+        btn.disabled = true;
+        try {
+          let path = '/api/save-as', body = { name, format: f };
+          if (x.kind === 'diagram') {
+            const svg = figure?.querySelector('svg');
+            if (!svg) throw new Error('not drawn');
+            const file = BobDiagram.svgFile(svg);
+            body.data = f === 'svg' ? btoa(unescape(encodeURIComponent(file))) : f === 'png' ? await BobDiagram.pngData(file) : await BobDiagram.pdfData(file);
+            path = '/api/diagram/save';
+          }
+          const r = await phone('net.post', { address: b().address, path, body: JSON.stringify(body) });
+          let out = {}; try { out = JSON.parse(r.body); } catch { /* not JSON */ }
+          if (out.ok) { btn.replaceWith(el('span', { text: ` ✓ ${label} ` })); toast(`Saved on "${bobName(x.base)}": ${out.name}`); return; }
+          btn.disabled = false;
+          if (out.need === 'ffmpeg' && out.offer) return setupCard(x.base, out.offer);
+          toast(out.why || "That didn't save.");
+        } catch { btn.disabled = false; toast("Couldn't save it on your other replicant matrix"); }
+      } });
+      row.append(btn);
+    }
+    return row;
+  }
+
+  // 1.5.95: a diagram, drawn here on the phone from its text (Mermaid is in the app, nothing goes online).
+  function diagramNode(x) {
+    const fig = el('div', { class: 'diagram' }, x.title ? el('strong', { text: x.title }) : null, el('div', { class: 'small dim', text: 'Drawing the diagram…' }));
+    const box = el('div', {}, fig);
+    phone('net.media', { address: x.base.replace('http://', ''), path: x.url }).then(async (data) => {
+      if (!data) throw new Error('none');
+      const bytes = atob(String(data).split(',')[1] || '');
+      const text = decodeURIComponent(escape(bytes));
+      const svg = await BobDiagram.draw('vendor/', text);
+      fig.lastChild.replaceWith(el('div', { class: 'diagram-art', html: svg }));
+      const row = saveRow(x, fig);
+      if (row) box.append(row);
+    }).catch(() => { fig.lastChild.textContent = "Couldn't draw this one here. It's on your other replicant matrix."; });
+    return box;
+  }
+
   function mediaNode(x) {
+    if (x.kind === 'diagram') return diagramNode(x);
     const holder = el('div', { class: 'small dim', text: x.kind === 'audio' ? 'Getting the song…' : 'Getting it from your other replicant matrix…' });
     phone('net.media', { address: x.base.replace('http://', ''), path: x.url }).then((data) => {
       if (!data) { holder.textContent = 'Too big to show on the phone. It is on your other replicant matrix.'; return; }
-      holder.replaceWith(mediaEl(x.kind, data));
+      const row = saveRow(x);
+      holder.replaceWith(row ? el('div', {}, mediaEl(x.kind, data), row) : mediaEl(x.kind, data));
     }).catch(() => { holder.textContent = "Couldn't fetch it from your other replicant matrix."; });
     return holder;
   }
@@ -360,6 +415,7 @@
     if (!mine) return;
     if (ev.type === 'start') current.turnId = ev.turnId;
     else if (ev.type === 'token') grow(ev.text || '');
+    else if (ev.type === 'diagram') { const x = { kind: 'diagram', url: ev.url, base, title: ev.title || '' }; current.media.push(x); current.node.append(mediaNode(x)); }
     else if (ev.type === 'image' || ev.type === 'video') { const x = { kind: ev.type, url: ev.url, base }; current.media.push(x); current.node.append(mediaNode(x)); }
     else if (ev.type === 'made') {
       for (const it of ev.items || []) if (it.kind === 'audio' && it.url) { const x = { kind: 'audio', url: it.url, base }; current.media.push(x); current.node.append(mediaNode(x)); }
@@ -477,7 +533,7 @@
     if (ev.kind === 'switch') { head = `"${ev.name}" is off`; body = `It lets me ${String(ev.what || '')}.${ev.privacy ? ' ' + ev.privacy : ''}${ev.folders ? ' Then tick the folders I may use in Settings, Hands, on that replicant matrix.' : ''}${after} You can switch it off again in ${ev.where}.`; button = 'Switch it on'; }
     else if (ev.kind === 'equip') { head = `I can't ${ev.say} yet`; body = `${ev.model?.name || ''} is already on "${bobName(base)}", it just isn't in its slot.${after}`; button = 'Use it'; }
     else {
-      head = `I can't ${ev.say} yet`; body = `I need ${ev.what} on "${bobName(base)}" first. One press gets it, sets it up and puts it in its slot.${after}`; button = `Set it up (about ${ev.size})`;
+      head = `I can't ${ev.say} yet`; body = `I need ${ev.what} on "${bobName(base)}" first. ${ev.need === 'ffmpeg' ? 'One press gets it and sets it up.' : 'One press gets it, sets it up and puts it in its slot.'}${after}`; button = `Set it up (about ${ev.size})`;
       extra = el('ul', {}, (ev.items || []).map((i) => el('li', { text: `${i.name} · ${gbs(i.sizeGB || 0)}${i.engine ? ' · program' : ''}` })));
     }
     const card = el('div', { class: 'card' },

@@ -73,7 +73,7 @@ const models = (here = []) => catalog.models.map((m) => ({ ...m, status: { state
   check('a model already here but not in its slot: one click, no download', already.kind === 'equip' && already.model.id === 'wan2.2-ti2v-5b' && !already.ids.length);
   const mac = planFor('hearing', { list: { ...list, engines: engines({ whispercpp: { available: false, note: 'There\'s no ready-made Mac download of whisper.cpp.' } }) }, hw: {} });
   check('nothing that runs here: said plainly, no card', mac.kind === 'none' && /Mac/.test(mac.why));
-  check('every capability has words for Bob', Object.values(NEEDS).every((n) => n.say && n.what && n.slot));
+  check('every capability has words for Bob', Object.values(NEEDS).every((n) => n.say && n.what && (n.slot || n.engine))); // 1.5.95: a program (FFmpeg) has no slot
 }
 
 // ---------- Settings in the way ----------

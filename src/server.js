@@ -52,6 +52,8 @@ import { shareView, cleanSharePatch, saveShare, lendChat, lendRefusal, helloFor 
 import { guestRoute, answerAway } from './share-jobs.js';
 import { Pairing } from './bob-net-pair.js';
 import { OS, features } from './platform.js';
+import { saveExport } from './diagram.js';
+import { saveAs } from './save-as.js';
 
 const cfg = loadConfig();
 // 1.5.76: the basic llama.cpp that comes inside Bob's download goes into his engine folder, if he has none yet.
@@ -118,7 +120,7 @@ function workshopView() {
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.webm': 'video/webm', '.mp4': 'video/mp4', '.avi': 'video/x-msvideo', '.svg': 'image/svg+xml',
+  '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.webm': 'video/webm', '.mp4': 'video/mp4', '.avi': 'video/x-msvideo', '.svg': 'image/svg+xml', '.mmd': 'text/plain; charset=utf-8',
   '.ico': 'image/x-icon', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.flac': 'audio/flac', '.ogg': 'audio/ogg',
   '.gif': 'image/gif', '.m4a': 'audio/mp4', '.mov': 'video/quicktime', '.pdf': 'application/pdf', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.csv': 'text/plain; charset=utf-8', '.log': 'text/plain; charset=utf-8'
 };
@@ -135,6 +137,13 @@ function serveFile(res, dir, rel, extra = {}) {
     if (err) return send(res, 404, { error: 'not found' });
     send(res, 200, buf, TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream', extra);
   });
+}
+
+// 1.5.95: a diagram file from the window that drew it (a PNG or PDF can be several MB as base64).
+async function bigBody(req, limit = 36e6) {
+  let s = '';
+  for await (const c of req) { s += c; if (s.length > limit) throw new Error('too big'); }
+  return s ? JSON.parse(s) : {};
 }
 
 async function body(req) {
@@ -548,6 +557,25 @@ const server = http.createServer(async (req, res) => {
         }
       } catch (e) { return send(res, 409, { error: e.message }); }
       return send(res, 404, { error: 'not found' });
+    }
+    // 1.5.95 Save as: keep something Bob made as another file type (pictures, clips, songs; save-as.js).
+    if (req.method === 'POST' && p === '/api/save-as') {
+      const b = await body(req);
+      try {
+        const r = await saveAs(cfg, { name: b.name, format: b.format }, brain.saveAsOpts || {});
+        if (r.need === 'ffmpeg') { let offer = null; await brain.offerSetup('ffmpeg', { emit: (ev) => { offer = ev; } }, { quiet: true }).catch(() => ''); return send(res, 200, { ok: false, need: 'ffmpeg', offer }); }
+        try { brain.made.add(r.file, { tool: 'save_as' }); } catch {}
+        return send(res, 200, { ok: true, ...r });
+      } catch (e) { return send(res, 200, { ok: false, why: e.message }); }
+    }
+    // 1.5.95: a diagram drawn in a chat window, saved as PNG, SVG or PDF next to its text (diagram.js).
+    if (req.method === 'POST' && p === '/api/diagram/save') {
+      try {
+        const b = await bigBody(req);
+        const r = saveExport(cfg, { name: b.name, format: b.format, data: b.data });
+        try { brain.made.add(r.file, { tool: 'make_diagram' }); } catch {}
+        return send(res, 200, { ok: true, ...r });
+      } catch (e) { return send(res, 200, { ok: false, why: e.message }); }
     }
     // 1.5.91: the chat's Set it up card (the phone's too, like approval cards: the card's id is the permission).
     if (req.method === 'POST' && p === '/api/setup/answer') {

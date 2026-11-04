@@ -41,6 +41,7 @@ import { scheduleTools } from './hands-schedules.js';
 import { toolsOff, HANDS, handOn, handOffWhy, freeOn } from './hands-settings.js';
 import { gate as qGate, after as qAfter, maybeAsk as qAsk, noteStrike, copyHeld } from './quarantine.js';
 import { wantsPictureEdit, recentPicture, editHint } from './intent.js';
+import { SAVE_AS, namedType, saveAs } from './save-as.js';
 import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUseTools, tidySchema, STICKY_TURNS, toolboxPrompt, saysCant } from './toolbox.js';
 import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff, carryOnPlan, carryOnLine, finishedSteps, MAX_AUTO_RESUMES, isBareOk, NOTHING_TO_OK } from './handoff.js';
 import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
@@ -977,8 +978,25 @@ export class Brain {
     const held = await qGate(this, name, args, ctx, tool);
     if (held) { qAfter(this, name, args, held.text, ctx, tool); return held; }
     const res = await this.runToolNow(name, args, ctx, tool);
+    // 1.5.95: a file type named in the ask is saved before the tool's answer goes back, so Bob can say so.
+    if (ctx?.saves?.length) {
+      await Promise.allSettled(ctx.saves.splice(0));
+      if (ctx.savedAs?.length && res && typeof res.text === 'string') res.text += ` Also saved as ${ctx.savedAs.splice(0).join(', ')}, as asked (the original is kept too).`;
+    }
     qAfter(this, name, args, res.text, ctx, tool);
     return res;
+  }
+
+  // 1.5.95: the user named a file type ("a song as an mp3"): keep what was just made in that type as well.
+  autoSaveAs(ev, ctx) {
+    const kind = ev.type, to = ctx.wantType;
+    if (!SAVE_AS[kind]?.includes(to) || path.extname(ev.file).slice(1).toLowerCase() === to) return;
+    ctx.saves.push(saveAs(this.cfg, { name: path.basename(ev.file), format: to }, { signal: ctx.signal, ...(this.saveAsOpts || {}) }).then(async (r) => {
+      if (r.need === 'ffmpeg') { await this.offerSetup('ffmpeg', ctx).catch(() => ''); return; }
+      try { this.made.add(r.file, { tool: 'save_as', chat: ctx.sessionId || '' }); } catch {}
+      ctx.emit({ type: 'made', items: [{ kind: r.kind, url: r.url, name: r.name, path: r.file }] });
+      ctx.savedAs.push(r.name);
+    }).catch((e) => { ctx.emit({ type: 'announce', text: `Couldn't save it as ${to.toUpperCase()}: ${e.message}` }); }));
   }
 
   async runToolNow(name, args, ctx, tool) {
@@ -1639,9 +1657,9 @@ export class Brain {
     let rough = false; // an error or correction note this turn: no how-to card
     const keep = (ev) => {
       if (['error', 'correction', 'held', 'waiting'].includes(ev?.type)) rough = true;
-      if (['image', 'video', 'audio'].includes(ev.type) && typeof ev.url === 'string' && ev.url.startsWith('/images/')) {
+      if (['image', 'video', 'audio', 'diagram'].includes(ev.type) && typeof ev.url === 'string' && ev.url.startsWith('/images/')) {
         if (media.some((m) => m.url === ev.url)) return; // delivered once already
-        media.push({ type: ev.type, url: ev.url, name: path.basename(decodeURIComponent(ev.url.slice(8))), ...(ev.song?.title ? { title: ev.song.title, sound: ev.song.sound } : {}) });
+        media.push({ type: ev.type, url: ev.url, name: path.basename(decodeURIComponent(ev.url.slice(8))), ...(ev.song?.title ? { title: ev.song.title, sound: ev.song.sound } : {}), ...(ev.type === 'diagram' ? { title: String(ev.title || ''), ...(ev.format ? { format: ev.format } : {}) } : {}) });
         out.ctx?.ledger?.output(ev, out.ctx.currentTool || null);
       }
       // Saved files and things called up with show_made: kept as cards with the reply.
@@ -1752,9 +1770,11 @@ export class Brain {
     // Every picture, clip or sound he makes goes on the Made by Bob list as it's announced.
     const emitMade = (ev) => {
       if (['image', 'video', 'audio'].includes(ev?.type) && ev.file) { try { this.made.add(ev.file, { tool: ev.type, chat: sessionId, song: ev.song || null }); } catch {} }
-      return emit(ev);
+      const sent = emit(ev);
+      if (['image', 'video', 'audio'].includes(ev?.type) && ev.file && ctx?.wantType) this.autoSaveAs(ev, ctx); // 1.5.95 "a song as an mp3"
+      return sent;
     };
-    const ctx = { emit: emitMade, signal, brain: this, cfg: this.cfg, allowAll: new Set(), pics, picNote, msgs, turnText: text, job, sessionId, wantsEdit, editFrom: wantsEdit ? recent : null };
+    const ctx = { emit: emitMade, signal, brain: this, cfg: this.cfg, allowAll: new Set(), pics, picNote, msgs, turnText: text, job, sessionId, wantsEdit, editFrom: wantsEdit ? recent : null, wantType: namedType(text), saves: [], savedAs: [] };
     // The ledger (handoff.js): what was asked for, every load, tool and output this turn, kept by the system.
     ctx.ledger = new Ledger({ job, expect: expectFrom(text, { pics }), save: () => this.saveQueue() });
     this.gate.track(signal, ctx.ledger);

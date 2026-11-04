@@ -411,6 +411,23 @@ ${set('Alerts', 'Off', 'Pops up a notification when I need you, for example when
 <li>If a slot is empty, I tell you which model would fill it.</li></ul>
 <p>Photos you attach are cleaned up first (turned upright, resized, hidden camera details removed): see ${go('attach', 'Attaching pictures')}.</p>` },
 
+  { id: 'diagrams', group: 'Using Bob', title: 'Flowcharts and diagrams', words: 'flowchart diagram mind map timeline org chart gantt pie chart decision tree sequence steps process map out boxes arrows mermaid svg pdf png replicant matrix pc computer laptop device',
+    html: `<p>Ask in plain words: "make me a flowchart of how a pull request gets merged", "map out how the login works", "a mind map of party ideas", "a timeline of the Roman empire". I draw it right in the chat. I can do flowcharts, mind maps, timelines, org charts, step-by-step message charts, project plans (Gantt charts) and pie charts.</p>
+<ul><li>Under it there's a <strong>Save as</strong> row: <strong>PNG</strong> (a picture), <strong>SVG</strong> (a picture that stays sharp at any size) or <strong>PDF</strong> (for printing and sharing). Say the type when you ask ("as a pdf") and I save it that way without asking.</li>
+<li>Want a change? "Add a step for forgotten passwords" and I redraw it. I keep each diagram's text (a .mmd file) in my folder, so I can pick it up again later.</li>
+<li>It's all drawn on your replicant matrix with Mermaid, which comes with me. Nothing goes online, and it doesn't need a graphics card or any download.</li>
+<li>The phone app draws them too, and its Save as row keeps the file on the replicant matrix that made it.</li></ul>
+<p>If a diagram comes out as "I couldn't draw this one", I wrote it wrong. Say "fix it" and I'll redo it. (Boxes and arrows: the one art form where I never get the hands wrong.)</p>` },
+
+  { id: 'save-as', group: 'Using Bob', title: 'Save as: other file types', words: 'save as file type format mp3 wav ogg flac jpg jpeg png webp gif mp4 webm svg pdf convert smaller size big song ffmpeg replicant matrix pc computer laptop device',
+    html: `<p>Everything I make has a <strong>Save as</strong> row under it. Press a type and I keep a copy in that type, next to the original. The original always stays.</p>
+<ul><li><strong>Pictures:</strong> PNG (sharp, no quality lost), JPG (small, for photos), WebP (small, for the web), GIF (plays anywhere, fewer colours).</li>
+<li><strong>Clips:</strong> MP4 (plays anywhere), WebM (small, for the web), GIF (no sound).</li>
+<li><strong>Songs and sounds:</strong> WAV (full quality, large: about 10 MB a minute), MP3 (about a tenth of that, plays anywhere), OGG (small, open format), FLAC (full quality, about half the size of WAV).</li>
+<li><strong>Diagrams:</strong> PNG, SVG or PDF. See ${go('diagrams', 'Flowcharts and diagrams')}.</li></ul>
+<p>Name the type when you ask ("a song about my cat as an mp3", "a fox, png please") and I save it that way straight away, no row-pressing needed. Afterwards works too: "save that song as an mp3".</p>
+<p>Converting songs, clips and most pictures uses FFmpeg, a free converter. If it isn't on your replicant matrix yet, I show a <strong>Set it up</strong> card (about 100 MB on Windows). On a Mac or Linux the card says how to install it, and I find it by myself after that. Nothing downloads until you press the button.</p>` },
+
   { id: 'songs', group: 'Using Bob', title: 'Songs and sounds: the song player', words: 'song music sound effect player play pause lyrics bars waveform jump skip seek list next ace-step wav title',
     html: `<p>Ask for a song ("a chiptune boss theme, 140 bpm, about a minute") or a sound effect ("a creaky wooden door"). When it's done, it lands in the chat as a <strong>song player</strong>, the way a picture lands as a picture. Music takes a few minutes; I'll say so before I start. The first song needs the music models, and I ask before downloading those.</p>
 <ul><li>The round <strong>▶</strong> button plays it; press it again to pause.</li>
@@ -723,6 +740,10 @@ ${set('Load a brain for it if none is loaded', 'Off', 'Loads a brain just for ti
 <p><strong>Waiting for a download:</strong> when you ask for something that needs a model you don't have yet (your first song needs the music models), I show a download button in the chat. Press it and your request waits in Tasks as <em>Waiting for a download</em>, then runs by itself when the download is done, even if I was restarted in between. If the download fails or you cancel it, the task says so and waits for you: get the download again, then press <strong>Carry on</strong>.</p>
 <p>When an update is ready and I'm busy, I tell you whether I'll pick up the work afterwards, so restarting never loses anything by surprise.</p>
 <p>It all costs a small note on disk per job, nothing more. I'm a replicant; I'm used to waking up and carrying on.</p>` },
+  { id: 'faq-big-songs', group: 'FAQ', title: 'Why are my songs such big files?', words: 'faq song big large file size wav mp3 smaller space disk',
+    html: `<p>I make songs as WAV, which keeps every bit of the sound: about 10 MB a minute. Press <strong>MP3</strong> in the <strong>Save as</strong> row under the song for a copy about a tenth the size, or ask for "an mp3" when you ask for the song. The WAV stays until you delete it. See ${go('save-as', 'Save as: other file types')}.</p>` },
+  { id: 'faq-edit-new', group: 'FAQ', title: 'Why did Bob paint a new picture when I asked for a change?', words: 'faq edit change picture new one repaint different person photo',
+    html: `<p>That shouldn't happen any more. When you attach a picture (or I've just made one) and say what to change, in any words, I edit that picture. I only start a new one when you say "new". If it still happens, check <strong>Equip Bob</strong> has a <strong>Picture editor</strong>: without one I'll say so and offer to set it up, rather than repainting. See ${go('pictures', 'Pictures, edits and video')}.</p>` },
   { id: 'faq-howto-recipe', group: 'FAQ', title: 'What\'s the difference between a how-to and a recipe?', words: 'faq how-to recipe difference same run hand saved command steps',
     html: `<p>A <strong>recipe</strong> is one command you saved for the Run Hand, to run again in one click (still with your OK). A <strong>how-to</strong> is a list of steps from a whole job that worked, which I follow next time you ask for something like it. A how-to can include running a recipe as one of its steps. Neither one does anything without the OKs it would normally need.</p>` },
   { id: 'faq-howto-asking', group: 'FAQ', title: 'Can a how-to make Bob do things without asking?', words: 'faq how-to without asking approve ok card safe automatic',
@@ -908,7 +929,7 @@ ${set('Check in now', 'A button', 'Does a round straight away and shows the resu
 <li><strong>Tailscale is on, here and there,</strong> signed in to the same account. If it isn't yet, the setting says so, and I notice within a minute when it connects.</li>
 <li><strong>The firewall lets Tailscale through.</strong> On Windows, press <strong>Let Tailscale through the firewall</strong>. Windows asks you once; the rule only lets in Tailscale addresses on my port, nothing else on your network. It also switches off any rule that blocks Bob\'s own program (Windows makes one if Cancel was clicked on its earlier question). <strong>Remove the firewall rule</strong> switches those back on. On Linux with ufw or firewalld on, run the line I show. On a Mac, choose Allow if macOS asks about me.</li></ol>
 <p>Still stuck? The phone app's message says which Bob it couldn't reach. Check that one's settings first. It's nearly always the firewall, the one door I can't open without you.</p>` },
-  { id: 'glossary', group: 'Troubleshooting', title: 'Glossary', words: 'words meaning waiting hourglass ⏳ line replicant matrix pc computer laptop mac device machine mcp connected app tip bubble github release checksum sha256 model brain gpu vram ram graphics memory gguf engine commercial session hands context effort moot copy token processor cpu ollama llama.cpp thinking borrowed lend memory bank model family',
+  { id: 'glossary', group: 'Troubleshooting', title: 'Glossary', words: 'words meaning mermaid svg ffmpeg waiting hourglass ⏳ line replicant matrix pc computer laptop mac device machine mcp connected app tip bubble github release checksum sha256 model brain gpu vram ram graphics memory gguf engine commercial session hands context effort moot copy token processor cpu ollama llama.cpp thinking borrowed lend memory bank model family',
     html: `<p>The words I use, in plain English. I'll try not to say "tensor" without warning you.</p>
 <dl>
 <dt>Tray</dt><dd>The row of little icons by the clock on Windows (some hide under the <strong>^</strong> arrow), the menu bar on a Mac, or your desktop's tray on Linux. With <strong>Keep Bob in the tray</strong> on, I live there when my window is closed.</dd>
@@ -916,6 +937,9 @@ ${set('Check in now', 'A button', 'Does a round straight away and shows the resu
 <dt>Checksum (.sha256, SHA-256)</dt><dd>A file's fingerprint: a long number worked out from its contents. If even one byte changes, so does the number, so matching it proves the file is exactly the one on my GitHub release page. You can also paste a file's SHA-256 into virustotal.com to see what many antiviruses think of it, without uploading it.</dd>
 <dt>Plan card</dt><dd>The card I show before a big job when <strong>Show Bob's plan before big jobs</strong> is on: every step in order, with any OKs the job needs ticked on it. You press Go ahead, Change something or Not now (Bob drops this job).</dd>
 <dt>Model family</dt><dd>Models made by the same team and built the same way, like Qwen or Gemma. One family comes in many sizes, from phone-sized to big. In the Brain catalogue each family has its own header you open and close.</dd>
+<dt>Mermaid</dt><dd>A free drawing kit that turns a few lines of text into a flowchart or other diagram. It comes with me and works offline. See ${go('diagrams', 'Flowcharts and diagrams')}.</dd>
+<dt>SVG</dt><dd>A picture made of shapes instead of dots, so it stays sharp at any size. Good for diagrams you'll print or put in a document.</dd>
+<dt>FFmpeg</dt><dd>A free converter for sound, video and pictures. I use it for <strong>Save as</strong> (MP3, WebM, JPG...) and the Office Hand's converting.</dd>
 <dt>Brain</dt><dd>A model that thinks and chats. Bigger brains are usually smarter but slower and need more memory.</dd>
 <dt>Memory bank</dt><dd>The memories that belong to one project, kept apart from the others. With <strong>Remember only what fits</strong> on, I read only the bank of the project we're talking about, plus your general memories.</dd>
 <dt>ARM board</dt><dd>A small computer built around an ARM chip, like a Raspberry Pi 5. I run there from the <strong>arm64</strong> AppImage, on the processor, with small brains.</dd>
@@ -950,7 +974,6 @@ ${set('Check in now', 'A button', 'Does a round straight away and shows the resu
 <dt>Brain catalogue</dt><dd>My full list of models, sorted by job, with what each one needs and where it comes from.</dd>
 <dt>Active (model)</dt><dd>A model that shows up in the slots and brain menus. The rest wait in the Brain catalogue.</dd>
 <dt>Picture reader</dt><dd>The small extra file (an "mmproj") that lets a brain see pictures. I download it with the brain when it has one.</dd>
-<dt>FFmpeg</dt><dd>A free program I use to convert sound and video (and WebP pictures). Runs only while it converts.</dd>
 <dt>Graphics card, graphics memory</dt><dd>The part of your replicant matrix that makes AI fast. Its memory (6, 8, 16 GB) decides which models fit. Also called GPU and VRAM.</dd>
 <dt>How-to</dt><dd>Steps I kept from a job that worked, saved by your click on a card, so I can do it the same way next time. Plain text: it can't run anything or say yes for you. Off until you turn on Let Bob learn how-tos.</dd>
 <dt>Hands</dt><dd>Me doing things on your replicant matrix (files, programs, schedules, apps). Off until you turn them on.</dd>

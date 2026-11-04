@@ -19,7 +19,8 @@ export const NEEDS = {
   music: { slot: 'music', model: 'ace-step-music', engine: 'audio', say: 'make music', what: 'the music maker' },
   sfx: { slot: 'sfx', engine: 'audio', say: 'make sound effects', what: 'the sound effects maker' },
   voice: { slot: 'speech', cats: ['speech'], say: 'read replies aloud', what: 'a voice' },
-  hearing: { slot: 'voice', cats: ['voice'], say: 'hear you talk', what: 'ears (speech to text)' }
+  hearing: { slot: 'voice', cats: ['voice'], say: 'hear you talk', what: 'ears (speech to text)' },
+  ffmpeg: { engine: 'ffmpeg', say: 'save things in other file types (MP3, JPG, WebM...)', what: 'FFmpeg, the converter' } // 1.5.95 Save as
 };
 // The tool that does each job, so a call to it can be turned into an offer.
 export const TOOL_NEED = { make_image: 'pictures', make_video: 'video', make_music: 'music', make_sound: 'sfx' };

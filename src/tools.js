@@ -10,6 +10,8 @@ import { limitOn, readOnlyRoots } from './hands-settings.js';
 import { listWorkflows, workshopDir } from './workshop.js';
 import { bobHelp } from './self-help.js';
 import { recallOn, tagLine } from './recall.js';
+import { diagramTool } from './diagram.js';
+import { saveAsTool } from './save-as.js';
 
 const MAX_READ = 20000;
 const BLOCKED_EXT = new Set(['.exe', '.msi', '.bat', '.cmd', '.ps1', '.vbs', '.js', '.jse', '.wsf', '.scr', '.lnk', '.reg', '.dll', '.com']);
@@ -504,5 +506,7 @@ export function buildTools(cfg) {
     };
   }
 
+  t.make_diagram = diagramTool(); // 1.5.95 flowcharts and diagrams (diagram.js)
+  t.save_as = saveAsTool(); // 1.5.95 keep something Bob made as another file type (save-as.js)
   return t;
 }

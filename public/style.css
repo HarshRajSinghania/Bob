@@ -1120,3 +1120,13 @@ button.tip-i:focus-visible { outline: 2px solid var(--accent); outline-offset: -
 /* 1.5.98: small subheadings inside a settings panel (How he works, This Bob, Limits that always apply). */
 .ssub { margin: 12px 0 2px; font-size: 13px; font-weight: 700; text-transform: none; color: var(--muted, inherit); }
 .ssub:first-child { margin-top: 4px; }
+/* 1.5.95 Diagrams and the Save as row (save-as.js). */
+.msg figure.diagram { margin: 8px 0; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #222; overflow: auto; max-width: 100%; }
+.msg figure.diagram figcaption { font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #333; }
+.msg figure.diagram .diagram-art svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+.msg figure.diagram .muted { color: #666; }
+.msg figure.diagram details pre { white-space: pre-wrap; font-size: 12px; }
+.msg .save-as { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 4px 0 2px; font-size: 12px; color: var(--muted); }
+.msg .save-as .save-label { margin-right: 4px; }
+.msg .save-as .save-done { color: var(--accent); }
+.msg .save-as .save-have { padding: 1px 7px; color: var(--muted); opacity: .8; }

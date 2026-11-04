@@ -27,6 +27,7 @@ import { createBobLife } from './bob-life.js';
 import { createViewer, outCard, fillPeeks } from './viewer.js';
 import { songListHtml, wireSongs } from './song-player.js';
 import { moreBar } from './more-bar.js';
+import { diagramHtml, saveRowsHtml, setupSaveAs, watchSaveAs } from './save-as.js';
 
 const cellar = createCellar();
 const api = async (url, data) => {
@@ -50,6 +51,9 @@ const qBanner = createQuarantineBanner({ note: (t, k) => note(t, k) });
 const effort = createEffort();
 const catAntics = createCatAntics({ onAntic: () => life.react('cat'), sleepy: () => life.dozing });
 const viewer = createViewer({ post: (u, d) => post(u, d), note: (t, k) => note(t, k) });
+// 1.5.95: diagrams get drawn and the Save as rows work, anywhere in the chat (save-as.js).
+setupSaveAs({ offer: (ev) => onEvent(ev), note: (t, k) => note(t, k), made: (items) => viewer.made(items) });
+watchSaveAs(log);
 const bobCanvas = $('bob'), bobCtx = bobCanvas.getContext('2d');
 bobCtx.imageSmoothingEnabled = false;
 
@@ -134,7 +138,7 @@ function setupOfferHtml(ev) {
   if (ev.kind === 'switch') return `<strong>"${esc(ev.name)}" is off</strong><span>It lets me ${esc(ev.what)}.${ev.privacy ? ' ' + esc(ev.privacy) : ''}${ev.free ? ' "Let Bob work without asking" is on, so it won\'t ask before each step.' : ev.name.startsWith('Let Bob use Hands') ? ' I still ask before every step.' : ''}${ev.folders ? ' Then tick the folders I may use in Settings, Hands.' : ''}${esc(after)} You can switch it off again in ${esc(ev.where)}.</span><div class="row"><button type="button" class="get">Switch it on</button><button type="button" class="link">Not now</button></div>`;
   if (ev.kind === 'equip') return `<strong>I can't ${esc(ev.say)} yet</strong><span>${esc(ev.model?.name || '')} is already on this replicant matrix, it just isn't in its slot.${esc(after)}</span><div class="row"><button type="button" class="get">Use it</button><button type="button" class="link">Not now</button></div>`;
   const items = (ev.items || []).map((i) => `<li>${esc(i.name)} <span class="muted">· ${gbs(i.sizeGB)}${i.engine ? ' · program' : ''}${i.license ? ` · ${esc(i.license)}` : ''}</span></li>`).join('');
-  return `<strong>I can't ${esc(ev.say)} yet</strong><span>I need ${esc(ev.what)} first. One press gets it, sets it up and puts it in its slot.${esc(after)}</span><ul>${items}</ul><span class="muted">About ${esc(ev.size)} in all${ev.freeGB != null ? `, ${ev.freeGB} GB free` : ''}. One time only.${ev.note ? ' ' + esc(ev.note) : ''}</span>${ev.short ? `<span class="error">Not enough free disk: free up ${ev.short} GB first, then ask me again.</span>` : ''}<div class="row"><button type="button" class="get">Set it up (about ${esc(ev.size)})</button><button type="button" class="link">Not now</button></div>`;
+  return `<strong>I can't ${esc(ev.say)} yet</strong><span>I need ${esc(ev.what)} first. ${ev.need === 'ffmpeg' ? 'One press gets it and sets it up.' : 'One press gets it, sets it up and puts it in its slot.'}${esc(after)}</span><ul>${items}</ul><span class="muted">About ${esc(ev.size)} in all${ev.freeGB != null ? `, ${ev.freeGB} GB free` : ''}. One time only.${ev.note ? ' ' + esc(ev.note) : ''}</span>${ev.short ? `<span class="error">Not enough free disk: free up ${ev.short} GB first, then ask me again.</span>` : ''}<div class="row"><button type="button" class="get">Set it up (about ${esc(ev.size)})</button><button type="button" class="link">Not now</button></div>`;
 }
 
 function ensureReply(ev) {
@@ -159,9 +163,9 @@ function drawReply(r) {
 }
 function addMedia(ev, type) {
   const r = ensureReply(ev);
-  const item = { type, url: ev.url, name: decodeURIComponent(String(ev.url).split('/').pop() || ''), ...(ev.song?.title ? { title: ev.song.title, sound: ev.song.sound } : {}) };
+  const item = { type, url: ev.url, name: decodeURIComponent(String(ev.url).split('/').pop() || ''), ...(ev.song?.title ? { title: ev.song.title, sound: ev.song.sound } : {}), ...(type === 'diagram' ? { title: ev.title || '', ...(ev.format ? { format: ev.format } : {}) } : {}) };
   r.media.push(item); drawReply(r); scrollDown();
-  viewer.made([{ ...item, kind: type }]); // the side panel shows it too, if it's open
+  if (type !== 'diagram') viewer.made([{ ...item, kind: type }]); // the side panel shows it too, if it's open
   return r;
 }
 // Files he saved (documents, spreadsheets, copies, zips) and things called up with show_made: cards in the same bubble.
@@ -582,6 +586,7 @@ function onEvent(ev) {
     case 'image': { addMedia(ev, 'image'); ping('Bob finished a picture', ev.file || ''); break; }
     case 'audio': { addMedia(ev, 'audio'); ping('Bob finished a sound', ev.file || ''); break; }
     case 'video': { addMedia(ev, 'video'); ping('Bob finished a clip', ev.file || ''); break; }
+    case 'diagram': { addMedia(ev, 'diagram'); break; } // 1.5.95 drawn by save-as.js
     case 'made': { addMade(ev); break; }
     case 'approval': {
       endReply(ev);
@@ -683,7 +688,7 @@ function connect() {
 async function catchUpMedia() {
   try {
     const h = await (await fetch('/api/history?session=' + encodeURIComponent(sessionId))).json();
-    const seen = new Set([...log.querySelectorAll('img[src], video[src], audio[src]')].map((el) => el.getAttribute('src')).concat([...log.querySelectorAll('[data-view-url]')].map((el) => el.dataset.viewUrl)));
+    const seen = new Set([...log.querySelectorAll('img[src], video[src], audio[src]')].map((el) => el.getAttribute('src')).concat([...log.querySelectorAll('[data-view-url]')].map((el) => el.dataset.viewUrl), [...log.querySelectorAll('[data-diagram]')].map((el) => el.dataset.diagram)));
     const missed = h.slice(-6).filter((m) => m.role === 'assistant').flatMap((m) => m.media || []).filter((m) => !seen.has(m.url));
     if (missed.length) { add('msg bob', mediaHtml(missed)); scrollDown(); }
   } catch {}
@@ -797,12 +802,14 @@ function mediaHtml(media) {
   const visual = items.filter((m) => m.kind === 'image' || m.kind === 'video');
   // 1.5.41: songs and sounds get the song player; two or more sit in a list that plays one after another.
   const songs = items.filter((m) => m.kind === 'audio' && m.url);
-  const rest = items.filter((m) => !visual.includes(m) && !songs.includes(m)).map(outCard).join('');
+  const diagrams = items.filter((m) => m.kind === 'diagram').map(diagramHtml).join(''); // 1.5.95
+  const rest = items.filter((m) => !visual.includes(m) && !songs.includes(m) && m.kind !== 'diagram').map(outCard).join('');
   const sounds = songs.length ? songListHtml(songs) : '';
-  if (visual.length < 2) return visual.map(outCard).join('') + sounds + rest;
+  const saveRows = saveRowsHtml(items); // 1.5.95: Save as, under everything Bob made
+  if (visual.length < 2) return diagrams + visual.map(outCard).join('') + sounds + rest + saveRows;
   const cols = Math.ceil(Math.sqrt(visual.length)), rows = Math.ceil(visual.length / cols);
   const grid = `<div class="media-grid" style="--cols:${cols};--rows:${rows}">${visual.map(outCard).join('')}</div>`;
-  return grid + sounds + rest;
+  return diagrams + grid + sounds + rest + saveRows;
 }
 // ---------- Copy buttons and file cards (right-click and Ctrl+C often don't get through remote desktop) ----------
 const rawText = new WeakMap();

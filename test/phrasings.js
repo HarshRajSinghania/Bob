@@ -142,6 +142,25 @@ export const PHRASINGS = [
   { job: 'howtos', text: 'do it the same way as last time', group: 'howtos' },
   { job: 'maker', text: 'make yourself a tool that counts words', group: 'maker' },
 
+  // ---- Diagrams (1.5.95) ----
+  { job: 'diagram', text: 'can bob make flowcharts?', group: 'diagrams' },
+  { job: 'diagram', text: 'make me a flowchart of how a pull request gets merged', group: 'diagrams' },
+  { job: 'diagram', text: 'draw a diagram of my game loop', group: 'diagrams' },
+  { job: 'diagram', text: 'map out how the login works', group: 'diagrams' },
+  { job: 'diagram', text: 'can you do a mind map of ideas for my birthday party', group: 'diagrams' },
+  { job: 'diagram', text: 'a timeline of the Roman empire please', group: 'diagrams' },
+  { job: 'diagram', text: 'org chart for my small team', group: 'diagrams' },
+  { job: 'diagram', text: 'show me the steps visually', group: 'diagrams' },
+  { job: 'diagram', text: 'make a gantt chart for the next 6 weeks', group: 'diagrams' },
+  { job: 'diagram', text: 'pie chart of where my money goes', group: 'diagrams' },
+  { job: 'diagram', text: 'a decision tree for whether I should buy a new GPU', group: 'diagrams' },
+  { job: 'diagram', text: 'boxes and arrows showing how Bob talks to the phone', group: 'diagrams' },
+
+  // ---- Save as another file type (1.5.95) ----
+  { job: 'save-as', text: 'save that song as an mp3', group: 'pictures' },
+  { job: 'save-as', text: 'save it as a jpg', group: 'pictures' },
+  { job: 'save-as', text: 'can you save this as webm', group: 'pictures' },
+
   // ---- Added 2026-11-04 from a second round of fresh phrasings ----
   {job: "edit",text: "could you make the car blue",group: "pictures",edit: true,pic: true},
   {job: "edit",text: "i want him to have wings",group: "pictures",edit: true,pic: true},

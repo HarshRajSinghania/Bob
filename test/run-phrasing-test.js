@@ -28,7 +28,7 @@ for (const p of PHRASINGS) {
     `${okGroup ? '' : `wanted ${p.group}, got ${[...groups].join(',') || 'nothing'}; `}${okEdit ? '' : `edit ${edit}, wanted ${p.edit}`}`);
 }
 console.log(`phrasings by job: ${Object.entries(jobs).map(([j, x]) => `${j} ${x.ok}/${x.n}`).join(', ')}`);
-check('the phrasing list covers every job', ['picture', 'edit', 'video', 'music', 'sfx', 'files', 'run', 'schedules', 'apps', 'office', 'security', 'documents', 'memory', 'howtos', 'maker'].every((j) => jobs[j]?.n));
+check('the phrasing list covers every job', ['picture', 'edit', 'diagram', 'save-as', 'video', 'music', 'sfx', 'files', 'run', 'schedules', 'apps', 'office', 'security', 'documents', 'memory', 'howtos', 'maker'].every((j) => jobs[j]?.n));
 check('ordinary chat with no picture around never counts as an edit', !wantsPictureEdit('make it quick', {}) && !wantsPictureEdit('change of plans, call me later', {}));
 
 // recentPicture: the newest picture just before this message, attached or made.

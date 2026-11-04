@@ -16,8 +16,13 @@ export const CORE = ['notice_board', 'remember', 'reminders', 'list_folder', 're
 const WORK_GROUPS = {
   pictures: {
     what: 'make pictures, video clips, music and sound effects; save reference pictures; ComfyUI workflows', // narrowed to what this PC has, see groupsFor
-    tools: ['make_image', 'make_video', 'save_reference', 'make_music', 'make_sound', 'workshop_list', 'workshop_run'],
-    words: /\b((?:picture|image|photo|pic)s? of|pic|pics|picture|image|photo|draw|drawing|paint|painting|render|sketch|artwork|art|portrait|wallpaper|logo|icon|sprite|concept|illustrat\w*|video|clip|animat\w*|music|song|tune|melody|beat|chiptune|soundtrack|jingle|sound|sfx|workflow|comfy\w*|reference|character sheet)s?\b|\b(?:visuali[sz]e|doodle|poster|banner|thumbnail|album (?:art|cover)|cover art|pfp|profile pic\w*|avatar|emoji|sticker|meme|comic|photoshop|show me what|movie|gif|mock ?up|(?:a )?cover for my (?:book|album|game|ep|single|podcast)|bring (?:it|this|that|him|her) to life|make (?:it|this|that|him|her) (?:move|dance|talk|walk)|lo-?fi|track|theme (?:song|tune|music)|(?:a|the) theme for|noise|sound effect|foley)\b/i // 1.5.94: plain-English phrasings (test/phrasings.js)
+    tools: ['make_image', 'make_video', 'save_reference', 'make_music', 'make_sound', 'save_as', 'workshop_list', 'workshop_run'],
+    words: /\b((?:picture|image|photo|pic)s? of|pic|pics|picture|image|photo|draw|drawing|paint|painting|render|sketch|artwork|art|portrait|wallpaper|logo|icon|sprite|concept|illustrat\w*|video|clip|animat\w*|music|song|tune|melody|beat|chiptune|soundtrack|jingle|sound|sfx|workflow|comfy\w*|reference|character sheet)s?\b|\b(?:visuali[sz]e|doodle|poster|banner|thumbnail|album (?:art|cover)|cover art|pfp|profile pic\w*|avatar|emoji|sticker|meme|comic|photoshop|show me what|movie|gif|mock ?up|(?:a )?cover for my (?:book|album|game|ep|single|podcast)|bring (?:it|this|that|him|her) to life|make (?:it|this|that|him|her) (?:move|dance|talk|walk)|lo-?fi|track|theme (?:song|tune|music)|(?:a|the) theme for|noise|sound effect|foley|save (?:it|that|this|them) as (?:an? )?(?:mp3|wav|ogg|flac|jpe?g|png|webp|gif|mp4|webm))\b/i // 1.5.94: plain-English phrasings (test/phrasings.js)
+  },
+  diagrams: { // 1.5.95 (diagram.js)
+    what: 'draw flowcharts and diagrams: steps, decisions, mind maps, timelines, org charts, project plans, pie charts',
+    tools: ['make_diagram'],
+    words: /\b(flow ?charts?|diagrams?|mind ?maps?|org(?:ani[sz]ation(?:al)?)? charts?|family trees?|decision trees?|process (?:map|chart)s?|gantt|timelines?|pie charts?|bar charts?|swim ?lanes?|wireframes?|boxes and arrows|map (?:it |this |that |them )?out|lay (?:it |this |that )?out visually|chart (?:out|how)|(?:draw|sketch|show) (?:me )?(?:how|the steps|the process|the flow)|visual(?:ly)? (?:show|map|lay)|mermaid|uml|er diagram|sequence)\b/i
   },
   documents: {
     what: 'write or edit files, save spreadsheets, search inside files',
@@ -60,7 +65,7 @@ const HAND_WHAT = {
   security: 'check the PC\'s protection, Defender scans and alerts, inspect suspicious files, emails and links, remove hidden details from photos, check if a site is genuine or was breached, safety and op-sec notes'
 };
 // What each picture-group tool adds, so the group says only what this PC can really make.
-const PICTURE_WHAT = { make_image: 'make pictures', make_video: 'make video clips', make_music: 'make music', make_sound: 'make sound effects', save_reference: 'save reference pictures', workshop_run: 'run ComfyUI workflows' };
+const PICTURE_WHAT = { make_image: 'make pictures', make_video: 'make video clips', make_music: 'make music', make_sound: 'make sound effects', save_reference: 'save reference pictures', save_as: 'save what you made as another file type (mp3, jpg...)', workshop_run: 'run ComfyUI workflows' };
 
 export function groupsFor(brain) {
   const g = {};
@@ -93,7 +98,7 @@ export function guessGroups(brain, text) {
 }
 
 // The chat chip when a group is added (clarity reviewer's words; Hands match their names in Settings).
-const CHIP = { pictures: 'Using his picture, video and music tools', documents: 'Using his document tools', files: 'Using his file tools', run: 'Using Hands: run programs', schedules: 'Using Hands: schedules', apps: 'Using Hands: apps', office: 'Using Hands: office and converting', security: 'Using Hands: security and privacy', maker: 'Using Hands: his own tools', mcp: 'Using Hands: connected apps', memory: 'Forgetting a topic', howtos: 'Using his how-tos', cloud: 'Using a cloud helper' };
+const CHIP = { pictures: 'Using his picture, video and music tools', diagrams: 'Using his diagram tools', documents: 'Using his document tools', files: 'Using his file tools', run: 'Using Hands: run programs', schedules: 'Using Hands: schedules', apps: 'Using Hands: apps', office: 'Using Hands: office and converting', security: 'Using Hands: security and privacy', maker: 'Using Hands: his own tools', mcp: 'Using Hands: connected apps', memory: 'Forgetting a topic', howtos: 'Using his how-tos', cloud: 'Using a cloud helper' };
 
 export const allToolsOn = (cfg) => cfg.allTools === true;
 
