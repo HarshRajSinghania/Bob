@@ -274,6 +274,8 @@ export class Gate {
     if (!opts.cpu) await this.hold(signal, `the ${this.label(model, who).replace(/ \(.*$/, '')}`, emit);
     const tryLoad = async (m, o) => {
       let last = null;
+      // 1.5.113: the card is known to be taken by another program: don't start a load that can't work.
+      if (!o.cpu && await this.brain.cardStillTaken?.({ kind: 'chat' })) throw Object.assign(new Error(this.brain.cardHeld.line), { code: 'card_held' });
       for (let attempt = 0; attempt <= this.delays.length; attempt++) {
         if (signal?.aborted) throw new Error('Stopped.');
         if (await this.isReady(m, o)) { this.ready.brain = m; return true; }
@@ -300,6 +302,8 @@ export class Gate {
           if (signal?.aborted) throw new Error('Stopped.');
           last = e;
           if (NO_RETRY.test(e.message)) break;
+          // 1.5.113: timed out because another program holds the card: one try, not three five-minute ones.
+          if (!o.cpu && await this.brain.cardTaken?.(e, null).catch?.(() => false)) { last = Object.assign(new Error(this.brain.cardHeld.line), { code: 'card_held' }); break; }
         } finally { this.loading = null; }
       }
       this.ready.brain = null;
@@ -309,7 +313,7 @@ export class Gate {
       await tryLoad(model, opts);
       return model;
     } catch (e) {
-      if (/^Stopped\.$/.test(e.message) || signal?.aborted) throw e;
+      if (/^Stopped\.$/.test(e.message) || signal?.aborted || e.code === 'card_held') throw e; // 1.5.113: no other brain either
       // 1.5.51: the second brain beside a job won't start. Never fall back to the main brain here: that would swap the
       // big job's brain out from under it. The message goes back in line instead (Brain.startTurn).
       if (opts.beside) { const b = new Error(e.message); b.code = 'beside'; throw b; }
@@ -393,7 +397,7 @@ export async function withRetry(fn, { tries = 2, wait = 3000, signal, onRetry, r
     if (signal?.aborted) throw new Error('Stopped.');
     try { return await fn(i); } catch (e) {
       last = e;
-      if (signal?.aborted || e.code === 'stopped' || /^Stopped\.$/.test(e.message) || !retryable(e) || i === tries - 1) throw e;
+      if (signal?.aborted || e.code === 'stopped' || /^Stopped\.$/.test(e.message) || i === tries - 1 || !(await retryable(e))) throw e; // 1.5.113: retryable may be async
       onRetry?.(e, i);
       await sleep(wait, signal);
     }

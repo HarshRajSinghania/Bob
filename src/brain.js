@@ -19,6 +19,7 @@ import { cleanEffort, careful, bigThinker, draftBrain, hatBrain, effortPrompt, m
 import { saveSettings, outputDirs, findOutput } from './config.js';
 import { paint, paintingAvailable, stepsFor } from './painter.js';
 import { PainterServer } from './painter-server.js';
+import { readCardUse, busyByOther, cardBusyLine, isLoadTimeout, RECHECK_MS, CARD_STILL_BUSY } from './card-busy.js';
 import { maestroMake } from './maestro.js';
 import { capabilities } from './capabilities.js';
 import { cloudHelpers } from './cloud.js';
@@ -403,6 +404,7 @@ export class Brain {
       let loaded = false;
       try { loaded = await this.engine.isLoaded(model, { cpu, ctx }); } catch { return false; }
       if (loaded) { this.engine.touch?.(model, { cpu, ctx })?.catch?.(() => {}); return false; }
+      if (!cpu && await this.cardStillTaken({ kind: 'chat' })) return false; // 1.5.113: another program holds the card: don't load
       this.setState('waking', 'Waking up...', model);
       this.broadcast({ type: 'brain' });
       // Same manners as the gate: the picture engine (kept loaded after a picture) makes room first, unless both fit.
@@ -533,6 +535,38 @@ export class Brain {
       if (text !== j.queuedText) { j.queuedText = text; this.broadcast({ type: 'waiting-line', sessionId: j.sessionId, jobId: j.id, id: `queued-${j.id}`, text }); }
     }
     if (state === 'painting' && was !== 'painting' && this.cfg?.chatWhileBusy !== false && this.queue?.some((j) => j.state === 'waiting')) setTimeout(() => this.pump(), 0);
+  }
+
+  // 1.5.113: a load timed out. Is another program holding the graphics card? Then say so (once per chat) and don't retry.
+  async cardTaken(e, emit, sessionId) {
+    if (!isLoadTimeout(e)) return false;
+    const card = await (this.readCardUse || readCardUse)();
+    if (!busyByOther(card)) { this.cardHeld = null; return false; }
+    this.cardHeld = { at: Date.now(), line: cardBusyLine(card), said: this.cardHeld?.said || new Set() };
+    this.log('handoff', `graphics card taken by another program (${card.freeMB} MB free${card.others.length ? `: ${card.others.map((a) => a.name).join(', ')}` : ''}); not retrying`);
+    if (emit && sessionId != null && !this.cardHeld.said.has(sessionId)) { this.cardHeld.said.add(sessionId); emit({ type: 'announce', text: this.cardHeld.line }); }
+    return true;
+  }
+
+  // 1.5.113: the ⚠ line in full once per chat; after that, a short pointer to it.
+  cardLineFor(sessionId) {
+    const h = this.cardHeld;
+    if (!h) return '';
+    if (h.said.has(sessionId)) return CARD_STILL_BUSY;
+    h.said.add(sessionId);
+    return h.line;
+  }
+
+  // 1.5.113: before a job (or a wake-up) that needs the card, while it's known to be taken: look again (at most every
+  // 30 s). Still taken = the job ends at once with the plain line, instead of sitting through its own five-minute load.
+  async cardStillTaken(job) {
+    if (!this.cardHeld) return false;
+    if (currentSession(this.cfg).cpu && !['picture', 'video', 'edit'].includes(job?.kind)) return false; // chats on the processor
+    if (Date.now() - this.cardHeld.at < RECHECK_MS) return true;
+    const card = await (this.readCardUse || readCardUse)();
+    if (!busyByOther(card)) { this.cardHeld = null; this.log('handoff', 'the graphics card is free again'); return false; }
+    this.cardHeld = { at: Date.now(), line: cardBusyLine(card), said: this.cardHeld.said };
+    return true;
   }
 
   // 1.5.111: the waiting is over (the job started, or was stopped), so its ⏳ line leaves the chat.
@@ -1619,9 +1653,14 @@ export class Brain {
     if (job?.pickUp) emit({ type: 'announce', text: carryOnLine(job) }); // 1.5.38: picked up after a restart
     const pics = [].concat(attach || []).map((id) => this.refs.find(String(id))).filter(Boolean).slice(0, 4);
     let ok = false;
-    this.run(sessionId, text, emit, controller.signal, pics, job)
+    (async () => {
+      if (await this.cardStillTaken(job)) throw Object.assign(new Error(this.cardLineFor(sessionId)), { code: 'card_busy' });
+      return this.run(sessionId, text, emit, controller.signal, pics, job);
+    })()
       .then(() => { ok = true; if (job) job.state = 'done'; })
-      .catch((e) => {
+      .catch(async (e) => {
+        // 1.5.113: a load that timed out because another program holds the card ends with the plain ⚠ line, once per chat.
+        if (!controller.signal.aborted && e?.code !== 'card_busy' && (e?.code === 'card_held' || await this.cardTaken(e, null).catch(() => false)) && this.cardHeld) e = Object.assign(new Error(this.cardLineFor(sessionId)), { code: 'card_busy' });
         if (e?.code === 'beside' && job && !controller.signal.aborted) { // 1.5.51: the second brain wouldn't start: wait in line
           emit({ type: 'announce', text: BESIDE_FAILED });
           this.log('handoff', `second brain beside the job wouldn't start (${e.message}); the message waits for the job`);
@@ -2285,6 +2324,7 @@ export class Brain {
       return made;
     }, {
       signal: ctx.signal, wait: 3000,
+      retryable: async (e) => { if (!(await this.cardTaken(e, ctx.emit, ctx.sessionId))) return true; e.message = this.cardHeld.line; e.code = 'card_held'; return false; }, // 1.5.113
       onRetry: (e) => { this.log('handoff', `painting failed (${e.message.slice(0, 120)}); trying once more`); ctx.ledger?.step('retry', { what: 'painter', why: e.message }).done(); ctx.emit({ type: 'announce', text: `Making the ${video ? 'clip' : 'picture'} didn't work. Trying once more.` }); }
     });
     ctx.emit({ type, url: `/images/${encodeURIComponent(name)}`, file });

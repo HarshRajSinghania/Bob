@@ -923,6 +923,10 @@ ${set('Check in now', 'A button', 'Does a round straight away and shows the resu
 <li><strong>Let the reviewer sit beside Bob's main brain</strong>, <strong>Keep chatting while Bob is busy</strong> and <strong>Give Bob all his tools at once</strong> are in ${go('settings-brains', 'Brains')}.</li>
 <li><strong>Pick up where Bob left off after a restart</strong> is on the everyday page, in How Bob works. <strong>Check for updates when Bob starts</strong> is in This replicant matrix and updates.</li></ul>
 <p>Can't find one? Type a word from it into <strong>Search settings</strong>.</p>` },
+  { id: 'faq-card-busy', group: 'FAQ', title: 'Why does Bob say the graphics card is busy with another program?', words: 'faq graphics card busy another program gpu vram memory full taken game took too long to load picture brain nvidia replicant matrix pc computer laptop mac device machine',
+    html: `<p>When a brain or a picture takes too long to load, I take one quick look at the graphics card. If it's nearly full and the memory isn't mine (a game, another AI program, a video editor), I say so once, with the program's name when the card tells me, and I stop trying, so you don't wait minutes for a load that can't work.</p>
+<p>Jobs waiting in line get the same answer straight away instead of each one waiting for its own load. Before the next job that needs the card I look again, and once it's free I carry on as normal. Chats on my small brain on the processor (Gaming) keep going the whole time.</p>
+<p>To fix it, close that program, or send your message again once it's done.</p>` },
   { id: 'faq-firewall', group: 'FAQ', title: 'Why can\'t my phone or other Bob reach this one?', words: 'faq firewall reach connect blocked tailscale phone other bob bob-net port 7777 windows defender uac allow cancel restart replicant matrix pc computer laptop mac device machine',
     html: `<p>Three things have to line up, and I check them for you in Settings, Show advanced settings, Bob-Net, <strong>Let my other replicant matrices in</strong>:</p>
 <ol><li><strong>The switch is on.</strong> It works the moment you turn it on; you don't need to restart me.</li>
@@ -974,7 +978,7 @@ ${set('Check in now', 'A button', 'Does a round straight away and shows the resu
 <dt>Brain catalogue</dt><dd>My full list of models, sorted by job, with what each one needs and where it comes from.</dd>
 <dt>Active (model)</dt><dd>A model that shows up in the slots and brain menus. The rest wait in the Brain catalogue.</dd>
 <dt>Picture reader</dt><dd>The small extra file (an "mmproj") that lets a brain see pictures. I download it with the brain when it has one.</dd>
-<dt>Graphics card, graphics memory</dt><dd>The part of your replicant matrix that makes AI fast. Its memory (6, 8, 16 GB) decides which models fit. Also called GPU and VRAM.</dd>
+<dt>Graphics card, graphics memory</dt><dd>The part of your replicant matrix that makes AI fast. Its memory (6, 8, 16 GB) decides which models fit. Also called GPU and VRAM. If another program has filled it, I tell you which one and stop trying until it's free.</dd>
 <dt>How-to</dt><dd>Steps I kept from a job that worked, saved by your click on a card, so I can do it the same way next time. Plain text: it can't run anything or say yes for you. Off until you turn on Let Bob learn how-tos.</dd>
 <dt>Hands</dt><dd>Me doing things on your replicant matrix (files, programs, schedules, apps). Off until you turn them on.</dd>
 <dt>MCP (Model Context Protocol)</dt><dd>A common plug that lets an app offer its own tools to a helper like me. An app's MCP add-on (or MCP server) is the bit that does the offering. See the Connected apps (MCP) Hand.</dd>
