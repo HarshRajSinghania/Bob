@@ -26,7 +26,8 @@ import { copyName } from './clan.js';
 import { RefShelf } from './refs.js';
 import { makeAudio, songTitle, aceMissingFiles, aceModelsEntry, ACE_MODELS_ID } from './audio.js';
 import { runWorkflow } from './workshop.js';
-import { currentSession, modelFor, quickOnCpu, laneOf, suggestSession, SESSIONS, sessionBrains, brainDefaults, CTX_CHOICES, LONG_CODER, waitsForGaming, GAMING_TAG, GAMING_HINT } from './sessions.js';
+import { currentSession, modelFor, quickOnCpu, laneOf, suggestSession, SESSIONS, sessionBrains, brainDefaults, CTX_CHOICES, LONG_CODER, waitsForGaming, GAMING_TAG, GAMING_HINT, gaming } from './sessions.js';
+import { recallOn, alwaysText, parseMemory, pickMemories, activeProject, recallText, MemoryVectors } from './recall.js';
 import { stampMessages, keepOlder, readSummary } from './chats.js';
 import { Housekeeper, hkSettings, forgetTopicTool } from './housekeeping.js';
 import { handsTools, handsPrompt } from './hands.js';
@@ -521,11 +522,40 @@ export class Brain {
     } catch { /* logging must never break a turn */ }
   }
 
-  memory() {
+  // forText (helpers' jobs): with "Remember only what fits" on, the lines that fit the job, matched by words.
+  memory(forText = '') {
     try {
       const m = fs.readFileSync(this.cfg.memoryFile, 'utf8');
+      // 1.5.79: with recall on, the instructions keep only the [always] lines; the rest come per message (recall()).
+      if (recallOn(this.cfg)) {
+        const always = alwaysText(m);
+        if (!forText) return always;
+        const lines = parseMemory(m);
+        const { project } = activeProject(this.cfg, forText, { bankNames: [...new Set(lines.map((l) => l.project).filter(Boolean))] });
+        const picked = pickMemories(lines, { text: forText, project }).filter((l) => !l.always);
+        return [always, picked.map((l) => `- ${l.text}${l.project ? ` [${l.project}]` : ''}`).join('\n')].filter(Boolean).join('\n');
+      }
       return m.length > 4000 ? m.slice(-4000) : m;
     } catch { return ''; }
+  }
+
+  // 1.5.79: the memory lines that fit this message, from the general bank and the active project's bank.
+  async recallMemories(sessionId, text, { vec = null, topicProject = '' } = {}) {
+    let m = '';
+    try { m = fs.readFileSync(this.cfg.memoryFile, 'utf8'); } catch { return ''; }
+    const lines = parseMemory(m);
+    if (!lines.length) return '';
+    this.memProject ||= new Map();
+    const bankNames = [...new Set(lines.map((l) => l.project).filter(Boolean))];
+    const { project, why } = activeProject(this.cfg, text, { sticky: this.memProject.get(sessionId) || '', topicProject, bankNames });
+    if (sessionId && why === 'named') this.memProject.set(sessionId, project);
+    const hk = this.housekeeper;
+    const model = this.cfg.housekeeping?.embedModel || 'nomic-embed-text';
+    const vecs = vec && hk ? (hk.memVecs ||= new MemoryVectors(this.cfg)).load(model) : {};
+    const picked = pickMemories(lines, { text, project, qvec: vec, vecs });
+    const fresh = picked.filter((l) => !l.always);
+    this.lastRecall = { at: Date.now(), session: sessionId, project, lines: fresh.length, of: lines.length, by: vec ? 'meaning' : 'words' };
+    return recallText(fresh, { project, user: this.cfg.userName || 'the user' });
   }
 
   session(id) {
@@ -1521,12 +1551,18 @@ export class Brain {
     if (sum) parts.push(`Earlier in this chat (summed up): ${sum}`);
     try {
       const hk = this.housekeeper;
+      const recall = recallOn(this.cfg);
+      let vec = null, topicProject = '';
+      // 1.5.79: "Remember only what fits" embeds the message too (same 1.5 s limit; words are matched if it's slow).
+      const wantVec = hk && (hkSettings(this.cfg).enabled || recall) && !gaming(this.cfg);
       if (hk && hk.topics.load().topics.length) {
-        let vec = null;
-        if (hkSettings(this.cfg).enabled) vec = (await Promise.race([hk.embed([text]), new Promise((r) => setTimeout(() => r(null), 1500))]))?.[0] || null;
+        if (wantVec) vec = (await Promise.race([hk.embed([text]), new Promise((r) => setTimeout(() => r(null), 1500))]))?.[0] || null;
         const notes = hk.topics.relevant(text, { vec, k: 3 });
+        topicProject = notes[0]?.project || '';
         if (notes.length) parts.push(`Notes from earlier talks (topics; the user can edit these):\n${notes.map((t) => `- ${t.project ? t.project + ' > ' : ''}${t.name}: ${(t.note || t.summary).slice(0, 600)}${t.open?.length ? ` Open: ${t.open.join('; ')}` : ''}`).join('\n')}`);
-      }
+      } else if (recall && wantVec) vec = (await Promise.race([hk.embed([text]), new Promise((r) => setTimeout(() => r(null), 1500))]))?.[0] || null;
+      this.recallVec = { text, vec }; // the turn's vector, reused by other matches this turn (how-tos)
+      if (recall) { const mem = await this.recallMemories(sessionId, text, { vec, topicProject }); if (mem) parts.push(mem); }
     } catch {}
     return parts.join('\n\n');
   }
@@ -1957,7 +1993,7 @@ export class Brain {
     // Raw pictures only go to a brain that can see; any brain still gets the Eyes descriptions above.
     if (ctx.pics?.length && await this.engine.hasVision?.(model).catch(() => false)) userMsg.images = ctx.pics.map((r) => this.refs.base64(r));
     const messages = [
-      { role: 'system', content: this.withLimits(systemPrompt({ hat, now: this.now(), memory: this.memory(), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), copy, cat: this.cfg.catName, dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') })) + (hat !== 'reviewer' && careful(ctx.job) ? `\n\n${effortPrompt(ctx.job.effort).replaceAll('{{USER}}', this.cfg.userName || 'the user')}` : '') },
+      { role: 'system', content: this.withLimits(systemPrompt({ hat, now: this.now(), memory: this.memory(task), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), copy, cat: this.cfg.catName, dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') })) + (hat !== 'reviewer' && careful(ctx.job) ? `\n\n${effortPrompt(ctx.job.effort).replaceAll('{{USER}}', this.cfg.userName || 'the user')}` : '') },
       userMsg
     ];
     let final = '';
