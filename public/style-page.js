@@ -4,8 +4,8 @@ import { LOOKS, LOOK_ID, setLook, drawBob } from './bob-sprite.js';
 import { tip } from './tips.js';
 import { AVATAR_GROUPS, avatar } from './avatars.js';
 import { PRESETS, TOKENS, FONTS, findTheme, resolve, fullColors, applyStyle, applyTheme, swatch, isLight } from './themes.js';
+import { esc } from './util.js';
 
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export function createStylePage({ api, redraw, flash }) {
   let draft = null; // the theme being made in the editor, or null when the editor is closed

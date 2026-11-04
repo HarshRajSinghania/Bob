@@ -8,6 +8,7 @@ import { spawn, execFile } from 'node:child_process';
 import { unpackedDir } from './config.js';
 import { OS, exeName, venvPython, killTree as killAll } from './platform.js';
 import { unzip } from './zip.js';
+import { sleep } from './util.js';
 
 export const workshopDir = (cfg) => path.join(cfg.agentDir, 'audio-workshop');
 export const uvExe = (cfg) => path.join(workshopDir(cfg), exeName('uv'));
@@ -312,7 +313,6 @@ async function setupSteps(cfg, { pub, tick, signal }, STEPS) {
 // ---- Music: ACE-Step 1.5's own local server, started for the job and stopped after so the card is free again ----
 const ACE_PORT = 8001;
 const aceBase = (cfg) => cfg.audio?.aceUrl || `http://127.0.0.1:${ACE_PORT}`;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function aceUp(cfg) {
   try { const r = await fetch(aceBase(cfg) + '/v1/models', { signal: AbortSignal.timeout(2000) }); return r.ok; } catch { return false; }

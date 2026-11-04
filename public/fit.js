@@ -3,7 +3,7 @@
 //   canDo:  can this model do that job at all? If not, it isn't listed for that job anywhere.
 //   suit:   does it run well on this PC (graphics card, RAM, disk)? ok, slow, no or blocked, with a plain reason.
 //   pickFor: which model is Bob's pick for that job on this PC? (scored for brains; the starter set otherwise)
-const gb = (n) => (n >= 1 ? `${(+n).toFixed(n >= 10 ? 0 : 1)} GB` : `${Math.round(n * 1000)} MB`);
+import { gb } from './util.js';
 
 export const SLOT_NAMES = { bob: 'Brain', small: 'Quick brain', gaming: 'Gaming', deep: 'Deep thinking', tinker: 'Coding', reviewer: 'Review', eyes: 'Seeing pictures', embed: 'Memory (finding past chats)', voice: 'Hearing you', speech: 'Voice', image: 'Painter', edit: 'Picture editor', video: 'Video', music: 'Music', sfx: 'Sound effects', ledger: 'Spreadsheets', scout: 'Research', painter: 'Prompt writer', office: 'Office', phone: 'Phone' };
 export const BRAIN_SLOTS = ['bob', 'small', 'gaming', 'deep', 'tinker', 'reviewer', 'office', 'eyes', 'ledger', 'scout', 'painter'];

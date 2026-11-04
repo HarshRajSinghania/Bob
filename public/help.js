@@ -1,9 +1,9 @@
 // Help: a searchable page of plain-language entries (public/help-content.js). Opens from Help in the menu, F1,
 // and the "?" buttons next to Settings sections and model pages, each landing on its own entry.
 import { HELP } from './help-content.js';
+import { esc } from './util.js';
 
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const plain = (html) => html.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
 
 // Entries matching every word of the search (title, extra words and text), best first: title hits, then the rest.

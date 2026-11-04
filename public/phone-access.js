@@ -1,6 +1,6 @@
 // Settings, Bob-Net, This Bob: "Let my other replicant matrices in" (src/phone-access.js). Off unless you turn it on.
 // Bob for Android (or a browser on your phone) reaches this Bob over Tailscale with the passcode.
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+import { esc } from './util.js';
 
 async function api(url, data) {
   const r = await fetch(url, data === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json', 'x-bob': '1' }, body: JSON.stringify(data) });

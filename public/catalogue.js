@@ -5,9 +5,8 @@
 import { canDo, suit, pickFor, deviceFit, sourceOf, SLOT_NAMES } from './fit.js';
 import { allSlots, isActive, tipHtml, slotValue, equipped } from './equip.js';
 import { keep } from './tips.js';
+import { esc, gb } from './util.js';
 
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const gb = (n) => (n == null ? '' : n >= 1 ? `${(+n).toFixed(n >= 10 ? 0 : 1)} GB` : `${Math.round(n * 1000)} MB`);
 
 // The jobs, in the order the catalogue shows them. Names are the slot names on the paper doll.
 const BRAIN_JOBS = ['small', 'gaming', 'bob', 'deep', 'reviewer', 'tinker', 'office', 'eyes'];

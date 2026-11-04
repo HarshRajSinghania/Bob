@@ -16,10 +16,9 @@ import { shareBrainsHtml, mountShareBrains } from './share-brains.js';
 import { findTheme } from './themes.js';
 import { tip, noteOrTip, stripTags, keep } from './tips.js';
 import { attributesHtml, cleanPersonality, greeting, PRESETS, DEFAULTS, isDefault } from './personality.js';
+import { esc, gb } from './util.js';
 
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const gb = (n) => (n >= 1 ? `${(+n).toFixed(n >= 10 ? 0 : 1)} GB` : `${Math.round(n * 1000)} MB`);
 
 async function api(url, data) {
   const r = await fetch(url, data === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json', 'x-bob': '1' }, body: JSON.stringify(data) });

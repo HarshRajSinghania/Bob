@@ -22,6 +22,7 @@ import { extOf, realKind, SAME, nameTricks, markOfTheWeb, sha256, scanScript, SC
 import { cleanDomain, rdapDomain, rdapIp, dnsFacts, certHistory, followLink, breachesForSite, sayDomain, saySender, sayLink, sayIp, sayBreachesForSite, isPrivateHost } from './security-web.js';
 import { tipsFor } from './security-guide.js';
 import net from 'node:net';
+import { freeName } from './util.js';
 
 const fn = (name, description, properties, required = Object.keys(properties)) => ({ type: 'function', function: { name, description, parameters: { type: 'object', properties, required } } });
 const str = (description, extra = {}) => ({ type: 'string', description, ...extra });
@@ -116,12 +117,6 @@ export function inspectText(t) {
 
 // ---------------------------------------------------------------- strip_metadata
 
-function freeName(p, taken = new Set()) {
-  const { dir, name, ext } = path.parse(p);
-  let c = p;
-  for (let i = 2; fs.existsSync(c) || taken.has(c.toLowerCase()); i++) c = path.join(dir, `${name}-${i}${ext}`);
-  return c;
-}
 
 export function planStrip(cfg, args, env = process.env) {
   const paths = [].concat(args.paths || args.path || []).filter(Boolean).map(String).slice(0, 51);

@@ -1,5 +1,5 @@
 // Settings, Bob-Net: My other Bobs and What they share (src/share-brains.js). Both switches off unless you turn them on.
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+import { esc } from './util.js';
 
 async function api(url, data) {
   const r = await fetch(url, data === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json', 'x-bob': '1' }, body: JSON.stringify(data) });

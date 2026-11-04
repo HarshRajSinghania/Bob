@@ -5,9 +5,8 @@
 import { packFor, packsFor, canDo, suit, pickFor } from './fit.js';
 import { houseStyleHtml, houseGroupOf } from './house-style.js';
 import { tip } from './tips.js';
+import { esc, gb } from './util.js';
 export { packFor };
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const gb = (n) => (n == null ? '' : n >= 1 ? `${(+n).toFixed(n >= 10 ? 0 : 1)} GB` : `${Math.round(n * 1000)} MB`);
 
 // side: which column around Bob. how: where the choice is saved (job = Model roles, brain = a session brain,
 // embed = housekeeping's topic matcher). cats: catalog categories that fit. off: can it be emptied, and what then.
