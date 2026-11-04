@@ -736,10 +736,10 @@ export function createCellar() {
     dlg.classList.toggle('wide', mode === 'shop' && tab === 'roles' && eqView !== 'list');
     mountHandsSettings(dlg.querySelector('.hands-box')); // loads its own data; does nothing off the Settings tab
     mountQuarantineSettings(dlg.querySelector('.q-box'));
-    mountPhoneAccess(dlg.querySelector('.phone-box')); // Connections: Let my other replicant matrices in
-    mountTelegram(dlg.querySelector('.telegram-box')); // Connections: Talk to Bob on Telegram
+    mountPhoneAccess(dlg.querySelector('.phone-box')); // Bob-Net, This Bob: Let my other replicant matrices in
+    mountTelegram(dlg.querySelector('.telegram-box')); // Online services: Talk to Bob on Telegram
     mountCheckins(dlg.querySelector('.checkins-box')); // 1.5.78 Check-ins
-    mountShareBrains(dlg.querySelector('.share-box')); // Connections: Bob-Net: share work with my other Bobs
+    mountShareBrains(dlg.querySelector('.share-box')); // Bob-Net: My other Bobs and What they share
     const page = mode === 'welcome' ? 'Welcome' : tab === 'settings' ? 'Settings' : tab === 'style' ? 'Style' : 'Get models';
     $('cellar-title').textContent = page;
     for (const [id, on] of [['cellarBtn', page === 'Get models'], ['settingsBtn', page === 'Settings'], ['styleBtn', page === 'Style'], ['chatBtn', false]]) $(id)?.classList.toggle('on', on);

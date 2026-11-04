@@ -50,6 +50,7 @@ import { phoneView, cleanPhonePatch, findAddresses, newPasscode, isTailscaleIp }
 import { firewallState, changeRule } from './firewall.js';
 import { shareView, cleanSharePatch, saveShare, lendChat, lendRefusal, helloFor } from './share-brains.js';
 import { guestRoute, answerAway } from './share-jobs.js';
+import { Pairing } from './bob-net-pair.js';
 import { OS, features } from './platform.js';
 
 const cfg = loadConfig();
@@ -88,6 +89,8 @@ function broadcast(ev) {
 }
 
 const brain = new Brain(cfg, broadcast);
+// 1.5.97 Pair with my other Bobs (src/bob-net-pair.js): find them on Tailscale, a Yes card there, passcodes swapped.
+const pairing = new Pairing(cfg, { broadcast, log: (k, t) => brain.log(k, t), version: VERSION, ownAddresses: () => tailscaleIps().map((ip) => `${ip}:${cfg.port}`) });
 brain.mindWatchers = () => mindClients.size;
 // 1.5.38: when Downloads change, a job waiting for one (a song waiting for the music models) may be able to go.
 const shop = new ModelShop(cfg, (ev) => { broadcast(ev); if (ev?.type === 'downloads') brain.downloadsChanged(); }, brain.engine);
@@ -174,11 +177,25 @@ const server = http.createServer(async (req, res) => {
   try {
     const host = String(req.headers.host).toLowerCase();
     const isLocal = localHosts.has(host) && fromTailscaleOrLocal(req.socket.remoteAddress) && /^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(req.socket.remoteAddress);
-    const isRemote = !isLocal && remoteOn && remoteHosts.has(host) && fromTailscaleOrLocal(req.socket.remoteAddress);
+    // 1.5.97: this replicant matrix's own Tailscale addresses always count, so a stale saved list (a renamed or re-joined
+    // device) can't shut your other Bobs out.
+    const isRemote = !isLocal && remoteOn && (remoteHosts.has(host) || ownTsHosts().has(host)) && fromTailscaleOrLocal(req.socket.remoteAddress);
     if (!isLocal && !isRemote) return send(res, 403, { error: 'bad host' });
     const url = new URL(req.url, `http://${req.headers.host}`);
     const p = url.pathname;
 
+    // 1.5.97 Bob-Net pairing: the other Bob doesn't know the passcode yet, so these four come before the passcode check.
+    // They only reach through the open door (Tailscale only), and the passcode is handed over only after your Yes here.
+    if (isRemote && p.startsWith('/api/pair/')) {
+      if (req.method === 'GET' && p === '/api/pair/hello') return send(res, 200, pairing.hello());
+      if (req.method === 'POST' && req.headers['x-bob'] === '1' && !refuseForeign(req, host)) {
+        const b = await body(req).catch(() => ({}));
+        if (p === '/api/pair/ask') { const r = pairing.ask(b, req.socket.remoteAddress); return send(res, r.code, r.error ? { error: r.error } : { id: r.id }); }
+        if (p === '/api/pair/status') return send(res, 200, pairing.status(b.id, req.socket.remoteAddress));
+        if (p === '/api/pair/finish') return send(res, 200, pairing.finish(b, req.socket.remoteAddress));
+      }
+      return send(res, 404, { error: 'not found' });
+    }
     if (isRemote && !hasCookie(req)) {
       if (p.startsWith('/icons/')) return serveFile(res, publicDir, p.slice(1));
       if (req.method === 'POST' && p === '/login') {
@@ -215,6 +232,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
       res.write(`data: ${JSON.stringify({ type: 'status', ...brain.state })}\n\n`);
+      if (isLocal) for (const c of pairing.waiting()) res.write(`data: ${JSON.stringify(c)}\n\n`); // 1.5.97: a pairing card that came in while the window was shut
       clients.add(res);
       const mind = url.searchParams.get('mind') === '1';
       if (mind) mindClients.add(res);
@@ -353,6 +371,24 @@ const server = http.createServer(async (req, res) => {
       brain.log('settings', `share brains: lend ${out.share.lend ? 'on' : 'off'}, borrow ${out.share.borrow.on ? out.share.borrow.when : 'off'}, ${out.share.borrow.bobs.length} Bob(s)`);
       if (b.check) await Promise.all(brain.lenders.bobs().map((x) => brain.lenders.hello(x, { force: true })));
       return send(res, 200, { ...shareView(cfg), lenders: brain.lenderStatus() });
+    }
+    // 1.5.97 Pair with my other Bobs: Find, Pair, and the Yes/No card. Only on this replicant matrix itself.
+    if (p === '/api/bob-net/find' || p === '/api/bob-net/pair' || p === '/api/bob-net/answer') {
+      if (!isLocal) return send(res, 403, { error: 'Pairing can only be done on this replicant matrix itself.' });
+      if (req.method === 'GET' && p === '/api/bob-net/find') return send(res, 200, { ...(await pairing.find()), door: remoteOn, live: remoteLive(), here: tailscaleIps().length > 0 });
+      if (req.method === 'GET' && p === '/api/bob-net/pair') return send(res, 200, { pairing: pairing.outgoingView() });
+      if (req.method === 'POST' && p === '/api/bob-net/pair') {
+        const b = await body(req);
+        const r = await pairing.pairWith(b.address);
+        return send(res, r.error ? 400 : 200, r);
+      }
+      if (req.method === 'POST' && p === '/api/bob-net/answer') {
+        const b = await body(req);
+        const r = pairing.answer(b.id, b.yes === true);
+        if (r.ok && b.yes === true) brain.lenders.state.clear();
+        return send(res, 200, r);
+      }
+      return send(res, 404, { error: 'not found' });
     }
     if (req.method === 'GET' && p === '/api/lend/hello') {
       const why = lendRefusal(brain, brain.lendDeps);
@@ -780,6 +816,8 @@ function tailscaleIps() {
   for (const list of Object.values(os.networkInterfaces())) for (const n of list || []) if (n.family === 'IPv4' && isTailscaleIp(n.address)) out.push(n.address);
   return out;
 }
+let ownTs = { at: 0, set: new Set() };
+function ownTsHosts() { if (Date.now() - ownTs.at > 30000) ownTs = { at: Date.now(), set: new Set(tailscaleIps().map((ip) => `${ip}:${cfg.port}`)) }; return ownTs.set; }
 function remoteLive() { return remoteOn && (startedWide || netServers.size > 0); }
 function applyRemote() {
   readRemote();

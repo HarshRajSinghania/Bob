@@ -472,6 +472,23 @@ function onEvent(ev) {
       no.onclick = () => el.remove();
       return;
     }
+    case 'pair-ask': { // 1.5.97: another of your Bobs pressed Pair. Nothing is swapped until Yes is pressed here.
+      if (document.querySelector(`[data-pair-card="${CSS.escape(ev.id)}"]`)) return;
+      const el = add('setup-offer pair-card', `<strong>🤝 ${esc(ev.name)} wants to join your Bob-Net</strong><span>${esc(ev.name)}'s screen should show the number <strong>${esc(ev.number)}</strong>. If it does, press <strong>Yes, pair us</strong>; if not, press <strong>No</strong>. This Bob and ${esc(ev.name)} swap passcodes so each can reach the other. Nothing else switches on.${ev.already ? ' It\'s already on your list; this updates it.' : ''}</span><div class="row"><button type="button" class="get">Yes, pair us</button><button type="button" class="link">No</button></div>`);
+      el.dataset.pairCard = ev.id;
+      const [yes, no] = el.querySelectorAll('button');
+      const answer = async (ok) => {
+        yes.disabled = no.disabled = true;
+        try { const r = await api('/api/bob-net/answer', { id: ev.id, yes: ok }); el.remove(); if (!r.ok) note(r.why || 'That card is too old now.', 'error'); else if (ok) note(`Pairing with ${ev.name}…`); }
+        catch (e) { yes.disabled = no.disabled = false; note(e.message, 'error'); }
+      };
+      yes.onclick = () => answer(true);
+      no.onclick = () => answer(false);
+      scrollDown();
+      return;
+    }
+    case 'pair-gone': document.querySelector(`[data-pair-card="${CSS.escape(String(ev.id || ''))}"]`)?.remove(); return;
+    case 'pair-done': window.dispatchEvent(new CustomEvent('bob-pair-done')); note(ev.both ? `Paired with ${ev.name}. You're on each other's list under My other Bobs.` : ev.asker ? `Paired with ${ev.name}, one way: this Bob can use ${ev.name}, but not the other way round yet. Turn on "Let my other replicant matrices in" here, then pair again.` : `Paired with ${ev.name}, one way: ${ev.name} can use this Bob, but not the other way round yet. Turn on "Let my other replicant matrices in" on ${ev.name}, then pair again.`); return;
     case 'offer-setup': { // 1.5.91: something a job needs isn't set up (or is switched off). Nothing changes until a button is pressed.
       const el = add('setup-offer', setupOfferHtml(ev));
       const [yes, no] = el.querySelectorAll('button');
