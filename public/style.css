@@ -1108,3 +1108,6 @@ button.tip-i:focus-visible { outline: 2px solid var(--accent); outline-offset: -
 
 /* 1.5.97: the ⏳ waiting line: muted, no buttons, so it never reads as a card */
 .note.wait { color: var(--muted, #888); font-style: italic; border: none; background: none; }
+/* 1.5.98: small subheadings inside a settings panel (How he works, This Bob, Limits that always apply). */
+.ssub { margin: 12px 0 2px; font-size: 13px; font-weight: 700; text-transform: none; color: var(--muted, inherit); }
+.ssub:first-child { margin-top: 4px; }

@@ -33,7 +33,10 @@ export function createHelp() {
   $('help-close').onclick = () => dlg.close();
 
   function draw() { body.innerHTML = helpHtml(query); }
+  // 1.5.98: Connections became Bob-Net, Online services and Other apps; old links land on Bob-Net.
+  const MOVED = { 'settings-connections': 'settings-bobnet' };
   function go(id) {
+    id = MOVED[id] || id;
     const el = body.querySelector('#help-' + CSS.escape(id));
     if (!el) { query = ''; draw(); }
     const target = body.querySelector('#help-' + CSS.escape(id));

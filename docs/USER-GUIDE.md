@@ -65,14 +65,14 @@ These open as a page in the middle of the window, in place of the chat. **← Ba
 
 - **Get models:** Equip Bob, the model shops (Voice & conversation, Coding, Seeing pictures, Pictures & video) and **On this PC**.
 - **Settings** starts as one short page showing what's set now: Bob's voice (with **Play sample** and **Change**), his look, the colours, animations, the cat's name, one brain, launch on start-up, Projects, **Where Bob saves things**, **Let Bob search the web**, **Show Bob's plan before big jobs** and checking for updates (off unless you turn them on), and the version, graphics card and disk space, with **Check for updates**, **Run first-time setup** and **Check this replicant matrix**.
-- **Show advanced settings** (off unless you turn it on, and remembered) adds a search box and the rest: Brains (model roles, session brains, context), Voice details, Look & feel, Engines & speed, Connections (ComfyUI, cloud helpers), Hands, Housekeeping, Check-ins and Remove Bob. Longer explanations fold behind **More**.
+- **Show advanced settings** (off unless you turn it on, and remembered) adds a search box and the rest: Brains (model roles, session brains, context), House style, Voice details, Look & feel, Speed & memory, Engines, Bob-Net (your phone and your other Bobs), Online services (cloud helpers, Telegram), Other apps (ComfyUI), Hands, Housekeeping, Check-ins and Remove Bob. Longer explanations fold behind **More**.
 
 ---
 
 ### Making Bob faster on your PC
 
 - **Check this replicant matrix** (Settings, bottom of the Everyday page) looks for things that slow Bob down and shows how to fix each one: memory below its rated speed (turn on EXPO or XMP in the BIOS), an old NVIDIA driver, a laptop on battery, models on a slow drive, other apps holding graphics memory. Bob only looks; he never changes Windows or driver settings.
-- **Test Bob's speed** (Advanced, Engines & speed) times the first word and the full answer, and keeps your last results so you can compare before and after a change.
+- **Test Bob's speed** (Advanced, Speed & memory) times the first word and the full answer, and keeps your last results so you can compare before and after a change.
 - Three switches, off until you turn them on: **Get Bob ready while you type**, **Let games go first** and **Match picture settings to my graphics card**.
 
 ## 3. Equip Bob: choosing his models
@@ -200,7 +200,7 @@ At the bottom of the menu is the **session** picker. A session tells Bob how to 
 - **Art:** Bob keeps chatting on his Quick brain so the big graphics work (painting, video) gets the card.
 - **Coding:** the Coding brain leads.
 - **Office:** documents, spreadsheets and planning.
-- **Gaming:** keeps the graphics card for your games. How much of it Bob may borrow is set in **Gaming session: graphics card** (Settings, Show advanced settings, Engines & speed): Automatic (the starting position), Never use the card, or Always borrow a little. Bob chats and listens on the processor with a small brain (Qwen3 4B Instruct 2507 to start with), which usually starts answering within a few seconds. Now and then he adds a short, sleepy scripted aside. Pictures and big jobs wait until you switch back, and Effort stays on Low. Tip: turn on **Let games go first** (Settings, Show advanced settings, Engines & speed) so Bob uses fewer cores while you play.
+- **Gaming:** keeps the graphics card for your games. How much of it Bob may borrow is set in **Gaming session: graphics card** (Settings, Show advanced settings, Speed & memory): Automatic (the starting position), Never use the card, or Always borrow a little. Bob chats and listens on the processor with a small brain (Qwen3 4B Instruct 2507 to start with), which usually starts answering within a few seconds. Now and then he adds a short, sleepy scripted aside. Pictures and big jobs wait until you switch back, and Effort stays on Low. Tip: turn on **Let games go first** (Settings, Show advanced settings, Speed & memory) so Bob uses fewer cores while you play.
 
 Session: what the graphics card is kept for. Effort: how hard Bob works on each message.
 
@@ -320,7 +320,7 @@ Apps with an MCP add-on (Unreal Engine and Blender have them) can offer Bob thei
 
 Ask things like "turn report.docx into a PDF", "what's in budget.xlsx?", "make a 5-slide deck about the game", "set B4 to 1300 in budget.xlsx", "make this song an mp3" or "turn the clip into a GIF".
 
-- Documents, spreadsheets and slides use **LibreOffice** (free). If LibreOffice or Apache OpenOffice is already installed, Bob finds it. If not: Settings → Show advanced settings → Engines & speed → Engine downloads → **LibreOffice** (about 350 MB, pinned version and checksum, unpacked into Bob's folder with no admin rights).
+- Documents, spreadsheets and slides use **LibreOffice** (free). If LibreOffice or Apache OpenOffice is already installed, Bob finds it. If not: Settings → Show advanced settings → Engines → Engine downloads → **LibreOffice** (about 350 MB, pinned version and checksum, unpacked into Bob's folder with no admin rights).
 - Sound, video and WebP pictures use **FFmpeg**: one already on the PC, or **FFmpeg** in the same Engine downloads list (about 100 MB, pinned).
 - Other pictures (PNG, JPG, BMP, GIF, TIFF) need nothing extra: Windows does them.
 - Every file Bob makes or changes is on a card first, one row each (a new document in his own Documents folder, which shows in Made by Bob under Documents, needs no OK). Nothing is overwritten (report-2.pdf), conversions never change the original, and a file changed in place is backed up first.
@@ -375,7 +375,7 @@ Even without Hands, Bob **asks before doing anything outside his own folder**.
 - **Music and sound effects**: extra downloads for the audio tools.
 - **Extra voices.**
 - **Advanced workshop**: if you use ComfyUI, Bob can run its workflows for you.
-- **Let my other replicant matrices in** (Settings, Show advanced settings, Connections; off): Bob for Android, or your phone's browser, talks to Bob over Tailscale with a passcode. Turn it on (the first time, it makes a passcode and shows it once), then add the address it shows to the phone. It works straight away, no restart (Bob listens on this replicant matrix's Tailscale addresses only, and picks Tailscale up within a minute if it connects later). On Windows, press **Let Tailscale through the firewall**: one Windows prompt adds the rule "Bob (Tailscale only)" for Bob's port, from Tailscale addresses (100.64.0.0/10) only; It also switches off any rule that blocks Bob's own program (Windows makes one if Cancel was clicked on its earlier question). **Remove the firewall rule** takes the rule away and switches those back on. On Linux with ufw or firewalld, Bob shows the one line to run. Only Tailscale addresses get in.
+- **Let my other replicant matrices in** (Settings, Show advanced settings, Bob-Net; off): Bob for Android, or your phone's browser, talks to Bob over Tailscale with a passcode. Turn it on (the first time, it makes a passcode and shows it once), then add the address it shows to the phone. It works straight away, no restart (Bob listens on this replicant matrix's Tailscale addresses only, and picks Tailscale up within a minute if it connects later). On Windows, press **Let Tailscale through the firewall**: one Windows prompt adds the rule "Bob (Tailscale only)" for Bob's port, from Tailscale addresses (100.64.0.0/10) only; It also switches off any rule that blocks Bob's own program (Windows makes one if Cancel was clicked on its earlier question). **Remove the firewall rule** takes the rule away and switches those back on. On Linux with ufw or firewalld, Bob shows the one line to run. Only Tailscale addresses get in.
 - **Check for updates when Bob starts.** Updating always waits for your click.
 
 ---

@@ -1006,7 +1006,7 @@ async function askRestart(st) {
   // 1.5.38: only promise to pick up where he left off when that switch is on.
   let pickUp = false;
   if (busyWith) { try { pickUp = (await (await fetch('/api/settings')).json()).resumeJobs === true; } catch {} }
-  const after = pickUp ? 'if I restart now, I pick up where I left off when I open again.' : 'if I restart now, it stops and waits in Tasks or Downloads for you to start it again. (Turn on "Pick up where Bob left off after a restart" in Settings, Show advanced settings, Engines & speed, and I\'ll carry on by myself.)';
+  const after = pickUp ? 'if I restart now, I pick up where I left off when I open again.' : 'if I restart now, it stops and waits in Tasks or Downloads for you to start it again. (Turn on "Pick up where Bob left off after a restart" in Settings, How Bob works, and I\'ll carry on by myself.)';
   const el = add('suggest', `<span>The new Bob (${esc(st.version || 'update')}) is ready.${busyWith ? ` I'm working on ${esc(busyWith)}; ${esc(after)}` : ''}</span>
     <button type="button" data-r="now">${busyWith ? 'Restart anyway' : 'Restart Bob now'}</button>${busyWith ? '<button type="button" data-r="done">Wait until I\'m done</button>' : ''}<button type="button" class="link" data-r="later">Later</button>`);
   for (const b of el.querySelectorAll('button')) b.onclick = async () => {

@@ -1,4 +1,4 @@
-// Share brains between your Bobs (Settings, Connections). Both halves are off unless you turn them on.
+// Share brains between your Bobs (Settings, Bob-Net). Both halves are off unless you turn them on.
 //
 // "Lend my brain": another Bob of yours (the PC, the laptop, the handheld, the phone) may ask this one to think a quick
 // reply. Only through the door "Let my phone in" opens (Tailscale addresses, passcode cookie), and only for this:

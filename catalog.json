@@ -1719,7 +1719,7 @@
         "flux2-klein-4b-q4": "a small editor: change a picture with words, or keep a look from references",
         "wan2.2-ti2v-5b-q4": "clips are very slow on built-in graphics, so it is left unticked; tick it if you want short clips anyway"
       },
-      "times": "Rough guesses, not yet measured on built-in graphics: a few minutes a picture or an edit, and a long wait for a short clip. Bob puts his brain away while he paints, so chat waits until the picture is done. Turning on Match picture settings to my graphics card (Settings, Show advanced settings, Engines & speed) makes pictures 768 px, which is quicker.",
+      "times": "Rough guesses, not yet measured on built-in graphics: a few minutes a picture or an edit, and a long wait for a short clip. Bob puts his brain away while he paints, so chat waits until the picture is done. Turning on Match picture settings to my graphics card (Settings, Show advanced settings, Speed & memory) makes pictures 768 px, which is quicker.",
       "cardGB": 0
     },
     {

@@ -133,7 +133,7 @@ export function planStrip(cfg, args, env = process.env) {
     try {
       row.from = canRead(cfg, p);
       const ext = extOf(row.from);
-      if (!CLEANABLE.includes(ext) && !(MEDIA.includes(ext) && ffmpeg)) throw new Error(MEDIA.includes(ext) ? 'sound and video need FFmpeg (Settings, Show advanced settings, Engines & speed)' : ext === 'pdf' ? 'I can\'t clean PDFs yet; re-save it from the app that made it with its "remove personal information" option' : `I can clean pictures (jpg, png, webp), Word, Excel and PowerPoint files${ffmpeg ? ', and sound and video' : ''}, not .${ext}`);
+      if (!CLEANABLE.includes(ext) && !(MEDIA.includes(ext) && ffmpeg)) throw new Error(MEDIA.includes(ext) ? 'sound and video need FFmpeg (Settings, Show advanced settings, Engines)' : ext === 'pdf' ? 'I can\'t clean PDFs yet; re-save it from the app that made it with its "remove personal information" option' : `I can clean pictures (jpg, png, webp), Word, Excel and PowerPoint files${ffmpeg ? ', and sound and video' : ''}, not .${ext}`);
       const { name } = path.parse(row.from);
       const want = path.join(args.folder ? path.resolve(String(args.folder)) : path.dirname(row.from), `${name}-clean.${ext}`);
       let to;

@@ -98,11 +98,11 @@ export function loadConfig() {
   // 1.5.32: an older config.json can carry llamacpp.ctx 131072 from before 1.5.19. Staging never touches config.json, so
   // that old number made every brain start with a 131K context (slow, and a 26B brain spills off a 16 GB card). Anything
   // above the 32K default in config.json is set aside (kept as legacyCtx, and logged). A context picked in Bob's window
-  // (Settings, Engines & speed, saved in settings.json) still wins, because it is applied just below.
+  // (Settings, Speed & memory, saved in settings.json) still wins, because it is applied just below.
   if (Number(cfg.llamacpp?.ctx) > LEGACY_CTX_CAP) {
     cfg.llamacpp.legacyCtx = cfg.llamacpp.ctx;
     delete cfg.llamacpp.ctx;
-    console.error(`config.json asks for a ${cfg.llamacpp.legacyCtx}-token context for every brain; using each session's own size instead (pick one in Settings, Engines & speed to override).`);
+    console.error(`config.json asks for a ${cfg.llamacpp.legacyCtx}-token context for every brain; using each session's own size instead (pick one in Settings, Show advanced settings, Brains to override).`);
   }
   cfg.settingsFile = path.join(cfg.dataDir, 'settings.json');
   try { mergeSettings(cfg, JSON.parse(fs.readFileSync(cfg.settingsFile, 'utf8'))); } catch {}

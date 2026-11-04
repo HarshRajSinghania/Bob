@@ -1,4 +1,4 @@
-// Settings, Connections: "Talk to Bob on Telegram" (src/telegram.js). Off unless you turn it on.
+// Settings, Show advanced settings, Online services: "Talk to Bob on Telegram" (src/telegram.js). Off unless you turn it on.
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 async function api(url, data) {

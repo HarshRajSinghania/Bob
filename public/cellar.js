@@ -404,7 +404,7 @@ export function createCellar() {
     const hk = settings.housekeeping || {};
     const KINDS = [['chats', 'Chats', 'summed up first, so the topic notes and a summary stay'], ['pictures', 'Pictures and clips Bob made', ''], ['sounds', 'Sounds and music Bob made', ''], ['tasks', 'Finished tasks', 'the chats keep what was said'], ['logs', 'Logbook and update logs', '']];
     const units = ['minutes', 'hours', 'days', 'weeks', 'months'];
-    return `<div class="housekeeping"><strong>Housekeeping</strong> <span class="tag">off unless you turn it on</span>
+    return `<div class="housekeeping"><span class="tag">off unless you turn it on</span>
        ${tip('Bob tidies up after himself while he\'s idle: he sums up the older part of long chats, files what you talked about under Topics, moves lasting facts to his memory file, and offers to clear away things that haven\'t come up for a while. Removed things go to the Recycle Bin. Pinned chats, pictures and topics are never touched, and everything he does goes in the logbook.', 'Housekeeping')}
       <label class="switch"><input type="checkbox" data-hk="enabled" ${hk.enabled ? 'checked' : ''}><span><strong>Tidy up old things by himself</strong> ${tip('Only while he\'s idle (10 minutes quiet, nothing running). He mentions old things at most once a day.', 'Tidy up old things by himself')}</span></label>
       <label class="switch"><input type="checkbox" data-hk="wakeBrain" ${hk.wakeBrain ? 'checked' : ''} ${hk.enabled ? '' : 'disabled'}><span><strong>Load a brain for it if none is loaded</strong> ${tip('Loads a brain just for tidying. Leave off while gaming.', 'Load a brain for it if none is loaded')}</span></label>
@@ -435,7 +435,7 @@ export function createCellar() {
   // 1.5.34: Settings in collapsible panels (there was a lot on one page). Which panels are open is remembered in this
   // browser; Bob himself starts open, the rest closed. Searching opens the panels that match.
   const OPEN_KEY = 'bob-settings-open';
-  let openPanels = (() => { try { const v = JSON.parse(localStorage.getItem(OPEN_KEY)); return Array.isArray(v) ? new Set(v) : new Set(['ev-bob']); } catch { return new Set(['ev-bob']); } })();
+  let openPanels = (() => { try { const v = JSON.parse(localStorage.getItem(OPEN_KEY)); return Array.isArray(v) ? new Set(v.map((id) => (id === 'adv-connections' ? 'adv-bobnet' : id))) : new Set(['ev-bob']); } catch { return new Set(['ev-bob']); } })();
   const saveOpen = () => { try { localStorage.setItem(OPEN_KEY, JSON.stringify([...openPanels])); } catch {} };
   const panel = (id, label, note, body, help = '') => `<details class="spanel" data-panel="${esc(id)}" id="sub-${esc(id)}" ${openPanels.has(id) ? 'open' : ''}><summary><span class="spanel-title">${esc(label)}</span>${help}<span class="muted spanel-note">${esc(note)}</span></summary><div class="spanel-body">${body}</div></details>`;
   // More everyday panels slot in here as [id, label, note, () => html] (for example Projects), between How Bob works and This PC.
@@ -465,19 +465,23 @@ export function createCellar() {
       ${srow('Bob\'s look', esc(lookName), '<button type="button" class="mini" data-tab="style">Change</button>')}
       ${sswitch('lookIcon', settings.lookIcon === true, 'Use Bob\'s look as his icon', `Off unless you turn it on. His icon on the ${settings.platform === 'darwin' ? 'Dock' : 'taskbar'}, in the tray and in the corner of his window shows the look you picked, and changes when you change it.${settings.trayHere ? '' : ' Only in Bob\'s own window, not in a browser.'}`, settings.trayHere ? '' : 'disabled')}
       ${srow('Theme', esc(theme?.name || 'Bob\'s Inn'), '<button type="button" class="mini" data-tab="style">Change</button>')}
-      ${srow('Animations', `<span class="ttabs" role="radiogroup" aria-label="Animations">${mopt('on', 'On')}${mopt('system', 'Follow Windows')}${mopt('off', 'Off')}</span>`)}
+      ${srow('Animations', `<span class="ttabs" role="radiogroup" aria-label="Animations">${mopt('on', 'On')}${mopt('system', settings.platform === 'win32' ? 'Follow Windows' : 'Follow the system')}${mopt('off', 'Off')}</span>`)}
       ${srow('Bob\'s cat', `<input data-set="catName" maxlength="24" value="${esc(settings.catName || 'Patches')}" aria-label="Cat's name" style="width:12em"> ${tip('The cat in Bob\'s stories.', 'Bob\'s cat')}`)}
 `)}${panel('ev-how', '⚡ How Bob works', howSum, `
+      <h4 class="ssub">How he works</h4>
       ${sswitch('autoSession', settings.autoSession !== false, 'Let Bob pick the session', 'Bob moves into the session that suits the job (Art, Coding, Office or Gaming) and goes back to Normal, the lightest, once he has been quiet for 2 minutes. While something else is using the graphics card, like a game, he stays in Gaming. You can still pick a session yourself from the menu: Bob keeps it while you work, then goes back to Normal once he has been quiet for 2 minutes. To keep him in Gaming, press 🎮 Gaming next to Effort.')}
       ${sswitch('oneBrain', settings.oneBrain, 'One brain (snappier)', 'Every copy of Bob uses the main brain, so he never stops to swap brains (about 20 seconds).')}
+      ${sswitch('planFirst', settings.planFirst === true, 'Show Bob\'s plan before big jobs', keep('Off unless you turn it on. Before a job with several steps, or any step that changes files or runs programs, Bob shows every step on one card and waits for you. Any OKs the job needs are ticked on the same card.'))}
+      ${sswitch('howtos', settings.howtos === true, 'Let Bob learn how-tos', 'Off unless you turn it on. After a job with a few steps goes well, Bob offers to keep the steps as a how-to, and follows them next time you ask for something like it. Nothing is kept without your click. Your how-tos are in 📒 How-tos below.')}
+      ${sswitch('resumeJobs', settings.resumeJobs, 'Pick up where Bob left off after a restart', 'If Bob closes in the middle of a job (an update, a restart or a crash), he carries on when he opens again. Steps that finished aren\'t done again, and the step that got cut off is done again from the start. Unfinished downloads carry on too. If the cut-off step was typing into an app, moving or deleting files, editing a file or running a command, the job waits in Tasks so you can check first.')}
+      <h4 class="ssub">Starting and closing</h4>
       ${sswitch('autostart', settings.autostart, 'Launch Bob on start-up', 'Off unless you turn it on.', settings.platform === 'win32' || settings.platform === 'darwin' || settings.loginItems ? '' : 'disabled')}
       ${sswitch('tray', settings.tray === true, 'Keep Bob in the tray', `Off unless you turn it on. Closing or minimising Bob's window tucks him into ${settings.platform === 'darwin' ? 'the menu bar at the top of the screen' : settings.platform === 'win32' ? 'the tray by the clock' : 'your desktop\'s tray'} instead of closing him, so he keeps running. Click his icon to open him again. To close him fully, ${settings.platform === 'darwin' ? 'click' : 'right-click'} his icon and pick <strong>Quit Bob</strong>.${settings.trayHere ? '' : ' Only in Bob\'s own window, not in a browser.'}`, settings.trayHere ? '' : 'disabled')}
-      ${sswitch('howtos', settings.howtos === true, 'Let Bob learn how-tos', 'Off unless you turn it on. After a job with a few steps goes well, Bob offers to keep the steps as a how-to, and follows them next time you ask for something like it. Nothing is kept without your click. Your how-tos are in 📒 How-tos below.')}
+      <h4 class="ssub">Going online</h4>
       ${sswitch('webSearch', settings.webSearch === true, 'Let Bob search the web', keep('Off unless you turn it on. Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page addresses leave your replicant matrix (your computer).'))}
-      ${sswitch('planFirst', settings.planFirst === true, 'Show Bob\'s plan before big jobs', keep('Off unless you turn it on. Before a job with several steps, or any step that changes files or runs programs, Bob shows every step on one card and waits for you. Any OKs the job needs are ticked on the same card.'))}
-      ${sswitch('autoCheck', settings.updates?.autoCheck, 'Check for updates when Bob starts', 'Off unless you turn it on. Bob looks at his GitHub page for a newer version and only tells you; updating always takes your click.')}
 `)}${EVERY_EXTRA.map(([id, label, note, body]) => panel(id, label, typeof note === 'function' ? note() : note, body())).join('')}${panel('ev-pc', '💻 This replicant matrix and updates', pcSum, `
       <div class="updates srow-foot"><span class="muted">Bob ${esc(settings.version?.label || '')} · ${hw?.gpu?.integrated ? `Built-in graphics: ${esc(hw.gpu.name.replace(/ \(shared memory\)$/, ''))}, about ${hw.gpu.vramGB} GB of memory shared with it` : hw?.gpu?.unified ? `Chip: ${esc(hw.gpu.name)}, about ${hw.gpu.vramGB} GB of it for graphics` : `Graphics card: ${hw?.gpu ? `${esc(hw.gpu.name)}, ${hw.gpu.vramGB} GB` : 'not detected'}`} · Free disk: ${hw?.freeGB ?? '?'} GB</span>
+        ${sswitch('autoCheck', settings.updates?.autoCheck, 'Check for updates when Bob starts', 'Off unless you turn it on. Bob looks at his GitHub page for a newer version and only tells you; updating always takes your click.')}
         <div class="row"><button type="button" data-checkupdate>Check for updates</button><button type="button" data-welcome>Run first-time setup</button>${settings.features?.pcCheck === false ? '' : '<button type="button" data-pccheck>Check this replicant matrix</button>'}<span class="update-out muted"></span></div>
         <div class="update-steps"></div><div class="pc-check" aria-live="polite"></div></div>`)}
     </div>`;
@@ -506,31 +510,33 @@ export function createCellar() {
       <span class="muted">Only matters in the 🎮 Gaming session. Applies the next time the Gaming brain loads.</span></fieldset>`;
   }
 
-  function enginesHtml() {
+  // 1.5.98: Speed & memory (split from Engines & speed).
+  function speedMemoryHtml() {
     const ka = settings.ollamaKeepAlive || '5m';
     const kaOpts = [['1m', '1 minute'], ['2m', '2 minutes'], ['150s', '2½ minutes'], ['5m', '5 minutes'], ['10m', '10 minutes'], ['15m', '15 minutes'], ['30m', '30 minutes'], ['1h', '1 hour']];
     const held = settings.brainMode === 'always';
     return `<label class="pick${held ? ' dim' : ''}"><strong>Free memory after Bob has been quiet for</strong>
         <select data-set="keepAlive" aria-label="Free memory after Bob has been quiet for">${kaOpts.some(([v]) => v === ka) ? '' : `<option value="${esc(ka)}" selected>${esc(ka)}</option>`}${kaOpts.map(([v, label]) => `<option value="${v}" ${v === ka ? 'selected' : ''}>${label}</option>`).join('')}</select>
         <span class="muted">${held ? 'Not used right now: "Free memory when Bob is idle" on the chat page is off, so his small brain stays loaded.' : 'Used while "Free memory when Bob is idle" on the chat page is on.'} Big brains (Coding, and Medium effort and up) are freed after 2 minutes, or sooner if you pick less.</span></label>
-      ${sswitch('pictureNoWait', settings.pictureNoWait !== false, 'Show pictures without waiting for Bob\'s brain', 'Bob shows a finished picture or clip straight away with a short line, instead of loading his brain back just to talk about it. Turn off if you want him to comment on each one.')}
       ${sswitch('quickOnCpu', settings.quickOnCpu === true, 'Keep the graphics card free for quick answers', 'Low effort answers run on the processor, so games and pictures keep the card. Replies start much slower (about half a minute). A message with a link still goes to your main Brain, which reads web pages better. Applies in the Normal session; Gaming always does this.')}
-      ${sswitch('chatWhileBusy', settings.chatWhileBusy !== false, 'Keep chatting while Bob is busy', keep('While Bob makes a picture, clip, song or sound, or works on a long job (Medium effort and up, the Coding session, or anything past 20 seconds), plain chat messages are answered by his small brain beside the job, if there\'s enough free memory: on the graphics card when it has room for both, otherwise on the processor (Qwen3 4B Instruct 2507, if it\'s downloaded; otherwise messages wait). His main brain keeps working on the graphics card. Replies on the processor start slower (up to about half a minute). Messages with a picture attached, or at Medium effort and up, still wait. Off: every message waits until the job is done.'))}
-      ${sswitch('mootBeside', settings.mootBeside === true, 'Let the reviewer sit beside Bob\'s main brain', keep('Off to start with. At High and Extreme effort, the reviewer normally swaps in for Bob\'s main brain. On: if there\'s enough free RAM, it loads beside the main brain instead, on the graphics card if there\'s room, otherwise on the processor, so the main brain carries on right after the check. Reviews on the processor are slower, so this suits a small Review brain. Bob\'s own engine only; not in the Gaming session.'))}
-      ${gamingCardHtml()}
+      ${sswitch('pictureNoWait', settings.pictureNoWait !== false, 'Show pictures without waiting for Bob\'s brain', 'Bob shows a finished picture or clip straight away with a short line, instead of loading his brain back just to talk about it. Turn off if you want him to comment on each one.')}
       ${tuneHtml()}
-      <label class="pick"><strong>Bob's engine</strong>
+      ${gamingCardHtml()}
+      ${sswitch('memoryRecall', settings.memoryRecall === true, 'Remember only what fits', 'With each message, Bob reads only the memories that fit it (up to 8), not his whole memory file, so chats stay light. Off: he reads all of it every time.')}
+      ${more('Each project gets its own memory bank: while you talk about one project, Bob leaves the other projects\' memories out. To have him read a line every time, add [always] to it in his memory file. He matches by meaning when the 🗂 Memory (finding past chats) model is downloaded (it runs on the processor, never in the Gaming session), and by words otherwise.')}
+      ${settings.memoryRecall ? memoryBanksHtml() : ''}
+      ${speedTestHtml()}`;
+  }
+
+  // 1.5.98: Engines (the rest of Engines & speed). The fine-tuning sits under More.
+  function enginesHtml() {
+    return `<label class="pick"><strong>Bob's engine</strong>
         <select data-set="engine"><option value="ollama" ${settings.engine === 'ollama' ? 'selected' : ''}>Ollama (if you already have it)</option><option value="llamacpp" ${settings.engine === 'llamacpp' ? 'selected' : ''}>Bob's own (llama.cpp, nothing else needed)</option></select>
         <span class="muted">Takes effect next time Bob starts.</span></label>
       <div><strong>Engine downloads</strong> ${tip('The programs that run the models, from their official GitHub pages, matched to your graphics card.', 'Engine downloads')}
         ${(data.engines || []).map((e) => `<article class="model" id="m-engine:${esc(e.id)}"><header><strong>${esc(e.name)}</strong></header><p>${esc(e.what)}</p>
           <div class="act">${live.has('engine:' + e.id) ? progress(live.get('engine:' + e.id)) : e.installed ? `<div class="have">✓ ${e.found ? esc(e.found[0].toUpperCase() + e.found.slice(1)) : `Installed${e.version ? ` (${esc(e.version)})` : ''}`}</div>${e.pinned || e.available === false ? '' : `<button data-checkengine="${esc(e.id)}">Check for a newer build</button>`}${e.tested && e.version && e.version !== e.tested && !e.found ? `<button data-engine="${esc(e.id)}">Go back to the tested build (${esc(e.tested)})</button>` : ''}` : e.available === false ? `<div class="muted">${esc(e.note || 'Not for this replicant matrix yet.')}</div>` : `<button class="get" data-engine="${esc(e.id)}">Get ${esc(e.name)}</button>`}</div><div class="confirm" hidden></div></article>`).join('')}</div>
-      ${sswitch('resumeJobs', settings.resumeJobs, 'Pick up where Bob left off after a restart', 'If Bob closes in the middle of a job (an update, a restart or a crash), he carries on when he opens again. Steps that finished aren\'t done again, and the step that got cut off is done again from the start. Unfinished downloads carry on too. If the cut-off step was typing into an app, moving or deleting files, editing a file or running a command, the job waits in Tasks so you can check first.')}
-      ${sswitch('allTools', settings.allTools, 'Give Bob all his tools at once', 'Sends every tool with each message, which leaves less room for the chat. Leave off to keep chats light.')}
-      ${sswitch('memoryRecall', settings.memoryRecall === true, 'Remember only what fits', 'With each message, Bob reads only the memories that fit it (up to 8), not his whole memory file, so chats stay light. Off: he reads all of it every time.')}
-      ${more('Each project gets its own memory bank: while you talk about one project, Bob leaves the other projects\' memories out. To have him read a line every time, add [always] to it in his memory file. He matches by meaning when the 🗂 Memory (finding past chats) model is downloaded (it runs on the processor, never in the Gaming session), and by words otherwise.')}
-      ${settings.memoryRecall ? memoryBanksHtml() : ''}
-      ${speedHtml()}`;
+      <details class="more"><summary>More</summary>${speedHtml()}</details>`;
   }
 
   // 1.5.79: the memory banks, shown under "Remember only what fits" while it's on.
@@ -546,13 +552,18 @@ export function createCellar() {
   // 1.5.24: speed for this PC. Three switches (off unless turned on) and a before-and-after speed test.
   function tuneHtml() {
     const sw = (on, name) => `${on ? '✓' : '–'} ${name}`;
-    const rows = speedRuns.slice(-6).reverse().map((r) => `<tr><td>${esc(new Date(r.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</td><td>${esc(r.model)}<br><span class="muted">${esc(r.where)}</span></td><td>${r.wake} s</td><td><strong>${r.first.firstWord} s</strong></td><td>${r.first.full} s</td><td>${r.next.firstWord} s</td><td class="muted">${sw(r.switches?.readyWhileTyping, 'Ready while typing')} · ${sw(r.switches?.gamesFirst, 'Games first')} · ${sw(r.switches?.pictureFit, 'Matched pictures')}</td></tr>`).join('');
     return `<div class="tune"><strong>Speed for this replicant matrix</strong> <span class="tag">off unless you turn it on</span>
          ${tip('Try one switch at a time: run the speed test, turn the switch on, and run it again. The table keeps your last results so you can compare. Bob never changes Windows or driver settings; Check this replicant matrix (on the Everyday page) only suggests them.', 'Speed for this replicant matrix')}
         ${sswitch('readyWhileTyping', settings.readyWhileTyping === true, 'Get Bob ready while you type', 'He reads his instructions as soon as you start typing, so replies start sooner.')}
         ${sswitch('gamesFirst', settings.gamesFirst === true, 'Let games go first', 'When Bob works on the processor, he uses fewer cores at lower priority. His replies may be a little slower.')}
         ${sswitch('pictureFit', settings.pictureFit === true, 'Match picture settings to my graphics card', 'Big cards keep the picture model in graphics memory, which is faster. On cards with 8 GB or less, and on built-in graphics, pictures are made at 768 px so they fit and come quicker.')}
-        <div class="row"><button type="button" data-speedtest>Test Bob's speed</button><span class="speed-out muted">Takes about a minute. Bob frees his brain and wakes it, as when you start typing.</span></div>
+      </div>`;
+  }
+
+  // 1.5.98: the speed test and its table, at the bottom of Speed & memory.
+  function speedTestHtml() {
+    const rows = speedRuns.slice(-6).reverse().map((r) => `<tr><td>${esc(new Date(r.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</td><td>${esc(r.model)}<br><span class="muted">${esc(r.where)}</span></td><td>${r.wake} s</td><td><strong>${r.first.firstWord} s</strong></td><td>${r.first.full} s</td><td>${r.next.firstWord} s</td><td class="muted">${sw(r.switches?.readyWhileTyping, 'Ready while typing')} · ${sw(r.switches?.gamesFirst, 'Games first')} · ${sw(r.switches?.pictureFit, 'Matched pictures')}</td></tr>`).join('');
+    return `<div class="tune speed-test"><div class="row"><button type="button" data-speedtest>Test Bob's speed</button><span class="speed-out muted">Takes about a minute. Bob frees his brain and wakes it, as when you start typing.</span></div>
         ${rows ? `<div class="speed-table"><table><thead><tr><th>When</th><th>Brain</th><th>Load</th><th>First word</th><th>Full answer</th><th>Second reply</th><th>Switches</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
       </div>`;
   }
@@ -566,19 +577,27 @@ export function createCellar() {
       ${opts.map(tip).join('')}`;
   }
 
-  function connectionsHtml() {
+  // 1.5.98: Connections became three panels: Bob-Net, Online services and Other apps.
+  function otherAppsHtml() {
     return `<div><strong>ComfyUI workflows</strong> <span class="tag">off unless you turn it on</span>
          ${tip('For jobs Bob\'s own engines can\'t do (custom nodes, face fixers, long multi-step graphs). Bob drives ComfyUI for you; it just has to be running on this replicant matrix (for example from Pinokio). Add workflows to the workflows folder as Workflow > Export (API) files.', 'ComfyUI workflows')}
         <label class="switch"><input type="checkbox" data-set="workshop" ${settings.workshop?.enabled ? 'checked' : ''}><span><strong>Let Bob use ComfyUI</strong><br><span class="muted">${settings.workshop?.enabled ? `Workflows folder: ${esc(settings.workshop.folder)} · ${settings.workshop.count} workflow${settings.workshop.count === 1 ? '' : 's'}` : 'Off.'}</span></span></label>
         <label class="pick"><strong>ComfyUI port</strong><input data-set="workshopPort" inputmode="numeric" value="${esc(settings.workshop?.port || 8188)}" aria-label="ComfyUI port" style="width:7em"></label></div>
+      <p class="muted">Apps Bob works inside (Unreal Engine, Blender) are under Hands, Connected apps (MCP).</p>`;
+  }
+  function onlineHtml() {
+    return `<p class="muted">Each of these sends something over the internet, and says what.</p>
       <div><strong>Cloud helpers</strong> <span class="tag">off unless you turn one on</span>
         ${more('Paid cloud AIs Bob can hand one job to, as a helper copy. He asks you every time, shows the rough cost and exactly what text would leave your replicant matrix (your computer). Bob never stores or sees your keys: you add a key as a Windows environment variable yourself (Settings, System, About, Advanced system settings, Environment Variables, under "User variables").')}
         ${cloud.map((c) => `<div class="cloud row${c.keyFound ? '' : ' dim'}">
           <label class="switch"><input type="checkbox" data-cloud="${esc(c.id)}" ${c.enabled ? 'checked' : ''} ${c.keyFound ? '' : 'disabled'}><span><strong>${esc(c.name)}</strong><br><span class="muted">${c.keyFound ? `Key found (${esc(c.apiKeyEnv)})` : `No key yet. Add a user variable named ${esc(c.apiKeyEnv)}.`}</span></span></label>
           ${c.models.length ? `<select data-cloudmodel="${esc(c.id)}" aria-label="${esc(c.name)} model" ${c.keyFound ? '' : 'disabled'}>${c.models.map((m) => `<option ${m === c.model ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>` : `<input data-cloudmodel="${esc(c.id)}" aria-label="${esc(c.name)} model" placeholder="model name" value="${esc(c.model)}" ${c.keyFound ? '' : 'disabled'}>`}
         </div>`).join('')}</div>
+      ${telegramHtml()}`;
+  }
+  function bobNetHtml() {
+    return `<h4 class="ssub">This Bob</h4>
       ${phoneAccessHtml()}
-      ${telegramHtml()}
       ${shareBrainsHtml()}`;
   }
 
@@ -598,13 +617,21 @@ export function createCellar() {
       <div><strong>Your own theme</strong><p class="muted">Make or edit a theme on the <button type="button" class="link" data-tab="style">🎨 Style</button> page (Make your own theme).</p></div>`;
   }
 
+  // 1.5.98: old panel ids (Help links, cards, remembered open panels) land on the new panels.
+  const ADV_MOVED = { 'adv-connections': 'adv-bobnet' };
   const ADV = [
-    ['brains', '🧠 Brains', 'model roles session brains context thinking making', () => rolesHtml()],
-    ['house', '🎨 House style', 'house style defaults default length mood genre music picture style shape clip video sound effects morning time evening night times of day', () => `<p class="muted">Your defaults for music, pictures, clips, sound effects and times of day live on Equip Bob, next to each slot.</p><button type="button" data-gohouse>Open House style on Equip Bob</button>`],
+    ['brains', '🧠 Brains', 'model roles session brains context thinking making reviewer beside moot keep chatting busy all tools at once', () => rolesHtml() + `
+      ${sswitch('mootBeside', settings.mootBeside === true, 'Let the reviewer sit beside Bob\'s main brain', keep('Off to start with. At High and Extreme effort, the reviewer normally swaps in for Bob\'s main brain. On: if there\'s enough free RAM, it loads beside the main brain instead, on the graphics card if there\'s room, otherwise on the processor, so the main brain carries on right after the check. Reviews on the processor are slower, so this suits a small Review brain. Bob\'s own engine only; not in the Gaming session.'))}
+      ${sswitch('chatWhileBusy', settings.chatWhileBusy !== false, 'Keep chatting while Bob is busy', keep('While Bob makes a picture, clip, song or sound, or works on a long job (Medium effort and up, the Coding session, or anything past 20 seconds), plain chat messages are answered by his small brain beside the job, if there\'s enough free memory: on the graphics card when it has room for both, otherwise on the processor (Qwen3 4B Instruct 2507, if it\'s downloaded; otherwise messages wait). His main brain keeps working on the graphics card. Replies on the processor start slower (up to about half a minute). Messages with a picture attached, or at Medium effort and up, still wait. Off: every message waits until the job is done.'))}
+      ${sswitch('allTools', settings.allTools, 'Give Bob all his tools at once', 'Sends every tool with each message, which leaves less room for the chat. Leave off to keep chats light.')}`],
+    ['house', '🖋 House style', 'house style defaults default length mood genre music picture style shape clip video sound effects morning time evening night times of day', () => `<p class="muted">Your defaults for music, pictures, clips, sound effects and times of day live on Equip Bob, next to each slot.</p><button type="button" data-gohouse>Open House style on Equip Bob</button>`],
     ['voice', '🔊 Voice details', 'kokoro chatterbox speed hey bob read aloud listen', () => voiceDetailsHtml()],
-    ['look', '🎨 Look & feel', 'theme editor now running layout', () => lookExtrasHtml()],
-    ['engines', '⚙ Engines & speed', 'unload idle keep alive graphics memory vram remember only what fits memory banks recall engine ollama llama.cpp downloads fit memory speculative decoding draft flags threads batch gaming graphics card borrow automatic never always', () => enginesHtml()],
-    ['connections', '🔌 Connections', 'comfyui workflows port cloud helpers api phone android tailscale passcode let my phone in let my other replicant matrices in share brains lend borrow', () => connectionsHtml()],
+    ['look', '🌓 Look & feel', 'theme editor now running layout', () => lookExtrasHtml()],
+    ['speed', '⚡ Speed & memory', 'speed memory free memory quiet keep alive unload idle graphics card quick answers processor pictures without waiting ready while you type games go first picture settings gaming graphics card borrow automatic never always remember only what fits memory banks recall speed test', () => speedMemoryHtml()],
+    ['engines', '⚙ Engines', 'engine ollama llama.cpp downloads newer build tested build fit to free graphics memory speculative decoding draft flags threads batch', () => enginesHtml()],
+    ['bobnet', '🌐 Bob-Net', 'bob-net bobnet phone android tailscale address passcode firewall let my phone in let my other replicant matrices in other bobs share brains lend borrow take jobs send jobs', () => bobNetHtml()],
+    ['online', '☁ Online services', 'online internet cloud helpers api key anthropic openai gemini openrouter telegram bot token pairing', () => onlineHtml()],
+    ['apps', '🔌 Other apps', 'other apps comfyui workflows port unreal blender mcp', () => otherAppsHtml()],
     ['hands', '✋ Hands', 'files run commands schedules apps permission quarantine reviewer', () => handsSettingsHtml() + quarantineSettingsHtml()],
     ['housekeeping', '🧹 Housekeeping', 'tidy old chats pictures logs', () => housekeepingHtml()],
     ['checkins', '🔔 Check-ins', 'check in heartbeat schedule morning every day weekday hours notify alert tap shoulder downloads stuck failed tasks disk space own checks build finished', () => checkinsHtml()],
@@ -617,7 +644,7 @@ export function createCellar() {
     return `<section class="settings">
       <p class="settings-help">${helpLink('settings-everyday', 'Everyday settings', '? Help with these settings')}</p>
       ${everydayHtml()}
-      <label class="switch adv-toggle"><input type="checkbox" data-advanced ${advanced ? 'checked' : ''}><span><strong>Show advanced settings</strong> ${tip('Brains, voice details, engines and speed, connections, Hands, housekeeping, check-ins.', 'Show advanced settings')}</span></label>
+      <label class="switch adv-toggle"><input type="checkbox" data-advanced ${advanced ? 'checked' : ''}><span><strong>Show advanced settings</strong> ${tip('Brains, voice details, speed and memory, engines, Bob-Net, online services, other apps, Hands, housekeeping, check-ins.', 'Show advanced settings')}</span></label>
       ${advanced ? `<div class="advanced">
         <input type="search" data-ssearch placeholder="Search settings" aria-label="Search settings" value="${esc(settingsQuery)}">
         <nav class="subnav" aria-label="Advanced sections">${ADV.map(([id, label]) => `<button type="button" data-jump="adv-${id}">${esc(label)}</button>`).join('')}<button type="button" data-panels="open">Open all</button><button type="button" data-panels="close">Close all</button></nav>
@@ -952,7 +979,7 @@ export function createCellar() {
         await eqReload(); draw();
         return;
       }
-      if (b.dataset.jump) { const t = dlg.querySelector('#sub-' + CSS.escape(b.dataset.jump)); if (t?.tagName === 'DETAILS' && !t.open) { t.open = true; openPanels.add(t.dataset.panel); saveOpen(); } t?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+      if (b.dataset.jump) { const t = dlg.querySelector('#sub-' + CSS.escape(ADV_MOVED[b.dataset.jump] || b.dataset.jump)); if (t?.tagName === 'DETAILS' && !t.open) { t.open = true; openPanels.add(t.dataset.panel); saveOpen(); } t?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
       if (b.dataset.tab) { sampler.stop(); setTab(b.dataset.tab); if (!jumpTo) dlg.scrollTop = 0; draw(); }
       else if (b.dataset.get) confirmBox(b.closest('.model'), data.models.find((m) => m.id === b.dataset.get));
       else if (b.dataset.anyway) confirmBox(b.closest('.model'), data.models.find((m) => m.id === b.dataset.anyway), true);

@@ -40,7 +40,7 @@ export const HAND_CAN = {
 };
 export function switchFor(cfg, key) {
   if (key === 'web') return cfg.webSearch === true ? null : { key, name: 'Let Bob search the web', where: 'Settings, How Bob works', what: 'look things up on the internet', privacy: 'Only the search words and page addresses leave your replicant matrix (your computer).', patch: { webSearch: true } };
-  if (key === 'workshop') return cfg.workshop?.enabled === true ? null : { key, name: 'Advanced workshop (ComfyUI)', where: 'Settings, Show advanced settings, Connections', what: 'run your ComfyUI workflows', patch: { workshop: { ...(cfg.workshop || {}), enabled: true } } };
+  if (key === 'workshop') return cfg.workshop?.enabled === true ? null : { key, name: 'Advanced workshop (ComfyUI)', where: 'Settings, Show advanced settings, Other apps', what: 'run your ComfyUI workflows', patch: { workshop: { ...(cfg.workshop || {}), enabled: true } } };
   const m = /^hand:(\w+)$/.exec(key || '');
   if (m && HANDS[m[1]]) {
     const id = m[1], h = handsSettings(cfg), hand = HANDS[id];
