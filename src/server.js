@@ -45,7 +45,8 @@ import { handsSettings } from './hands-settings.js';
 import { tuning, TUNING_KEYS, pictureFitReset } from './tuning.js';
 import { gatherFacts, tipsFrom } from './pc-check.js';
 import { speedTest, speedHistory } from './speed-test.js';
-import { phoneView, cleanPhonePatch, findAddresses, newPasscode } from './phone-access.js';
+import { phoneView, cleanPhonePatch, findAddresses, newPasscode, isTailscaleIp } from './phone-access.js';
+import { firewallState, changeRule } from './firewall.js';
 import { shareView, cleanSharePatch, saveShare, lendChat, lendRefusal, helloFor } from './share-brains.js';
 import { guestRoute, answerAway } from './share-jobs.js';
 import { OS, features } from './platform.js';
@@ -141,10 +142,16 @@ async function body(req) {
 // Block other websites from talking to Bob: check Host (DNS rebinding) and require
 // a custom header on every POST (browsers won't send it cross-site without CORS, which we never grant).
 const localHosts = new Set([`127.0.0.1:${cfg.port}`, `localhost:${cfg.port}`, `[::1]:${cfg.port}`]);
-const remote = cfg.remote || {};
-const remoteOn = Boolean(remote.enabled && remote.passcode && String(remote.passcode).length >= 6);
-const remoteHosts = new Set((remote.hosts || []).map((h) => String(h).toLowerCase()));
-const authToken = crypto.createHash('sha256').update('bob:' + (remote.passcode || '') + ':' + cfg.agentDir).digest('hex');
+// 1.5.94: read again whenever "Let my other replicant matrices in" changes, so it works without a restart.
+let remote, remoteOn, remoteHosts, authToken;
+function readRemote() {
+  remote = cfg.remote || {};
+  remoteOn = Boolean(remote.enabled && remote.passcode && String(remote.passcode).length >= 6);
+  remoteHosts = new Set((remote.hosts || []).map((h) => String(h).toLowerCase()));
+  authToken = crypto.createHash('sha256').update('bob:' + (remote.passcode || '') + ':' + cfg.agentDir).digest('hex');
+}
+readRemote();
+const startedWide = remoteOn; // listening on every address since start-up (the old way, still used when it was on at start)
 const loginTries = [];
 
 // Phone access over Tailscale only: loopback or the Tailscale range (100.64.0.0/10).
@@ -313,7 +320,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/phone-access' && (req.method === 'GET' || req.method === 'POST')) {
       if (!isLocal) return send(res, 403, { error: 'Phone access can only be changed on this replicant matrix itself.' });
       const found = await findAddresses(cfg.port);
-      if (req.method === 'GET') return send(res, 200, { ...phoneView(cfg), found, live: remoteOn });
+      if (req.method === 'GET') return send(res, 200, { ...phoneView(cfg), found, live: remoteLive(), firewall: await firewallState(cfg.port).catch(() => null) });
       const b = await body(req);
       let made = '';
       if (b.newPasscode === true) { made = newPasscode(); b.passcode = made; }
@@ -322,7 +329,16 @@ const server = http.createServer(async (req, res) => {
       if (out.error) return send(res, 400, { error: out.error });
       saveRemote(cfg, out.remote);
       brain.log('settings', `phone access: ${out.remote.enabled ? 'on' : 'off'}, ${out.remote.hosts.length} address(es)${made || 'passcode' in b ? ', new passcode' : ''}`);
-      return send(res, 200, { ...phoneView(cfg), found, live: remoteOn, passcode: made || undefined, restart: (cfg.remote.enabled === true) !== remoteOn || 'passcode' in b || 'hosts' in b });
+      applyRemote(); // 1.5.94: opens (or closes) the door now, no restart
+      return send(res, 200, { ...phoneView(cfg), found, live: remoteLive(), passcode: made || undefined, restart: false, firewall: await firewallState(cfg.port).catch(() => null) });
+    }
+    // 1.5.94: "Let Tailscale through the firewall" (Windows asks once) and "Remove the firewall rule".
+    if (p === '/api/phone-access/firewall' && req.method === 'POST') {
+      if (!isLocal) return send(res, 403, { error: 'The firewall can only be changed on this replicant matrix itself.' });
+      const b = await body(req);
+      const r = await changeRule(cfg.port, { add: b.add !== false, exe: process.versions.electron ? process.execPath : '' });
+      brain.log('settings', `firewall rule ${b.add !== false ? 'add' : 'remove'} (your click): ${r.ok ? 'done' : r.why}`);
+      return send(res, 200, { ...r, firewall: await firewallState(cfg.port).catch(() => null) });
     }
     // Share brains between your Bobs (src/share-brains.js). Settings only from this PC; lending only through the phone door.
     if (p === '/api/share-brains' && (req.method === 'GET' || req.method === 'POST')) {
@@ -750,6 +766,28 @@ if (!remoteOn && cfg.host === '127.0.0.1') {
   v6.on('error', () => {}); // no IPv6 on this replicant matrix: fine, 127.0.0.1 still works
   v6.listen(cfg.port, '::1');
 }
+// 1.5.94: when the door is opened after start-up, Bob listens on this replicant matrix's Tailscale addresses
+// (and only those), so it works without a restart. Tailscale can connect later, so it looks again every minute.
+const netServers = new Map(); // address -> server
+function tailscaleIps() {
+  const out = [];
+  for (const list of Object.values(os.networkInterfaces())) for (const n of list || []) if (n.family === 'IPv4' && isTailscaleIp(n.address)) out.push(n.address);
+  return out;
+}
+function remoteLive() { return remoteOn && (startedWide || netServers.size > 0); }
+function applyRemote() {
+  readRemote();
+  const want = remoteOn && !startedWide ? tailscaleIps() : [];
+  for (const [ip, s] of netServers) if (!want.includes(ip)) { try { s.close(); } catch {} netServers.delete(ip); }
+  for (const ip of want) {
+    if (netServers.has(ip)) continue;
+    const s = http.createServer(server.listeners('request')[0]);
+    s.on('error', (e) => { netServers.delete(ip); brain.log('settings', `couldn't listen on ${ip}:${cfg.port} (${e.code || e.message})`); });
+    s.listen(cfg.port, ip, () => brain.log('settings', `listening on ${ip}:${cfg.port} for your other replicant matrices`));
+    netServers.set(ip, s);
+  }
+}
+setInterval(() => { if (remoteOn && !startedWide) applyRemote(); }, 60_000).unref();
 // One bad request or background job must never take Bob down: log it and keep serving.
 process.on('unhandledRejection', (e) => { console.error('Unhandled:', e); try { brain.log('error', String(e && e.stack || e).slice(0, 500)); } catch {} });
 process.on('uncaughtException', (e) => { console.error('Uncaught:', e); try { brain.log('error', String(e && e.stack || e).slice(0, 500)); } catch {} });

@@ -316,7 +316,7 @@
         if (r.status === 401) { live[base].signedIn = false; grow(`*("${b.name}" wants the passcode again. It's under Bobs on your network.)*`); finish(); drawWho(); }
         else if (r.status >= 400) { grow(`*("${b.name}" said no: ${shortError(r.body)})*`); finish(); }
       })
-      .catch((e) => { grow(`*(Couldn't reach "${b.name}": ${e.message})*`); finish(); });
+      .catch((e) => { grow(`*(Couldn't reach "${b.name}": ${e.message}. Check that Tailscale is on here and there. On that replicant matrix, Settings, Connections: "Let my other replicant matrices in" should be on, and on Windows press "Let Tailscale through the firewall" if it shows.)*`); finish(); });
     drawStatus();
   }
   const shortError = (body) => { try { return JSON.parse(body).error || 'unknown'; } catch { return String(body).slice(0, 120); } };

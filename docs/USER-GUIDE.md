@@ -375,7 +375,7 @@ Even without Hands, Bob **asks before doing anything outside his own folder**.
 - **Music and sound effects**: extra downloads for the audio tools.
 - **Extra voices.**
 - **Advanced workshop**: if you use ComfyUI, Bob can run its workflows for you.
-- **Let my other replicant matrices in** (Settings, Show advanced settings, Connections; off): Bob for Android, or your phone's browser, talks to Bob over Tailscale with a passcode. Make a passcode, add the address it shows to the phone, then restart Bob. Only Tailscale addresses get in.
+- **Let my other replicant matrices in** (Settings, Show advanced settings, Connections; off): Bob for Android, or your phone's browser, talks to Bob over Tailscale with a passcode. Turn it on (the first time, it makes a passcode and shows it once), then add the address it shows to the phone. It works straight away, no restart (Bob listens on this replicant matrix's Tailscale addresses only, and picks Tailscale up within a minute if it connects later). On Windows, press **Let Tailscale through the firewall**: one Windows prompt adds the rule "Bob (Tailscale only)" for Bob's port, from Tailscale addresses (100.64.0.0/10) only; It also switches off any rule that blocks Bob's own program (Windows makes one if Cancel was clicked on its earlier question). **Remove the firewall rule** takes the rule away and switches those back on. On Linux with ufw or firewalld, Bob shows the one line to run. Only Tailscale addresses get in.
 - **Check for updates when Bob starts.** Updating always waits for your click.
 
 ---
