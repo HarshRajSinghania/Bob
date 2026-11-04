@@ -16,7 +16,7 @@ Update this file in the same handover as any change to settings.
 | Launch Bob on start-up | Off unless you turn it on. | off | ok |
 | Check for updates when Bob starts | Off unless you turn it on. Bob only tells you; updating always takes your click. | off | ok |
 | (footer) Version, graphics card, free disk; Check for updates; Run first-time setup | | | ok |
-| Show advanced settings | Brains, voice details, engines and speed, connections, Hands, housekeeping. | off (remembered per PC) | ok |
+| Show advanced settings | Brains, voice details, engines and speed, connections, Hands, housekeeping, check-ins. | off (remembered per PC) | ok |
 
 ## Settings: Advanced
 | Section | Setting | Hint / notes | Default | Review |
@@ -39,6 +39,11 @@ Update this file in the same handover as any change to settings.
 | Housekeeping | Tidy up old things by himself | Only while he's idle (10 minutes quiet, nothing running)… | off | ok (1.5.2) |
 | Housekeeping | Load a brain for it if none is loaded | Off: … so a game keeps the graphics card. | off | ok (1.5.2) |
 | Housekeeping | Per item: Chats 3 months, Pictures and clips 6 months, Sounds and music 3 months, Finished tasks 3 days, Logbook 3 months | | as listed | ok |
+| Check-ins | Check in on a schedule | Bob looks over his downloads, tasks and schedules when you choose, and only tells you (a card in the chat) when something needs you. Looking never changes anything. Only while Bob is open. | off | ok (1.5.78, approved with edits) |
+| Check-ins | How often | Every day / Every weekday (at a time) / Every few hours (1-24) | Every day at 09:00 | ok (1.5.78, approved with edits) |
+| Check-ins | What Bob checks | Downloads that failed or stopped moving; Tasks that failed or wait for your OK; Scheduled jobs that didn't finish; Disk space running low | all ticked (nothing runs until the main switch is on) | ok (1.5.78, approved with edits) |
+| Check-ins | Your own checks (Save my checks) | one per line, up to 8; quick brain on the processor, idle only, never in Gaming | none | ok (1.5.78, approved with edits) |
+| Check-ins | Check in now | button: one round now, result shown under it | | ok (1.5.78, approved with edits) |
 | Remove Bob | Remove Bob (keeps chats, settings and models unless ticked) | More text | | ok |
 
 ## Other pages
@@ -96,6 +101,7 @@ Update this file in the same handover as any change to settings.
 | Settings > Advanced > Engines & speed | Test Bob's speed (button + last 6 results) | | ok (approved with edits) |
 | Settings > Everyday footer | Check this PC (read-only tips) | | ok (approved with edits) |
 | Settings > Everyday | Let Bob search the web: "Off unless you turn it on. Bob looks things up on DuckDuckGo and reads pages when a question needs it. Only the search words and page addresses leave your PC." | off | ok (approved with edits, docs/help) |
+| Settings > Everyday (How Bob works) | Show Bob's plan before big jobs: "Off unless you turn it on. Before a job with several steps, or any step that changes files or runs programs, Bob shows every step on one card and waits for you. Any OKs the job needs are ticked on the same card." Closed panel: "Plans before big jobs: on/off". Chat card: Go ahead / Go ahead with ticked (n of m OKs) / Change something (What should Bob change? + Send to Bob / Back) / Not now (Bob drops this job) | off | ok (approved with edits, plan card) |
 
 ## Added in 1.5.27 (docs, Help and web search), approved by the settings thread (with edits)
 | Where | What | Default | Review |

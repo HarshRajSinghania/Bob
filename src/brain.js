@@ -48,6 +48,7 @@ import { readCard } from './gaming-card.js';
 import { Lenders, wantsBorrow, roughTokens } from './share-brains.js';
 import { GuestJobs, awayPlan, sendAway, stopAway, guestTools, guestNote, GUEST_TOOLS, canHere, NEEDS_LIST, awayWaitLine } from './share-jobs.js';
 import { askTogether, takeEarlier, askTogetherTool } from './together.js';
+import { showPlanTool, planGate, planOn, planPrompt } from './plan.js';
 import { freeMemNow } from './platform.js';
 
 const MAX_STEPS = 8;
@@ -351,6 +352,7 @@ export class Brain {
     this.tools.forget_topic = forgetTopicTool(this);
     Object.assign(this.tools, handsTools(this), scheduleTools(this), officeTools(this), securityTools(this), selfToolsTools(this)); // Hands: off until the user turns them on (see hands-settings.js)
     this.tools.use_tools = useToolsTool(this);
+    this.tools.show_plan = showPlanTool(this); // 1.5.78: the plan card before big jobs (plan.js), only with its setting on
     this.tools.ask_together = askTogetherTool(this); // 1.5.42: every OK a job needs on one card (together.js) // the toolbox (toolbox.js): groups added only when a job needs them
     this.tools.pick_session = pickSessionTool(this); // 1.5.43: Bob changes session himself (auto-session.js)
     this.made = new Made(cfg); // Made by Bob (made.js): everything he made, for the side panel and show_made
@@ -719,6 +721,8 @@ export class Brain {
   // the ids the user ticked (null = all of them).
   // need.together (1.5.42, together.js): every OK a job needs on one card. Resolves { allow, items }, where items
   // is null for Allow all / Deny all, else the steps the person ticked ([{ n, rows? }]).
+  // need.planCard (1.5.78, plan.js): Bob's plan for a big job, with any OKs it needs as need.together. Resolves
+  // { allow, items, note }: note is the change the person asked for in their own words (then allow is false).
   async approve(need, emit, signal, group, { hand = false, out = {}, id = crypto.randomUUID() } = {}) {
     const prev = this.state;
     const text = typeof need === 'string' ? need : need.text;
@@ -728,23 +732,25 @@ export class Brain {
     if (need.command) { card.command = need.command; card.cwd = need.cwd || ''; if (need.button) card.button = String(need.button).slice(0, 30); }
     if (hand) card.hand = true;
     if (Array.isArray(need.together)) card.together = need.together.map(({ key, ...it }) => it);
+    if (need.planCard) { card.planCard = need.planCard; card.allowAll = false; }
     if (need.newTool) { card.newTool = need.newTool; if (need.button) card.button = String(need.button).slice(0, 30); card.allowAll = false; } // 1.5.48 (selftools.js)
     emit(card);
     if (hand) this.handApprovals.add(id);
-    let picked = null, steps = null;
+    let picked = null, steps = null, note = '';
     const allowed = await new Promise((resolve) => {
       const timer = setTimeout(() => resolve(false), APPROVAL_TIMEOUT_MS);
-      const done = (v, rows, items) => { clearTimeout(timer); this.approvals.delete(id); this.handApprovals.delete(id); picked = rows ?? null; steps = items ?? null; resolve(v); };
+      const done = (v, rows, items, said) => { clearTimeout(timer); this.approvals.delete(id); this.handApprovals.delete(id); picked = rows ?? null; steps = items ?? null; note = typeof said === 'string' ? said.slice(0, 500) : ''; resolve(v); };
       this.approvals.set(id, done);
       signal.addEventListener('abort', () => done(false), { once: true });
     });
-    if (Array.isArray(need.together)) {
-      const ns = new Set(need.together.map((i) => i.n));
-      const items = Array.isArray(steps) ? steps.filter((p) => ns.has(Number(p?.n))).map((p) => ({ n: Number(p.n), rows: Array.isArray(p.rows) ? p.rows.map(String) : undefined })) : null;
-      const allow = Boolean(allowed) && !(items && !items.length);
+    if (Array.isArray(need.together) || need.planCard) {
+      const ns = new Set((need.together || []).map((i) => i.n));
+      const items = Array.isArray(steps) && ns.size ? steps.filter((p) => ns.has(Number(p?.n))).map((p) => ({ n: Number(p.n), rows: Array.isArray(p.rows) ? p.rows.map(String) : undefined })) : null;
+      const said = need.planCard ? note.trim() : '';
+      const allow = Boolean(allowed) && !said && !(items && !items.length && !need.planCard);
       emit({ type: 'approval-result', id, allowed: allow });
       this.setState(prev.state === 'waiting' ? 'thinking' : prev.state, '', prev.model);
-      return { allow, items: allow ? items : null };
+      return { allow, items: allow ? items : null, ...(said ? { note: said } : {}) };
     }
     if (Array.isArray(need.plan)) {
       const ok = new Set(need.plan.filter((r) => !r.blocked).map((r) => r.id));
@@ -760,10 +766,11 @@ export class Brain {
 
   // rows: for a card with a plan, the ids of the rows the user ticked.
   // items: for a card with every OK on it (together.js), the steps the person ticked: [{ n, rows? }].
-  answerApproval(id, allow, rows, items) {
+  // note: on a plan card (plan.js), the change the person asked for.
+  answerApproval(id, allow, rows, items, note) {
     const done = this.approvals.get(id);
     if (!done) return false;
-    done(allow === 'all' ? 'all' : Boolean(allow), Array.isArray(rows) ? rows.slice(0, 1000).map(String) : null, Array.isArray(items) ? items.slice(0, 100) : null);
+    done(allow === 'all' ? 'all' : Boolean(allow), Array.isArray(rows) ? rows.slice(0, 1000).map(String) : null, Array.isArray(items) ? items.slice(0, 100) : null, typeof note === 'string' ? note : '');
     return true;
   }
 
@@ -1092,6 +1099,7 @@ export class Brain {
     if (loaded) prompt += realPcPrompt(this.cfg) + toolboxPrompt(this, loaded);
     prompt += webPrompt(this.cfg) + linkPrompt(this.cfg);
     if (loaded) prompt += autoSessionPrompt(this.cfg); // front desk only: hats don't change the session
+    if (loaded) prompt += planPrompt(this.cfg); // 1.5.78: front desk only, and nothing while the setting is off
     prompt += houseStylePrompt(this.cfg.houseStyle, this.cfg.userName || 'the user');
     if (this.cfg.defaultProject && this.cfg.projects?.[this.cfg.defaultProject]) prompt += `\n\n${this.cfg.userName || 'The user'}'s main project is ${this.cfg.defaultProject}. When they say "my project" without a name, it's that one.`;
     // "Show me a picture of X" once got no answer at all (2026-11-02): say plainly that make_image is the way.
@@ -1107,7 +1115,7 @@ export class Brain {
   offTools() {
     let can = {};
     try { can = capabilities(this.cfg); } catch {}
-    return new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud', freeOn(this.cfg) && 'ask_together', ...(webOn(this.cfg) ? [] : WEB_TOOLS), !autoSessionOn(this.cfg) && 'pick_session', ...toolsOff(this.cfg)].filter(Boolean));
+    return new Set([!can.pictures && 'make_image', !can.video && 'make_video', !can.music && 'make_music', !can.sfx && 'make_sound', !can.workshop && 'workshop_list', !can.workshop && 'workshop_run', !cloudHelpers(this.cfg).length && 'ask_cloud', freeOn(this.cfg) && 'ask_together', !planOn(this.cfg) && 'show_plan', ...(webOn(this.cfg) ? [] : WEB_TOOLS), !autoSessionOn(this.cfg) && 'pick_session', ...toolsOff(this.cfg)].filter(Boolean));
   }
   usable(name, off = this.offTools()) { return Boolean(this.tools[name]) && !off.has(name); }
   // 1.5.41: whether OKs are asked on cards right now (so a job's OKs can go on one card). Not with "work without asking".
@@ -1127,6 +1135,7 @@ export class Brain {
     const names = [...CORE, ...[...loaded].flatMap((g) => groups[g]?.tools || [])];
     // 1.5.41: ask_together comes along once a group with tools that ask for an OK is added.
     if (names.some((n) => this.tools[n]?.check && this.usable(n))) names.push('ask_together');
+    if (planOn(this.cfg)) names.push('show_plan'); // 1.5.78: always there while the setting is on (plan.js)
     const list = this.toolSchemas([...new Set(names)]);
     const use = fillUseTools(this.tools.use_tools.schema, groups, loaded);
     if (use) list.push(tidySchema(use));
@@ -1756,6 +1765,13 @@ export class Brain {
       if (!reply.tool_calls) { this.keepGroups(sessionId, used); return; }
       let ended = false;
       ctx.painted = null; // what the painter made in this round (for the quick hand-back below)
+      // 1.5.78: "Show Bob's plan before big jobs": a big job waits for its plan card (plan.js).
+      const held = await planGate(this, reply.tool_calls, ctx);
+      if (held) {
+        for (const call of reply.tool_calls) msgs.push({ role: 'tool', tool_name: call.function?.name, content: held.hold });
+        ctx.retrying = true;
+        continue;
+      }
       await askTogether(this, reply.tool_calls, ctx); // 1.5.41: two or more OKs in this reply go on one card
       for (const call of reply.tool_calls) {
         const name = call.function?.name;

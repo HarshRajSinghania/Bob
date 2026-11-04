@@ -128,9 +128,8 @@ function selfToolsHtml(st, on) {
 // Each step has its own tick box (and its own rows to tick, for files), so the person can see the whole job and
 // allow all of it, some of it, or none. Returns the card, or null if this isn't one.
 const lower = (t) => (t && !/^[A-Z]{2}/.test(t) ? t[0].toLowerCase() + t.slice(1) : t);
-export function togetherApproval(ev, { add, answer }) {
-  if (!Array.isArray(ev.together)) return null;
-  const step = (it) => {
+// A step's details on a card (the exact command, the files to tick, the change), shared with the plan card (plan-card.js).
+export function stepBody(it) {
     let body = '';
     if (it.later) body = `${it.details ? `<pre class="cmd"><code>${esc(it.details)}</code></pre>` : ''}<p class="muted">Bob can't check this one until the steps before it are done (${esc(lower(String(it.later).replace(/[.\s]+$/, '')))}). He checks again when he gets there, and if anything doesn't match, he asks you again.</p>`;
     else if (it.plan) body = `<div class="hands-plan"><table><thead><tr><th></th><th>What</th><th>From</th><th>To</th></tr></thead><tbody>
@@ -140,6 +139,12 @@ export function togetherApproval(ev, { add, answer }) {
       </tbody></table></div>`;
     else if (it.command) body = `<pre class="cmd"><code>${esc(it.command)}</code></pre><p class="muted">In ${esc(it.cwd || '')}</p>`;
     else if (it.diff) body = `<pre class="diff"><code>${esc(it.diff)}</code></pre>`;
+    return body;
+}
+export function togetherApproval(ev, { add, answer }) {
+  if (!Array.isArray(ev.together) || ev.planCard) return null;
+  const step = (it) => {
+    const body = stepBody(it);
     return `<li class="together-step"><label class="together-head"><input type="checkbox" class="pick" data-n="${it.n}" checked aria-label="Allow step ${it.n}"><span><strong>${it.n}.</strong> ${esc(it.text)}</span></label>${body}</li>`;
   };
   const card = add('approval hands-card together', `<p><strong>Bob wants to do ${ev.together.length} things, all for one job.</strong> ${esc(ev.text)}</p>

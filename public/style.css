@@ -1023,6 +1023,13 @@ video.out-media { max-height: 240px; border-radius: calc(var(--r) * 0.75); }
 .together tr.tap td { height: 32px; }
 .together .together-head input { flex: none; margin-top: 1px; }
 .together .together-step:has(input.pick:not(:checked)) > :not(.together-head) { opacity: 0.5; }
+/* 1.5.78: the plan card before big jobs (plan-card.js) */
+.msg.plan-card { white-space: normal; }
+.plan-card .plan-step { border: 1px solid var(--line); border-radius: calc(var(--r) * 0.75); padding: 8px; min-height: 36px; }
+.plan-card .plan-step .tag { margin-left: 6px; }
+.plan-card .plan-change label { display: grid; gap: 6px; }
+.plan-card .plan-change textarea { width: 100%; box-sizing: border-box; min-height: 64px; font: inherit; margin-bottom: 8px; }
+.plan-card .row { gap: 8px; }
 
 /* 1.5.44: split bars in Now running: Bob's part by speed (green, yellow, red), everything else blue. */
 .now-gpu .meter.split { display: flex; height: 12px; border-radius: 3px 0 0 3px;

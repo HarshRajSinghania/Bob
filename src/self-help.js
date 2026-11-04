@@ -8,6 +8,7 @@ import { currentSession } from './sessions.js';
 import { gamingCard } from './gaming-card.js';
 import { brainMode } from './brain-mode.js';
 import { handsSettings, HANDS } from './hands-settings.js';
+import { checkinSettings } from './checkin-settings.js';
 
 const ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ' };
 export function plainText(html) {
@@ -31,6 +32,13 @@ export function findHelp(query, list = HELP, max = 3) {
 }
 
 const onOff = (v) => (v ? 'on' : 'off');
+// 1.5.78: "on, every day at 09:00, 2 of your own checks"
+function checkinsNow(cfg) {
+  const c = checkinSettings(cfg);
+  if (!c.enabled) return 'off';
+  const when = c.how === 'hours' ? `every ${c.hours === 1 ? 'hour' : `${c.hours} hours`}` : `${c.how === 'weekdays' ? 'every weekday' : 'every day'} at ${c.at}`;
+  return `on, ${when}, ${c.own.length} of your own check${c.own.length === 1 ? '' : 's'}`;
+}
 // What is set right now, in the words Settings uses. Window-only switches (Listen, Read aloud, Alerts) live in the
 // window, so they aren't listed.
 export function settingsNow(cfg) {
@@ -44,11 +52,13 @@ export function settingsNow(cfg) {
     `One brain (snappier): ${onOff(cfg.oneBrain === true)}`,
     `Launch Bob on start-up: ${onOff(cfg.autostart === true)}`,
     `Check for updates when Bob starts: ${onOff(cfg.updates?.autoCheck === true)}`,
+    `Show Bob's plan before big jobs: ${onOff(cfg.planFirst === true)}`,
     `Pick up where Bob left off after a restart: ${onOff(cfg.resumeJobs === true)}; Carry on unfinished downloads when Bob starts: ${onOff(cfg.downloads?.resumeOnStart === true || cfg.resumeJobs === true)}`,
     `Bob's engine: ${cfg.engine === 'ollama' ? 'Ollama' : "Bob's own (llama.cpp)"}`,
     `Voice: ${cfg.tts?.provider || 'Windows voice'}`,
     `Hands: ${hands}${h.enabled ? `; Let Bob work without asking ${onOff(h.free)}` : ''}`,
     `Housekeeping: ${onOff(cfg.housekeeping?.enabled === true)}`,
+    `Check-ins: ${checkinsNow(cfg)}`,
     `ComfyUI: ${onOff(cfg.workshop?.enabled === true)}`,
     `Cloud helpers on: ${cloud.length ? cloud.join(', ') : 'none'}`,
     `Keep the graphics card free for quick answers: ${onOff(cfg.quickOnCpu === true)}`,

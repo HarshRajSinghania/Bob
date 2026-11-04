@@ -14,6 +14,7 @@ import { createTopics } from './topics.js';
 import { createTidy } from './tidy.js';
 import { createHelp } from './help.js';
 import { handsApproval, togetherApproval, onHandsEvent } from './hands.js';
+import { planApproval } from './plan-card.js';
 import { createBrainBar } from './brain-bar.js';
 import { createHandsSwitch } from './hands-switch.js';
 import { installTips } from './tips.js';
@@ -510,6 +511,8 @@ function onEvent(ev) {
       endReply(ev);
       // The reviewer asks whether to quarantine Bob (quarantine.js, opt-in).
       if (quarantineCard(ev, { add, answer: (q) => post('/api/approve', { id: ev.id, allow: q }) })) { ping('Bob\'s reviewer needs you', ev.text); layout.needsYou(); break; }
+      // 1.5.78: Bob's plan for a big job, with its OKs on the same card (plan-card.js).
+      if (planApproval(ev, { add, answer: (allow, items, note) => post('/api/approve', { id: ev.id, allow, items, note }) })) { ping('Bob has a plan for you to check', ev.text); layout.needsYou(); break; }
       // 1.5.41: every OK a job needs, on one card (hands.js togetherApproval).
       if (togetherApproval(ev, { add, answer: (allow, items) => post('/api/approve', { id: ev.id, allow, items }) })) { ping('Bob needs your OK', `${ev.together.length} things for one job`); layout.needsYou(); break; }
       // Hands cards: rows to tick (files) or the exact command (run).
@@ -547,6 +550,14 @@ function onEvent(ev) {
       badge(true);
       try { if ('Notification' in window && Notification.permission === 'granted' && store.get('bob-alerts', '1') === '1') new Notification('Bob: reminder', { body: ev.text, icon: '/icons/bob-192.png', requireInteraction: true }); } catch {}
       break;
+    case 'checkin': {
+      // 1.5.78 Check-ins: only sent when something needs you (src/checkins.js). Nothing is changed by it.
+      const items = ev.items || [];
+      add('approval', `<p><strong>Check-in:</strong> ${items.length} thing${items.length === 1 ? '' : 's'} need${items.length === 1 ? 's' : ''} you.</p><ul>${items.map((i) => `<li><strong>${esc(i.title)}</strong>${i.detail ? ` <span class="muted">${esc(i.detail)}</span>` : ''}</li>`).join('')}</ul><div class="done">${esc(ev.at ? new Date(ev.at).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '')}</div>`); // same style as Settings, Check-ins
+      badge(true);
+      try { if ('Notification' in window && Notification.permission === 'granted' && store.get('bob-alerts', '1') === '1') new Notification('Bob: check-in', { body: items.map((i) => i.title).join('\n').slice(0, 300), icon: '/icons/bob-192.png' }); } catch {}
+      break;
+    }
     case 'error':
       endReply(ev);
       life.react('oops');
