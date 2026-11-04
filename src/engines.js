@@ -176,6 +176,10 @@ export function engineExe(cfg, e0) {
   for (const sub of ['', 'bin', 'Release']) for (const n of [e.exe, ...(e.aka || [])]) { const p = path.join(dir, sub, n); if (fs.existsSync(p)) return p; }
   // Linux: one the distro installed (llama-server, whisper-cli, piper from the package manager) counts too.
   if (e.os === 'linux') for (const n of [e.exe, ...(e.aka || [])]) { const p = onPath(n); if (p) return p; }
+  // 1.5.104: a program set by hand in config.json (llamacpp.exe, painter.sdcpp.exe, stt.exe, tts.exe) counts as here,
+  // so the Welcome list doesn't offer to download it again.
+  const set = { llamacpp: cfg.llamacpp?.exe, sdcpp: cfg.painter?.sdcpp?.exe, whispercpp: cfg.stt?.provider === 'whispercpp' ? cfg.stt?.exe : null, piper: cfg.tts?.exe }[e.id];
+  if (set && typeof set === 'string') { try { if (fs.statSync(set).isFile()) return set; } catch {} }
   return null;
 }
 

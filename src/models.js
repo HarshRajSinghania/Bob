@@ -155,6 +155,17 @@ export async function hfFileInfo(url, signal) {
   } catch { return null; }
 }
 
+// 1.5.104: the .gguf a brain was given by hand in config.json (llamacpp.models), if that file is really there.
+export function configuredGguf(cfg, entry) {
+  const map = cfg?.llamacpp?.models || {};
+  for (const key of [entry?.id, entry?.ollama, entry?.ollama && `${entry.ollama}:latest`].filter(Boolean)) {
+    const v = map[key];
+    const p = typeof v === 'string' ? v : v?.gguf;
+    if (p && typeof p === 'string' && /\.gguf$/i.test(p)) { try { if (fs.statSync(p).isFile()) return p; } catch {} }
+  }
+  return null;
+}
+
 export class ModelShop {
   constructor(cfg, emit, engine) {
     this.cfg = cfg;
@@ -258,9 +269,11 @@ export class ModelShop {
     const need = (entry.files || []).length;
     const have = Object.keys(located).length;
     let state = 'missing';
-    if (pulled || (need && have === need)) state = 'installed';
+    // 1.5.104: a brain set by hand in config.json (llamacpp.models, id or Ollama name -> its .gguf) counts as here.
+    const byHand = !pulled && !(need && have === need) && configuredGguf(this.cfg, entry);
+    if (pulled || (need && have === need) || byHand) state = 'installed';
     else if (have) state = 'partial';
-    const where = pulled ? ['Ollama'] : [...new Set(Object.values(located).map(ownerOf))];
+    const where = pulled ? ['Ollama'] : byHand ? ['config.json'] : [...new Set(Object.values(located).map(ownerOf))];
     const canDownload = Boolean((entry.ollama && ollama) || need);
     return { state, where, located, canDownload };
   }

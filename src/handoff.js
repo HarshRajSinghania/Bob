@@ -167,6 +167,13 @@ export function waitLine(holder, mins = 0) {
   const n = Math.max(0, Math.floor(mins));
   return `⏳ The graphics card is busy: ${holder}. Nothing for you to do; I carry on by myself when it's free. (waiting ${n} min)${n >= 5 ? ` ${WAIT_STILL}` : ''}`;
 }
+// 1.5.104: a chat that waits in the queue behind a picture, clip, song or sound gets the same kind of ⏳ line (it used
+// to get the older "I'm still on the last job" note, and "ok" after it was queued as a new job).
+export const NOTHING_TO_OK_BUSY = 'There\'s nothing to OK right now. I\'m still on the last job, and I\'ll answer you as soon as it\'s done.';
+export function queuedLine(doing = '') {
+  const d = String(doing || '').trim();
+  return `⏳ I'm still on the last job${d ? ` (${d})` : ''}. Nothing for you to do; I'll answer this as soon as it's done. If it can't wait, stop that job in Tasks.`;
+}
 export const isBareOk = (text) => /^\s*(ok(ay)?|yes|yep|yeah|go( ahead)?|sure|y)\s*[.!]*\s*$/i.test(String(text || ''));
 
 // ---------- The gate ----------

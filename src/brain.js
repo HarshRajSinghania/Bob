@@ -43,7 +43,7 @@ import { gate as qGate, after as qAfter, maybeAsk as qAsk, noteStrike, copyHeld 
 import { wantsPictureEdit, recentPicture, editHint } from './intent.js';
 import { SAVE_AS, namedType, saveAs } from './save-as.js';
 import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUseTools, tidySchema, STICKY_TURNS, toolboxPrompt, saysCant } from './toolbox.js';
-import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff, carryOnPlan, carryOnLine, finishedSteps, MAX_AUTO_RESUMES, isBareOk, NOTHING_TO_OK } from './handoff.js';
+import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff, carryOnPlan, carryOnLine, finishedSteps, MAX_AUTO_RESUMES, isBareOk, NOTHING_TO_OK, NOTHING_TO_OK_BUSY, queuedLine } from './handoff.js';
 import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
 import { WEB_TOOLS, WEB_OFF, webOn, webPrompt, linkPrompt, findLinks, refersToLink, linkTurn } from './web.js';
@@ -1050,12 +1050,15 @@ export class Brain {
       ctx.made = null;
       ctx.ledger?.begin?.(name, args); // 1.5.38: so a restart knows this step was cut off
       let text;
+      ctx.offeredNow = false;
       try { text = String(await tool.run(args, ctx)); }
       catch (e) { if (ctx.signal.aborted) throw e; text = `Error: ${e.message}`; }
       // The system checks it really happened (verify.js): a missing or broken output, or an action that didn't take,
       // gets one more go before Bob is told it failed. Approvals aren't asked twice.
       if (ctx.ledger) ctx.ledger.toolStart = startedAt;
-      let v = await this.checkTool(name, args, text, ctx);
+      // 1.5.104: the tool put a Set it up card under the chat instead of doing the job. That's an answer, not a
+      // failure: no second try (it made a second card) and no "didn't work" note.
+      let v = ctx.offeredNow ? { ok: true } : await this.checkTool(name, args, text, ctx);
       if (v.retry && !ctx.signal.aborted) {
         this.log('handoff', `${name} didn't take (${v.why || 'no proof'}); trying it once more`);
         ctx.ledger?.step('retry', { what: name, why: v.why || '' }).done();
@@ -1328,9 +1331,12 @@ export class Brain {
     this.lastActivity = Date.now();
     // 1.5.97: "ok" while a job only waits for the graphics card (no card open) gets a plain answer at once, instead of
     // queueing behind the wait it was meant to answer.
-    if (!extra.guest && !(attach || []).length && isBareOk(text) && !this.approvals.size && this.gate?.waitingNow > 0) {
-      setTimeout(() => this.broadcast({ type: 'busy-note', sessionId, text: NOTHING_TO_OK }), 0);
-      return { jobId: null, turnId: null, ahead: 0, answered: NOTHING_TO_OK };
+    // 1.5.104: also while a chat of this session already waits behind a picture, clip, song or sound.
+    const queuedHere = this.state.state === 'painting' && this.queue.some((j) => j.state === 'waiting' && j.sessionId === sessionId && j.queuedLine);
+    if (!extra.guest && !(attach || []).length && isBareOk(text) && !this.approvals.size && (this.gate?.waitingNow > 0 || queuedHere)) {
+      const answer = this.gate?.waitingNow > 0 ? NOTHING_TO_OK : NOTHING_TO_OK_BUSY;
+      setTimeout(() => this.broadcast({ type: 'busy-note', sessionId, text: answer }), 0);
+      return { jobId: null, turnId: null, ahead: 0, answered: answer };
     }
     this.housekeeper?.pause(); // anything the housekeeper was asking the brain gives way at once
     this.endMore(null, 'new job'); // a new message answers "Make another picture?"; the job loads what it needs
@@ -1342,7 +1348,7 @@ export class Brain {
     // 1.5.37: a message sent while Bob is making a picture, song or clip waits for the card. Say so straight away
     // (a plain line, no brain needed), so a long job never looks like Bob has stopped answering.
     const busy = this.busyLine(job);
-    if (busy) setTimeout(() => this.broadcast({ type: 'busy-note', sessionId, jobId: job.id, text: busy }), 0);
+    if (busy) { job.queuedLine = true; setTimeout(() => this.broadcast({ type: 'waiting-line', sessionId, jobId: job.id, id: `queued-${job.id}`, text: busy }), 0); }
     queueMicrotask(() => this.pump());
     const tip = autoSessionOn(this.cfg) ? null : suggestSession(this.cfg, this.queue); // 1.5.41: Bob picks, so no tips
     if (tip && this.suggested !== tip.id) { this.suggested = tip.id; this.broadcast({ type: 'suggest', ...tip }); }
@@ -1359,8 +1365,7 @@ export class Brain {
     if (!this.turns.size || this.state.state !== 'painting') return null;
     if (sideOk(this, job)) return null; // 1.5.41: it's answered beside the job instead
     if (laneOf(this.cfg, job) !== 'talk' || !this.turns.has('talk')) return null; // it runs in its own lane: no wait
-    const what = String(this.state.detail || '').trim();
-    return `I'm still on the last job${what ? ` (${what})` : ''}. I'll answer this as soon as it's done. If this can't wait, stop it in Tasks.`;
+    return queuedLine(String(this.state.detail || '').trim());
   }
 
   cancelJob(id) {
@@ -1413,6 +1418,9 @@ export class Brain {
     const jobId = ctx?.job?.id || null;
     // A job from another of your Bobs: the card would land on the wrong replicant matrix, so just say it can't here.
     if (ctx?.job?.guest) return quiet ? '' : `Not here: this replicant matrix can't ${NEEDS[what]?.say || 'do that'} yet. Say so; ${ctx.job.guest.from} can do it or set it up there.`;
+    // 1.5.104: one request, one card. A second offer for the same thing in the same turn (the tool, then Bob's own
+    // offer_setup) shows nothing new.
+    if (ctx && (ctx.offered ||= new Set()).has(what)) { ctx.offeredNow = true; return quiet ? '' : `The card for this is already under the chat. Don't call offer_setup again and don't repeat what you said: if you've told ${who} about the card, stop here.`; }
     if (NEEDS[what]) {
       const n = NEEDS[what];
       if (!this.shop) return quiet ? '' : `Not done: this replicant matrix can't ${n.say} yet. Say so in one line and offer to write the prompt instead.`;
@@ -1420,6 +1428,7 @@ export class Brain {
       const plan = planFor(what, { list, hw });
       if (plan.kind === 'none') return quiet ? '' : `Not done: this replicant matrix can't ${n.say}: ${plan.why} Tell ${who} that in one line and offer to write the prompt instead. Don't call the tool again now.`;
       const id = (this.offers ||= new SetupOffers()).add({ plan, jobId });
+      if (ctx) { (ctx.offered ||= new Set()).add(what); ctx.offeredNow = true; }
       ctx?.emit?.({ type: 'offer-setup', id, need: what, kind: plan.kind, say: n.say, what: n.what, items: plan.items || [], size: plan.size || '', sizeGB: plan.sizeGB || 0, freeGB: plan.freeGB ?? null, short: plan.short || 0, note: plan.note || '', model: plan.model || null, carryOn: Boolean(jobId) });
       this.log('setup', `offered ${what}: ${plan.kind} ${(plan.ids || []).join(', ') || plan.model?.id || ''}`);
       const say = plan.kind === 'equip'
@@ -1431,6 +1440,7 @@ export class Brain {
     if (!sw) return quiet ? '' : SWITCH_KEYS.includes(what) ? 'That setting is already on. Go ahead with the job.' : `There's no setting called ${what}. Settings you can offer: ${this.switchesOff().map((x) => x.key).join(', ') || 'none (everything is on)'}.`;
     if (sw.held) return `The ${sw.name} Hand is stopped with ${sw.where}. Tell ${who} in one line: press that switch again to let Hands carry on, then ask again. Don't offer anything else.`;
     const id = (this.offers ||= new SetupOffers()).add({ sw: what, jobId });
+    if (ctx) { (ctx.offered ||= new Set()).add(what); ctx.offeredNow = true; }
     ctx?.emit?.({ type: 'offer-setup', id, need: what, kind: 'switch', name: sw.name, where: sw.where, what: sw.what, privacy: sw.privacy || '', free: Boolean(sw.free), folders: Boolean(sw.folders), carryOn: Boolean(jobId) });
     this.log('setup', `offered to switch on ${what}`);
     return `Not done yet: "${sw.name}" is off. A card with a "Switch it on" button is now under this chat. Tell ${who} in one or two short lines what it lets you do and that one press switches it on${sw.folders ? ' (they still tick which folders I may use, in Settings, Hands)' : ''}, then you ${jobId ? 'carry on with this job by yourself' : 'can do it'}. Don't call this tool again now.`;
@@ -2233,7 +2243,10 @@ export class Brain {
     const unloaded = await this.gate.need({ id: 'painter', kind }, { signal: ctx.signal, emit: ctx.emit });
     this.setState('painting', video ? 'Filming' : 'Painting', null);
     this.log(kind, `unloaded ${unloaded.join(', ') || 'nothing'}; painting with ${this.painter?.paint ? 'the picture engine' : 'sd.cpp'}`);
-    const onProgress = (n, total) => this.setState('painting', `${video ? 'Filming' : 'Painting'} ${n}/${total}`, null);
+    // 1.5.104: sd.cpp prints a full bar while it loads the model (for example 82/82). Until a real step shows
+    // (fewer than all done), keep "Painting" so the start of a picture doesn't read as finished.
+    let stepping = false;
+    const onProgress = (n, total) => { if (!stepping && n >= total) return; stepping = true; this.setState('painting', `${video ? 'Filming' : 'Painting'} ${n}/${total}`, null); };
     const type = video ? 'video' : 'image';
     const { file, name } = await withRetry(async () => {
       const made = this.painter?.paint ? await this.painter.paint(kind, args, { signal: ctx.signal, onProgress }) : await paint(this.cfg, kind, args, { signal: ctx.signal, onProgress });
