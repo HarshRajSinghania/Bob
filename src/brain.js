@@ -533,6 +533,13 @@ export class Brain {
     if (state === 'painting' && was !== 'painting' && this.cfg?.chatWhileBusy !== false && this.queue?.some((j) => j.state === 'waiting')) setTimeout(() => this.pump(), 0);
   }
 
+  // 1.5.111: the waiting is over (the job started, or was stopped), so its ⏳ line leaves the chat.
+  waitOver(j) {
+    if (!j?.queuedLine) return;
+    j.queuedLine = false;
+    this.broadcast({ type: 'waiting-line-done', sessionId: j.sessionId, jobId: j.id, id: `queued-${j.id}` });
+  }
+
   log(kind, text) {
     const stamp = new Intl.DateTimeFormat('en-CA', { timeZone: this.cfg.timeZone, dateStyle: 'short', timeStyle: 'short', hour12: false }).format(new Date());
     const line = `- ${stamp} | ${kind} | ${String(text).replace(/\s+/g, ' ').slice(0, 200)}\n`;
@@ -1394,6 +1401,7 @@ export class Brain {
     if (j.state === 'working') return this.stop(j.id);
     if (j.state !== 'waiting') return false;
     j.state = 'cancelled';
+    this.waitOver(j);
     this.saveQueue();
     return true;
   }
@@ -1590,7 +1598,7 @@ export class Brain {
       seen.add(lane);
       if (this.turns.has(lane)) continue;
       if (!besideOk(this, job, lane)) continue; // 1.5.40: waits for the other lane, see besideOk
-      job.side = lane === SIDE_LANE; job.beside = job.side && beside; job.state = 'working'; job.startedAt = Date.now(); job.steps = [];
+      job.side = lane === SIDE_LANE; job.beside = job.side && beside; job.state = 'working'; job.startedAt = Date.now(); job.steps = []; this.waitOver(job);
       this.saveQueue();
       this.startTurn(job.sessionId, job.text, job.refs, job, lane);
     }

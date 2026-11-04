@@ -10,7 +10,7 @@ import { configuredGguf } from '../src/models.js';
 import { engineExe, ENGINES } from '../src/engines.js';
 let pass = 0, fail = 0;
 const check = (name, ok, extra = '') => { if (ok) { pass++; console.log('PASS', name); } else { fail++; console.log('FAIL', name, extra); } };
-const read = (f) => fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
+const read = (f) => fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n'); // CRLF checkouts (Windows CI)
 
 // 1. One request, one card: the tool's offer, its retry and Bob's own offer_setup make one card between them.
 {
@@ -81,6 +81,16 @@ check('the models list says where a hand-set brain is', /where = pulled \? \['Ol
   for (const d of ['Loading the picture engine', 'Painting 1/20', 'Painting 1/20', 'Painting 2/20']) Brain.prototype.setState.call(fake, 'painting', d);
   const lines = sent.filter((e) => e.type === 'waiting-line');
   check('the waiting ⏳ line moves on from loading to the steps, once per change, in place', lines.length === 2 && lines.every((e) => e.id === 'queued-w') && /making a picture, step 1 of 20/.test(lines[0].text) && /step 2 of 20/.test(lines[1].text), JSON.stringify(lines));
+}
+{
+  // 1.5.111: once the waiting job starts (or is stopped), its ⏳ line leaves the chat.
+  const sent = [];
+  const j = { id: 'w', sessionId: 's', queuedLine: true };
+  const fake = { broadcast: (e) => sent.push(e) };
+  Brain.prototype.waitOver.call(fake, j); Brain.prototype.waitOver.call(fake, j); Brain.prototype.waitOver.call(fake, { id: 'n' });
+  check('the ⏳ line is taken away once, and only for a job that had one', sent.length === 1 && sent[0].type === 'waiting-line-done' && sent[0].id === 'queued-w');
+  check('it happens when the job starts and when it is stopped', /job\.state = 'working'; job\.startedAt = Date\.now\(\); job\.steps = \[\]; this\.waitOver\(job\);/.test(brainSrc) && /j\.state = 'cancelled';\n    this\.waitOver\(j\);/.test(brainSrc));
+  check('the chat removes the line', /case 'waiting-line-done': \{[^}]*waitLines\.get\(ev\.id\)\?\.remove\(\);/.test(read('public/app.js')));
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exitCode = fail ? 1 : 0;

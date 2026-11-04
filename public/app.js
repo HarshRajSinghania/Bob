@@ -523,6 +523,11 @@ function onEvent(ev) {
       scrollDown();
       return;
     }
+    case 'waiting-line-done': { // 1.5.111: the wait is over, so the ⏳ line goes
+      waitLines.get(ev.id)?.remove();
+      waitLines.delete(ev.id);
+      return;
+    }
     case 'busy-note': // 1.5.37: your message waits behind a picture, song or clip; Bob says so at once
       note(ev.text, 'announce');
       scrollDown();

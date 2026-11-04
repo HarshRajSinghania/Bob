@@ -18,6 +18,7 @@ const GB = 1024 ** 3;
 const job = (id, state, extra = {}) => ({ id, text: `job ${id}`, state, at: Date.now(), sessionId: 's', kind: 'chat', ...extra });
 const now = Date.now();
 const fakeBrain = (over = {}) => ({
+  waitOver() {}, // 1.5.111: pump takes the ⏳ line away when a job starts
   cfg: { session: 'normal', engine: 'llamacpp', chatWhileBusy: true, models: { small: 'small:4b', bob: 'big:26b' } },
   engine: { besideServer() {}, current: 'big:26b', currentCpu: false, resolve: () => ({ gguf: '/x' }) },
   gate: { brainBytes: () => 6 * GB },
