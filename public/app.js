@@ -126,6 +126,15 @@ function add(cls, html) {
   return el;
 }
 function note(text, kind = '') { return add(`note ${kind}`, esc(text)); }
+// 1.5.91 the Set it up card (the words were signed off by the settings thread; the phone app has the same card).
+function setupOfferHtml(ev) {
+  const gbs = (n) => (n >= 1 ? `${(+n).toFixed(n >= 10 ? 0 : 1)} GB` : `${Math.max(1, Math.round(n * 1000))} MB`);
+  const after = ev.carryOn ? ' Then I carry on with what you asked.' : '';
+  if (ev.kind === 'switch') return `<strong>"${esc(ev.name)}" is off</strong><span>It lets me ${esc(ev.what)}.${ev.privacy ? ' ' + esc(ev.privacy) : ''}${ev.free ? ' "Let Bob work without asking" is on, so it won\'t ask before each step.' : ev.name.startsWith('Let Bob use Hands') ? ' I still ask before every step.' : ''}${ev.folders ? ' Then tick the folders I may use in Settings, Hands.' : ''}${esc(after)} You can switch it off again in ${esc(ev.where)}.</span><div class="row"><button type="button" class="get">Switch it on</button><button type="button" class="link">Not now</button></div>`;
+  if (ev.kind === 'equip') return `<strong>I can't ${esc(ev.say)} yet</strong><span>${esc(ev.model?.name || '')} is already on this replicant matrix, it just isn't in its slot.${esc(after)}</span><div class="row"><button type="button" class="get">Use it</button><button type="button" class="link">Not now</button></div>`;
+  const items = (ev.items || []).map((i) => `<li>${esc(i.name)} <span class="muted">· ${gbs(i.sizeGB)}${i.engine ? ' · program' : ''}${i.license ? ` · ${esc(i.license)}` : ''}</span></li>`).join('');
+  return `<strong>I can't ${esc(ev.say)} yet</strong><span>I need ${esc(ev.what)} first. One press gets it, sets it up and puts it in its slot.${esc(after)}</span><ul>${items}</ul><span class="muted">About ${esc(ev.size)} in all${ev.freeGB != null ? `, ${ev.freeGB} GB free` : ''}. One time only.${ev.note ? ' ' + esc(ev.note) : ''}</span>${ev.short ? `<span class="error">Not enough free disk: free up ${ev.short} GB first, then ask me again.</span>` : ''}<div class="row"><button type="button" class="get">Set it up (about ${esc(ev.size)})</button><button type="button" class="link">Not now</button></div>`;
+}
 
 function ensureReply(ev) {
   const k = ev?.turnId || '-';
@@ -462,6 +471,29 @@ function onEvent(ev) {
       no.onclick = () => el.remove();
       return;
     }
+    case 'offer-setup': { // 1.5.91: something a job needs isn't set up (or is switched off). Nothing changes until a button is pressed.
+      const el = add('setup-offer', setupOfferHtml(ev));
+      const [yes, no] = el.querySelectorAll('button');
+      const answer = async (ok) => {
+        yes.disabled = no.disabled = true;
+        try {
+          const r = await api('/api/setup/answer', { id: ev.id, yes: ok });
+          el.remove();
+          if (!r.ok) note(r.why || 'That card is too old now. Ask me again.', 'error');
+          else if (r.done === 'download') note(`Getting ${r.names.join(' and ')} (about ${r.size}). Progress is in Downloads.${ev.carryOn ? ' Your request waits in Tasks, and I carry on by myself as soon as it\'s in.' : ''}`);
+          else if (r.done === 'equip') note(ev.carryOn ? 'Done, it\'s in its slot. Carrying on with your request.' : 'Done, it\'s in its slot.');
+          else if (r.done === 'switch') note(ev.carryOn ? `Switched on "${ev.name}". Carrying on with your request.` : `Switched on "${ev.name}". You can switch it off again in ${ev.where}.`);
+        } catch (e) { yes.disabled = no.disabled = false; note(e.message, 'error'); }
+      };
+      yes.onclick = () => answer(true);
+      no.onclick = () => answer(false);
+      if (ev.short) yes.disabled = true;
+      scrollDown();
+      return;
+    }
+    case 'equipped': // 1.5.91: a download finished and Bob put it in its slot himself
+      if (Array.isArray(ev.items) && ev.items.length) note(`Put in its slot: ${[...new Set(ev.items.map((i) => i.value))].join(', ')}.`);
+      return;
     case 'busy-note': // 1.5.37: your message waits behind a picture, song or clip; Bob says so at once
       note(ev.text, 'announce');
       scrollDown();

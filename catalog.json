@@ -1287,7 +1287,7 @@
       "what": "Natural-sounding voices that run on the processor: Michael, George, Lewis, Heart, Emma and more. Pick the voice in Settings after it's in. Bob's pick for his own voice.",
       "sizeGB": 0.354,
       "vramGB": 0,
-      "license": "Apache-2.0 (Kokoro-82M); MIT (ONNX export)",
+      "license": "Apache 2.0 + MIT",
       "commercial": true,
       "pick": "best",
       "needs": "Kokoro voices",
@@ -1709,6 +1709,7 @@
         "flux2-klein-4b-q4": ["edit"],
         "wan2.2-ti2v-5b-q4": ["video"]
       },
+      "bigRam": { "minRamGB": 32, "models": ["gemma4-26b", "qwen3.8-27b"], "slots": { "gemma4-26b": ["deep", "office"], "qwen3.8-27b": ["deep"] }, "notes": { "gemma4-26b": "for Office and Deep thinking: fits in 32 GB of RAM, slower than the everyday brain, so it is left unticked", "qwen3.8-27b": "for Deep thinking: fits in 32 GB of RAM but reads all of itself for every word, so it is slow on built-in graphics (a few words a second). Left unticked" } },
       "untick": ["wan2.2-ti2v-5b-q4"],
       "notes": {
         "qwen3-4b": "the everyday brain: small and quick on built-in graphics",

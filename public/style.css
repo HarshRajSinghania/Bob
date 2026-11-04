@@ -447,6 +447,10 @@ button.danger { background: #a8432f; color: #fff; border-color: #a8432f; }
 .topic-msgs li > span:nth-child(2) { flex: 1; }
 .topic-msgs .grip { color: var(--muted); user-select: none; }
 .suggest-note { border-left: 3px solid var(--accent); padding-left: 8px; }
+/* 1.5.91 the Set it up card */
+.setup-offer { align-self: center; max-width: 520px; display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--accent); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.setup-offer ul { margin: 0; padding-left: 18px; }
+.setup-offer .row { display: flex; gap: 8px; flex-wrap: wrap; }
 .chat-list, .search-hits, .tidy-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .chat-list li, .search-hits li { border: 1px solid var(--line); border-radius: var(--r); padding: 6px 8px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; align-items: center; }
 .hit-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: calc(var(--r) * .5); }

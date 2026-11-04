@@ -149,3 +149,11 @@ Update this file in the same handover as any change to settings.
 | Where | Setting / text | Default | Status |
 |---|---|---|---|
 | Everywhere (desktop, phone, Help, Bob's chat lines) | The machine Bob runs on is his "replicant matrix", with a spec line beside the first mention on a screen; "(your computer)" after leaves/stays lines. Renamed above: This replicant matrix and updates, Check this replicant matrix, Speed for this replicant matrix, Fits your replicant matrix, Let my other replicant matrices in (was Let my phone in / Let my other devices in). Glossary "Replicant matrix", FAQ "What's a replicant matrix?", Welcome line. Model prompts still say PC on purpose. Spec: replicant-matrix-WORDING.md | — | ok (owner's exception to rule 1) |
+
+## Bob ready in a few clicks (owner's ask, 2026-11-04)
+
+| Where | Setting / text | Default | Status |
+|---|---|---|---|
+| Welcome: Get me ready | One list: Programs I run on, then Models, each with its own tick box, job (slot names), size and licence; spec line on its own; ticking a model ticks its program; warning when a needed program is unticked; "About X GB to download"; Get Bob ready (about X GB); Pause, Stop, Resume; Skip for now. Replaces Step 1 and Step 2 | recommended picks ticked; music (about 22 GB with its tools) and, with 32 GB RAM on built-in graphics, Gemma 4 26B and Qwen 3.8 27B listed unticked; nothing downloads until the button | ok (approved with edits) |
+| Chat: Set it up / Use it / Switch it on card | "I can't ___ yet" with what's needed, sizes and free disk: Set it up (about X GB) downloads, fills the slot and carries on with the job; Use it fills the slot when the model is already here; Switch it on for Let Bob search the web (with its privacy line), Advanced workshop (ComfyUI) or a Hand ("Let Bob use Hands, <Hand>", "It lets me <can line>"); Not now. Same card on the phone. A Hand stopped with ✋ is never switched on from a card | nothing changes until a button is pressed | ok (approved with edits) |
+| Bob's own Python | When there's no Python 3.12 or 3.11 for voices or the audio tools: Windows gets the PSF-signed Python 3.12.10 package from nuget.org (pinned, sha256-checked) into Bob's folder; Mac and Linux get uv's standalone Python 3.12 build | only as part of a setup the owner pressed | ok (approved with edits) |

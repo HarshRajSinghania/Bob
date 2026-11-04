@@ -92,6 +92,16 @@ const shop = new ModelShop(cfg, (ev) => { broadcast(ev); if (ev?.type === 'downl
 // 1.5.24: the card's size, for picture settings matched to it (only used when that switch is on).
 if (!cfg.gpuVramGB) shop.hardware().then((h) => { if (h?.gpu?.vramGB && !h.gpu.integrated) cfg.cardGB = h.gpu.vramGB; /* 1.5.71: built-in graphics aren't a card for pictures */ if (h?.gpu?.integrated) cfg.sharedGraphics = true; /* 1.5.79: but they get their own picture settings */ }).catch(() => {});
 brain.shop = shop; // so Bob can tell when a model is on this replicant matrix but not assigned to a job
+// 1.5.91: Bob fills a slot himself once its download is in (Get Bob ready, the chat's Set it up card): the same saves
+// the window's Equip makes.
+shop.equipHook = async (slot, value) => {
+  if (slot.how === 'brain') return saveSettings(cfg, { sessionBrains: { ...sessionBrains(cfg), [slot.id]: value } });
+  if (slot.how === 'embed') { saveSettings(cfg, { housekeeping: cleanHousekeeping({ ...hkSettings(cfg), embedModel: value }) }); brain.housekeeper.noEmbed = false; return; }
+  const patch = await shop.setRole(slot.id, value);
+  brain.log('settings', `${slot.id} -> ${value} (put in its slot when its download finished)`);
+  return patch;
+};
+shop.applyEquip().catch(() => {}); // anything finished while Bob was closed
 startSchedules(brain); // ticks once a minute; nothing is ever due while the Schedules hand is off
 startCheckins(brain); // 1.5.78: ticks once a minute; does nothing while Check-ins are off
 telegram = startTelegram(brain); // does nothing (no request at all) unless Talk to Bob on Telegram is on and a bot token is set
@@ -352,6 +362,7 @@ const server = http.createServer(async (req, res) => {
         if (p === '/api/models/download') {
           const ids = [].concat(b.ids || b.id || []).map(String);
           if (!ids.length) return send(res, 400, { error: 'Nothing to download.' });
+          if (b.equip && typeof b.equip === 'object') shop.planEquip(b.equip); // 1.5.91: { modelId: [slot ids] }, filled when each is in
           const started = await shop.download(ids[0], { queue: ids.slice(1) });
           // 1.5.38: pressed from the chat's "Download it" button: that message waits in Tasks and runs once it's done.
           if (typeof b.thenJob === 'string') brain.waitForDownload(b.thenJob, ids[0]);
@@ -480,6 +491,11 @@ const server = http.createServer(async (req, res) => {
         }
       } catch (e) { return send(res, 409, { error: e.message }); }
       return send(res, 404, { error: 'not found' });
+    }
+    // 1.5.91: the chat's Set it up card (the phone's too, like approval cards: the card's id is the permission).
+    if (req.method === 'POST' && p === '/api/setup/answer') {
+      const b = await body(req);
+      try { return send(res, 200, await brain.answerSetup(String(b.id || ''), b.yes === true)); } catch (e) { return send(res, 200, { ok: false, why: e.message }); }
     }
     if (req.method === 'POST' && p === '/api/approve') {
       const { id, allow, rows, items, note } = await body(req);

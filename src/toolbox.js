@@ -10,7 +10,7 @@ import { HANDS, handOn, handOffWhy } from './hands-settings.js';
 import { makerWords, makerWhat } from './selftools.js';
 import { mcpWords, mcpWhat } from './mcp.js';
 
-export const CORE = ['notice_board', 'remember', 'reminders', 'list_folder', 'read_file', 'web_search', 'fetch_page', 'bob_help', 'ask_specialist', 'show_made', 'pick_session', 'use_tools'];
+export const CORE = ['notice_board', 'remember', 'reminders', 'list_folder', 'read_file', 'web_search', 'fetch_page', 'bob_help', 'ask_specialist', 'show_made', 'pick_session', 'offer_setup', 'use_tools'];
 
 // Groups Bob can add. `what` is what Bob reads in use_tools; `words` is the cheap pre-check on the user's message.
 const WORK_GROUPS = {
@@ -78,7 +78,8 @@ export function groupsFor(brain) {
     const usable = x.tools.filter((n) => brain.usable(n));
     if (!usable.length) continue;
     out[id] = { ...x, tools: usable };
-    if (id === 'pictures') out[id].what = usable.map((n) => PICTURE_WHAT[n]).filter(Boolean).join(', ');
+    // 1.5.91: a maker that isn't set up is still listed (calling it shows the Set it up card), and says so.
+    if (id === 'pictures') out[id].what = usable.map((n) => PICTURE_WHAT[n] && (brain.notSetUp?.(n) ? `${PICTURE_WHAT[n]} (not set up yet: calling it offers to set it up)` : PICTURE_WHAT[n])).filter(Boolean).join(', ');
   }
   return out;
 }

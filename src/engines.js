@@ -69,7 +69,7 @@ export const ENGINES = [
   },
   {
     // uv builds Bob a private Python for music and sound effects; nothing touches other Pythons on the PC.
-    id: 'audio', name: 'Audio tools', what: 'Music (ACE-Step 1.5) and sound effects (AudioLDM 2). About 12 GB with the models. Needs Python 3.12 from python.org installed first (free); Bob keeps his own copy of the packages.',
+    id: 'audio', name: 'Audio tools', what: 'Music (ACE-Step 1.5) and sound effects (AudioLDM 2). About 12 GB with the models. Bob keeps his own copy of the packages, and his own Python if this replicant matrix has none.',
     repo: 'astral-sh/uv', dir: 'audio-workshop', exe: 'uv.exe',
     nvidia: [], other: [/^uv-x86_64-pc-windows-msvc\.zip$/],
     runtime: () => null,
@@ -80,7 +80,7 @@ export const ENGINES = [
   },
   {
     // Same uv as the audio tools; only the small Kokoro package is added. The voice files come from Voice & conversation, Talking.
-    id: 'kokoro', name: 'Kokoro voices', what: 'Bob\'s voice: Kokoro-82M (Apache-2.0), natural-sounding and small, runs on the processor. About 100 MB, plus a 330 MB voice pack from Voice & conversation, Talking. Needs Python 3.12 or 3.11.',
+    id: 'kokoro', name: 'Kokoro voices', what: 'Bob\'s voice: Kokoro-82M (Apache-2.0), natural-sounding and small, runs on the processor. About 100 MB, plus a 330 MB voice pack from Voice & conversation, Talking. Uses Python 3.12 or 3.11 if it\'s here; otherwise Bob gets his own (about 15 MB).',
     repo: 'astral-sh/uv', dir: 'audio-workshop', exe: 'uv.exe',
     nvidia: [], other: [/^uv-x86_64-pc-windows-msvc\.zip$/],
     runtime: () => null,
@@ -90,7 +90,7 @@ export const ENGINES = [
     ready: (cfg) => voicesReady(cfg).kokoro
   },
   {
-    id: 'chatterbox', name: 'Chatterbox voice', what: 'Bob\'s voice: Chatterbox (MIT, Resemble AI). Very natural, can copy a voice from a short recording, uses the graphics card (about 4 GB while talking). About 4 GB to set up, plus 3 GB of model on first use. Needs Python 3.12 or 3.11.',
+    id: 'chatterbox', name: 'Chatterbox voice', what: 'Bob\'s voice: Chatterbox (MIT, Resemble AI). Very natural, can copy a voice from a short recording, uses the graphics card (about 4 GB while talking). About 4 GB to set up, plus 3 GB of model on first use. Uses Python 3.12 or 3.11 if it\'s here; otherwise Bob gets his own (about 15 MB).',
     repo: 'astral-sh/uv', dir: 'audio-workshop', exe: 'uv.exe',
     nvidia: [], other: [/^uv-x86_64-pc-windows-msvc\.zip$/],
     runtime: () => null,

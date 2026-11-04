@@ -96,7 +96,7 @@ hk3.ownEmbed?.stop(); hk3.stop();
 {
   const cellarSrc = fs.readFileSync(new URL('../public/cellar.js', import.meta.url), 'utf8');
   const { engineStatus, ENGINE_GB } = await import('../src/engines.js');
-  check(/About \$\{gb\(total\)\} to download\$\{engNames\.length \? `, including the programs they run on/.test(cellarSrc) && /engs\.reduce\(\(t, e\) => t \+ \(e\.sizeGB/.test(cellarSrc), 'Welcome: "About X GB to download, including the programs they run on (...)", and X counts them');
+  check(/About <strong>\$\{gb\(order\.sizeGB\)\}<\/strong> to download/.test(cellarSrc) && /<h4>Programs I run on<\/h4>/.test(cellarSrc), 'Welcome: "About X GB to download", the programs listed with the models, and X counts them (1.5.91)');
   check(ENGINE_GB.llamacpp > 0 && engineStatus({ agentDir: '/nowhere' }).every((e) => e.sizeGB > 0), 'every engine has a download size');
 }
 

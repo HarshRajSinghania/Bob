@@ -327,6 +327,7 @@
     if (ev.type === 'approval' && String(ev.sessionId || '').startsWith('phone-')) return approvalCard(base, ev);
     if (ev.type === 'checkin') return checkinCard(base, ev);
     if (ev.type === 'howto-offer' && String(ev.sessionId || '').startsWith('phone-')) return howtoCard(base, ev);
+    if (ev.type === 'offer-setup' && String(ev.sessionId || '').startsWith('phone-')) return setupCard(base, ev); // 1.5.91
     if (ev.type === 'approval-result') { document.querySelector(`[data-approval="${CSS.escape(String(ev.id))}"]`)?.remove(); return; }
     if (!mine) return;
     if (ev.type === 'start') current.turnId = ev.turnId;
@@ -422,6 +423,40 @@
       el('ol', {}, steps.map((t) => el('li', { text: String(t) }))),
       el('div', { class: 'row' },
         el('button', { class: 'main', text: 'Save how-to', onclick: () => answer(true) }),
+        el('button', { text: 'Not now', onclick: () => answer(false) })));
+    $('chat').append(card);
+    card.scrollIntoView({ block: 'end' });
+  }
+
+  // 1.5.91: a networked Bob can't do a job yet (a video maker isn't set up, Web search is off...). One press sets it up
+  // on that replicant matrix and he carries on by himself. Same words as the card on the PC.
+  function setupCard(base, ev) {
+    const b = bobs.find((x) => x.base === base);
+    const gbs = (n) => (n >= 1 ? `${(+n).toFixed(n >= 10 ? 0 : 1)} GB` : `${Math.max(1, Math.round(n * 1000))} MB`);
+    const after = ev.carryOn ? ' Then I carry on with what you asked.' : '';
+    const done = (text) => { card.replaceChildren(el('p', { text })); setTimeout(() => card.remove(), 8000); };
+    const answer = (yes) => phone('net.post', { address: b.address, path: '/api/setup/answer', body: JSON.stringify({ id: ev.id, yes }) })
+      .then((r) => {
+        let out = {}; try { out = JSON.parse(r.body); } catch { /* not JSON */ }
+        if (!yes) return card.remove();
+        if (!out.ok) return done(out.why || 'That card is too old now. Ask me again.');
+        if (out.done === 'download') done(`Getting ${(out.names || []).join(' and ')} (about ${out.size}) on "${bobName(base)}". ${ev.carryOn ? "Your request waits there, and I carry on as soon as it's in." : 'Ask me again when it is in.'}`);
+        else if (out.done === 'switch') done(`Switched on "${ev.name}".${ev.carryOn ? ' Carrying on with your request.' : ''}`);
+        else done(ev.carryOn ? "Done, it's in its slot. Carrying on with your request." : "Done, it's in its slot.");
+      }).catch(() => toast("Couldn't reach your other replicant matrix"));
+    let head, body, button, extra = null;
+    if (ev.kind === 'switch') { head = `"${ev.name}" is off`; body = `It lets me ${String(ev.what || '')}.${ev.privacy ? ' ' + ev.privacy : ''}${ev.folders ? ' Then tick the folders I may use in Settings, Hands, on that replicant matrix.' : ''}${after} You can switch it off again in ${ev.where}.`; button = 'Switch it on'; }
+    else if (ev.kind === 'equip') { head = `I can't ${ev.say} yet`; body = `${ev.model?.name || ''} is already on "${bobName(base)}", it just isn't in its slot.${after}`; button = 'Use it'; }
+    else {
+      head = `I can't ${ev.say} yet`; body = `I need ${ev.what} on "${bobName(base)}" first. One press gets it, sets it up and puts it in its slot.${after}`; button = `Set it up (about ${ev.size})`;
+      extra = el('ul', {}, (ev.items || []).map((i) => el('li', { text: `${i.name} · ${gbs(i.sizeGB || 0)}${i.engine ? ' · program' : ''}` })));
+    }
+    const card = el('div', { class: 'card' },
+      el('div', { class: 'q' }, el('strong', { text: head }), el('div', { text: body })),
+      extra,
+      ev.kind === 'download' ? el('p', { class: 'help-line', text: `About ${ev.size} in all${ev.freeGB != null ? `, ${ev.freeGB} GB free` : ''}. One time only.${ev.note ? ' ' + ev.note : ''}${ev.short ? ` Not enough free disk: free up ${ev.short} GB first.` : ''}` }) : null,
+      el('div', { class: 'row' },
+        ev.short ? null : el('button', { class: 'main', text: button, onclick: () => answer(true) }),
         el('button', { text: 'Not now', onclick: () => answer(false) })));
     $('chat').append(card);
     card.scrollIntoView({ block: 'end' });

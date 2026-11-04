@@ -3,7 +3,7 @@ import { setLook } from './bob-sprite.js';
 import { progressHtml, animateWorkers } from './progress.js';
 import { createStylePage } from './style-page.js';
 import { createSampler, sampleButton, sampleHint } from './voice-samples.js';
-import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks, starterPlan, enginesFor, readyPlan, slotValue, slotTakes, isActive, tipHtml } from './equip.js';
+import { equipHtml, allSlots, HELPERS, equipped, entryOf, packFor, starterTicks, starterPlan, enginesFor, readyPlan, slotValue, slotTakes, isActive, tipHtml, readyList, readyDefaults, readyToggle, readyOrder } from './equip.js';
 import { suit as fitSuit, picksOf, unsuited, jobNames, SLOT_NAMES, canDo } from './fit.js';
 import { catalogueHtml } from './catalogue.js';
 import { drawBob } from './bob-sprite.js';
@@ -643,53 +643,55 @@ export function createCellar() {
     const none = dlg.querySelector('.adv-none'); if (none) none.hidden = any;
   }
 
-  function welcomeHtml() {
+  // 1.5.91 "Get Bob ready": one list with every program and model, each with its own tick box, the recommended ones
+  // ticked, sizes and free disk shown first, one OK. Bob puts each one in its slot himself when it's in.
+  let wPicks = null; // ticked ids (models and "engine:<id>"); null = the recommended ones
+  let wIds = []; // what the last press started, for Pause and Stop
+  function welcomeRows() {
     const pack = data.packs.find((p) => p.id === hw.suggestedPack) || data.packs[0];
-    const items = pack.models.map((id) => data.models.find((m) => m.id === id)).filter(Boolean);
-    const needed = items.filter((m) => m.status.state !== 'installed' && !covered(m));
-    const engs = enginesFor(items.filter((m) => m.status.state !== 'installed'), data.engines || []).map((id) => engineById(id.slice(7))).filter(Boolean);
-    const engNames = engs.map((e) => e.name);
-    // Settings review: the click is the OK, so the size counts the programs too.
-    const total = needed.reduce((t, m) => t + m.sizeGB, 0) + engs.reduce((t, e) => t + (e.sizeGB || 0), 0);
-    const rp = readyPlan(hwCtx(), data.models, data.engines || []);
-    // Settings review (1.5.75): one click, size and free disk shown first, Pause and Stop right here.
+    const main = allSlots().find((x) => x.id === 'bob');
+    const bad = (checks || []).filter((c) => !c.ok).map((c) => c.id);
+    const rows = readyList({ pack, models: data.models, engines: data.engines || [], hw: hwCtx(), mainEmpty: !(main && equipped(main, eqCtx())), bad });
+    for (const r of rows) if (r.kind === 'model' && !r.blocked) { const m = data.models.find((x) => x.id === r.id); const st = m && suit(m); if (st?.level === 'blocked') r.blocked = st.why; else if (st && st.level !== 'ok' && !r.here) r.warn = 'not recommended for this replicant matrix'; }
+    if (!wPicks) wPicks = readyDefaults(rows);
+    return { pack, rows };
+  }
+  function welcomeHtml() {
+    const { pack, rows } = welcomeRows();
+    const order = readyOrder(rows, wPicks);
     const dlOf = (id) => (data.downloads || []).find((d) => d.id === id && ['queued', 'downloading', 'paused', 'failed'].includes(d.state));
     const state = (id) => (live.has(id) ? 'downloading' : dlOf(id)?.state || '');
     const SAY = { downloading: 'downloading…', queued: 'waiting its turn', paused: 'paused' };
-    const rowSay = (id, here, okText) => { const st = state(id); return st === 'failed' ? `✗ the download failed: ${esc(dlOf(id).error || 'press Try again')}` : SAY[st] || (here ? okText : 'not here yet'); };
-    const engRow = (e) => {
-      const c = checks?.find((x) => x.id === e.id);
-      const st = e.installed && !state('engine:' + e.id) ? (!c ? 'checking…' : c.ok ? '✓ works' : `✗ ${esc(c.why)}`) : rowSay('engine:' + e.id, false, '');
-      // Settings review: two short lines, and the swap line only on an NVIDIA card (that's when it's in the plan).
-      if (e.bundled) return `<li>${esc(e.name)}: came with me (basic version) <span class="muted">${st === '✓ works' ? '✓' : st}</span>${rp.ids.includes('engine:' + e.id) ? '<br><span class="muted">Get Bob ready swaps in the faster NVIDIA version.</span>' : ''}</li>`;
-      return `<li>${esc(e.name)} <span class="muted">· ${st}</span></li>`;
+    const watch = wIds.length ? wIds : order.ids;
+    const moving = watch.some((id) => ['downloading', 'queued'].includes(state(id)));
+    const paused = watch.some((id) => state(id) === 'paused');
+    const short = readyFits(order.sizeGB);
+    const row = (r) => {
+      const st = state(r.id);
+      const c = r.kind === 'engine' ? checks?.find((x) => x.id === r.id.slice(7)) : null;
+      const status = st === 'failed' ? `✗ the download failed: ${esc(dlOf(r.id).error || 'press Get Bob ready again')}` : SAY[st]
+        || (r.broken ? `✗ doesn't start${c?.why ? `: ${esc(c.why)}` : ''}, get it again` : r.swap ? 'came with me (basic version); this gets the faster NVIDIA version' : r.here ? (r.kind === 'engine' && !c ? 'here, checking…' : '✓ here') : gb(r.sizeGB));
+      const what = r.kind === 'engine' ? 'program' : (r.slots || []).map((id) => SLOT_NAMES[id] || id).join(', ');
+      const extra = r.blocked ? ` · ${esc(r.blocked)}` : r.warn ? ` · ${esc(r.warn)}` : r.id === 'ace-step-music' ? ' · needs the audio tools (about 12 GB more)' : r.note ? `<br><span class="muted">${esc(r.note)}</span>` : '';
+      return `<li><label><input type="checkbox" data-wpick="${esc(r.id)}" ${r.here && !r.swap && !r.broken ? 'checked disabled' : r.blocked ? 'disabled' : wPicks.has(r.id) ? 'checked' : ''}> ${esc(r.name)} <span class="muted">· ${esc(what)} · ${status}${r.license ? ` · ${esc(r.license)}` : ''}${extra}</span></label></li>`;
     };
-    const b = rp.brain;
-    const brainRow = b ? `<li>${esc(b.name)} <span class="muted">· starter brain, ${gb(b.sizeGB)} · ${rowSay(b.id, b.status?.state === 'installed', '✓ here')}</span></li>` : '';
-    const ids = rp.ids;
-    const readyGB = rp.engines.filter((e) => ids.includes('engine:' + e.id)).reduce((t, e) => t + (e.sizeGB || 0), 0) + (b && ids.includes(b.id) ? b.sizeGB : 0);
-    const moving = ids.some((id) => ['downloading', 'queued'].includes(state(id)));
-    const paused = ids.some((id) => state(id) === 'paused');
-    const broken = checks?.some((x) => !x.ok && rp.engines.some((e) => e.id === x.id && e.installed));
-    const short = readyFits(readyGB);
-    const started = ids.some((id) => state(id));
-    const step1 = `<section class="ready"><h3>Step 1: getting me ready</h3>
-      <p class="muted">I call this computer my replicant matrix. You'll see that name around the app. <span class="spec">${esc(hw.spec || 'specs not read yet')}</span></p>
-      ${ids.length ? `<p>First the programs I run on and a starter brain, about ${gb(readyGB)} in all. Free disk: ${hw.freeGB ?? '?'} GB.</p>` : ''}
-      <ul class="packlist">${rp.engines.map(engRow).join('')}${brainRow}</ul>
-      ${short ? `<p class="error">Not enough free disk: free up ${short} GB, then press Try again.</p>` : ''}
-      <div class="row">${moving ? '<button data-readypause>Pause</button><button data-readystop>Stop</button>' : paused ? '<button class="get" data-readyresume>Resume</button><button data-readystop>Stop</button>' : short ? '<button class="get" data-readyrecheck>Try again</button>' : ids.length ? `<button class="get" data-getready>${started ? 'Try again' : `Get Bob ready (about ${gb(readyGB)})`}</button>` : broken ? '<button class="get" data-getready>Try again</button>' : ''}</div></section>`;
+    const engines = rows.filter((r) => r.kind === 'engine'), models = rows.filter((r) => r.kind === 'model');
     return `<div class="welcome">
       <h2>Welcome to Bob</h2>
       <label class="callme"><strong>What should I call you?</strong> <input type="text" data-callme maxlength="40" value="${esc(settings?.callMe || '')}" placeholder="${esc(settings?.windowsName || 'your name')}" aria-label="What should Bob call you?" autocomplete="off"></label>
-      ${step1}
-      <h3>Step 2: the rest of my models</h3>
-      <p>Then the models for the jobs I do. Here's what I'd pick for this replicant matrix <span class="muted spec">(${esc(hw.spec || 'specs not read yet')})</span>:</p>
+      <section class="ready"><h3>Get me ready</h3>
+      <p class="muted">I call this computer my replicant matrix. You'll see that name around the app.</p>
+      <p class="muted spec">${esc(hw.spec || 'specs not read yet')}</p>
+      <p>Here's what I'd get so I can do everything on this replicant matrix: chat, code, see and make pictures, make clips, talk and listen. My picks are ticked. Untick anything you don't want, tick anything you do. Nothing downloads until you press the button, and I put each one in its slot myself when it's in.</p>
       <label class="pick"><strong>Setup</strong><select data-pack>${data.packs.map((p) => `<option value="${p.id}" ${p.id === pack.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
-      <ul class="packlist">${items.map((m) => { const extra = covered(m); return `<li><label><input type="checkbox" data-pick="${esc(m.id)}" ${m.status.state === 'installed' ? 'checked disabled' : extra ? '' : suit(m).level === 'ok' ? 'checked' : suit(m).level === 'blocked' ? 'disabled' : ''}> ${esc(m.name)} <span class="muted">· ${esc(data.categories.find((c) => c.id === m.category)?.label)} · ${m.status.state === 'installed' ? 'already here' : gb(m.sizeGB)}${extra ? ` · ${esc(extra)}` : m.status.state !== 'installed' && suit(m).level !== 'ok' ? ' · not recommended for this replicant matrix' : ''}</span></label></li>`; }).join('')}</ul>
-      <p class="muted">${needed.length ? `About ${gb(total)} to download${engNames.length ? `, including the programs they run on (${esc(engNames.join(', '))})` : ''}. Free disk: ${hw.freeGB ?? '?'} GB. You can change any of this later in Get models (left menu).` : items.some((m) => m.status.state !== 'installed') ? 'Everything you need is already here. The rest is optional: tick it if you want it.' : 'Everything is already on this replicant matrix.'}</p>
+      <h4>Programs I run on</h4><ul class="packlist">${engines.map(row).join('')}</ul>
+      <h4>Models</h4><ul class="packlist">${models.map(row).join('')}</ul>
+      ${order.missing.length ? `<p class="warn-text">${order.missing.map((x) => `${esc(x.model)} runs on ${esc(x.engine)}, which isn't ticked.`).join(' ')} Tick it, or that model sits unused.</p>` : ''}
+      <p>${order.ids.length ? `About <strong>${gb(order.sizeGB)}</strong> to download. Free disk: ${hw.freeGB ?? '?'} GB. The big ones take a while; you can chat with me as soon as the programs and a brain are in.` : rows.some((r) => !r.here && !r.blocked) ? 'Nothing ticked to get. You can always come back here: Settings, Run first-time setup.' : 'Everything is already on this replicant matrix.'}</p>
+      ${short ? `<p class="error">Not enough free disk: free up ${short} GB, or untick something, then press Try again.</p>` : ''}
       ${job ? progress() : ''}
-      <div class="row"><button class="get" data-getpack ${items.some((m) => m.status.state !== 'installed') ? '' : 'hidden'}>Download the checked ones</button><button data-skip>${needed.length ? 'Skip for now' : 'Done'}</button></div>
+      <div class="row">${moving ? '<button data-readypause>Pause</button><button data-readystop>Stop</button>' : paused ? '<button class="get" data-readyresume>Resume</button><button data-readystop>Stop</button>' : short ? '<button class="get" data-readyrecheck>Try again</button>' : order.ids.length ? `<button class="get" data-getready>Get Bob ready (about ${gb(order.sizeGB)})</button>` : ''}<button data-skip>${order.ids.length && !moving ? 'Skip for now' : 'Done'}</button></div>
+      <p class="muted">You can change any of this later in Get models (left menu). If you skip something and ask me for it, I'll offer to set it up right there in the chat.</p></section>
     </div>`;
   }
 
@@ -725,20 +727,14 @@ export function createCellar() {
   const hwCtx = () => ({ vramGB: hw?.vramGB, ramGB: hw?.ramGB, unified: Boolean(hw?.gpu?.unified), integrated: Boolean(hw?.gpu?.integrated), nvidia: Boolean(hw?.gpu && !hw.gpu.unified && !hw.gpu.integrated) });
   // GB still to free on disk before step 1 may start (its size plus 2 GB to spare), or 0.
   const readyFits = (needGB) => (needGB && hw?.freeGB != null && hw.freeGB < needGB + 2 ? Math.ceil(needGB + 2 - hw.freeGB) : 0);
-  const readyIds = () => { const p = readyPlan(hwCtx(), data.models, data.engines || []); return [...p.engines.map((e) => 'engine:' + e.id), ...(p.brain ? [p.brain.id] : [])]; };
+  const readyIds = () => wIds;
   async function getReady() {
-    const plan = readyPlan(hwCtx(), data.models, data.engines || []);
-    if (!plan.ids.length) {
-      // Everything is here but an engine didn't start: fetch it again.
-      const bad = (checks || []).filter((c) => !c.ok).map((c) => 'engine:' + c.id);
-      if (bad.length) job = await api('/api/models/download', { ids: bad });
-      return;
-    }
-    const need = plan.ids.reduce((t, id) => t + (id.startsWith('engine:') ? plan.engines.find((e) => 'engine:' + e.id === id)?.sizeGB || 0 : plan.brain?.sizeGB || 0), 0);
-    if (readyFits(need)) return;
-    const main = allSlots().find((x) => x.id === 'bob');
-    if (plan.brain && main && !equipped(main, eqCtx())) savePlan({ ...readPlan(), [plan.brain.id]: ['bob', 'small'] });
-    job = await api('/api/models/download', { ids: plan.ids });
+    const { rows } = welcomeRows();
+    const order = readyOrder(rows, wPicks);
+    if (!order.ids.length || readyFits(order.sizeGB)) return;
+    wIds = order.ids;
+    // 1.5.91: Bob keeps the slots to fill himself (not the browser), so they're filled even with this window closed.
+    job = await api('/api/models/download', { ids: order.ids, equip: order.equip });
   }
   async function load() {
     [data, hw, settings, roles, cloud, caps, bctx] = await Promise.all([api('/api/models'), api('/api/hardware'), api('/api/settings'), api('/api/roles'), api('/api/cloud'), api('/api/capabilities').catch(() => ({})), api('/api/brain-ctx').catch(() => ({ on: false, brains: [] }))]);
@@ -916,7 +912,7 @@ export function createCellar() {
         const names = ids.map((id) => { if (id.startsWith('engine:')) { const e = engineById(id.slice(7)); return `<li>${esc(e?.name || id)} <span class="muted">(engine, ${esc(ENGINE_SIZE[id.slice(7)] || 'small')})</span></li>`; } const m = data.models.find((x) => x.id === id); return `<li>${esc(m.name)} <span class="muted">${gb(m.sizeGB)} from ${m.ollama && (!m.files?.length || settings?.engine === 'ollama') ? 'Ollama' : 'Hugging Face'} · licence ${esc(m.license)}</span></li>`; }).join('');
         const total = ids.reduce((n, id) => n + (data.models.find((m) => m.id === id)?.sizeGB || 0), 0);
         box.hidden = false;
-        box.innerHTML = `${ids.length ? `<p>Download these, about ${gb(total)} in all${hw?.freeGB != null ? ` (${hw.freeGB} GB free)` : ''}. Each one is put in its slot when it's done.</p><ul>${names}</ul>${ids.some((id) => ['engine:kokoro', 'engine:audio'].includes(id)) ? '<p class="muted">The Kokoro voice engine needs Python 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> installed first.</p>' : ''}` : '<p>Everything ticked is already on this replicant matrix. Bob puts each one in its slot now.</p>'}
+        box.innerHTML = `${ids.length ? `<p>Download these, about ${gb(total)} in all${hw?.freeGB != null ? ` (${hw.freeGB} GB free)` : ''}. Each one is put in its slot when it's done.</p><ul>${names}</ul>${ids.some((id) => ['engine:kokoro', 'engine:audio'].includes(id)) ? '<p class="muted">If there\'s no Python on this replicant matrix, I get my own copy too (about 15 MB, kept in my folder).</p>' : ''}` : '<p>Everything ticked is already on this replicant matrix. Bob puts each one in its slot now.</p>'}
           <div class="row"><button class="get" data-starteryes>${ids.length ? 'Yes, download and equip' : 'Equip them'}</button><button data-no>Cancel</button></div>`;
         box.dataset.plan = JSON.stringify({ ids, plan });
         return;
@@ -964,9 +960,9 @@ export function createCellar() {
         box.hidden = false;
         const eng = (data.engines || []).find((x) => x.id === b.dataset.engine);
         box.innerHTML = ['kokoro', 'chatterbox'].includes(b.dataset.engine)
-          ? `<p>Set up ${esc(eng?.name)}: ${esc(eng?.what)} It goes in Bob's own folder; nothing else on your replicant matrix changes. If you don't have Python yet, get 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> first.</p>`
+          ? `<p>Set up ${esc(eng?.name)}: ${esc(eng?.what)} It goes in Bob's own folder; nothing else on your replicant matrix changes. If there's no Python here, Bob gets his own copy too (about 15 MB, in his folder).</p>`
           : b.dataset.engine === 'audio'
-          ? `<p>Set up the audio tools: ACE-Step 1.5 for music (MIT, a song in seconds) and AudioLDM 2 for sound effects (personal use only), each in its own folder only Bob uses. You need Python 3.12 from <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">python.org</a> installed first. About 6 GB now. The music models (about 10 GB) are a separate download that you start; sound effects fetch their model the first time you make one. Nothing else on your replicant matrix changes.</p>`
+          ? `<p>Set up the audio tools: ACE-Step 1.5 for music (MIT, a song in seconds) and AudioLDM 2 for sound effects (personal use only), each in its own folder only Bob uses. If there's no Python here, Bob gets his own copy first (about 15 MB, in his folder). About 6 GB now. The music models (about 10 GB) are a separate download that you start; sound effects fetch their model the first time you make one. Nothing else on your replicant matrix changes.</p>`
           : b.dataset.engine === 'libreoffice'
           ? `<p>Download LibreOffice ${esc(eng?.pin || '')} (about 350 MB) from The Document Foundation, checked against its pinned checksum, and unpack it into Bob's own folder (about 1 GB). Nothing is installed in Windows and no admin rights are needed. You can also install LibreOffice yourself from <a href="https://www.libreoffice.org/download/" target="_blank" rel="noopener">libreoffice.org</a>, or use OpenOffice: Bob finds either by himself.</p>`
           : b.dataset.engine === 'ffmpeg'
@@ -1030,12 +1026,7 @@ export function createCellar() {
         for (const id of readyIds()) await api('/api/models/' + act, { id }).catch(() => {});
         await load();
       }
-      else if ('getpack' in b.dataset) {
-        const picked = [...dlg.querySelectorAll('[data-pick]:checked:not(:disabled)')].map((x) => x.dataset.pick);
-        // 1.5.72: and the engines they run on (llama.cpp, stable-diffusion.cpp...), so nothing is left to get by hand.
-        const ids = [...picked, ...enginesFor(picked.map((id) => data.models.find((m) => m.id === id)), data.engines || [])];
-        if (ids.length) { job = await api('/api/models/download', { ids }); draw(); }
-      } else if ('skip' in b.dataset) { await api('/api/settings', { setupDone: true }); mode = 'shop'; dlg.close(); }
+      else if ('skip' in b.dataset) { await api('/api/settings', { setupDone: true }); mode = 'shop'; dlg.close(); }
     } catch (err) { alertIn(b, err.message); }
   });
 
@@ -1154,7 +1145,8 @@ export function createCellar() {
       else if (el.dataset.cloud) { const r = await api('/api/settings', { cloudHelpers: { [el.dataset.cloud]: { enabled: el.checked } } }); cloud = r.cloud || cloud; flash(el.closest('.cloud'), el.checked ? 'On. Bob still asks every time.' : 'Off.'); }
       else if (el.dataset.cloudmodel) { const r = await api('/api/settings', { cloudHelpers: { [el.dataset.cloudmodel]: { model: el.value.trim() } } }); cloud = r.cloud || cloud; flash(el, 'Saved.'); }
       else if (el.dataset.set === 'engine') { await api('/api/settings', { engine: el.value }); settings.engine = el.value; }
-      else if ('pack' in el.dataset) { hw.suggestedPack = el.value; draw(); }
+      else if ('pack' in el.dataset) { hw.suggestedPack = el.value; wPicks = null; draw(); }
+      else if ('wpick' in el.dataset) { const { rows } = welcomeRows(); wPicks = readyToggle(rows, wPicks, el.dataset.wpick, el.checked); draw(); }
       else if (el.dataset.role && el.value) {
         const r = await api('/api/models/role', { job: el.dataset.role, value: el.value });
         roles.current[el.dataset.role] = el.value;

@@ -14,10 +14,11 @@ Two promises run through everything Bob does:
 ## 1. Getting started
 
 1. Download Bob's zip from the Releases page. Right-click it, choose Properties, tick **Unblock**, then unzip it somewhere you'll keep and double-click **Bob.exe**.
-2. Bob opens in his own window. The first time, he looks at your graphics card and suggests a **starter set**: the models that suit your PC.
-3. Click **Equip starter set**, look over the list, and confirm. Every download shows a progress bar, its size, its speed and how long is left.
-4. If you want Bob to look things up online, click **🌐 Web search** next to Effort, under the chat (the same switch, **Let Bob search the web**, is in Settings). It's off until you do.
-5. When the downloads finish, say hello. You can ask Bob himself how to set anything up: he knows all his settings and what's set right now.
+2. Bob opens in his own window. The first time, he looks at your graphics card and RAM and shows one list, **Get me ready**: the programs he runs on and a model for each job (chat, coding, pictures, picture edits, clips, his voice, memory), with his picks ticked. Every line has its own tick box and size. Music is listed too, unticked, since it's about 22 GB with its tools.
+3. Untick anything you don't want, then press **Get Bob ready**. The button shows the total and your free disk first. Every download shows a progress bar, its size, its speed and how long is left, and Bob puts each model in its slot himself when it's in. There's nothing to install by hand: if your PC has no Python for his voice or music, he gets his own copy (about 15 MB, kept in his folder).
+4. Skipped something? Ask for it anyway, say a clip, and Bob shows a **Set it up** card in the chat with what he needs and its size. One press gets it, and he carries on with your request by himself. If a setting is what's in the way (Let Bob search the web, a Hand that's off), the card switches just that setting on.
+5. If you want Bob to look things up online, click **🌐 Web search** next to Effort, under the chat (the same switch, **Let Bob search the web**, is in Settings). It's off until you do.
+6. When the downloads finish, say hello. You can ask Bob himself how to set anything up: he knows all his settings and what's set right now.
 
 You can close Bob while things download. Unfinished downloads wait, paused, and carry on when you press Resume.
 

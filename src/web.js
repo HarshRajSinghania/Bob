@@ -13,7 +13,7 @@ export const WEB_OFF = `Web search is off, so I can't look things up online. To 
 export function webPrompt(cfg) {
   if (webOn(cfg)) return '';
   const who = cfg?.userName || 'the user';
-  return `\n\nWeb search is OFF: you can't search the web or open web pages. If a question needs the internet (news, prices, versions, docs or facts you aren't sure of), say in one line that web search is off so you can't look it up, and that ${who} can ${HOW}. Always mention the switch; that's the way forward. Answer from what you know only if you're sure, and say it may be out of date. Never pretend you looked something up.`;
+  return `\n\nWeb search is OFF: you can't search the web or open web pages. If a question needs the internet (news, prices, versions, docs or facts you aren't sure of), call offer_setup with "web": the app shows a card that switches Web search on with one press, and you carry on after. Say in one line that web search is off so you can't look it up yet. That card is the way forward (or ${who} can ${HOW}). Answer from what you know only if you're sure, and say it may be out of date. Never pretend you looked something up.`;
 }
 
 // 1.5.60: links in the user's message. Small brains (Qwen3 4B) often answer "I have no live web access" or "that

@@ -288,3 +288,75 @@ export function readyPlan(hwCtx, models, engines) {
   if (brain && brain.status?.state !== 'installed') ids.push(brain.id);
   return { ids, engines: eng, brain };
 }
+
+// ---- 1.5.91 "Get Bob ready": one list, every program and model with its own tick box, one OK ----
+// The owner asked for Bob to be fully working after a few clicks plus download time, with each engine and model
+// tickable. The recommended ones for this replicant matrix come ticked; nothing downloads until the button is pressed.
+export const MUSIC_ID = 'ace-step-music';
+// rows: [{ id, kind: 'engine' | 'model', name, sizeGB, here, rec, needs: ['engine:x'], slots, blocked }]
+export function readyList({ pack, models = [], engines = [], hw = {}, mainEmpty = true, bad = [] }) {
+  const vram = hw.integrated ? 0 : (hw.vramGB || 0);
+  const engById = (id) => engines.find((e) => e.id === id);
+  const rows = [];
+  const brain = models.find((m) => m.id === starterBrain(hw)) || null;
+  const list = [...new Set([...(brain && !(pack?.models || []).includes(brain.id) ? [brain.id] : []), ...(pack?.models || [])])].map((id) => models.find((m) => m.id === id)).filter(Boolean);
+  // Music on cards with room for it (8 GB or more), when the audio tools run here. Left unticked: about 22 GB with its
+  // tools, and large optional downloads always wait for the owner's own tick.
+  const music = models.find((m) => m.id === MUSIC_ID);
+  const audio = engById('audio');
+  if (music && audio && audio.available !== false && vram >= 8 && !list.includes(music)) list.push(music);
+  // 1.5.91: a set can list extra brains for machines with lots of RAM (Gemma 4 26B on a 32 GB handheld), unticked.
+  const big = pack?.bigRam && (hw.ramGB || 0) >= pack.bigRam.minRamGB ? pack.bigRam : null;
+  for (const id of big?.models || []) { const m = models.find((x) => x.id === id); if (m && !list.includes(m)) list.push(m); }
+  const ticks = pack ? starterTicks(pack, models, vram) : new Set();
+  for (const m of list) {
+    const needs = enginesFor([{ ...m, status: { state: 'missing' } }], engines.map((e) => ({ ...e, installed: false })));
+    const slots = m.id === MUSIC_ID ? ['music'] : pack?.slots?.[m.id] || big?.slots?.[m.id] || (m === brain ? [...(mainEmpty ? ['bob'] : []), ...(Object.values(pack?.slots || {}).some((x) => x.includes('small')) ? [] : ['small'])] : []);
+    const engBlocked = needs.map((id) => engById(id.slice(7))).find((e) => e && e.available === false);
+    rows.push({ id: m.id, kind: 'model', name: m.name, sizeGB: m.sizeGB || 0, here: m.status?.state === 'installed', needs, slots, license: m.license || '',
+      blocked: engBlocked ? engBlocked.note || `${engBlocked.name} doesn't run here` : '',
+      rec: !engBlocked && m.id !== MUSIC_ID && !big?.models.includes(m.id) && (m === brain || ticks.has(m.id)), note: big?.models.includes(m.id) ? big.notes?.[m.id] || big.note || '' : (pack?.untick || []).includes(m.id) ? pack?.notes?.[m.id] || '' : '' /* only notes that explain an untick; the rest repeat the slots */, category: m.category });
+  }
+  // The programs: the core three, plus whatever the listed models run on.
+  const engIds = [...new Set([...CORE_ENGINES.map((id) => 'engine:' + id), ...rows.flatMap((r) => r.needs)])];
+  const eng = [];
+  for (const id of engIds) {
+    const e = engById(id.slice(7));
+    if (!e || e.available === false) continue;
+    const broken = e.installed && bad.includes(e.id); // here but won't start: get it again
+    const swap = e.bundled && hw.nvidia; // the basic llama.cpp that came with Bob, swapped for the NVIDIA build
+    const neededBy = rows.filter((r) => r.rec && r.needs.includes(id));
+    eng.push({ id, kind: 'engine', name: e.name, sizeGB: e.sizeGB || 0, here: e.installed && !swap && !broken, swap, broken, rec: CORE_ENGINES.includes(e.id) || neededBy.length > 0, what: e.what || '' });
+  }
+  return [...eng, ...rows];
+}
+// The recommended ticks (what isn't here yet and is recommended; not what the window says won't suit this machine).
+export const readyDefaults = (rows) => {
+  const picks = new Set(rows.filter((r) => r.kind === 'model' && r.rec && !r.here && !r.blocked && !r.warn).map((r) => r.id));
+  // The core programs, and the ones a ticked model runs on.
+  for (const r of rows) if (r.kind === 'engine' && !r.here && (CORE_ENGINES.includes(r.id.slice(7)) || rows.some((m) => picks.has(m.id) && (m.needs || []).includes(r.id)))) picks.add(r.id);
+  return picks;
+};
+// Ticking a model ticks the programs it runs on.
+export function readyToggle(rows, picks, id, on) {
+  const next = new Set(picks);
+  if (on) next.add(id); else next.delete(id);
+  const r = rows.find((x) => x.id === id);
+  if (on && r?.kind === 'model') for (const e of r.needs) if (rows.find((x) => x.id === e && !x.here)) next.add(e);
+  return next;
+}
+// What to download (programs first) and which slots to fill: { ids, equip, sizeGB, missing: [{ model, engine }] }.
+export function readyOrder(rows, picks) {
+  const want = rows.filter((r) => picks.has(r.id) && !r.here && !r.blocked);
+  const ids = [...want.filter((r) => r.kind === 'engine'), ...want.filter((r) => r.kind === 'model')].map((r) => r.id);
+  const equip = {};
+  // When two ticked models are for the same slot, the later one on the list gets it (Qwen 3.8 27B over Gemma 4 26B for Deep thinking).
+  const owner = {};
+  for (const r of rows) if (r.kind === 'model' && picks.has(r.id) && !r.here && !r.blocked) for (const sl of r.slots || []) owner[sl] = r.id;
+  for (const r of rows) if (r.kind === 'model' && (picks.has(r.id) || r.here) && r.slots.length && !r.blocked) { const mine = r.slots.filter((sl) => !owner[sl] || owner[sl] === r.id); if (mine.length) equip[r.id] = mine; }
+  const sizeGB = Math.round(want.reduce((t, r) => t + r.sizeGB, 0) * 10) / 10;
+  // A ticked model whose program is unticked and not here: it would sit unused, so the screen says so.
+  const missing = [];
+  for (const r of rows) if (r.kind === 'model' && picks.has(r.id)) for (const e of r.needs) { const er = rows.find((x) => x.id === e); if (er && !er.here && !picks.has(e)) missing.push({ model: r.name, engine: er.name }); }
+  return { ids, equip, sizeGB, missing };
+}

@@ -13,6 +13,7 @@ import { audioReady, voicesReady, aceModelsDir, aceFileOk, tidyAceCache } from '
 import { maestroModels } from './maestro.js';
 import { gpuInfo, cpuName, specLine, shownRamGB } from './platform.js';
 import { packFor } from '../public/fit.js';
+import { allSlots, slotValue } from '../public/equip.js';
 
 const MODEL_EXT = new Set(['.gguf', '.safetensors', '.ckpt', '.pt', '.pth', '.bin', '.sft']);
 const SKIP = new Set(['node_modules', '.git', '__pycache__', 'site-packages', 'venv', '.venv', 'env', 'cache', '.cache', 'Lib', 'include', 'temp', 'tmp', 'logs', 'blobs']);
@@ -297,6 +298,51 @@ export class ModelShop {
   // Model files resume where they stopped (a .part file plus an HTTP Range request); Ollama models resume
   // through Ollama itself; engines start over (they're small).
   get dlFile() { return path.join(this.cfg.dataDir, 'downloads.json'); }
+
+  // ---- 1.5.91: slots to fill once a download is in, kept by Bob himself ----
+  // Before, the window remembered this (in the browser), so a model finished while Get models was closed sat unused.
+  // Now each download can say which slots it's for (Get Bob ready, the chat's Set it up card), and Bob fills them
+  // the moment it's done, window open or not. { modelId: ['image', ...] }
+  get equipFile() { return path.join(this.cfg.dataDir, 'equip-plan.json'); }
+  loadEquip() { try { const p = JSON.parse(fs.readFileSync(this.equipFile, 'utf8')); return p && typeof p === 'object' ? p : {}; } catch { return {}; } }
+  saveEquip(p) { try { Object.keys(p).length ? fs.writeFileSync(this.equipFile, JSON.stringify(p, null, 2)) : fs.rmSync(this.equipFile, { force: true }); } catch {} }
+  planEquip(map = {}) {
+    const ids = new Set(allSlots().map((x) => x.id).concat(['speech', 'voice', 'image', 'video', 'edit', 'music', 'sfx']));
+    const p = this.loadEquip();
+    for (const [id, slots] of Object.entries(map || {})) {
+      if (!this.catalog.models.some((m) => m.id === id)) continue;
+      const ok = [].concat(slots || []).map(String).filter((x) => ids.has(x));
+      if (ok.length) p[id] = [...new Set([...(p[id] || []), ...ok])];
+    }
+    this.saveEquip(p);
+    return p;
+  }
+  // Fill the slots of every planned model that's on this replicant matrix now. equipHook (server.js) saves each one
+  // the same way the window's Equip does. Returns what was filled, as [{ id, slot, value }].
+  async applyEquip() {
+    const plan = this.loadEquip();
+    const ids = Object.keys(plan);
+    if (!ids.length || !this.equipHook) return [];
+    const ollama = await this.ollamaNames();
+    let roles = null;
+    const done = [];
+    for (const id of ids) {
+      const entry = this.catalog.models.find((m) => m.id === id);
+      if (!entry) { delete plan[id]; continue; }
+      if ((await this.statusOf(entry, ollama)).state !== 'installed') continue;
+      roles = roles || await this.roles().catch(() => null);
+      for (const sid of plan[id]) {
+        const slot = allSlots().find((x) => x.id === sid) || { id: sid, how: 'job', kind: ModelShop.JOBS.find((j) => j.id === sid)?.kind || sid };
+        const value = slotValue(slot, entry, roles) || (slot.kind !== 'llm' ? entry.id : '');
+        if (!value) continue;
+        try { await this.equipHook(slot, value); done.push({ id, slot: sid, value }); } catch { /* a slot that won't take it stays as it was */ }
+      }
+      delete plan[id];
+    }
+    this.saveEquip(plan);
+    if (done.length) this.emit({ type: 'equipped', items: done });
+    return done;
+  }
   get job() { return [...this.active.values()][0]?.pub || null; } // the first one running, for older callers
   get concurrent() { return this.cfg.downloads?.concurrent === 2 ? 2 : 1; }
 
@@ -388,6 +434,8 @@ export class ModelShop {
       try {
         if (engine) await this.runEngine(d.id.slice(7), pub, ac.signal, tick);
         else await this.runModel(entry, pub, ac.signal, tick);
+        // 1.5.91: into its slots now, window open or not, and before "done" goes out (a job waiting for it starts then).
+        if (!engine) await this.applyEquip().catch(() => {});
         pub.phase = 'done'; d.state = 'done'; d.doneAt = Date.now(); d.done = d.total = pub.total || pub.done;
         if (pub.note) d.note = pub.note;
         tick();

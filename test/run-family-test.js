@@ -133,7 +133,7 @@ check('core: "mention it and ask" is only about extras nobody asked for', /only 
   check('no projects: a plain error with another way to look', /No projects are set up yet/.test(err));
   check('make_music: picks a style when none was given', /pick one that fits/.test(t.make_music.schema.function.parameters.properties.prompt.description));
   check('ask_specialist: passes the job on without asking for paths', /don't ask for paths or line numbers first/.test(t.ask_specialist.schema.function.parameters.properties.task.description));
-  check('web search off: always mention the switch', /Always mention the switch/.test(webPrompt({ userName: 'Sam' })));
+  check('web search off: offers the switch (1.5.91: the Set it up card)', /offer_setup with "web"/.test(webPrompt({ userName: 'Sam' })) && /switch/i.test(webPrompt({ userName: 'Sam' })));
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });

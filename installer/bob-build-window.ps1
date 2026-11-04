@@ -355,7 +355,7 @@ function Finish {
   $bar.Style = 'Continuous'; $bar.Value = 100
   $msg.ForeColor = $good
   if ($Mode -eq 'install') {
-    $msg.Text = "Bob is installed. Find him in the Start menu, or press Open Bob.$(if ($script:warn) { ' ' + $script:warn })"
+    $msg.Text = "Bob is installed. Press Open Bob to finish: he shows what he would get for this computer, already ticked, and one button gets it all.$(if ($script:warn) { ' ' + $script:warn })"
     $btnMain.Text = 'Open Bob'; $btnMain.Visible = $true
     Write-Status 'Bob is installed.' $true '' $false
   } elseif ($Mode -eq 'update') {

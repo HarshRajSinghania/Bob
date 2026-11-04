@@ -244,7 +244,7 @@ export function handsPrompt(cfg) {
   // Hands that are off have no tools, so Bob is told why; otherwise he can only refuse vaguely or invent a reason.
   const offIds = Object.keys(HANDS).filter((id) => !handOn(cfg, id));
   const why = [...new Set(offIds.map((id) => handOffWhy(cfg, id)))];
-  const offLine = offIds.length ? `\n\nHands that are off right now (you have no tool for them): ${offIds.map((id) => HANDS[id].label).join('; ')}. ${why.join(' ')} If asked for one of these, say plainly that it is off and how to turn it on, in those words; don't refuse without a reason or make one up.` : '';
+  const offLine = offIds.length ? `\n\nHands that are off right now (you have no tool for them): ${offIds.map((id) => HANDS[id].label).join('; ')}. ${why.join(' ')} If asked for one of these, call offer_setup with hand:<its id> (${offIds.join(', ')}): the app shows a card that switches it on with one press, and the job carries on after. Say in one line that it's off; don't refuse without a reason or make one up.` : '';
   // Bob's backstory is a replicant in a virtual world; Hands are not. Without this he blamed a "simulated OS".
   const realLine = `\n\nNever say you did something on the PC (opened, typed, clicked, moved, ran) unless a tool result in this turn says it was done. Hands act on ${cfg.userName || 'the user'}'s real Windows PC: the apps, windows and files are real, not a simulation. When a Hand tool fails, tell ${cfg.userName || 'the user'} the error it gave you, in plain words, and never blame a simulation or a virtual OS. If an earlier try in this chat failed, call the tool again instead of repeating that result: you may have been updated since.`;
   if (!on.length) return realLine + offLine;
