@@ -4,6 +4,12 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.92
+
+### Phone: replicant matrix wording on Bob-Net
+- The phone's **Bobs on your network** now says "Bobs on your other replicant matrices that let this phone in".
+- A new Bob on your network gets a name from its Tailscale address ("Bob on desktop" for desktop.your-tailnet.ts.net), or "Bob on my other replicant matrix" for a bare number address. The examples use my-computer.your-tailnet.ts.net.
+
 ## 1.5.91
 
 ### Fixes from the live test

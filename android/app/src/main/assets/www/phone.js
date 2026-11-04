@@ -510,10 +510,13 @@
     });
   }
   $('add-bob').addEventListener('click', () => {
-    const name = $('add-name').value.trim().slice(0, 40) || 'Bob on my PC';
     const address = $('add-address').value.trim();
     const base = L.netAddress(address);
-    if (!base) { $('add-msg').textContent = "That isn't a Tailscale address. It looks like my-pc.your-tailnet.ts.net or 100.x.y.z (Bob's Settings on your other replicant matrix shows it)."; return; }
+    // No name typed: "Bob on" that machine's Tailscale name (desktop.tailnet.ts.net -> "Bob on desktop").
+    const host = base ? base.replace(/^https?:\/\//, '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '') : '';
+    const short = /^[\d.]+$/.test(host) || host.includes(':') ? '' : host.split('.')[0];
+    const name = $('add-name').value.trim().slice(0, 40) || (short ? `Bob on ${short}`.slice(0, 40) : 'Bob on my other replicant matrix');
+    if (!base) { $('add-msg').textContent = "That isn't a Tailscale address. It looks like my-computer.your-tailnet.ts.net or 100.x.y.z (Bob's Settings on your other replicant matrix shows it)."; return; }
     if (bobs.some((b) => b.base === base)) { $('add-msg').textContent = 'That Bob is already on the list.'; return; }
     bobs.push({ name, address: base.replace('http://', ''), base });
     store.set('bobs', bobs);

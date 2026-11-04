@@ -145,6 +145,13 @@ check('lend panel: no stray "null" when Lend my brain is off', /box\.append\(\.\
 // Turning on Lend my brain makes the passcode when there isn't one yet (no separate step first).
 check('lend: turning it on makes the passcode if none is set', /if \(on && !lend\.passcodeSet\) \{ lendCode = await phone\('lend\.newPasscode'\)/.test(js));
 
+// Replicant matrix wording: the phone page never calls the machine a "PC" on screen (comments and Bob's model prompt aside).
+{
+  const shown = html.replace(/<!--[\s\S]*?-->/g, '') + js.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n').replace(/\/(?:[^/\n\\]|\\.)+\/[gimsuy]*/g, '');
+  const hits = (shown.match(/[^\n]{0,40}\b(?:PCs?|my-pc)\b[^\n]{0,40}/g) || []);
+  check('replicant matrix: no "PC" in the phone page\'s own words', !hits.length, hits.join(' | '));
+}
+
 // The page's lock: no inline scripts or styles, no network from the page itself.
 check('page has a strict Content-Security-Policy', /script-src 'self'/.test(html) && /connect-src 'none'/.test(html) && !/<script>(?!<)/.test(html.replace(/<script src[^>]*><\/script>/g, '')) && !/ style="/.test(html));
 
