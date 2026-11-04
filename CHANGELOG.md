@@ -4,6 +4,11 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.85
+
+### Tested llama.cpp by default
+- Get llama.cpp and Get Bob ready now install the tested llama.cpp build (b12032, the one every speed test used) instead of whatever was newest that day. Get newer build is still there, and Go back to the tested build undoes it.
+
 ## 1.5.84
 
 ### Passcode made when you switch on
