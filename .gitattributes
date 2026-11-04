@@ -1,3 +1,2 @@
-# Bundled third-party files stay byte-for-byte as published (their checksums are tested), on every checkout.
 public/vendor/** -text
 android/app/src/main/assets/www/vendor/** -text
