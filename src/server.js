@@ -85,7 +85,7 @@ brain.mindWatchers = () => mindClients.size;
 // 1.5.38: when Downloads change, a job waiting for one (a song waiting for the music models) may be able to go.
 const shop = new ModelShop(cfg, (ev) => { broadcast(ev); if (ev?.type === 'downloads') brain.downloadsChanged(); }, brain.engine);
 // 1.5.24: the card's size, for picture settings matched to it (only used when that switch is on).
-if (!cfg.gpuVramGB) shop.hardware().then((h) => { if (h?.gpu?.vramGB && !h.gpu.integrated) cfg.cardGB = h.gpu.vramGB; /* 1.5.71: built-in graphics aren't a card for pictures */ }).catch(() => {});
+if (!cfg.gpuVramGB) shop.hardware().then((h) => { if (h?.gpu?.vramGB && !h.gpu.integrated) cfg.cardGB = h.gpu.vramGB; /* 1.5.71: built-in graphics aren't a card for pictures */ if (h?.gpu?.integrated) cfg.sharedGraphics = true; /* 1.5.79: but they get their own picture settings */ }).catch(() => {});
 brain.shop = shop; // so Bob can tell when a model is on the PC but not assigned to a job
 startSchedules(brain); // ticks once a minute; nothing is ever due while the Schedules hand is off
 startCheckins(brain); // 1.5.78: ticks once a minute; does nothing while Check-ins are off

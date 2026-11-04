@@ -74,7 +74,7 @@ for (const c of new Set(controls)) check(`setting ${c} has a help entry`, c in n
 check('help has a glossary and an FAQ', ids.includes('glossary') && ids.includes('faq'));
 
 // Opt-in: everything extra starts off.
-const js = fs.readFileSync(path.join(www, 'phone.js'), 'utf8');
+const js = fs.readFileSync(path.join(www, 'phone.js'), 'utf8').replace(/\r\n/g, '\n'); // Windows checkouts are CRLF
 const defaults = js.match(/const DEFAULTS = (\{[^}]+\})/)[1];
 check('opt-in: phone brain, read aloud, pick up after close start off', /phoneOn: false/.test(defaults) && /readAloud: false/.test(defaults) && /resume: false/.test(defaults));
 check('free memory when idle starts on (lightweight rule)', /freeWhenIdle: true/.test(defaults));

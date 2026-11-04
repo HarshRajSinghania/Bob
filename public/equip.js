@@ -186,11 +186,13 @@ export function slotValue(slot, entry, roles) {
   return hit?.value || '';
 }
 
-// Ticked by default: what fits the card, plus what the set says to tick anyway.
+// Ticked by default: what fits the card, plus what the set says to tick anyway, minus what it says to leave unticked
+// (1.5.79: clips on built-in graphics, which are very slow there).
 export function starterTicks(pack, models, vramGB) {
   vramGB = vramGB || pack.cardGB || 0; // no card detected: judge by the card the set is for
   return new Set(pack.models.filter((id) => {
     const m = models.find((x) => x.id === id);
+    if (m && m.status?.state !== 'installed' && (pack.untick || []).includes(id)) return false;
     return m && (m.status?.state === 'installed' || (pack.tick || []).includes(id) || !vramGB || !m.vramGB || m.vramGB <= vramGB);
   }));
 }
@@ -244,7 +246,7 @@ export function starterHtml(ctx) {
   const open = ctx.starterOpen ?? !equipped(SLOTS[0], ctx);
   return `<details class="starter"${open ? ' open' : ''}><summary>⭐ Starter set for your PC</summary>
     <p class="muted">A small set that lets Bob chat, plan, research, code, see pictures, speak${pack.id === 'cpu' ? '' : ', paint and film'}. All free for commercial use. Pick the set, untick what you don't want, then press the button: you see the full list before anything downloads.</p>
-    <label class="pick"><strong>Set</strong> <select data-starterpack aria-label="Starter set">${packs.map((p) => `<option value="${esc(p.id)}" ${p.id === pack.id ? 'selected' : ''}>${esc(p.label)}${p.id === packFor(packs, ctx.vramGB).id ? ' (this PC)' : ''}</option>`).join('')}</select></label>
+    <label class="pick"><strong>Set</strong> <select data-starterpack aria-label="Starter set">${packs.map((p) => `<option value="${esc(p.id)}" ${p.id === pack.id ? 'selected' : ''}>${esc(p.label)}${p.id === packFor(packs, ctx.vramGB, ctx.integrated).id ? ' (this PC)' : ''}</option>`).join('')}</select></label>
     <ul class="packlist">${rows}</ul>
     ${pack.times ? `<p class="muted">⏱ ${esc(pack.times)}</p>` : ''}
     <div class="row"><button type="button" class="get" data-starter="${esc(pack.id)}" ${picked.size ? '' : 'disabled'}>Equip starter set${ids.length ? ` (${gb(total)} to download)` : ''}</button></div>
