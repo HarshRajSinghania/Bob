@@ -8,6 +8,7 @@
 // Setting allTools (Advanced, off) sends every tool every time, the old way.
 import { HANDS, handOn, handOffWhy } from './hands-settings.js';
 import { makerWords, makerWhat } from './selftools.js';
+import { mcpWords, mcpWhat } from './mcp.js';
 
 export const CORE = ['notice_board', 'remember', 'reminders', 'list_folder', 'read_file', 'web_search', 'fetch_page', 'bob_help', 'ask_specialist', 'show_made', 'pick_session', 'use_tools'];
 
@@ -68,6 +69,8 @@ export function groupsFor(brain) {
     g[id] = { what: HAND_WHAT[id] || `Hands, ${hand.label.toLowerCase()}`, tools: hand.tools, words: HAND_WORDS[id] || /$^/, hand: id };
     // 1.5.48: the tools Bob made himself are named in the group, so "run my csv tool" finds them.
     if (id === 'maker') Object.assign(g[id], { what: makerWhat(brain.cfg), words: makerWords(brain.cfg) });
+    // The connected apps by name, so "in Blender, add a cube" finds them.
+    if (id === 'mcp') Object.assign(g[id], { what: mcpWhat(brain.cfg), words: mcpWords(brain.cfg) });
   }
   // Only groups with at least one tool Bob can use on this PC right now.
   const out = {};
@@ -89,7 +92,7 @@ export function guessGroups(brain, text) {
 }
 
 // The chat chip when a group is added (clarity reviewer's words; Hands match their names in Settings).
-const CHIP = { pictures: 'Using his picture, video and music tools', documents: 'Using his document tools', files: 'Using his file tools', run: 'Using Hands: run programs', schedules: 'Using Hands: schedules', apps: 'Using Hands: apps', office: 'Using Hands: office and converting', security: 'Using Hands: security and privacy', maker: 'Using Hands: his own tools', memory: 'Forgetting a topic', howtos: 'Using his how-tos', cloud: 'Using a cloud helper' };
+const CHIP = { pictures: 'Using his picture, video and music tools', documents: 'Using his document tools', files: 'Using his file tools', run: 'Using Hands: run programs', schedules: 'Using Hands: schedules', apps: 'Using Hands: apps', office: 'Using Hands: office and converting', security: 'Using Hands: security and privacy', maker: 'Using Hands: his own tools', mcp: 'Using Hands: connected apps', memory: 'Forgetting a topic', howtos: 'Using his how-tos', cloud: 'Using a cloud helper' };
 
 export const allToolsOn = (cfg) => cfg.allTools === true;
 

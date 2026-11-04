@@ -54,7 +54,7 @@ function sameNeed(a, b) {
 
 // When a step can't be checked yet (it depends on an earlier one: an app that isn't open, a file not made yet),
 // the card shows what Bob will do from the step itself.
-const SHOW = { cmd: 'Program', args: 'With', cwd: 'In', path: 'File', paths: 'Files', to: 'To', name: 'Name', window: 'Window', action: 'Action', text: 'Text', keys: 'Keys', provider: 'Helper', task: 'Job', find: 'Replace', replace: 'With', content: 'Content' };
+const SHOW = { app: 'App', tool: 'Tool', inputs: 'Inputs', cmd: 'Program', args: 'With', cwd: 'In', path: 'File', paths: 'Files', to: 'To', name: 'Name', window: 'Window', action: 'Action', text: 'Text', keys: 'Keys', provider: 'Helper', task: 'Job', find: 'Replace', replace: 'With', content: 'Content' };
 const KINDS = { Button: 'Button', MenuItem: 'Menu item', TabItem: 'Tab', CheckBox: 'Check box', ListItem: 'List item', Edit: 'Field', Hyperlink: 'Link' };
 const kindOf = (args) => KINDS[String(args?.type || '').replace(/[^A-Za-z]/g, '')] || '';
 function details(args) {

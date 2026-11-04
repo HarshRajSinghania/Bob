@@ -35,6 +35,8 @@ Update this file in the same handover as any change to settings.
 | Hands | Let Bob use Hands (master switch) | Off = every Hand below is off. | off | ok |
 | Hands | Files; Run programs and scripts; Schedules; Open and use apps; Office documents and converting; Security and privacy | long "what" text each | all off | ok (1.5.2; Office signed off; Security and privacy added, needs sign-off) |
 | Hands > Check a password safely | box + Check button under Security and privacy | password field (not saved) | empty | needs sign-off |
+| Hands | Connected apps (MCP) | long "what" text | off | ok (clear with edits, 2026-11-04) |
+| Hands > Connected apps | per app: On switch, Check, Show tools, Remove, Get uv for me (when uv is missing); card: Allow / Allow the rest of this job / Deny, Show details, This one always asks; Add a connected app (Fill in for Blender, Fill in for Unreal Engine, Name, Program to start, Arguments, Or its address, Add app); Paste a setup from another app (Add these) | each app off when added | no apps | ok (clear with edits, 2026-11-04) |
 | Hands | Folders the Files Hand may work in; Stop a command after | | none | ok |
 | Housekeeping | Tidy up old things by himself | Only while he's idle (10 minutes quiet, nothing running)… | off | ok (1.5.2) |
 | Housekeeping | Load a brain for it if none is loaded | Off: … so a game keeps the graphics card. | off | ok (1.5.2) |

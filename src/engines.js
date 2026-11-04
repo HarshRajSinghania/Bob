@@ -97,6 +97,17 @@ export const ENGINES = [
     ready: (cfg) => voicesReady(cfg).chatterbox
   },
   {
+    // 1.5.78: the same uv, for the Connected apps (MCP) Hand: uvx starts MCP add-ons that come as Python packages
+    // (Blender MCP is "uvx blender-mcp"). One already on the PC counts.
+    id: 'uv', name: 'uv (for connected apps)', what: 'Starts MCP add-ons that come as Python packages, like Blender MCP, for the Connected apps (MCP) Hand. About 20 MB. If uv is already on your PC, Bob uses that one.',
+    repo: 'astral-sh/uv', dir: 'audio-workshop', exe: 'uv.exe',
+    nvidia: [], other: [/^uv-x86_64-pc-windows-msvc\.zip$/],
+    runtime: () => null,
+    mac: { other: [/^uv-aarch64-apple-darwin\.tar\.gz$/] },
+    linux: { other: [/^uv-x86_64-unknown-linux-gnu\.tar\.gz$/] },
+    ready: (cfg) => Boolean(onPath(exeName('uvx')) || (cfg.agentDir && fs.existsSync(path.join(cfg.agentDir, 'audio-workshop', exeName('uvx')))))
+  },
+  {
     // Gyan's "essentials" Windows build of FFmpeg, a numbered release pinned with its sha256. One already on the PC counts.
     id: 'ffmpeg', name: 'FFmpeg', what: 'Converting sound and video (mp3, wav, mp4, webm, GIF...) and WebP pictures, for the Office documents and converting Hand. About 100 MB. Runs only while it converts. If FFmpeg is already on your PC, Bob uses that one.',
     repo: PIN.ffmpeg?.repo || 'GyanD/codexffmpeg', tag: PIN.ffmpeg?.tag || '', sha256: PIN.ffmpeg?.sha256 || '', needsPin: true, pinned: true, dir: 'ffmpeg', exe: 'ffmpeg.exe',

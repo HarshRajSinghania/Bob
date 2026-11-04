@@ -762,7 +762,7 @@ export class Brain {
     this.setState('waiting', text);
     const card = { type: 'approval', id, text, diff: need.diff, allowAll: Boolean(group) };
     if (Array.isArray(need.plan)) card.plan = need.plan;
-    if (need.command) { card.command = need.command; card.cwd = need.cwd || ''; if (need.button) card.button = String(need.button).slice(0, 30); }
+    if (need.command) { card.command = need.command; card.cwd = need.cwd || ''; if (need.where) card.where = String(need.where).slice(0, 120); if (need.mcp) card.mcp = need.mcp; if (need.button) card.button = String(need.button).slice(0, 30); }
     if (hand) card.hand = true;
     if (Array.isArray(need.together)) card.together = need.together.map(({ key, ...it }) => it);
     if (need.planCard) { card.planCard = need.planCard; card.allowAll = false; }

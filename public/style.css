@@ -577,6 +577,13 @@ button.big { padding: 9px 18px; font-size: 15px; min-height: 40px; }
 .hands-mytools ul { list-style: none; padding: 0; margin: 6px 0; }
 .hands-mytools li.mytool { border-bottom: 1px solid var(--line); padding: 6px 0; }
 .hands-mytools.dim { opacity: 0.7; }
+.hands-mcp { margin-top: 10px; }
+.hands-mcp > ul { list-style: none; padding: 0; margin: 6px 0; }
+.hands-mcp li.mcp-app { border-bottom: 1px solid var(--line); padding: 6px 0; }
+.hands-mcp ul.mcp-tools { margin: 4px 0 0 1.2em; }
+.hands-mcp .mcp-starts code { white-space: normal; overflow-wrap: anywhere; }
+.hands-mcp.dim { opacity: 0.7; }
+.hands-mcp textarea, .hands-mcp .pick input { width: 100%; }
 .hands-card tr.blocked td { opacity: 0.6; }
 .hands-card .why { color: var(--bad); font-family: inherit; }
 .hands-card input[type=checkbox] { width: 20px; height: 20px; }

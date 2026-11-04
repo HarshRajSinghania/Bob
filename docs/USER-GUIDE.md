@@ -302,6 +302,18 @@ Hands are Bob's way of doing things for you on your PC rather than just talking 
 - **Apps:** click and type in another program for you.
 - **Office documents and converting:** convert files (Word, Excel, PowerPoint and OpenDocument to and from each other or to PDF; pictures; sound; video), read office files, make new documents, spreadsheets and slides, and change them (fill cells, add rows and slides, replace text, fill a template).
 - **Security and privacy:** check the PC's protection, explain Defender alerts and start scans, look at suspicious downloads, scripts and emails without opening them, find and remove hidden details (like GPS in photos) before sharing, and check whether a website, link or sender is genuine from public records.
+- **Connected apps (MCP):** work inside Unreal Engine, Blender and other apps that offer their tools through an MCP add-on.
+
+### Connected apps (MCP)
+
+Apps with an MCP add-on (Unreal Engine and Blender have them) can offer Bob their own tools. Ask things like "in Blender, add a cube at the origin and make it red", "what's in the scene?" or "list the actors in my Unreal level".
+
+- Install the app's MCP add-on and switch it on in the app first (for Blender: the Blender MCP add-on, Connect in its panel, plus uv: **Get uv for me** fetches it; for Unreal: your Unreal MCP plugin with the editor open).
+- Settings → Show advanced settings → Hands: switch on **Connected apps (MCP)**, then under **Connected apps** use **Add a connected app** (**Fill in for Blender** / **Fill in for Unreal Engine** fill in a common setup) or **Paste a setup from another app** (the "mcpServers" block from the add-on's instructions, Claude Desktop, Cline, Cursor or OpenCode). Press **Check**, then tick **On** for the app. New apps always come in switched off.
+- Bob starts or reaches an app only when a job needs it and lets it go after 5 minutes unused, when you switch it off, or when you press ✋ Hands.
+- Every step shows a card that says in plain words what Bob will do, with the exact tool and inputs under **Show details** (**Allow** / **Allow the rest of this job** / **Deny**), unless "Let Bob work without asking" is on. Tools that run code inside the app or can delete things show the code and always ask (no "rest of this job"). The hard limits apply to the inputs, including the blocked-commands list on any code a tool would run inside the app.
+- While **Don't send anything out** is on, Bob only talks to apps on this computer (localhost / 127.0.0.1).
+- Works the same on Windows, Mac and Linux. The phone app shows the same cards for jobs sent from the phone; the apps themselves run on the PC.
 
 ### Office documents and converting
 
