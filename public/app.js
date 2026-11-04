@@ -125,6 +125,7 @@ function add(cls, html) {
   scrollDown();
   return el;
 }
+const waitLines = new Map(); // 1.5.97: wait id -> its ⏳ line
 function note(text, kind = '') { return add(`note ${kind}`, esc(text)); }
 // 1.5.91 the Set it up card (the words were signed off by the settings thread; the phone app has the same card).
 function setupOfferHtml(ev) {
@@ -494,6 +495,13 @@ function onEvent(ev) {
     case 'equipped': // 1.5.91: a download finished and Bob put it in its slot himself
       if (Array.isArray(ev.items) && ev.items.length) note(`Put in its slot: ${[...new Set(ev.items.map((i) => i.value))].join(', ')}.`);
       return;
+    case 'waiting-line': { // 1.5.97: one muted ⏳ line per wait, updated in place (it isn't a card: nothing to answer)
+      const el = waitLines.get(ev.id);
+      if (el) el.textContent = ev.text;
+      else waitLines.set(ev.id, note(ev.text, 'wait'));
+      scrollDown();
+      return;
+    }
     case 'busy-note': // 1.5.37: your message waits behind a picture, song or clip; Bob says so at once
       note(ev.text, 'announce');
       scrollDown();

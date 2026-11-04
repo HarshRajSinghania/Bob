@@ -149,6 +149,26 @@ export function carryOnLine(job) {
   return `I was closed partway through this one. Picking up where I left off: ${bits.join(', and ')}.`;
 }
 
+// ---------- The waiting line (1.5.97) ----------
+// While a job waits for the graphics card, chat and Tasks show one muted ⏳ line that says who has the card and that
+// nothing is needed from the user (on the Legion Go the old line read like an OK card). Never the owner's name.
+export const WAIT_STILL = 'Still waiting. Stop cancels this job if you\'d rather not wait.';
+export const NOTHING_TO_OK = 'There\'s nothing to OK right now. I\'m just waiting for the graphics card, and I\'ll carry on by myself.';
+export function holderLine(label = '', lending = null) {
+  const l = String(label || '');
+  if (lending) return `I'm lending my brain to "${String(lending.for || 'another Bob').slice(0, 60)}"`;
+  if (/clip engine/i.test(l)) return "I'm making a clip";
+  if (/picture engine/i.test(l)) return "I'm making a picture";
+  if (/workshop|program/i.test(l)) return 'another program is using it';
+  if (/brain|\bBob/i.test(l)) return 'my Brain is finishing another job';
+  return 'something else is using it';
+}
+export function waitLine(holder, mins = 0) {
+  const n = Math.max(0, Math.floor(mins));
+  return `⏳ The graphics card is busy: ${holder}. Nothing for you to do; I carry on by myself when it's free. (waiting ${n} min)${n >= 5 ? ` ${WAIT_STILL}` : ''}`;
+}
+export const isBareOk = (text) => /^\s*(ok(ay)?|yes|yep|yeah|go( ahead)?|sure|y)\s*[.!]*\s*$/i.test(String(text || ''));
+
 // ---------- The gate ----------
 // Errors that a second try won't fix: go straight to the fallback (or the user).
 const NO_RETRY = /can't find the model files|has no model file|Couldn't start llama-server|Stopped\./i;
@@ -184,12 +204,22 @@ export class Gate {
     await this.lease.acquire(signal, label, {
       signal,
       onWait: (who) => {
-        const text = `Waiting for ${who || 'the job before this one'} to finish with the graphics card.`;
-        emit?.({ type: 'announce', text });
-        this.brain.setState?.('waiting', text);
-        this.brain.log?.('handoff', text);
+        const since = Date.now();
+        const id = `wait-${since}-${Math.random().toString(36).slice(2, 8)}`;
+        const say = () => {
+          const text = waitLine(holderLine(who, this.brain.lending), (Date.now() - since) / 60000);
+          emit?.({ type: 'waiting-line', id, text });
+          this.brain.setState?.('waiting', text);
+          return text;
+        };
+        this.brain.log?.('handoff', say());
+        this.waitingNow = (this.waitingNow || 0) + 1;
+        const tick = setInterval(say, 60000);
+        tick.unref?.();
+        const stop = () => { clearInterval(tick); this.waitingNow = Math.max(0, (this.waitingNow || 1) - 1); };
+        this.pendingWaits = (this.pendingWaits || new Map()); this.pendingWaits.set(signal, stop);
       }
-    });
+    }).finally(() => { const stop = this.pendingWaits?.get(signal); if (stop) { stop(); this.pendingWaits.delete(signal); } });
   }
 
   // need({ id: 'brain', model, opts }, { signal, emit, who, announce }) -> the model that's loaded (it can be a fallback).
@@ -295,7 +325,7 @@ export class Gate {
   // waits until the engine really reports them gone before the painter starts.
   async needCard({ id, kind }, { signal, emit }) {
     const ledger = this.ledgerOf(signal);
-    await this.hold(signal, id === 'painter' ? 'the picture engine' : 'the workshop', emit);
+    await this.hold(signal, id === 'painter' ? (/video|clip/i.test(String(kind || '')) ? 'the clip engine' : 'the picture engine') : 'the workshop', emit);
     const st = ledger?.step('load', { what: id === 'painter' ? `painter (${kind || 'image'})` : 'empty graphics card' });
     try {
       const gone = (await this.brain.clearGpu()) || [];

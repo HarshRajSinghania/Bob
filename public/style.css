@@ -1105,3 +1105,6 @@ button.tip-i:focus-visible { outline: 2px solid var(--accent); outline-offset: -
 .howto-row .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .howto-row button { min-height: 32px; }
 .howto-row textarea, .howto-row input { width: 100%; font: inherit; box-sizing: border-box; }
+
+/* 1.5.97: the ⏳ waiting line: muted, no buttons, so it never reads as a card */
+.note.wait { color: var(--muted, #888); font-style: italic; border: none; background: none; }

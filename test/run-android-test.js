@@ -152,6 +152,11 @@ check('lend: turning it on makes the passcode if none is set', /if \(on && !lend
   check('replicant matrix: no "PC" in the phone page\'s own words', !hits.length, hits.join(' | '));
 }
 
+// Photos: picked with Android's own picker, sent to a networked Bob (never the phone brain), then the chat points at it.
+check('photo: 📎 picks with the system photo picker (no permission)', /<button id="photo" aria-label="Add a photo">/.test(html) && /MediaStore\.ACTION_PICK_IMAGES/.test(bridge) && !/READ_MEDIA_IMAGES|READ_EXTERNAL_STORAGE/.test(fs.readFileSync(path.join(root, 'android/app/src/main/AndroidManifest.xml'), 'utf8')));
+check('photo: uploads to /api/refs as kind chat, then /api/chat carries the ref', /\/api\/refs\?kind=chat/.test(bridge) && /phone\('photo\.upload'/.test(js) && /refs\.length \? \{ refs \}/.test(js));
+check('photo: never goes to the phone brain', /if \(photo && !to\)/.test(js) && !/brain\.chat[^\n]*photo/.test(js));
+
 // The page's lock: no inline scripts or styles, no network from the page itself.
 check('page has a strict Content-Security-Policy', /script-src 'self'/.test(html) && /connect-src 'none'/.test(html) && !/<script>(?!<)/.test(html.replace(/<script src[^>]*><\/script>/g, '')) && !/ style="/.test(html));
 
