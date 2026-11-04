@@ -14,6 +14,7 @@ Your numbers will differ on other hardware. Small samples are noted in each file
 
 | Date | Result |
 |---|---|
+| 2026-11-04 | [Engine check: every engine and brain](2026-11-04-engine-check.md) |
 | 2026-11-04 | [Why the first reply after a load is slow](2026-11-04-first-reply-warm-up.md) |
 | 2026-11-04 | [Hardware check and speed test](2026-11-04-hardware-check-and-speed-test.md) |
 | 2026-11-03 | [Everyday and Office race: Qwen3.6 vs Gemma 4 26B](2026-11-03-race-everyday-office-qwen3.6-vs-gemma4.md) |
