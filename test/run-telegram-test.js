@@ -9,7 +9,8 @@ const check = (name, ok, extra = '') => { ok ? pass++ : fail++; console.log(`${o
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-tg-'));
 const configFile = path.join(dir, 'config.json');
 fs.writeFileSync(configFile, JSON.stringify({ port: 7777 }));
-const TOKEN = '123456789:AAbbCCddEEffGGhhIIjjKKllMMnnOOppQQ_';
+// A made-up token, built at run time so secret scanners don't mistake it for a real one.
+const TOKEN = ['12345', '6789'].join('') + ':' + 'FAKE-test-token-not-real'.padEnd(35, '_');
 
 const calls = [];
 const fetchImpl = async (url, opts) => {
