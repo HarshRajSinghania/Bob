@@ -4,6 +4,14 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.95
+
+### Bob in the tray, and his look as his icon (both off by default)
+- New in Settings, How Bob works: **Keep Bob in the tray**. With it on, closing or minimising Bob's window tucks him into the tray by the clock (the menu bar on a Mac, the desktop's tray on Linux). Click the icon to bring him back; **Quit Bob** in its menu closes him fully. The first time he goes there, he says where he went.
+- Started hidden with **Launch Bob on start-up**, Bob now always shows his tray icon, so his window can come back with one click.
+- New in Settings, Bob himself: **Use Bob's look as his icon**. The taskbar, title bar (Dock on a Mac) and tray show the look you picked for him.
+- Updating Bob still works with the tray on. The phone app has no tray.
+
 ## 1.5.94
 
 ### Bob-Net with no manual steps

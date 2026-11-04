@@ -9,11 +9,13 @@ Update this file in the same handover as any change to settings.
 |---|---|---|---|
 | Bob's voice | (row shows current voice, Play, Change → Voice & conversation) | Windows voice until Kokoro is set up | ok |
 | Bob's look | (current look, Change → Style) | Sysop | ok |
+| Use Bob's look as his icon | Off unless you turn it on. His icon on the taskbar (Dock on a Mac), in the tray and in the corner of his window shows the look you picked, and changes when you change it. (Disabled in a browser.) | Off | 1.5.94, awaiting review |
 | Theme | (current theme, Change → Style) | Bob's Inn | ok (1.5.2: row renamed "Theme") |
 | Animations | On / Follow Windows / Off | On | ok |
 | Bob's cat | (text box) | Patches | ok (1.5.2) |
 | One brain (snappier) | Every copy of Bob uses the main brain, so there's no brain swap. | off | ok (1.5.2) |
 | Launch Bob on start-up | Off unless you turn it on. | off | ok |
+| Keep Bob in the tray | Off unless you turn it on. Closing or minimising Bob's window tucks him into the tray by the clock (Mac: the menu bar; Linux: your desktop's tray) instead of closing him, so he keeps running. Click his icon to open him again. To close him fully, right-click (Mac: click) his icon and pick **Quit Bob**. (Disabled in a browser.) | Off | 1.5.94, awaiting review |
 | Check for updates when Bob starts | Off unless you turn it on. Bob only tells you; updating always takes your click. | off | ok |
 | (footer) Version, graphics card, free disk; Check for updates; Run first-time setup | | | ok |
 | Show advanced settings | Brains, voice details, engines and speed, connections, Hands, housekeeping, check-ins. | off (remembered per PC) | ok |
