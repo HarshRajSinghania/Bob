@@ -26,7 +26,7 @@ You can close Bob while things download. Unfinished downloads wait, paused, and 
 
 - Windows 10 or 11 (64-bit).
 - **32 GB of memory (RAM)** is what the starter sets are planned around. Less can work for chat, but pictures and video need the room.
-- Space on your drive: about 8 GB for the basics, 30 to 60 GB if you want pictures and video too.
+- Space on your drive: it depends on your graphics card. Get me ready shows the total before anything downloads; on a 16 GB card the full set is about 105 GB, mostly pictures and clips, and smaller cards get smaller sets.
 - A graphics card is **optional**. Bob can chat, plan, research, read pictures and talk with no graphics card at all. An NVIDIA card makes him much faster and lets him paint and film.
 
 ---

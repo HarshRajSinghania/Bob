@@ -4,6 +4,13 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.100
+
+### Help, tidied
+- Help: repeats trimmed, short FAQ answers link to their full page, wrong facts fixed (phone access, sizes, chat while busy), privacy page lists Bob-Net and Telegram, platform-neutral wording.
+- Glossary: "Slot" appears once, "SHA-256" is part of "Checksum (.sha256, SHA-256)", and "Thinking (Bob's thinking window)" is part of "Thinking first".
+- No settings or behaviour changed.
+
 ## 1.5.99
 
 ### Pair with my other Bobs
