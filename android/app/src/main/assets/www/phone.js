@@ -627,7 +627,7 @@
         lend.passcodeSet ? el('p', { class: 'help-line', text: 'A new passcode signs out every Bob that used the old one.' }) : null),
       el('div', { class: 'box' },
         el('div', { class: 'title', text: 'Address for your other Bobs' }), el('p', { class: 'help-line' }, addr),
-        el('p', { class: 'help-line', text: 'On the PC: Settings, Show advanced settings, Connections, Share brains with my other Bobs, Borrow a brain. Add this address and the passcode there.' })),
+        el('p', { class: 'help-line', text: 'On the PC: Settings, Show advanced settings, Connections, Bob-Net: share work with my other Bobs, Borrow a brain. Add this address and the passcode there.' })),
       lend.on ? el('p', { class: 'help-line', role: 'status', text: [lend.now && lend.now !== 'off' ? LEND_WHY[lend.now] || '' : '', lend.last || ''].filter(Boolean).join(' ') }) : null,
       el('div', { class: 'box' },
         el('div', { class: 'title', text: 'Let Bob work with the screen off' }),

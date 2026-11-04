@@ -1,4 +1,4 @@
-// Settings, Connections: "Share brains with my other Bobs" (src/share-brains.js). Both switches off unless you turn them on.
+// Settings, Connections: "Bob-Net: share work with my other Bobs" (src/share-brains.js). Both switches off unless you turn them on.
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 async function api(url, data) {
@@ -17,7 +17,7 @@ const CAN = { pictures: 'pictures', video: 'clips', music: 'music', sfx: 'sounds
 const WHY = { 'too long': 'his brain has no room for chats this long (start a new chat, or pick another Bob)', cant: 'can\'t do that kind of job', busy: 'busy with his own job', gaming: 'gaming, so he said no', off: 'not lending', 'not reachable': 'not reachable', 'too slow': 'too slow last time', 'passcode not accepted': 'passcode not accepted', 'door closed': '"Let my other devices in" is off over there', 'no brain': 'has no quick brain' };
 
 export function shareBrainsHtml() {
-  return '<div class="share-box"><strong>Share brains with my other Bobs</strong><p class="muted">Loading…</p></div>';
+  return '<div class="share-box"><strong>Bob-Net: share work with my other Bobs</strong><p class="muted">Loading…</p></div>';
 }
 
 export async function mountShareBrains(box) {
@@ -27,7 +27,7 @@ export async function mountShareBrains(box) {
   const row = (l) => `<li><strong>${esc(l.name)}</strong> <code>${esc(l.address)}</code> <span class="muted">${l.ok === true ? `ready${l.brain ? `, ${esc(l.brain)}` : ''}` : l.ok === false ? esc(WHY[l.why] || l.why) : 'not checked yet'}${l.ctx ? `, room for a chat of about ${Math.max(1, Math.round((l.ctx * 0.75) / 1000))},000 words` : ''}${l.speed ? `, about ${Math.round(l.speed)} words a second` : ''}.${can(l)}</span>
     <button type="button" data-share-up="${esc(l.address)}" title="Ask this one earlier">↑</button> <button type="button" data-share-rm="${esc(l.address)}">Remove</button></li>`;
   const draw = () => {
-    box.innerHTML = `<strong>Share brains with my other Bobs</strong> <span class="tag">off unless you turn it on</span>
+    box.innerHTML = `<strong>Bob-Net: share work with my other Bobs</strong> <span class="tag">off unless you turn it on</span>
       <label class="switch"><input type="checkbox" data-share-lend ${v.lend ? 'checked' : ''}><span><strong>Lend my brain</strong><br><span class="muted">Your other Bobs can ask this Bob to think a quick reply. He only thinks and sends the words back. Nothing runs on this computer for them, and he keeps nothing. He says no while he's gaming or busy. It goes through the same door as <strong>Let my other devices in</strong>, so that has to be on too.${v.lend && !v.doorOpen ? ' <strong>That door is off right now, so nobody can borrow from this Bob yet.</strong>' : ''}</span></span></label>
       <label class="switch"><input type="checkbox" data-share-take ${v.takeJobs ? 'checked' : ''}><span><strong>Take jobs from my other Bobs</strong><br><span class="muted">Your other Bobs can hand this Bob whole jobs he has the models for: pictures, clips, music, sounds, web research or Medium-effort thinking. He says no while gaming or when his queue is full. Their jobs can't touch files, programs, reminders or memory here. Finished files go back, and a copy stays in his save folder. Needs <strong>Let my other devices in</strong>.</span></span></label>
       <label class="switch"><input type="checkbox" data-share-borrow ${v.borrow.on ? 'checked' : ''}><span><strong>Borrow a brain</strong><br><span class="muted">Bob asks one of your other Bobs to think, then runs the tools here himself, with his own OK cards. Each time, the chat so far and what Bob remembers about you go to that Bob (your own devices on Tailscale only; it keeps none of it). If none answers within a few seconds, Bob thinks it himself like always. Quick replies only: nothing on Medium or higher, and nothing with pictures.</span></span></label>
@@ -64,5 +64,5 @@ export async function mountShareBrains(box) {
     if (up) { const order = v.lenders.map((l) => l.address); const i = order.indexOf(up.dataset.shareUp); if (i > 0) { order.splice(i - 1, 0, order.splice(i, 1)[0]); change({ order }); } }
     if (e.target.closest('[data-share-check]')) change({ check: true });
   });
-  try { await load(); } catch (e) { box.innerHTML = `<strong>Share brains with my other Bobs</strong><p class="muted">${esc(e.message)}</p>`; }
+  try { await load(); } catch (e) { box.innerHTML = `<strong>Bob-Net: share work with my other Bobs</strong><p class="muted">${esc(e.message)}</p>`; }
 }

@@ -4,6 +4,11 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.86
+
+### Bob-Net
+- The sharing panel is now called **Bob-Net: share work with my other Bobs**. The switches inside it keep their names. Help has a new glossary entry for Bob-Net.
+
 ## 1.5.85
 
 ### Tested llama.cpp by default

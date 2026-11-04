@@ -688,7 +688,7 @@ export function createCellar() {
     mountQuarantineSettings(dlg.querySelector('.q-box'));
     mountPhoneAccess(dlg.querySelector('.phone-box')); // Connections: Let my other devices in
     mountCheckins(dlg.querySelector('.checkins-box')); // 1.5.78 Check-ins
-    mountShareBrains(dlg.querySelector('.share-box')); // Connections: Share brains with my other Bobs
+    mountShareBrains(dlg.querySelector('.share-box')); // Connections: Bob-Net: share work with my other Bobs
     const page = mode === 'welcome' ? 'Welcome' : tab === 'settings' ? 'Settings' : tab === 'style' ? 'Style' : 'Get models';
     $('cellar-title').textContent = page;
     for (const [id, on] of [['cellarBtn', page === 'Get models'], ['settingsBtn', page === 'Settings'], ['styleBtn', page === 'Style'], ['chatBtn', false]]) $(id)?.classList.toggle('on', on);
