@@ -60,7 +60,7 @@ const missing = (labels) => [...new Set(labels)].filter((l) => !helpText.include
   check('the web tools are taken out of his tools while off', /\.\.\.\(webOn\(this\.cfg\) \? \[\] : WEB_TOOLS\)/.test(brain));
   check('a web tool called by name gets the switch card, or the switch message (1.5.91)', /WEB_TOOLS\.includes\(name\) && !webOn\(this\.cfg\)\) return \{ text: ctx\?\.emit \? await this\.offerSetup\('web', ctx\) : WEB_OFF \}/.test(brain));
   check('the scouting copy says where the switch is instead of researching', /hat === 'scout' && !webOn\(this\.cfg\)\) return WEB_OFF/.test(brain));
-  check('his prompt carries the web line', /prompt \+= webPrompt\(this\.cfg\)/.test(brain));
+  check('his prompt carries the web line', /prompt \+= webPrompt\(this\.cfg(, \{ hat \})?\)/.test(brain));
   const cellar = read('public/cellar.js');
   check('the switch is on the everyday Settings page, off unless turned on', /sswitch\('webSearch', settings\.webSearch === true, 'Let Bob search the web', keep\('Off unless you turn it on/.test(cellar));
   const server = read('src/server.js');

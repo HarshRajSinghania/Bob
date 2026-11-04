@@ -170,6 +170,22 @@ export function waitLine(holder, mins = 0) {
 // 1.5.104: a chat that waits in the queue behind a picture, clip, song or sound gets the same kind of ⏳ line (it used
 // to get the older "I'm still on the last job" note, and "ok" after it was queued as a new job).
 export const NOTHING_TO_OK_BUSY = 'There\'s nothing to OK right now. I\'m still on the last job, and I\'ll answer you as soon as it\'s done.';
+// 1.5.105: the job in plain words for the ⏳ line ("making a picture, step 12 of 30"), from the status-bar detail.
+export function plainDoing(detail = '') {
+  const d = String(detail || '').trim();
+  const steps = (n, m) => (n && m ? `, step ${n} of ${m}` : '');
+  let m = d.match(/^(Painting|Filming)(?: (\d+)\/(\d+))?$/);
+  if (m) return `making a ${m[1] === 'Filming' ? 'clip' : 'picture'}${steps(m[2], m[3])}`;
+  m = d.match(/^Maestro is (painting|filming)$/);
+  if (m) return `making a ${m[1] === 'filming' ? 'clip' : 'picture'} in Maestro`;
+  m = d.match(/^Maestro: .*?(?: (\d+)\/(\d+))?(?: \d+%)?$/);
+  if (m) return `working in Maestro${steps(m[1], m[2])}`;
+  m = d.match(/^(Composing|Making a sound)(?: (\d+)%)?$/);
+  if (m) return `making a ${m[1] === 'Composing' ? 'song' : 'sound'}${m[2] ? `, ${m[2]}% done` : ''}`;
+  m = d.match(/^Workshop: (.+?)(?: \(\d+ s\))?$/);
+  if (m) return `running ${m[1]} in the Workshop`;
+  return d;
+}
 export function queuedLine(doing = '') {
   const d = String(doing || '').trim();
   return `⏳ I'm still on the last job${d ? ` (${d})` : ''}. Nothing for you to do; I'll answer this as soon as it's done. If it can't wait, stop that job in Tasks.`;

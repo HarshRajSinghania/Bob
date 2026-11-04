@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Brain } from '../src/brain.js';
-import { queuedLine, NOTHING_TO_OK_BUSY, NOTHING_TO_OK } from '../src/handoff.js';
+import { queuedLine, plainDoing, NOTHING_TO_OK_BUSY, NOTHING_TO_OK } from '../src/handoff.js';
 import { configuredGguf } from '../src/models.js';
 import { engineExe, ENGINES } from '../src/engines.js';
 let pass = 0, fail = 0;
@@ -32,6 +32,8 @@ check('a tool that offered a card is not checked or tried again', /ctx\.offeredN
 // 2. The ⏳ line for a chat queued behind a picture, clip, song or sound.
 check('queued line says what Bob is on and that nothing is needed', queuedLine('Painting 12/30') === "⏳ I'm still on the last job (Painting 12/30). Nothing for you to do; I'll answer this as soon as it's done. If it can't wait, stop that job in Tasks.");
 check('queued line without a detail', queuedLine('') === "⏳ I'm still on the last job. Nothing for you to do; I'll answer this as soon as it's done. If it can't wait, stop that job in Tasks.");
+check('the job is said in plain words (1.5.105)', plainDoing('Painting 12/30') === 'making a picture, step 12 of 30' && plainDoing('Filming 3/20') === 'making a clip, step 3 of 20' && plainDoing('Painting') === 'making a picture' && plainDoing('Composing') === 'making a song' && plainDoing('Making a sound') === 'making a sound' && plainDoing('Composing 40%') === 'making a song, 40% done');
+check('the busy line uses the plain words', /return queuedLine\(plainDoing\(this\.state\.detail\)\);/.test(brainSrc));
 check('it goes out as a waiting-line (updated in place), not the old busy note', /type: 'waiting-line', sessionId, jobId: job\.id, id: `queued-\$\{job\.id\}`, text: busy/.test(brainSrc) && !/I'll answer this as soon as it's done\. If this can't wait, stop it in Tasks\./.test(brainSrc));
 {
   const sent = [];

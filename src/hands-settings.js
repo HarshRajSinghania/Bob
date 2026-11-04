@@ -70,6 +70,8 @@ export const LIMITS = {
 export function handsOs(platform = (typeof process !== 'undefined' && (process.env.BOB_PLATFORM || process.platform)) || 'win32') {
   return platform === 'win32' || platform === 'win' ? 'win' : platform === 'darwin' || platform === 'mac' ? 'mac' : 'linux';
 }
+// 1.5.102: what Bob's instructions call the computer he runs on (they said "Windows PC" on every system before).
+export const computerWord = (os_ = handsOs()) => ({ win: 'Windows PC', mac: 'Mac', linux: 'Linux computer' })[os_] || 'computer';
 // Does this Hand exist on this computer?
 export const handHere = (id, os_ = handsOs()) => Boolean(HANDS[id]) && (!HANDS[id].platforms || HANDS[id].platforms.includes(os_));
 // The Hands this computer has, with their description for it.

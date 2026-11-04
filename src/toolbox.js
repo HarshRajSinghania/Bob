@@ -84,7 +84,12 @@ export function groupsFor(brain) {
     if (!usable.length) continue;
     out[id] = { ...x, tools: usable };
     // 1.5.91: a maker that isn't set up is still listed (calling it shows the Set it up card), and says so.
-    if (id === 'pictures') out[id].what = usable.map((n) => PICTURE_WHAT[n] && (brain.notSetUp?.(n) ? `${PICTURE_WHAT[n]} (not set up yet: calling it offers to set it up)` : PICTURE_WHAT[n])).filter(Boolean).join(', ');
+    // 1.5.102: the not-set-up note once for all of them, not after each one.
+    if (id === 'pictures') {
+      const named = usable.filter((n) => PICTURE_WHAT[n]);
+      const notYet = named.filter((n) => brain.notSetUp?.(n)), ready = named.filter((n) => !brain.notSetUp?.(n));
+      out[id].what = [notYet.length ? `${notYet.map((n) => PICTURE_WHAT[n]).join(', ')} (not set up yet: calling ${notYet.length > 1 ? 'one' : 'it'} offers to set it up)` : '', ready.map((n) => PICTURE_WHAT[n]).join(', ')].filter(Boolean).join(', ');
+    }
   }
   return out;
 }

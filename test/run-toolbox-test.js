@@ -67,7 +67,7 @@ const size = (step) => JSON.stringify(step.tools).length;
 {
   const [s] = await turn('hello there', [], 'r1');
   check('the prompt names the groups he can add, and says he CAN do them', /More you CAN do/.test(s.sys) && /files = /.test(s.sys) && /documents = /.test(s.sys), s.sys.slice(-400));
-  check('the picture group says what isn\'t set up yet (no picture model: "make pictures (not set up yet...)")', /More you CAN do[^\n]*make pictures \(not set up yet: calling it offers to set it up\)/.test(s.sys) && /More you CAN do[^\n]*save reference pictures/.test(s.sys));
+  check('the picture group says what isn\'t set up yet (no picture model: "make pictures (not set up yet...)")', /More you CAN do[^\n]*make pictures, [^(\n]*\(not set up yet: calling one offers to set it up\)/.test(s.sys) && (s.sys.match(/not set up yet: calling/g) || []).length === 1 && /More you CAN do[^\n]*save reference pictures/.test(s.sys));
   const steps = await turn('hmm', [{ role: 'assistant', content: "Sorry, I can't tidy folders yet." }], 'r2');
   check('"I can\'t" with no tool call: every group is added and he gets one more go', steps.length === 2 && names(steps[1]).includes('file_hands') && names(steps[1]).includes('write_file'), steps.map((x) => names(x).length).join('/'));
   const twice = await turn('hmm', [{ role: 'assistant', content: "I can't do that." }, { role: 'assistant', content: "I still can't." }], 'r3');

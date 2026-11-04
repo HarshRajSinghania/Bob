@@ -4,6 +4,11 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.105
+
+- Bob's instructions to his brains are trimmed: no repeated rules, the right computer name on Mac and Linux, and his copies get about a third fewer words, which leaves more room for the chat on small brains.
+- The ⏳ line for a chat waiting behind a long job now says what Bob is doing in plain words, for example "making a picture, step 12 of 30" or "making a song".
+
 ## 1.5.104
 
 Fixes from a live test on the replicant matrix.

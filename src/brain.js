@@ -38,12 +38,12 @@ import { selfToolsTools } from './selftools.js';
 import { Made, madePaths, showMadeTool } from './made.js';
 import { imageInfoOf, sizeLike } from './imageinfo.js';
 import { scheduleTools } from './hands-schedules.js';
-import { toolsOff, HANDS, handOn, handOffWhy, freeOn } from './hands-settings.js';
+import { toolsOff, HANDS, handOn, handOffWhy, freeOn, computerWord } from './hands-settings.js';
 import { gate as qGate, after as qAfter, maybeAsk as qAsk, noteStrike, copyHeld } from './quarantine.js';
 import { wantsPictureEdit, recentPicture, editHint } from './intent.js';
 import { SAVE_AS, namedType, saveAs } from './save-as.js';
 import { CORE, groupsFor, groupOf, guessGroups, allToolsOn, useToolsTool, fillUseTools, tidySchema, STICKY_TURNS, toolboxPrompt, saysCant } from './toolbox.js';
-import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff, carryOnPlan, carryOnLine, finishedSteps, MAX_AUTO_RESUMES, isBareOk, NOTHING_TO_OK, NOTHING_TO_OK_BUSY, queuedLine } from './handoff.js';
+import { Gate, Ledger, safeToResume, interruptedNote, withRetry, slimHandoff, carryOnPlan, carryOnLine, finishedSteps, MAX_AUTO_RESUMES, isBareOk, NOTHING_TO_OK, NOTHING_TO_OK_BUSY, queuedLine, plainDoing } from './handoff.js';
 import { expectFrom, verifyOutput, afterTool, afterTurn } from './verify.js';
 import { brainMode, chatBrain, holdsChatBrain, bigSession, isBobs, sameModel, sleepAfterText, bigGraceMs, msText } from './brain-mode.js';
 import { WEB_TOOLS, WEB_OFF, webOn, webPrompt, linkPrompt, findLinks, refersToLink, linkTurn } from './web.js';
@@ -216,7 +216,7 @@ const CLAIM_NUDGE = 'You just said you did something on the PC, but no tool did 
 // the computer, not a remote driver... simulated environment" right after two errors.
 export function realPcPrompt(cfg) {
   const who = cfg.userName || 'the user';
-  const base = `You live on ${who}'s real Windows PC; the apps, windows and files are real, not a simulation (only your Idle Process workspace is make-believe). Never call the PC simulated or virtual.`;
+  const base = `You live on ${who}'s real ${computerWord()}; the apps, windows and files are real, not a simulation (only your Idle Process workspace is make-believe). Never call the PC simulated or virtual.`;
   if (handOn(cfg, 'apps')) return `\n\n${base} Being inside the PC is exactly why you can drive it: with the Apps hand on you really do take the wheel. When ${who} says drive, take control, take the wheel, use my screen or do it in <an app>, be keen and start at once${freeOn(cfg) ? ' (you work without asking right now, so go ahead and do each step; each one is logged)' : " by showing the first step's card"}: open_app, then app_look, then app_act (add them with use_tools apps if they aren't here).${freeOn(cfg) ? '' : ` Nothing happens on the PC until ${who} clicks it.`} When the Apps hand is on, don't refuse to drive. If a step fails, tell ${who} exactly what failed and what to click, and never say a step worked unless its result says so.`;
   return `\n\n${base} Driving apps (open, click, type in them) needs the Apps hand, which is off: ${handOffWhy(cfg, 'apps')} If asked to drive, say that and offer to start as soon as it's on.`;
 }
@@ -1159,27 +1159,40 @@ export class Brain {
   }
 
   // Tell Bob plainly what this PC can't do yet, so he offers the prompt and points to the cellar instead.
-  withLimits(prompt, loaded = null) {
+  // 1.5.102: hat = a copy of Bob (workbench, ledger...). A copy has only its own few tools (wearHat), so it isn't told
+  // about tools it doesn't have: no offer_setup, ask_cloud or picture lines (the painter copy has its own).
+  withLimits(prompt, loaded = null, hat = null) {
+    const who = this.cfg.userName || 'the user';
     const can = capabilities(this.cfg);
     const missing = [!can.pictures && 'make pictures', !can.video && 'make video clips', !can.music && 'make music', !can.sfx && 'make sound effects', !can.hearing && 'hear voice input'].filter(Boolean);
     const helpers = cloudHelpers(this.cfg);
+    const desk = !hat;
     // The Hands line only when a Hand group is added (or for hats and "all tools at once"); otherwise use_tools lists them.
-    if (!loaded || allToolsOn(this.cfg) || Object.keys(HANDS).some((h) => loaded.has(h))) prompt += handsPrompt(this.cfg);
+    const handsLine = !loaded || allToolsOn(this.cfg) || Object.keys(HANDS).some((h) => loaded.has(h));
+    if (handsLine) prompt += handsPrompt(this.cfg, { hat });
     if (loaded) prompt += realPcPrompt(this.cfg) + toolboxPrompt(this, loaded);
-    prompt += webPrompt(this.cfg) + linkPrompt(this.cfg);
+    prompt += webPrompt(this.cfg, { hat }) + linkPrompt(this.cfg);
     if (loaded) prompt += autoSessionPrompt(this.cfg); // front desk only: hats don't change the session
     if (loaded) prompt += planPrompt(this.cfg); // 1.5.78: front desk only, and nothing while the setting is off
-    prompt += houseStylePrompt(this.cfg.houseStyle, this.cfg.userName || 'the user');
+    prompt += houseStylePrompt(this.cfg.houseStyle, who);
     if (this.cfg.defaultProject && this.cfg.projects?.[this.cfg.defaultProject]) prompt += `\n\n${this.cfg.userName || 'The user'}'s main project is ${this.cfg.defaultProject}. When they say "my project" without a name, it's that one.`;
     // "Show me a picture of X" once got no answer at all (2026-11-02): say plainly that make_image is the way.
-    if ((!loaded || allToolsOn(this.cfg) || loaded.has('pictures')) && this.usable('make_image')) prompt += `\n\nWhen ${this.cfg.userName || 'the user'} asks to see, show, make, draw or paint a picture, call make_image yourself straight away with a good prompt. To change a picture (one attached, or one you made: reference "last"), call make_image with it as the reference and a short instruction saying only what to change, like "Replace the hard hat with a silver tiara", not a description of a whole new picture.`;
-    if (helpers.length) prompt += `\n\nCloud copies of you that ${this.cfg.userName || 'the user'} switched on (use ask_cloud only for jobs too big for you, or when asked; each use is approved and costs money): ${helpers.map((h) => `${h.id} = ${copyName(this.cfg, 'cloud:' + h.id, 'cloud helper')}, running on ${h.name} ${h.model}`).join('; ')}.`;
-    const shelf = this.refs.describe();
+    // 1.5.102: this is the one place the front desk is told about pictures and clips (it was in FRONT_DESK too).
+    if (desk && (!loaded || allToolsOn(this.cfg) || loaded.has('pictures')) && this.usable('make_image')) prompt += `\n\nWhen ${who} asks to see, show, make, draw or paint a picture, call make_image yourself straight away, in the same reply, with a good prompt; for a short clip, make_video (slow, minutes). Then tell ${who} the chat brain has to step out while the painter works. To change a picture (one attached, or one you made: reference "last"), call make_image with it as the reference and a short instruction saying only what to change, like "Replace the hard hat with a silver tiara", not a description of a whole new picture.`;
+    if (desk && helpers.length) prompt += `\n\nCloud copies of you that ${who} switched on (use ask_cloud only for jobs too big for you, or when asked; each use is approved and costs money): ${helpers.map((h) => `${h.id} = ${copyName(this.cfg, 'cloud:' + h.id, 'cloud helper')}, running on ${h.name} ${h.model}`).join('; ')}.`;
+    const pictureWork = desk || hat === 'painter';
+    const shelf = pictureWork ? this.refs.describe() : '';
     if (shelf) prompt += `\n\n${shelf}`;
-    if (this.usable('offer_setup')) prompt += `\n\nWhen a job needs something that is switched off (${this.switchesOff().map((k) => k.name).join('; ')}), call offer_setup with that setting: the app shows a card to switch it on, and the job carries on after the click. Say in one line what it does; never just refuse.`;
-    if (can.pictures && !can.edits) prompt += '\n\nYour picture model can start from a reference picture but can\'t hold a character\'s exact look across new poses. If keeping a look matters, say a picture-edit model in Get models (left menu, Pictures & video) does that better.';
+    // Web search, and Hands when the Hands line is in, already have their own line saying so (webPrompt, handsPrompt): not listed again here.
+    const offList = this.switchesOff().filter((k) => k.key !== 'web' && !(handsLine && /^hand:/.test(k.key)));
+    // "Let Bob use Hands, Files; Let Bob use Hands, Run programs...": the Hands are named once, then each one.
+    const handNames = offList.filter((k) => /^hand:/.test(k.key) && /^Let Bob use Hands, /.test(k.name)).map((k) => k.name.replace(/^Let Bob use Hands, /, ''));
+    const offNames = [...offList.filter((k) => !(/^hand:/.test(k.key) && /^Let Bob use Hands, /.test(k.name))).map((k) => k.name), ...(handNames.length ? [`Let Bob use Hands (${handNames.join(', ')})`] : [])];
+    if (desk && this.usable('offer_setup') && offList.length) prompt += `\n\nWhen a job needs something else that is switched off (${offNames.join('; ')}), call offer_setup with that setting: the app shows a card to switch it on, and the job carries on after the click. Say in one line what it does; never just refuse.`;
+    if (pictureWork && can.pictures && !can.edits) prompt += '\n\nYour picture model can start from a reference picture but can\'t hold a character\'s exact look across new poses. If keeping a look matters, say a picture-edit model in Get models (left menu, Pictures & video) does that better.';
     // 1.5.91: never "I can't": the tool itself shows a Set it up card, so Bob calls it as if it were there.
-    return missing.length ? `${prompt}\n\nNot set up on this replicant matrix yet: ${missing.join(', ')}. When ${this.cfg.userName || 'the user'} asks for one of these, still call its tool (make_image, make_video, make_music, make_sound) with a good prompt: the app then shows a Set it up card with the size, and carries on with the job by itself once it's set up. Never call it an error and don't send them to menus.${missing.includes('hear voice input') ? ' For hearing, call offer_setup with "hearing".' : ''}` : prompt;
+    const notHere = pictureWork ? missing : [];
+    return notHere.length ? `${prompt}\n\nNot set up on this replicant matrix yet: ${notHere.join(', ')}. When ${who} asks for one of these, still call its tool (make_image, make_video, make_music, make_sound) with a good prompt: the app then shows a Set it up card with the size, and carries on with the job by itself once it's set up. Never call it an error and don't send them to menus.${desk && notHere.includes('hear voice input') ? ' For hearing, call offer_setup with "hearing".' : ''}` : prompt;
   }
 
   // Tools this PC can't use right now (no picture model, Hand switched off, no cloud helper...).
@@ -1365,7 +1378,7 @@ export class Brain {
     if (!this.turns.size || this.state.state !== 'painting') return null;
     if (sideOk(this, job)) return null; // 1.5.41: it's answered beside the job instead
     if (laneOf(this.cfg, job) !== 'talk' || !this.turns.has('talk')) return null; // it runs in its own lane: no wait
-    return queuedLine(String(this.state.detail || '').trim());
+    return queuedLine(plainDoing(this.state.detail));
   }
 
   cancelJob(id) {
@@ -2201,7 +2214,7 @@ export class Brain {
     // Raw pictures only go to a brain that can see; any brain still gets the Eyes descriptions above.
     if (ctx.pics?.length && await this.engine.hasVision?.(model).catch(() => false)) userMsg.images = ctx.pics.map((r) => this.refs.base64(r));
     const messages = [
-      { role: 'system', content: this.withLimits(systemPrompt({ hat, now: this.now(), memory: this.memory(task), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), copy, cat: this.cfg.catName, dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') })) + (hat !== 'reviewer' && careful(ctx.job) ? `\n\n${effortPrompt(ctx.job.effort).replaceAll('{{USER}}', this.cfg.userName || 'the user')}` : '') },
+      { role: 'system', content: this.withLimits(systemPrompt({ hat, now: this.now(), memory: this.memory(task), user: this.cfg.userName, backstory: this.backstory(), about: this.about(), copy, cat: this.cfg.catName, dials: personalityPrompt(this.cfg.personality, this.cfg.userName || 'the user') }), null, hat) + (hat !== 'reviewer' && careful(ctx.job) ? `\n\n${effortPrompt(ctx.job.effort).replaceAll('{{USER}}', this.cfg.userName || 'the user')}` : '') },
       userMsg
     ];
     let final = '';
