@@ -45,7 +45,7 @@ The first request after each load pays a one-time warm-up of about 20 s. The sam
 ## Conclusions
 
 - Memory and driver are set up right on this machine; nothing to fix.
-- The first-reply delay is a one-time warm-up after each load (likely first-run CUDA setup on this card, or `--fit` host-memory setup), not slow reading.
-- Warming the brain up straight after every load, not only while typing, would remove most of it. Under investigation.
+- The first-reply delay is a one-time warm-up after each load, not slow reading.
+- The cause was found the same day: see [Why the first reply after a load is slow](2026-11-04-first-reply-warm-up.md).
 
 Caveats: two runs per case; one machine.
