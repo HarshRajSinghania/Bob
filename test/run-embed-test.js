@@ -41,10 +41,10 @@ check(plan.ids.join() === 'gemma4-e4b,engine:llamacpp,nomic-embed-text', `starte
 // The embedding server itself.
 check(embedArgs('x.gguf', 9).join(' ').includes('--embedding --pooling mean') && embedArgs('x.gguf', 9).includes('-ngl'), 'embedding server: --embedding, mean pooling, no card layers');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-embed-'));
-const own = path.join(tmp, 'Agent 00', 'models', 'bob', 'embed');
+const own = path.join(tmp, 'Bob home', 'models', 'bob', 'embed');
 fs.mkdirSync(own, { recursive: true });
 fs.writeFileSync(path.join(own, 'nomic-embed-text-v1.5.f16.gguf'), 'GGUF');
-const cfg = { agentDir: path.join(tmp, 'Agent 00'), dataDir: tmp, llamacpp: { exe: process.execPath, preArgs: [path.join(here, 'mock-llama-server.js')], port: 18391 } };
+const cfg = { agentDir: path.join(tmp, 'Bob home'), dataDir: tmp, llamacpp: { exe: process.execPath, preArgs: [path.join(here, 'mock-llama-server.js')], port: 18391 } };
 const eng = new LlamaCpp(cfg);
 const v = await eng.embed('nomic-embed-text', ['abc', 'hello']);
 check(JSON.stringify(v) === '[[3,1,0],[5,1,0]]', `vectors come back in input order (${JSON.stringify(v)})`);

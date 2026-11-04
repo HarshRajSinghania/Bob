@@ -3,7 +3,7 @@
 // is on (1.5.94): then closing or minimising tucks him into the tray, and Quit Bob in the tray menu closes him fully.
 // Where Bob keeps his things (models, notes, settings) lives outside the program, so updates never touch it:
 //   1. home.json next to Bob.exe, or in %APPDATA%\Bob, can say { "agentDir": "...", "config": "..." }
-//   2. otherwise a Bob folder Bob.exe sits inside (it has an "inn" folder), e.g. Agent 00\Bob app\Bob.exe
+//   2. otherwise a Bob folder Bob.exe sits inside (it has an "inn" folder), e.g. Bob home\Bob app\Bob.exe
 // Bob.exe is Electron's official electron.exe, only renamed; Bob's files are in Bob app\resources\app.
 //   3. otherwise %LOCALAPPDATA%\Bob, with a fresh config.json made from config.example.json.
 // On a Mac (Bob.app, the same official Electron renamed, Bob's files in Bob.app/Contents/Resources/app) step 3 is
@@ -55,7 +55,7 @@ function readHome() {
   return {};
 }
 
-// Bob.exe sitting somewhere inside an existing Bob folder (one with an "inn"), like Agent 00\Bob app or
+// Bob.exe sitting somewhere inside an existing Bob folder (one with an "inn"), like Bob home\Bob app or
 // bob\dist\win-unpacked: use that folder, so no home.json is needed.
 function findNearbyHome() {
   let dir = exeDir;

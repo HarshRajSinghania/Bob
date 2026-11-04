@@ -43,7 +43,7 @@ export function loadConfig() {
   if (process.env.BOB_AGENT_DIR) cfg.agentDir = process.env.BOB_AGENT_DIR;
   if (process.env.BOB_OLLAMA_URL) cfg.ollamaUrl = process.env.BOB_OLLAMA_URL;
   if (process.env.BOB_PORT) cfg.port = Number(process.env.BOB_PORT);
-  // Fresh installs: Bob's home is the folder above his code (for example Agent 00; %LOCALAPPDATA%\Bob otherwise).
+  // Fresh installs: Bob's home is the folder above his code (for example Bob home; %LOCALAPPDATA%\Bob otherwise).
   cfg.agentDir = cfg.agentDir || path.dirname(appDir);
   if (!cfg.readRoots || !cfg.readRoots.length) {
     const home = os.homedir();

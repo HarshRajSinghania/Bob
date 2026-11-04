@@ -12,6 +12,7 @@ import { bobHelp } from './self-help.js';
 import { recallOn, tagLine } from './recall.js';
 import { diagramTool } from './diagram.js';
 import { saveAsTool } from './save-as.js';
+import { isPrivateHost } from './security-web.js';
 
 const MAX_READ = 20000;
 const BLOCKED_EXT = new Set(['.exe', '.msi', '.bat', '.cmd', '.ps1', '.vbs', '.js', '.jse', '.wsf', '.scr', '.lnk', '.reg', '.dll', '.com']);
@@ -58,13 +59,6 @@ function resolveUserPath(p) {
   if (!p || typeof p !== 'string') throw new Error('A full file path is needed.');
   if (!path.isAbsolute(p)) throw new Error('Please give a full path, like C:\\Users\\you\\Documents\\notes.txt');
   return path.resolve(p);
-}
-
-function isPrivateHost(host) {
-  const h = host.toLowerCase().replace(/^\[|\]$/g, '');
-  return h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h === '::1' || h === '0.0.0.0' ||
-    /^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) || /^169\.254\./.test(h) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(h) || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(h) || /^f[cd]/.test(h);
 }
 
 function htmlToText(html) {

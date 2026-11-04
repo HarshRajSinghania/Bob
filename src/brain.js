@@ -66,7 +66,7 @@ const HAND_TOOLS = new Set(Object.values(HANDS).flatMap((h) => h.tools));
 // 1.5.40: Bob's own engine runs one brain. While the other lane is busy, a job that may need a different brain
 // (pictures attached for his eyes, or Medium effort and up with its reviewer) waits, so it never swaps the brain
 // out from under the other job. Everything else shares the small brain and runs beside it.
-// 1.5.41 "Keep chatting while Bob is busy" (chatWhileBusy, on unless switched off: the owner, 2026-11-03, "this wouldnt be opt in"): while the job in the main lane is
+// 1.5.41 "Keep chatting while Bob is busy" (chatWhileBusy, on unless switched off: an approved exception to opt-in): while the job in the main lane is
 // in a media step (painting, filming, composing: its brain is already let go so the card is free), a plain chat
 // message runs in a "side" lane on the small brain on the processor, if there's room in RAM. Nothing big is loaded
 // for it. The media job waits for that reply before it loads its own brain back (Gate.needBrain).
@@ -89,7 +89,7 @@ function sideBrainBytes(brain) {
 // 1.5.51: beside a big text job it goes to the engine's second server (beside: true), so the main brain stays loaded.
 export const sideBrain = (cfg, job) => ({ model: sessionBrains(cfg).small, cpu: true, ...(job?.beside ? { beside: true } : {}) });
 
-// 1.5.53 (the owner, 2026-11-03: E4B should not run on the processor, and never during a game; Instruct can): the
+// 1.5.53 (rule: E4B never runs on the processor, and never during a game; Instruct can): the
 // talker for quick replies beside a job. On the processor it's Qwen3 4B Instruct 2507 (the Gaming slot, no thinking,
 // 2 to 7 s to the first word on an idle processor) when it's downloaded; E4B only when it goes on the graphics card.
 const runnable = (brain, m) => { try { return Boolean(m && brain.engine?.resolve?.(m)?.gguf); } catch { return false; } };
@@ -212,7 +212,7 @@ export function realState({ model, session, waiting = 0, cat, turn = 0, mem = { 
 export const CLAIM_CORRECTION = 'Nothing was actually done on this replicant matrix in that reply. Bob said he did, but no action ran.';
 const CLAIM_NUDGE = 'You just said you did something on the PC, but no tool did it in this turn. Never claim that. If it should be done, call the right tool now; if you cannot, say plainly that you have not done it and why (the tool\'s own words if it gave an error).';
 // Always in the front desk's prompt (slim tools or not): he lives on a real PC and, with the Apps hand on, drives it.
-// The owner, 2026-11-02: "he should want to take control of the wheel". The model had said "I am the process inside
+// Bob should want to take the wheel himself. The model had said "I am the process inside
 // the computer, not a remote driver... simulated environment" right after two errors.
 export function realPcPrompt(cfg) {
   const who = cfg.userName || 'the user';

@@ -62,7 +62,7 @@ export function saveNameOf(f) {
 }
 
 // 1.5.65: a copy that was put in a folder named after the model, next to Bob's own folder
-// (Agent 00\models\<id>\, as a hand download or a test lands), counts too: the saved name or the name in the link,
+// (Bob home\models\<id>\, as a hand download or a test lands), counts too: the saved name or the name in the link,
 // at the right size when the catalog knows it, and not half downloaded. Then Get models doesn't fetch it again.
 export function idFolderFile(cfg, entry, f) {
   if (!entry?.id || !/^[\w.-]+$/.test(entry.id) || !f?.url) return null;

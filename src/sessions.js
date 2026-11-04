@@ -54,10 +54,10 @@ export function sessionCtx(cfg, id, hat) {
 // Setting quickOnCpu (Settings > Everyday): OFF unless switched on. Measured 2026-11-02 on a 9800X3D (gemma4:e4b, 4.3K-token
 // prompt): about 31 s to the first word on the processor vs about 4 s on the card, because reading the prompt is slow there.
 export const quickOnCpu = (cfg) => cfg?.quickOnCpu === true;
-// 1.5.63 / 1.5.66: Qwen3.6 35B-A3B, the owner's lineup (2026-11-03): the Coding copy thinks at every effort, the main
+// 1.5.63 / 1.5.66: Qwen3.6 35B-A3B, the lineup: the Coding copy thinks at every effort, the main
 // Brain (everyday chat) never thinks first. Both share one load of the same file instead of swapping between a
 // 32K and a longer load.
-// 1.5.86 (the owner's pick, 2026-11-04): 256K by default. Measured on a 16 GB card with q8_0 KV: 15.0 GB on the card
+// 1.5.86 (picked after the 256K test): 256K by default. Measured on a 16 GB card with q8_0 KV: 15.0 GB on the card
 // and 21.2 GB in RAM (128K: 14.9 / 20.4), 49.1 vs 50.2 tok/s on a short write, 55.4 vs 60.7 after 12K, and it found a
 // needle at 201K. --fit moves the extra experts (about 0.8 GB) to RAM. The 8 GB card (Q3) version stays at 128K
 // until someone tries 256K on a real small card.

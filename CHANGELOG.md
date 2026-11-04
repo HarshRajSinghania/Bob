@@ -4,6 +4,15 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.107
+
+### Tidy-up
+- The README now covers Linux, Raspberry Pi and the Android app, and says each install step once.
+- The web reader and the security Hand now share one check for home-network addresses, so the web reader also refuses link-local IPv6 and a few more home-network names.
+- On Mac and Linux, stopping an office job also stops the LibreOffice it started.
+- Docs use "replicant matrix" for the test machine, and the public privacy check is stronger.
+- Nothing new is switched on.
+
 ## 1.5.106
 
 - Hover tips: each thing said once. Catalogue bubbles group the machine lines, the source sits on ↗ only, Active is explained once at the top, look groups share one line by their heading, theme tips no longer repeat the description, and Alerts says "a notification".
