@@ -61,6 +61,7 @@ export function settingsNow(cfg) {
     `Hands: ${hands}${h.enabled ? `; Let Bob work without asking ${onOff(h.free)}` : ''}`,
     `Housekeeping: ${onOff(cfg.housekeeping?.enabled === true)}`,
     `Check-ins: ${checkinsNow(cfg)}`,
+    `🎲 Adventure (menu page, nothing runs until a game is started): Which brain is the game master: ${cfg.adventure?.gm === 'main' ? 'Main Brain' : 'Biggest brain'}; Who plays the other Bobs: ${cfg.adventure?.players === 'gm' ? 'The game master brain' : 'Their own Bob when reachable'}`,
     `ComfyUI: ${onOff(cfg.workshop?.enabled === true)}`,
     `Cloud helpers on: ${cloud.length ? cloud.join(', ') : 'none'}`,
     `Keep the graphics card free for quick answers: ${onOff(cfg.quickOnCpu === true)}`,

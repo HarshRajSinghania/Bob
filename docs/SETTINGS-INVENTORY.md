@@ -49,6 +49,9 @@ Update this file in the same handover as any change to settings.
 | Check-ins | What Bob checks | Downloads that failed or stopped moving; Tasks that failed or wait for your OK; Scheduled jobs that didn't finish; Disk space running low | all ticked (nothing runs until the main switch is on) | ok (1.5.78, approved with edits) |
 | Check-ins | Your own checks (Save my checks) | one per line, up to 8; quick brain on the processor, idle only, never in Gaming | none | ok (1.5.78, approved with edits) |
 | Check-ins | Check in now | button: one round now, result shown under it | | ok (1.5.78, approved with edits) |
+| 🎲 Adventure | Which brain is the game master | The game needs one good storyteller. Biggest brain is the Deep thinking slot, or the main Brain when nothing is in it; always on the graphics card, thinking on. It loads when a game starts and is let go on Pause or End. | Biggest brain | ok (approved with edits, 1.5.119) |
+| 🎲 Adventure | Who plays the other Bobs | Their own Bob: a Bob on your Bob-Net list thinks his own turns over there, in his own voice, through the same door as Lend my brain. What goes to him: the scene so far and his character's sheet, over Tailscale to your own Bob only; nothing else from this replicant matrix. When he can't (gaming, busy, not reachable), the game master brain plays him that turn and says so. The game master brain: every Bob at the table is played here. | Their own Bob when reachable | ok (approved with edits, 1.5.119) |
+| 🎲 Adventure (menu page) | Start a new game / Setting / Your character / Who plays / Plot armour / How long / Continue a campaign | The game page; nothing loads until Start a new game is pressed | nothing on | ok (approved with edits, 1.5.119) |
 | Remove Bob | Remove Bob (keeps chats, settings and models unless ticked) | More text | | ok |
 
 ## Other pages
