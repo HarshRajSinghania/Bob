@@ -115,6 +115,10 @@ The server has no runtime dependencies; `node src/server.js` runs it on its own 
 
 Bob installs no services or drivers and needs no admin rights. He adds a scheduled task ("Bob schedules") only if you turn on "Wake Bob for schedules when he's closed", and Remove Bob takes it away. The only thing he puts in the registry is Windows' own "start-up app" entry, and only if you turn on "Launch on start-up". Engines and models live inside his folders. Ollama, ComfyUI or Pinokio, if you installed them yourself, are separate programs with their own uninstallers.
 
+## Credits
+
+Bob is inspired by the wonderful books of Dennis E. Taylor. Bob is an independent, fan-made project. It is not affiliated with, sponsored by or endorsed by Dennis E. Taylor or by his publishers, distributors or licensees. All characters, names, titles, stories and other rights in those books remain the property of their respective owners. Bob contains no text from the books; any similar names or ideas are used only as a tribute. The licences below cover only MouseWurX's own original work in this repository, not anything that belongs to the author or his publishers. If you hold rights in those books and have a concern, please [open an issue](https://github.com/MouseWurX/Bob/issues) and we'll respond promptly.
+
 ## Licence
 
 - Code: GNU GPL, version 3 or later ([LICENSE](LICENSE)).

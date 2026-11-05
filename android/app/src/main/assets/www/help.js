@@ -122,6 +122,10 @@ globalThis.BobHelp = {
       html: `<p>Everything on the phone stays on the phone: chats, my memory file and the phone brain. Android's cloud backup is told to leave them out. I only talk to the Bobs you add (over Tailscale) and, when you say yes to a download, to huggingface.co for the phone brain. With <strong>Lend my brain</strong> on, your own Bobs send the chat so far and what they remember about you. The phone thinks a reply and keeps none of it. No tracking, no ads, nothing else.</p>`
     },
     {
+      id: 'credits', title: 'Credits and thanks',
+      html: `<p>Bob is inspired by the wonderful books of Dennis E. Taylor. Bob is an independent, fan-made project. It is not affiliated with, sponsored by or endorsed by Dennis E. Taylor or by his publishers, distributors or licensees. All characters, names, titles, stories and other rights in those books remain the property of their respective owners. Bob contains no text from the books; any similar names or ideas are used only as a tribute.</p><p>This app's code is free software (GPL 3 or later), and its art and writing are CC BY-SA 4.0. Those licences cover only MouseWurX's own work, not anything that belongs to the author or his publishers.</p>`
+    },
+    {
       id: 'glossary', title: 'Glossary',
       html: `<dl>
 <dt>Bob on your network</dt><dd>A Bob running on one of your replicant matrices that lets this phone in. He does the heavy lifting.</dd>
