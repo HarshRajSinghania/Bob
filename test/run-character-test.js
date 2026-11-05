@@ -54,6 +54,7 @@ const check = (name, ok) => { if (ok) pass++; else fail++; console.log(`${ok ? '
   check('Surprise me, Start over, a preview and its words', /data-char-random/.test(html) && /data-char-reset/.test(html) && /char-doll/.test(html) && /short dark brown hair/.test(html));
   const robot = characterHtml({ ...DEFAULT_PARTS, body: 'robot' }, { bodies: BOB_BODIES });
   check('a robot body hides the hair and beard pickers and shows a face picker', !/data-part="hair"/.test(robot) && !/data-part="beard"/.test(robot) && /data-part="face"/.test(robot));
+  check('a robot\'s swatches are named for the metal (Steel, Brass...), an alien\'s for its colours, never the skin names', /aria-label="Steel"/.test(robot) && /aria-label="Brass"/.test(robot) && !/aria-label="Fair"/.test(robot) && /char-label">Metal</.test(robot) && /aria-label="Violet"/.test(characterHtml({ ...DEFAULT_PARTS, body: 'alien' })) && !/aria-label="Fair"/.test(characterHtml({ ...DEFAULT_PARTS, body: 'alien' })));
 }
 
 // ---- the look rule, Bob's words, the sheet ----

@@ -246,7 +246,7 @@ export function allAvatarIds() {
 // The same parts the people above are made of, picked one by one instead of by recipe, plus three overlays
 // (armour, weapon, shield) and a build. A robot or alien head takes the same body rows, so outfits and kit fit
 // every body. Every part is a letter on the 16x16 map, so the result blinks and talks like any other look.
-const COLOUR_NAMES = {
+export const COLOUR_NAMES = {
   hair: ['Black', 'Dark brown', 'Brown', 'Auburn', 'Blond', 'White', 'Red', 'Grey', 'Blue', 'Pink', 'Purple', 'Green'],
   skin: ['Fair', 'Light', 'Tan', 'Olive', 'Brown', 'Dark brown', 'Deep brown', 'Ebony'],
   cloth: ['Slate', 'Maroon', 'Forest', 'Plum', 'Charcoal', 'Mustard', 'Navy', 'Berry', 'Silver', 'Crimson'],

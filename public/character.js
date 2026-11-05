@@ -1,7 +1,7 @@
 // The character screen (1.5.122): a paper doll built from parts. Bob's own look on the Style page uses it (no
 // "Woman" body there: Bob is a guy), and the 🎲 Adventure start card uses it for your character, which is saved with
 // the game, never as Bob's look. Pure HTML in, one id out ("c:" plus the parts), drawn by drawBob like any look.
-import { PARTS, PART_ORDER, PART_COLOURS, DEFAULT_PARTS, cleanParts, encodeParts, decodeParts, partsFor, partName, avatar } from './avatars.js';
+import { PARTS, PART_ORDER, PART_COLOURS, COLOUR_NAMES, DEFAULT_PARTS, cleanParts, encodeParts, decodeParts, partsFor, partName, avatar } from './avatars.js';
 import { drawBob } from './bob-sprite.js';
 import { esc } from './util.js';
 
@@ -18,7 +18,10 @@ export function characterHtml(parts, { bodies = PARTS.body.map(([v]) => v), useL
     const sw = swatchFor(k);
     if (sw) {
       const cols = PART_COLOURS[sw];
-      return `<div class="char-row"><span class="char-label">${esc(partName(k))}</span><div class="char-swatches" role="radiogroup" aria-label="${esc(partName(k))}">${opts.map(([v, label], i) => `<button type="button" role="radio" aria-checked="${p[k] === v}" aria-label="${esc(label)}" title="${esc(label)}" data-part="${k}" data-val="${esc(v)}" style="background:${cols[i % cols.length]}"></button>`).join('')}</div></div>`;
+      // A robot's "skin" is its metal and an alien's its own colours: the names follow the swatches (Steel, Brass... / Green, Violet...).
+      const names = (sw === 'metal' || sw === 'alien') ? COLOUR_NAMES[sw] : null;
+      const label0 = (k === 'skin' && sw === 'metal') ? 'Metal' : partName(k);
+      return `<div class="char-row"><span class="char-label">${esc(label0)}</span><div class="char-swatches" role="radiogroup" aria-label="${esc(label0)}">${opts.map(([v, label], i) => { const name = names ? names[i % names.length] : label; return `<button type="button" role="radio" aria-checked="${p[k] === v}" aria-label="${esc(name)}" title="${esc(name)}" data-part="${k}" data-val="${esc(v)}" style="background:${cols[i % cols.length]}"></button>`; }).join('')}</div></div>`;
     }
     return `<label class="char-row"><span class="char-label">${esc(partName(k))}</span><select data-part="${k}" aria-label="${esc(partName(k))}">${opts.map(([v, label]) => `<option value="${esc(v)}" ${p[k] === v ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select></label>`;
   };

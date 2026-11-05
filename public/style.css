@@ -386,6 +386,13 @@ body:not(.right-hidden) .now-toggle .badge { display: none; }
 .now .titem .tbtns button[data-t="up"], .now .titem .tbtns button[data-t="down"], .now .titem .tbtns button[data-d="up"], .now .titem .tbtns button[data-d="down"] { display: none; }
 .now .titem .ttext { grid-column: 2 / 4; }
 .now-gpu { font-size: 12px; display: grid; gap: 4px; }
+/* 1.5.123 Bob-Net party: one row per Bob, a dot plus words (the words always say what the dot says) */
+.now .titem.net { grid-template-columns: auto 1fr; align-items: start; }
+.now .titem.net .ttext { grid-column: 2; }
+.net-dot { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--line); display: inline-block; }
+.net-dot.ok { background: var(--good); }
+.net-dot.busy { background: var(--accent); }
+.net-dot.down { background: var(--bad); }
 .now-gpu .meter { margin: 0; }
 .tag.needs-you { background: var(--danger-bg); color: var(--warn); }
 body.right-hidden .now, body.right-hidden .grab { display: none; }
