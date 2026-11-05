@@ -4,6 +4,12 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.120
+
+- **🎲 Adventure: three fixes from the first live game.** A Short game can no longer end early: a scene only counts as new when it has a new title and everyone at the table has had a turn since the last one started. The game master stays the narrator (second person to the players, third person for everyone else) instead of slipping into a character's voice. And the game master thinks no more before each turn: on a 16 GB card the first turn took six minutes with thinking on, and the story reads no better for it. The start card says the first turn takes longest.
+- Phone (Bob for Android): the same table on the phone through your PC's Bob (Adventure in the phone's menu; the phone brain is too small to be game master, and says so).
+- Two more from the first live game: the game master's hidden line still reads when a brain drops its closing `>>>` or adds a stray brace, and Pause or End no longer wake the everyday brain straight back (a paused game is idle time).
+
 ## 1.5.119
 
 - **🎲 Adventure: Bob runs a tabletop game.** A new page in the menu. Bob is the game master; the party is you plus your other Bobs (a Bob on your Bob-Net plays himself over there; a copy of Bob is played by the game master brain). Nothing runs until you press **Start a new game**, and the game master brain is let go on Pause or End. One start card asks for the setting, your character, who plays, how long, and plot armour for every character. Everyone has a turn in order. On your turn you get action cards, only the ones that fit, some with a second card (the attacks your kit allows, your spells, your items, who's here, the ways out) and a Back button, then an optional line of flair. The app rolls the dice for every action. Loose rules on purpose: four stats, hearts not hit points, no inventory weight, no spell slots, no initiative; long travel is one montage line. Campaigns are saved in their own files and continue from the start card. Not in the Gaming session. Help: Adventure: I run a tabletop game.

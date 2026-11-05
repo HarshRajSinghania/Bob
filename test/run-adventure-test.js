@@ -45,11 +45,17 @@ check('every card rolls one of the four stats', Object.values(CARDS).every((c) =
   check('hearts, kind, next, scene, here, exits, give and teach come through, oversized values dropped', p.hearts.Wren === -1 && !('Nobody' in p.hearts) && p.kind === 'fight' && p.next === 'Wren' && p.newScene && p.title === 'The cellar' && p.here[0] === 'a rat king' && p.exits[0] === 'up the stairs' && p.give.Wren[0] === 'a rusty key' && p.teach.Wren[0] === 'Sleep');
   const q = parseGm('Just words, no line.'); check('no JSON line: narration only, cards null (the app uses the defaults for the scene)', q.narration === 'Just words, no line.' && q.cards === null && Object.keys(q.hearts).length === 0 && !q.over);
   check('kind end means the story is over', parseGm('Fin.<<<{"kind":"end"}>>>').over === true);
+  // 1.5.120: a brain with thinking off dropped the closing >>> and added a stray } on every turn (PC live game).
+  { const r = parseGm('You step in.\n\n<<<{"cards":["attack","talk"],"kind":"fight","next":"Sam","scene":1,"title":"The Gilded Goblet","here":["a guard"],"exits":[],"give":{},"take":{},"teach":{}}}');
+    check('a missing >>> and an extra } still parse, and nothing of the line reaches the narration', r.narration === 'You step in.' && r.kind === 'fight' && r.title === 'The Gilded Goblet' && JSON.stringify(r.cards) === '["attack","talk","other"]' && r.newScene === true);
+    const r2 = parseGm('Words.<<<{"kind":"talk"');
+    check('a line that never parses is still cut out of the narration', r2.narration === 'Words.' && r2.kind === null && r2.cards === null); }
 }
 { const game = { settingText: 'Classic fantasy', pace: 'evening', party: [cleanSheet({ name: 'Wren', cls: 'rogue' }, { who: 'you' }), cleanSheet({ name: 'Bobert', cls: 'wizard', who: 'bob' }, { who: 'bob' })] };
   const sys = gmSystem(game, { user: 'Sam' });
   check('the game master knows the house rules', /15 or more is a hit/.test(sys) && /Hearts, not hit points/.test(sys) && /montage/.test(sys) && /never roll/.test(sys) && /<<</.test(sys) && /Legendary = /.test(sys) && /go out in style/.test(sys));
   check('the game master knows the party and who plays whom', /Wren \(Rogue, played by the owner\)/.test(sys) && /Bobert \(Wizard, a Bob I play\)/.test(sys));
+  check('the game master narrates in the second and third person, never as a character (1.5.120)', /you are not a character/.test(sys) && /Never write "I" or "my" as the narrator/.test(sys) && /scene: 1 only when the party moves/.test(sys));
   check('no book names, no brands in the prompt', !/bobiverse|wizards of the coast|dungeons & dragons/i.test(sys));
   const tp = turnPrompt({ actor: game.party[0], card: 'attack', pick: 'Thrown knives', flair: 'I throw from the rafters', roll: { die: 12, statId: 'might', stat: 2, bonus: 2, total: 16, outcome: 'hit' }, lost: 0 });
   check("the owner's turn goes to the game master with the card, the pick, the flair and the roll", /plays the Attack card \(Thrown knives\)/.test(tp) && /rafters/.test(tp) && /12 \+ Might 2 \+ 2 for flair = 16: a hit/.test(tp));
@@ -60,7 +66,7 @@ check('every card rolls one of the four stats', Object.values(CARDS).every((c) =
 // ---- settings: defaults, nothing on ----
 check('Adventure settings have defaults and only known values', JSON.stringify(cleanAdventure({})) === '{"gm":"biggest","players":"own"}' && cleanAdventure({ gm: 'main', players: 'gm' }).gm === 'main' && cleanAdventure({ gm: 'x', players: 'y' }).players === 'own');
 check('the setting is saved under its own key and cleaned', SETTING_KEYS.includes('adventure') && (() => { const c = { settingsFile: '', agentDir: '' }; mergeSettings(c, { adventure: { gm: 'main', players: 'bogus' } }); return c.adventure.gm === 'main' && c.adventure.players === 'own'; })());
-check('the game master is the Deep thinking brain when picked, else the main Brain, on the card, thinking', gmBrain({ sessionBrains: { deep: 'big' }, models: { bob: 'main' } }).model === 'big' && gmBrain({ models: { bob: 'main' } }).model === 'main' && gmBrain({ adventure: { gm: 'main' }, sessionBrains: { deep: 'big' }, models: { bob: 'main' } }).model === 'main' && gmBrain({ models: { bob: 'main' } }).cpu === false && Boolean(gmBrain({ models: { bob: 'main' } }).think));
+check('the game master is the Deep thinking brain when picked, else the main Brain, on the card, thinking off (1.5.120: speed)', gmBrain({ sessionBrains: { deep: 'big' }, models: { bob: 'main' } }).model === 'big' && gmBrain({ models: { bob: 'main' } }).model === 'main' && gmBrain({ adventure: { gm: 'main' }, sessionBrains: { deep: 'big' }, models: { bob: 'main' } }).model === 'main' && gmBrain({ models: { bob: 'main' } }).cpu === false && gmBrain({ models: { bob: 'main' } }).think === false);
 check('refused in the Gaming session, and with no brain equipped', /Gaming/.test(refusal({ session: 'light', models: { bob: 'main' } })) && /Equip a Brain/.test(refusal({ session: 'normal', models: {} })) && refusal({ session: 'normal', models: { bob: 'main' } }) === '');
 check('Bob can say the Adventure settings', /Adventure/.test(settingsNow({ cfg: {} }.cfg)) && /Biggest brain/.test(settingsNow({})) && /Their own Bob/.test(settingsNow({})));
 
@@ -74,7 +80,7 @@ function setup({ lenderOk = true, lenderFails = false } = {}) {
   const brain = {
     cfg, broadcast: (ev) => events.push(ev), log: () => {},
     gate: { done: () => { calls.done++; } },
-    settle: async () => { calls.settle++; },
+    settle: async (o) => { calls.settle++; calls.settleOpts = o; },
     engine: { loaded: async () => [{ name: 'quick' }], unload: async (m) => { calls.unload.push(m); return [m]; } },
     async ensureModel(model, emit, signal, who, opts) { calls.ensure.push({ model, who, opts }); return model; },
     async chatSafe(o) {
@@ -107,7 +113,7 @@ const until = async (f, n = 200) => { for (let i = 0; i < n; i++) { if (f()) ret
   check('a game needs at least one Bob at the table', /Tick at least one Bob/.test(threw));
   setGm(['The tavern is loud.<<<{"cards":["talk","look"],"kind":"talk","next":"Sam","scene":1,"title":"The tavern","here":["the innkeeper"]}>>>']);
   await a.start({ setting: 'fantasy', pace: 'short', you: { name: 'Sam', cls: 'rogue', armour: 'some' }, bobs: [{ who: 'bob', name: 'Bobert', cls: 'wizard', armour: 'lots' }, { who: 'net', name: 'Bob on the Go', address: '100.64.0.9:7777', cls: 'bard', armour: 'none' }] });
-  check('the game master brain loads for the game: Deep thinking, on the card, thinking, 32K', calls.ensure[0].model === 'big' && calls.ensure[0].opts.cpu === false && calls.chat[0].think && calls.chat[0].ctx === 32768);
+  check('the game master brain loads for the game: Deep thinking, on the card, thinking off, 32K', calls.ensure[0].model === 'big' && calls.ensure[0].opts.cpu === false && calls.chat[0].think === false && calls.chat[0].ctx === 32768);
   await until(() => a.waitingFor);
   let v = a.view();
   check("the opening scene is told, then it's the owner's turn with only the cards that fit (plus Something else)", v.game.log[0].who === 'gm' && v.game.log[0].text === 'The tavern is loud.' && v.waitingFor === v.game.party[0].id && JSON.stringify(v.game.cards) === '["talk","look","other"]' && v.game.scenes[0].title === 'The tavern');
@@ -132,7 +138,7 @@ const until = async (f, n = 200) => { for (let i = 0; i < n; i++) { if (f()) ret
   check('every turn is saved in its own file, not a chat', listGames(cfg).length === 1 && loadGame(cfg, v.game.id).log.length >= 4 && !fs.existsSync(path.join(cfg.dataDir, 'chats')));
   await a.pause();
   check('Pause: the graphics card is given back and the brain settles (lightweight rule), the game keeps its place', calls.done >= 1 && await until(() => calls.settle >= 1) &&
-    await until(() => calls.unload.includes('big')) && a.view().game.status === 'paused' && loadGame(cfg, v.game.id).status === 'paused');
+    await until(() => calls.unload.includes('big')) && calls.settleOpts?.noWake === true && a.view().game.status === 'paused' && loadGame(cfg, v.game.id).status === 'paused');
   setGm(['Back to it.<<<{"kind":"fight","next":"Sam","cards":["attack"]}>>>']);
   await a.resume();
   await until(() => a.waitingFor);
@@ -162,6 +168,21 @@ const until = async (f, n = 200) => { for (let i = 0; i < n; i++) { if (f()) ret
   await until(() => a.waitingFor); a.act({ card: 'attack' });
   await until(() => a.view().game.round === 2);
   check('"The game master brain" plays every Bob here: nothing goes over the network', a.view().game.log.find((l) => l.who === 'player').by === 'gm' && a.brain.lenders.bobs().length === 1);
+  await a.end({ keep: false });
+}
+
+// 1.5.120: a game master who says scene: 1 every reply can't end a Short game early
+{ const { a, setGm } = setup();
+  setGm(['Go.<<<{"cards":["attack"],"kind":"fight","next":"Sam","scene":1,"title":"The gate"}>>>', 'Same place.<<<{"kind":"fight","next":"Bobert","scene":1,"title":"The gate"}>>>', 'Still here.<<<{"kind":"fight","next":"Sam","cards":["attack"],"scene":1,"title":"the gate"}>>>', 'Now the hall.<<<{"kind":"place","next":"Bobert","cards":["look"],"scene":1,"title":"The hall"}>>>']);
+  await a.start({ pace: 'short', you: { name: 'Sam' }, bobs: [{ who: 'bob', name: 'Bobert' }] });
+  await until(() => a.waitingFor); a.act({ card: 'attack' });
+  await until(() => a.waitingFor && a.view().game.round === 2);
+  let v = a.view();
+  check('scene: 1 with the same title, or before everyone has had a turn, does not start a scene', v.game.sceneCount === 1 && v.game.status === 'playing');
+  a.act({ card: 'attack' });
+  await until(() => a.view().game.sceneCount === 2 || a.view().game.status !== 'playing', 100);
+  v = a.view();
+  check('a new title after a full round does start one', v.game.sceneCount === 2 && v.game.scenes[1].title === 'The hall');
   await a.end({ keep: false });
 }
 

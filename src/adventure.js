@@ -183,13 +183,27 @@ export function cardFromWords(text) {
 // The game master writes the scene, then one line of JSON between <<< and >>> that the app reads and never shows:
 //   cards: the action cards that fit the next player's turn (ids), hearts: { "Name": -1 } changes for the party,
 //   kind: the scene kind, next: whose turn is next (a name), scene: 1 when a new scene has started, title: its title.
-export const GM_TAG = /<<<\s*(\{[\s\S]*?\})\s*>>>\s*$/;
+// 1.5.120: brains with thinking off tend to drop the closing >>> or add a stray }. The line is taken from the
+// last <<< to the end, the >>> is optional, and trailing braces are trimmed until the JSON parses.
+export const GM_TAG = /<<<[\s\S]*$/;
+export function gmMeta(text) {
+  const s = String(text || '');
+  const at = s.lastIndexOf('<<<');
+  if (at < 0) return { meta: null, index: -1 };
+  let body = s.slice(at + 3).replace(/>>>[\s\S]*$/, '').trim();
+  const open = body.indexOf('{');
+  if (open < 0) return { meta: {}, index: at };
+  body = body.slice(open);
+  for (let i = 0; i < 4 && body.endsWith('}'); i++) {
+    try { return { meta: JSON.parse(body), index: at }; } catch { body = body.slice(0, -1).trimEnd(); }
+  }
+  return { meta: {}, index: at };
+}
 export function parseGm(text) {
   const s = String(text || '').trim();
-  const m = s.match(GM_TAG);
-  let meta = {};
-  if (m) { try { meta = JSON.parse(m[1]); } catch { meta = {}; } }
-  const narration = (m ? s.slice(0, m.index) : s).trim();
+  const got = gmMeta(s);
+  const meta = got.meta && typeof got.meta === 'object' ? got.meta : {};
+  const narration = (got.index >= 0 ? s.slice(0, got.index) : s).trim();
   const cards = Array.isArray(meta.cards) ? meta.cards.map((c) => String(c).toLowerCase().trim()).filter((c) => CARD_IDS.includes(c)) : [];
   const hearts = {};
   if (meta.hearts && typeof meta.hearts === 'object') for (const [k, v] of Object.entries(meta.hearts)) { const n = Number(v); if (Number.isInteger(n) && Math.abs(n) <= HEARTS) hearts[clip(k, 40)] = n; }
@@ -225,11 +239,12 @@ House rules (loose, for fun):
 - Magic works every time, the roll decides how well. No spell lists, no inventory, no initiative. After a big scene you may offer one character a new trick or a stat point, in a sentence.
 - At zero hearts with no armour the character's player decides: go out in style, or wake up captured. Nobody dies to a roll they didn't see coming.
 - The owner's Attack, Magic, Use item, Talk, Help and Run cards open a second card: attacks their kit allows, their spells, their items, who's here, allies, the ways out. Keep "here" and "exits" true to the scene, hand out items with give, and a new spell now and then with teach.
+- You narrate; you are not a character. Address the players as "you" and describe everyone else in the third person. Never write "I" or "my" as the narrator, only inside a character's quoted speech.
 - Keep it moving: 60 to 120 words a turn, end on a question, a threat or a choice. Everyone gets a turn in order; enemies act when you say. Speak in Bob's own voice: dry, warm, a little nerdy, never cruel. Never use real people, brands or other games' names.
 
-End EVERY reply with one line of JSON between <<< and >>> that the app reads and nobody sees:
+End EVERY reply with one line of JSON between <<< and >>> that the app reads and nobody sees. The JSON line is the very last thing you write: one opening brace, one closing brace, then >>> and nothing after it. Never write anything after >>>.
 <<<{"cards":["attack","talk"],"hearts":{"Name":-1},"kind":"fight","next":"Name","scene":0,"title":"","here":["the innkeeper","a hooded stranger"],"exits":["the cellar door","back to the street"],"give":{"Name":["a rusty key"]},"take":{},"teach":{}}>>>
-cards: which of these fit the NEXT player's turn (owner only): ${CARD_IDS.join(', ')}. hearts: changes for party members only, by name, this turn (leave {} for none). kind: fight, talk, place, choice, montage, or end when the story is over. next: whose turn is next. scene: 1 when this reply starts a new scene, with its title. here: who can be talked to right now. exits: the ways out of here. give/take: items a character gains or loses this turn, by name. teach: a new spell a character learns, by name (rarely).`;
+cards: which of these fit the NEXT player's turn (owner only): ${CARD_IDS.join(', ')}. hearts: changes for party members only, by name, this turn (leave {} for none). kind: fight, talk, place, choice, montage, or end when the story is over. next: whose turn is next. scene: 1 only when the party moves to a new place or a new situation (a scene usually lasts a round or two, after everyone has had a turn), with its title; otherwise 0. here: who can be talked to right now. exits: the ways out of here. give/take: items a character gains or loses this turn, by name. teach: a new spell a character learns, by name (rarely).`;
 }
 
 export function openingPrompt(game) {
@@ -281,7 +296,8 @@ export function cleanAdventure(a = {}) {
 export function gmBrain(cfg) {
   const a = cleanAdventure(cfg.adventure);
   const model = (a.gm === 'biggest' && cfg.sessionBrains?.deep) || cfg.models?.bob;
-  return model ? { model, cpu: false, think: 'medium', ctx: 32768 } : null;
+  // 1.5.120: thinking off. On the PC's live game the first turn took six minutes with thinking on, and the story reads no better for it.
+  return model ? { model, cpu: false, think: false, ctx: 32768 } : null;
 }
 
 export function refusal(cfg) {
@@ -340,7 +356,7 @@ export class Adventure {
     this.game = { id: crypto.randomUUID().slice(0, 12), title: clip(b.title, 60) || `${you.name} and company`, setting, settingText, pace: PACES[b.pace] ? b.pace : 'evening', status: 'playing', party: [you, ...bobs], turn: 0, round: 1, scenes: [], log: [], summary: '', cards: null, kind: null, at: this.now(), started: this.now() };
     this.save();
     this.push();
-    await this.noteGmBefore();
+    await this.noteGmBefore(true);
     this.run().catch((e) => this.fail(e));
     return this.view();
   }
@@ -354,7 +370,7 @@ export class Adventure {
     this.game = { ...g, status: 'playing', cards: null };
     this.game.log.push({ who: 'app', text: 'Picking up where we left off.', at: this.now() });
     this.push();
-    await this.noteGmBefore();
+    await this.noteGmBefore(true);
     this.run({ resume: true }).catch((e) => this.fail(e));
     return this.view();
   }
@@ -369,8 +385,8 @@ export class Adventure {
 
   // 1.5.119: was the game master's brain on the card before the game asked for it? If not, Pause/End unload it
   // (the lightweight rule); settle() alone keeps the everyday Brain, which is often the game master.
-  async noteGmBefore() {
-    if (this.gmHeld) return;
+  async noteGmBefore(fresh = false) {
+    if (this.gmHeld && !fresh) return;
     const model = gmBrain(this.cfg).model;
     let before = [];
     try { before = (await this.brain.engine?.loaded?.()) || []; } catch {}
@@ -383,14 +399,16 @@ export class Adventure {
     this.waitingFor = null;
     this.busy = '';
     if (s) { try { this.brain.gate?.done(s); } catch {} }
-    const held = this.gmHeld; this.gmHeld = null;
+    const held = this.gmHeld;
+    if (!this.game || this.game.status !== 'paused') this.gmHeld = null; // paused: Resume keeps the start-time answer
     setTimeout(async () => {
       // The game master's brain goes off the card when the game loaded it; one that was there before the game is
       // left to its own idle timer. Then Bob settles back to his usual brain.
       if (held && !held.wasLoaded && this.brain.engine?.unload) {
         try { const gone = await this.brain.engine.unload(held.model); if (gone?.length) this.brain.log?.('model', `let go of ${gone.join(', ')} (game master, game paused or over)`); } catch {}
       }
-      try { await this.brain.settle?.(); } catch {}
+      // No "back to the quick brain" wake after a game: a paused or finished game is idle time, not a job's end.
+      try { await this.brain.settle?.({ noWake: true }); } catch {}
     }, 0);
   }
 
@@ -505,8 +523,14 @@ export class Adventure {
     if (p.here) g.here = p.here;
     if (p.exits) g.exits = p.exits;
     if (p.kind && p.kind !== 'end') g.kind = p.kind;
-    if (p.newScene || !g.scenes.length) {
-      g.scenes.push({ n: g.scenes.length + 1, title: p.title || `Scene ${g.scenes.length + 1}`, kind: p.kind || g.kind || 'place', at: this.now() });
+    // 1.5.120: a scene only counts when its title is new and everyone has had a turn since the last one started, so a game
+    // master who says scene: 1 every reply can't end a Short game in two turns.
+    const cur = g.scenes[g.scenes.length - 1];
+    const alive = g.party.filter((c) => !c.out).length || 1;
+    const fresh = p.newScene && (!cur || ((p.title || '').toLowerCase() !== cur.title.toLowerCase() && (g.turns || 0) - (cur.turn || 0) >= alive));
+    p.newScene = fresh;
+    if (fresh || !g.scenes.length) {
+      g.scenes.push({ n: g.scenes.length + 1, title: p.title || `Scene ${g.scenes.length + 1}`, kind: p.kind || g.kind || 'place', at: this.now(), turn: g.turns || 0 });
       for (const c of g.party) c.rerollUsed = false; // the "Some" reroll comes back each scene
       if (p.kind === 'montage') for (const c of g.party) if (!c.out) c.hearts = HEARTS; // rests are free
     }
@@ -570,6 +594,7 @@ export class Adventure {
         const diceText = `${roll.die}${roll.rerolled ? ' (rerolled)' : ''} + ${STATS[statId]} ${roll.stat}${bonus ? ` + ${bonus} flair` : ''} = ${roll.total}${roll.floored ? ', held up by plot armour' : ''}: ${OUTCOME_WORDS[roll.outcome]}${lost ? `, ${lost} heart${lost === 1 ? '' : 's'} lost` : ''}`;
         g.log[g.log.length - 1].dice = diceText;
         g.log[g.log.length - 1].roll = { ...roll, card, lost };
+        g.turns = (g.turns || 0) + 1;
         this.emit({ ev: 'roll', who: actor.id, name: actor.name, card, roll, lost, text: diceText });
         this.busy = 'gm'; this.push();
         const raw = await this.gm(this.gmMessages(g, turnPrompt({ actor, card, pick, words, flair, roll, lost })), { onToken: stream('gm') });

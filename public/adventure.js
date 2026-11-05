@@ -76,7 +76,7 @@ export function createAdventure({ api }) {
         ${armourSel(st.armour, `data-player-armour="${esc(k)}"`)}</li>`; }).join('')}</ul>
       <h3>How long</h3>
       <div class="adv-choices" role="radiogroup" aria-label="How long">${Object.entries(PACES).map(([id, n]) => `<button type="button" role="radio" aria-checked="${(you.pace || 'evening') === id}" data-pace="${id}">${esc(n)}</button>`).join('')}</div>
-      <div class="row adv-go"><button type="button" class="big yes" data-start ${v?.refusal ? 'disabled' : ''}>🎲 Start a new game</button><span class="muted">Loads the game master brain. Pause or End lets it go again.</span></div>
+      <div class="row adv-go"><button type="button" class="big yes" data-start ${v?.refusal ? 'disabled' : ''}>🎲 Start a new game</button><span class="muted">Loads the game master brain. Pause or End lets it go again. The first turn takes longest: the game master reads the rules and the party first.</span></div>
       ${msg ? `<p class="adv-msg" role="alert">${esc(msg)}</p>` : ''}
       ${saved.length ? `<h3>Continue a campaign</h3><ul class="adv-saved">${saved.map((g) => `<li><strong>${esc(g.title)}</strong> <span class="muted">${esc(g.setting)} · ${g.scenes} scene${g.scenes === 1 ? '' : 's'} · ${esc(g.party.join(', '))}${g.status === 'over' ? ' · ended' : ''}</span> <button type="button" class="mini" data-continue="${esc(g.id)}" ${v?.refusal ? 'disabled' : ''}>Continue</button> <button type="button" class="mini" data-delete="${esc(g.id)}">Delete</button></li>`).join('')}</ul>` : ''}
     </section>`;
