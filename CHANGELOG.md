@@ -4,6 +4,19 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.117
+
+A second pass over the Settings layout. Nothing is renamed or switched; things sit where you look for them.
+
+- **Check for updates without scrolling.** This replicant matrix and updates is now the first thing in Settings, closed. Its line shows your version and a Check for updates button that works right there. When a new Bob is downloaded and checked, the line reads "Bob 1.5.x is ready · Restart Bob now".
+- **Shorter panels.** In Hands, Add a connected app and Paste a setup from another app sit under More once the Hand is on; Add a recipe sits under More once Run programs is on; Check the sandbox, Run the self-test and Quarantine are together under Checks. In Brains, the three long tables (Session brains, How much each session keeps in mind, How much each brain keeps in mind) fold closed with what's set now on their line. In Bob-Net, the sharing switches' explanations are behind ⓘ; the sentence about what leaves your replicant matrix stays written out.
+- **Read-only projects without a file.** Under the Read-only projects stay read-only limit there is now a list with Remove, and a Browse… / Add row, like Projects. config.json is no longer mentioned on screen.
+- **Make a new passcode** is the button's name in both states.
+- **Two labelled rows** at the top of the page: Get models (Equip Bob … On this replicant matrix) and Set up (Style · Settings).
+- **How Bob works** shows its three subheadings (How he works, Starting and closing, Going online) as headings.
+- **Where Bob saves things** sits under Projects, since both are folders.
+- **Phone app: Save to this phone streams the file** from the other Bob straight into the phone's media library instead of holding it in memory (up to 200 MB).
+
 ## 1.5.116
 
 A code review of the whole app, with its fixes. Nothing new to switch on; everything here is Bob being safer and sturdier.
