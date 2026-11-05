@@ -253,7 +253,7 @@ ${set('Alerts', 'Off', 'Pops up a notification when I need you, for example when
 
   { id: 'style', group: 'Menu pages', title: 'Style: themes, avatars, animations and layout', words: 'style theme colours avatar look animations follow windows layout own theme make edit delete font corners blueprint outlined',
     html: `<ul><li><strong>Theme:</strong> pick a colour scheme (Bob's Inn, MouseHole, MouseWurX and more). <strong>Yours</strong> holds the themes you make: name, colours, font, corners, and the Blueprint and Outlined looks. <strong>Edit the selected theme</strong>, <strong>Save theme</strong> and <strong>Delete this theme</strong> do what they say.</li>
-<li><strong>Bob's look:</strong> 133 avatars. I notice a new look and comment on it, once. I have opinions. I keep them brief.</li>
+<li><strong>Bob's look:</strong> 133 avatars. If you turn on He comments once when you change his look (Get models, Equip Bob, Attributes; off to start with), I notice a new look and comment on it, once. I have opinions. I keep them brief.</li>
 <li><strong>Animations:</strong> On, Follow Windows or Off. On is the default because remote desktop apps switch Windows' own animation effects off. It also covers my little habits and the cat's antics (see ${go('habits', 'Bob\'s little habits and the cat')}).</li>
 <li><strong>Layout:</strong> whether Now running opens by itself when a task needs you (off unless you turn it on).</li></ul>` },
 

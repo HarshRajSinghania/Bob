@@ -189,7 +189,7 @@ Click Bob's picture and look at **Attributes** on the left. There are eleven dia
 
 As you move a dial, Bob's **greeting** changes so you can hear the difference right away. There are presets too, such as *Replicant on a deadline* (short and to the point), *Butler mode* (formal and polite) and *Pun-dit* (you've been warned). **Reset to Bob** puts everything back.
 
-Bob also knows what he looks like. Change his look under **Style** and he'll comment on it, once.
+Bob also knows what he looks like. Change his look under **Style** and, if **He comments once when you change his look** is on (Get models, Equip Bob, Attributes), he'll comment on it, once.
 
 ---
 
