@@ -20,6 +20,7 @@ import { currentSession } from './sessions.js';
 import { copyName } from './clan.js';
 import { saveSettings } from './config.js';
 import { sameModel } from './brain-mode.js';
+import { LOOK_ID_RE } from './look.js';
 
 export const STATS = { might: 'Might', wits: 'Wits', charm: 'Charm', luck: 'Luck' };
 export const STAT_IDS = Object.keys(STATS);
@@ -153,7 +154,7 @@ export function cleanSheet(b = {}, { who = 'you', fallbackName = 'Hero' } = {}) 
     spells: (Array.isArray(b.spells) ? b.spells.map((x) => clip(x, 60)) : (known?.spells || [])).filter(Boolean).slice(0, 12),
     attacks: (Array.isArray(b.attacks) ? b.attacks.map((x) => clip(x, 60)) : (known?.attacks || ['One-handed', 'Two-handed', 'Ranged'])).filter(Boolean).slice(0, 8),
     armour: ARMOUR_IDS.includes(b.armour) ? b.armour : DEFAULT_ARMOUR,
-    look: clip(b.look, 24), // an avatar id from Style (the owner picks; Bobs use their own look)
+    look: LOOK_ID_RE.test(String(b.look || '')) ? String(b.look) : '', // 1.5.122: the character's own look (a design from the character screen or an avatar id); never Bob's
     address: who === 'net' || b.who === 'net' ? clip(b.address, 80) : '',
     rerollUsed: false,
     out: b.out === true // out of the game (captured, retired, gone out in style)
@@ -284,6 +285,30 @@ export function saveGame(cfg, game) {
 }
 export function deleteGame(cfg, id) { try { fs.unlinkSync(path.join(dir(cfg), `${id}.json`)); return true; } catch { return false; } }
 
+// ---------- Saved characters (1.5.122) ----------
+// Your characters, made on the start card (name, class, trait, plot armour, look), kept in one small file beside
+// the campaigns so a favourite can be picked again. Up to 24; the newest wins a name clash.
+const charsFile = (cfg) => path.join(dir(cfg), 'characters.json');
+export function listCharacters(cfg) {
+  try { const list = JSON.parse(fs.readFileSync(charsFile(cfg), 'utf8')); return Array.isArray(list) ? list.filter((c) => c && c.id && c.name) : []; } catch { return []; }
+}
+export function cleanCharacter(b = {}) {
+  const s = cleanSheet(b, { who: 'you', fallbackName: 'Hero' });
+  return { id: /^[a-z0-9-]{4,40}$/.test(String(b.id || '')) ? b.id : crypto.randomUUID().slice(0, 12), name: s.name, cls: s.cls, trait: s.trait, armour: s.armour, look: s.look, at: Date.now() };
+}
+export function saveCharacter(cfg, b) {
+  const c = cleanCharacter(b);
+  const list = [c, ...listCharacters(cfg).filter((x) => x.id !== c.id && x.name.toLowerCase() !== c.name.toLowerCase())].slice(0, 24);
+  fs.mkdirSync(dir(cfg), { recursive: true });
+  fs.writeFileSync(charsFile(cfg), JSON.stringify(list));
+  return list;
+}
+export function deleteCharacter(cfg, id) {
+  const list = listCharacters(cfg).filter((x) => x.id !== id);
+  try { fs.writeFileSync(charsFile(cfg), JSON.stringify(list)); } catch {}
+  return list;
+}
+
 // Settings (Advanced, 🎲 Adventure). Both have a default; nothing is "on".
 export function cleanAdventure(a = {}) {
   return {
@@ -331,7 +356,7 @@ export class Adventure {
 
   view() {
     const g = this.game;
-    if (!g) return { game: null, busy: '', saved: listGames(this.cfg), settings: cleanAdventure(this.cfg.adventure), refusal: refusal(this.cfg) };
+    if (!g) return { game: null, busy: '', saved: listGames(this.cfg), characters: listCharacters(this.cfg), settings: cleanAdventure(this.cfg.adventure), refusal: refusal(this.cfg) };
     return {
       game: { id: g.id, title: g.title, settingText: g.settingText, pace: g.pace, status: g.status, party: g.party, turn: g.turn, round: g.round, scenes: g.scenes.slice(-4), sceneCount: g.scenes.length, log: g.log.slice(-40).map(({ raw, ...l }) => l), summary: g.summary, cards: g.cards, kind: g.kind, here: g.here || [], exits: g.exits || [], at: g.at,
         // The second card behind each of the owner's cards, as things stand (Back on the page returns to the hand).
@@ -665,6 +690,8 @@ export async function adventureRoute({ req, res, p, brain, body, send, isLocal =
     if (p === '/api/adventure/resume') return send(res, 200, await a.resume()), true;
     if (p === '/api/adventure/end') return send(res, 200, await a.end({ keep: b.keep !== false })), true;
     if (p === '/api/adventure/delete') return send(res, 200, a.remove(String(b.id || ''))), true;
+    if (p === '/api/adventure/characters/save') return send(res, 200, { characters: saveCharacter(brain.cfg, b) }), true; // 1.5.122
+    if (p === '/api/adventure/characters/delete') return send(res, 200, { characters: deleteCharacter(brain.cfg, String(b.id || '')) }), true;
     if (p === '/api/adventure/settings') { // Settings, 🎲 Adventure: only from this replicant matrix
       if (!isLocal) { send(res, 403, { error: 'Adventure settings can only be changed on this replicant matrix itself.' }); return true; }
       const next = cleanAdventure({ ...cleanAdventure(brain.cfg.adventure), ...b });

@@ -182,3 +182,4 @@ Nothing renamed apart from "Address for the phone" → "Address" and the Animati
 | Settings > Show advanced settings > Hands | Add a connected app and Paste a setup from another app under More (only with the Hand on); Add a recipe under More (only with Run programs on); Checks subheading: Sandbox (Check the sandbox), Self-test, Quarantine | — | ok (approved) |
 | Settings > Show advanced settings > Brains | Session brains, How much each session keeps in mind, How much each brain keeps in mind fold closed with the value on the line | — | ok (approved) |
 | Settings > Show advanced settings > Bob-Net > Passcode | Make a new passcode (both states) | — | ok (approved) |
+| Style > Bob's look | 🧍 Make your own look / Change your own design (character screen; Adventure start card has its own "Looks like" with Change the look, Save this character, Saved characters, Delete this character) | Bob's avatar unchanged until Wear this | ok (approved with edits, 1.5.122) |

@@ -1253,3 +1253,21 @@ details.fold > summary .muted { font-weight: 400; font-size: 13px; }
 .gm-dice li.used .tag { text-decoration: none; }
 .gm-stop { border-color: var(--bad); }
 @media (max-width: 520px) { .gm-games li { flex-wrap: wrap; } .gm-key { min-width: 28px; } .tile { width: 34px; height: 34px; font-size: 17px; } }
+
+/* 1.5.122 The character screen: a paper doll built from parts (Style: Make your own look; Adventure: your character). */
+.character { display: grid; grid-template-columns: 160px 1fr; gap: 14px; margin: 10px 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); }
+.char-preview { display: grid; justify-items: center; align-content: start; gap: 6px; text-align: center; }
+.char-doll { width: 128px; height: 128px; image-rendering: pixelated; background: var(--sprite-bg); border-radius: var(--r); }
+.char-what { font-size: 12px; margin: 0; }
+.char-parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 14px; align-content: start; }
+.char-row { display: flex; gap: 8px; align-items: center; min-height: 36px; }
+.char-label { font-weight: 600; min-width: 92px; font-size: 13px; }
+.char-row select { flex: 1; min-height: 36px; font: inherit; padding: 4px 8px; border-radius: var(--r); border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+.char-swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+.char-swatches button { width: 26px; height: 26px; min-height: 26px; padding: 0; border-radius: 50%; border: 2px solid var(--line); }
+.char-swatches button[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
+.char-go { grid-column: 1 / -1; }
+.adv-look { display: flex; gap: 12px; align-items: center; margin: 8px 0; }
+.adv-look canvas { width: 64px; height: 64px; image-rendering: pixelated; background: var(--sprite-bg); border-radius: var(--r); }
+.adv-chars { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+@media (max-width: 640px) { .character { grid-template-columns: 1fr; } .char-preview { justify-items: start; text-align: left; } }

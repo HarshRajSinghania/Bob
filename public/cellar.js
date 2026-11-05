@@ -748,7 +748,7 @@ export function createCellar() {
     if (!data) { $('cellar-body').innerHTML = '<p class="muted">Loading...</p>'; return; }
     $('cellar-body').innerHTML = mode === 'welcome' ? welcomeHtml() : shopHtml();
     if (mode === 'welcome') dlg.querySelector('[data-getready]')?.focus(); // 1.5.75: the first button is Get Bob ready
-    stylePage.paintPreviews(dlg);
+    stylePage.paintPreviews(dlg, settings);
     const doll = dlg.querySelector('.doll-bob');
     if (doll) { const c = doll.getContext('2d'); c.imageSmoothingEnabled = false; try { drawBob(c, 160, {}, settings?.look); } catch {} }
     const mini = dlg.querySelector('.attr-avatar');
@@ -1009,6 +1009,7 @@ export function createCellar() {
         return;
       }
       if (b.dataset.jump) { const t = dlg.querySelector('#sub-' + CSS.escape(ADV_MOVED[b.dataset.jump] || b.dataset.jump)); if (t?.tagName === 'DETAILS' && !t.open) { t.open = true; openPanels.add(t.dataset.panel); saveOpen(); } t?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+      if ('golook' in b.dataset) { sampler.stop(); setTab('style'); stylePage.openMaker(settings); draw(); dlg.querySelector('.char-box')?.scrollIntoView({ block: 'start' }); return; } // 1.5.122: Change his look / Change look
       if (b.dataset.tab) { sampler.stop(); setTab(b.dataset.tab); if (!jumpTo) dlg.scrollTop = 0; draw(); }
       else if (b.dataset.get) confirmBox(b.closest('.model'), data.models.find((m) => m.id === b.dataset.get));
       else if (b.dataset.anyway) confirmBox(b.closest('.model'), data.models.find((m) => m.id === b.dataset.anyway), true);

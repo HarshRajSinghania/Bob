@@ -278,7 +278,9 @@ function setup({ replies = [], session = 'normal', talk = 'every', fail = false 
   check('glossary: Twenty questions, Word ladder, Five letters, Story dice, Shelf', ['<dt>Twenty questions</dt>', '<dt>Word ladder</dt>', '<dt>Five letters</dt>', '<dt>Story dice</dt>', '<dt>Shelf</dt>'].every((s) => glossary.includes(s)));
   check('Help uses the on-screen words', ['Quick brain', 'Main Brain', 'How often Bob chips in', 'After every move', 'Now and then', 'Only at the end', 'That\'s my guess', 'Wrap it up', 'Back a rung'].every((s) => h.html.includes(s)));
   const guide = read('docs/USER-GUIDE.md'), inv = read('docs/SETTINGS-INVENTORY.md'), rel = read('docs/releases/v1.5.121.md'), pkg = JSON.parse(read('package.json'));
-  check('docs: user guide, settings inventory rows, release notes, version 1.5.121 build 172', /🧩 Games/.test(guide) && /Which brain plays games/.test(inv) && /How often Bob chips in/.test(inv) && /Games/.test(rel) && pkg.version === '1.5.121' && /"build": 172,/.test(read('package.json')) && /run-games-test/.test(pkg.scripts.test)); }
+    // 1.5.122: at least 1.5.121 b172 (the drop that brought Games), so later versions keep passing.
+  const [maj, min, pat] = String(pkg.version).split('.').map(Number), build = Number(/"build": (\d+),/.exec(read('package.json'))?.[1]);
+  check('docs: user guide, settings inventory rows, release notes, version 1.5.121 build 172 or later', /🧩 Games/.test(guide) && /Which brain plays games/.test(inv) && /How often Bob chips in/.test(inv) && /Games/.test(rel) && (maj > 1 || (maj === 1 && (min > 5 || (min === 5 && pat >= 121)))) && build >= 172 && /run-games-test/.test(pkg.scripts.test)); }
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

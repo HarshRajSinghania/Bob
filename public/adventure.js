@@ -6,6 +6,8 @@
 import { esc } from './util.js';
 import { render } from './rich.js';
 import { drawBob, LOOK_ID } from './bob-sprite.js';
+import { mountCharacter, partsOf } from './character.js';
+import { encodeParts, DEFAULT_PARTS } from './avatars.js';
 import { tip } from './tips.js';
 
 const $ = (id) => document.getElementById(id);
@@ -26,7 +28,9 @@ export function createAdventure({ api }) {
   const dlg = $('adventure'), body = $('adventure-body');
   $('adventure-close').onclick = () => dlg.close();
   let v = null, players = null, msg = '', picked = null, live = new Map(), open = false, journal = false;
-  const you = { name: '', cls: 'fighter', trait: '', armour: 'some', look: '' };
+  // 1.5.122: your character has a look of its own (the character screen, any body), never Bob's avatar.
+  const you = { name: '', cls: 'fighter', trait: '', armour: 'some', look: encodeParts(DEFAULT_PARTS) };
+  let lookOpen = false, delAsk = '';
   const party = new Map(); // player key -> { ticked, armour, cls }
 
   async function load() {
@@ -40,7 +44,7 @@ export function createAdventure({ api }) {
   }
 
   function sprite(c, size = 48) {
-    const id = c.who === 'you' ? (c.look || settings().look || 'sysop') : c.who === 'net' ? 'bot' : (settings().look || 'sysop');
+    const id = c.who === 'you' ? (c.look || encodeParts(DEFAULT_PARTS)) : c.who === 'net' ? 'bot' : (settings().look || 'sysop');
     return `<canvas class="adv-face" width="${size}" height="${size}" data-look="${esc(id)}" aria-hidden="true"></canvas>`;
   }
   function drawFaces() {
@@ -49,7 +53,7 @@ export function createAdventure({ api }) {
 
   // ---------- The start card ----------
   function startHtml() {
-    const saved = v?.saved || [];
+    const saved = v?.saved || [], chars = v?.characters || [];
     const refusal = v?.refusal ? `<p class="adv-refusal">${esc(v.refusal)}</p>` : '';
     const ownBox = `<input type="text" data-setting-text placeholder="A sunken city, a heist, a haunted train…" maxlength="300" aria-label="Your own setting" ${you.setting === 'own' ? '' : 'hidden'}>`;
     const stats = { fighter: 'Might 5 · Wits 2 · Charm 2 · Luck 3', rogue: 'Might 2 · Wits 4 · Charm 3 · Luck 3', wizard: 'Might 1 · Wits 5 · Charm 2 · Luck 4', cleric: 'Might 3 · Wits 3 · Charm 4 · Luck 2', ranger: 'Might 3 · Wits 4 · Charm 1 · Luck 4', bard: 'Might 1 · Wits 3 · Charm 5 · Luck 3' };
@@ -62,13 +66,17 @@ export function createAdventure({ api }) {
       ${ownBox}
       <h3>Your character</h3>
       <div class="adv-you">
-        <label>Name <input type="text" data-you="name" value="${esc(you.name)}" maxlength="40" placeholder="${esc(settings().userName || 'Hero')}"></label>
+        <label>Name <input type="text" data-you="name" value="${esc(you.name)}" maxlength="40" placeholder="Hero"></label>
         <label>Class <select data-you="cls" aria-label="Class">${Object.entries(CLASSES).map(([id, n]) => `<option value="${id}" ${you.cls === id ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <span class="muted">${stats[you.cls]}</span>
         <label>One thing about them <input type="text" data-you="trait" value="${esc(you.trait)}" maxlength="120" placeholder="never leaves a door unopened"></label>
         <label>Plot armour ${armourSel(you.armour, 'data-you="armour"')}</label>
         <button type="button" class="mini" data-roll-you>🎲 Roll one for me</button>
       </div>
+      <div class="adv-look">${sprite({ who: 'you', look: you.look }, 64)}<div><strong>Looks like</strong> <span class="muted">Your character's own look; my avatar stays mine.</span><br><button type="button" class="mini" data-you-look aria-expanded="${lookOpen}">🧍 ${lookOpen ? 'Close the character screen' : 'Change the look'}</button></div></div>
+      ${lookOpen ? '<div class="char-box"></div>' : ''}
+      <div class="adv-chars">${chars.length ? `<label>Saved characters <select data-saved-char aria-label="Saved characters"><option value="">Pick one…</option>${chars.map((c) => `<option value="${esc(c.id)}" ${c.id === you.savedId ? 'selected' : ''}>${esc(c.name)} (${esc(CLASSES[c.cls] || c.cls)})</option>`).join('')}</select></label>` : ''}
+        <button type="button" class="mini" data-save-char>💾 Save this character</button>${you.savedId ? (delAsk === you.savedId ? `<span>Delete ${esc(chars.find((c) => c.id === you.savedId)?.name || 'this character')}?</span> <button type="button" class="mini danger" data-del-char="${esc(you.savedId)}">Delete for good</button><button type="button" class="link" data-del-keep>Keep it</button>` : `<button type="button" class="mini" data-del-ask="${esc(you.savedId)}">Delete this character</button>`) : ''} ${tip('Saved characters keep the name, class, the one thing about them, plot armour and the look, so you can pick the same hero next time. They live beside the saved campaigns on this replicant matrix.', 'Saved characters')}</div>
       <h3>Who plays</h3>
       <p class="muted">Tick the Bobs at the table. A Bob on your Bob-Net plays himself over there; a copy of me is played by the game master brain. What goes to him: the scene so far and his character's sheet, over Tailscale to your own Bob only; nothing else from this replicant matrix. Each gets their own plot armour.</p>
       <ul class="adv-players">${(players || []).map((p) => { const k = p.address || p.name, st = party.get(k); return `<li class="${p.ok === false ? 'dim' : ''}"><label><input type="checkbox" data-player="${esc(k)}" ${st.ticked ? 'checked' : ''} ${p.ok === false ? 'disabled' : ''}> <strong>${esc(p.name)}</strong> <span class="muted">${esc(p.note)}</span></label>
@@ -135,6 +143,8 @@ export function createAdventure({ api }) {
     const g = v?.game;
     body.innerHTML = g ? gameHtml(g) : startHtml();
     drawFaces();
+    const box = body.querySelector('.char-box');
+    if (box) mountCharacter(box, { parts: partsOf(you.look), useLabel: 'Use for this character', onUse(id) { you.look = id; lookOpen = false; draw(); }, onCancel() { lookOpen = false; draw(); } });
     const log = $('adv-log'); if (log) log.scrollTop = log.scrollHeight;
     for (const [who, el] of live) if (el.text) { const l = $('adv-live'); if (l) { l.hidden = false; l.innerHTML = `<span class="adv-who">${who === 'gm' ? '🎲 Game master' : esc(g?.party.find((c) => c.id === who)?.name || 'A Bob')}</span><p>${esc(el.text)}</p>`; } }
   }
@@ -159,11 +169,16 @@ export function createAdventure({ api }) {
     const t = e.target.closest('button'); if (!t) return;
     if (t.dataset.setting) { you.setting = t.dataset.setting; draw(); return; }
     if (t.dataset.pace) { you.pace = t.dataset.pace; draw(); return; }
+    if ('youLook' in t.dataset) { lookOpen = !lookOpen; draw(); return; }
+    if ('saveChar' in t.dataset) { try { const r = await api('/api/adventure/characters/save', { id: you.savedId || '', name: you.name || 'Hero', cls: you.cls, trait: you.trait, armour: you.armour, look: you.look }); v = { ...v, characters: r.characters }; you.savedId = r.characters[0]?.id; msg = ''; } catch (e) { msg = e.message; } draw(); return; }
+    if (t.dataset.delAsk) { delAsk = t.dataset.delAsk; draw(); return; }
+    if ('delKeep' in t.dataset) { delAsk = ''; draw(); return; }
+    if (t.dataset.delChar) { delAsk = ''; try { const r = await api('/api/adventure/characters/delete', { id: t.dataset.delChar }); v = { ...v, characters: r.characters }; you.savedId = ''; } catch (e) { msg = e.message; } draw(); return; }
     if ('rollYou' in t.dataset) { you.name = NAMES[Math.floor(Math.random() * NAMES.length)]; you.cls = Object.keys(CLASSES)[Math.floor(Math.random() * 6)]; you.trait = TRAITS[Math.floor(Math.random() * TRAITS.length)]; draw(); return; }
     if ('start' in t.dataset) {
       const bobs = (players || []).filter((p) => party.get(p.address || p.name)?.ticked && p.ok !== false).map((p) => { const st = party.get(p.address || p.name); return { who: p.who, name: p.name, address: p.address || '', armour: st.armour, cls: st.cls }; });
       t.disabled = true;
-      await call('/api/adventure/start', { setting: you.setting || 'fantasy', settingText: body.querySelector('[data-setting-text]')?.value || '', pace: you.pace || 'evening', you: { name: you.name || settings().userName || 'Hero', cls: you.cls, trait: you.trait, armour: you.armour, look: settings().look || '' }, bobs });
+      await call('/api/adventure/start', { setting: you.setting || 'fantasy', settingText: body.querySelector('[data-setting-text]')?.value || '', pace: you.pace || 'evening', you: { name: you.name || 'Hero', cls: you.cls, trait: you.trait, armour: you.armour, look: you.look || '' }, bobs });
       return;
     }
     if (t.dataset.continue) return call('/api/adventure/continue', { id: t.dataset.continue });
@@ -186,6 +201,7 @@ export function createAdventure({ api }) {
   body.addEventListener('change', (e) => {
     const el = e.target;
     if (el.dataset.you) { you[el.dataset.you] = el.value; if (el.dataset.you === 'cls') draw(); return; }
+    if ('savedChar' in el.dataset) { const c = (v?.characters || []).find((x) => x.id === el.value); if (c) { Object.assign(you, { name: c.name, cls: c.cls, trait: c.trait, armour: c.armour, look: c.look || you.look, savedId: c.id }); } draw(); return; }
     if (el.dataset.player) { party.get(el.dataset.player).ticked = el.checked; return; }
     if (el.dataset.playerCls) { party.get(el.dataset.playerCls).cls = el.value; return; }
     if (el.dataset.playerArmour) { party.get(el.dataset.playerArmour).armour = el.value; return; }

@@ -4,7 +4,7 @@ import { cpuLoad } from './speed-stats.js';
 import os from 'node:os';
 import { brainMode, BRAIN_MODES, keepTime } from './brain-mode.js';
 import http from 'node:http';
-import { lookText } from './look.js';
+import { lookText, LOOK_ID_RE } from './look.js';
 import { cleanPersonality } from '../public/personality.js';
 import { cleanHouseStyle } from '../public/house-style.js';
 import { pickFolder } from './pick-folder.js';
@@ -458,7 +458,7 @@ const server = http.createServer(async (req, res) => {
           if ('autostart' in b) out.autostart = await setAutostart(cfg, b.autostart === true);
           if ('setupDone' in b) { saveSettings(cfg, { setupDone: b.setupDone === true }); out.setupDone = cfg.setupDone; }
           if (b.cloudHelpers && typeof b.cloudHelpers === 'object') { saveSettings(cfg, { cloudHelpers: b.cloudHelpers }); out.cloud = cloudStatus(cfg); }
-          if (typeof b.look === 'string' && /^[a-z]{1,20}(-\d{1,2})?$/.test(b.look)) {
+          if (typeof b.look === 'string' && LOOK_ID_RE.test(b.look)) {
             const from = cfg.look || 'sysop';
             saveSettings(cfg, { look: b.look, ...(from !== b.look ? { lookChange: { from, to: b.look, at: Date.now() } } : {}) });
             out.look = b.look;
