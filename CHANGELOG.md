@@ -4,6 +4,11 @@ What changed in each version of Bob, newest first. Each version also has its own
 
 This file is made from docs/releases by `node installer/make-changelog.js`.
 
+## 1.5.115
+
+- **Phone app: Save to this phone works for every type.** Under a picture, clip, song or diagram a Bob on your Bob-Net made, **Save to this phone as** now has the original type as a button too (for example "PNG (original)"), so you can keep the file as it is. It goes into your Bob folders on the phone, with a short note when it's saved. A copy stays on that replicant matrix too.
+- **Phone app: one 🌐 Bob-Net page.** Your other Bobs, adding a Bob and lending your brain now sit together on one page with the same name as the Bob-Net panel on your replicant matrix, in three sections: My other Bobs, Add a Bob and Lend my brain.
+
 ## 1.5.114
 
 - **Credits.** The README and a new Help page, Credits (on the desktop and in the phone app), thank Dennis E. Taylor, whose books inspired Bob, and say plainly that Bob is an independent fan project with no connection to the author or his publishers, and that the rights in the books stay theirs. TRADEMARKS.md says the same.
