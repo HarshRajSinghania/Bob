@@ -42,6 +42,7 @@ import { quarantineRoute } from './quarantine-routes.js';
 import { schedulesRoute, startSchedules } from './hands-schedules.js';
 import { checkinsRoute, startCheckins } from './checkins.js';
 import { adventureRoute } from './adventure.js';
+import { gamesRoute } from './games.js';
 import { telegramRoute, startTelegram } from './telegram.js';
 import { handsSettings } from './hands-settings.js';
 import { tuning, TUNING_KEYS, pictureFitReset } from './tuning.js';
@@ -621,6 +622,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/checkins' && await checkinsRoute({ req, res, p, isLocal, brain, body, send })) return;
     if (p.startsWith('/api/adventure') && await adventureRoute({ req, res, p, isLocal, brain, body, send })) return; // 1.5.117 🎲 Adventure
+    if (p.startsWith('/api/games') && await gamesRoute({ req, res, p, isLocal, brain, body, send })) return; // 1.5.121 🧩 Games
     if (p === '/api/telegram' && await telegramRoute({ req, res, p, isLocal, brain, body, send })) return;
     if (p === '/api/hands/schedules' && await schedulesRoute({ req, res, p, isLocal, brain, body, send })) return;
     if (p.startsWith('/api/hands') && await handsRoute({ req, res, p, isLocal, brain, cfg, body, send })) return;
