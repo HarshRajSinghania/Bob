@@ -64,13 +64,14 @@ Handy things in the chat:
 These open as a page in the middle of the window, in place of the chat. **← Back to chat** (or Esc, or Chat in the menu) takes you back. A bar along the top of the page, which stays put while you scroll, jumps between Equip Bob, the model pages, Style and Settings, so clicking Bob's picture gets you everywhere too.
 
 - **Get models:** Equip Bob, the model shops (Voice & conversation, Coding, Seeing pictures, Pictures & video) and **On this PC**.
-- **Settings** starts as one short page showing what's set now: Bob's voice (with **Play sample** and **Change**), his look, the colours, animations, the cat's name, one brain, launch on start-up, Projects, **Where Bob saves things**, **Let Bob search the web**, **Show Bob's plan before big jobs** and checking for updates (off unless you turn them on), and the version, graphics card and disk space, with **Check for updates**, **Run first-time setup** and **Check this replicant matrix**.
+- **Settings** starts as one short page showing what's set now: Bob's voice (with **Play sample** and **Change**), his look, the colours, animations, the cat's name, one brain, launch on start-up, Projects, **Where Bob saves things**, **Let Bob search the web**, **Show Bob's plan before big jobs** and checking for updates (off unless you turn them on), and the version, graphics card and disk space, with **Check for updates**, **Run first-time setup**, **Save a help bundle** and **Check this replicant matrix**.
 - **Show advanced settings** (off unless you turn it on, and remembered) adds a search box and the rest: Brains (model roles, session brains, context), House style, Voice details, Look & feel, Speed & memory, Engines, Bob-Net (your phone and your other Bobs), Online services (cloud helpers, Telegram), Other apps (ComfyUI), Hands, Housekeeping, Check-ins and Remove Bob. Longer explanations fold behind **More**.
 
 ---
 
 ### Making Bob faster on your PC
 
+- **Save a help bundle** (Settings, This replicant matrix and updates) saves one zip for whoever is helping you get Bob working: a HANDOFF.md written for an AI agent (it links this repository and the exact version and says what to check in which order), every error and the last 3,000 lines of Bob's logbook, his settings without their secrets, this machine's facts, whether each engine starts, and the last three chats as a readout. If Bob's chat brain is loaded and idle it adds its own note about what it thinks is wrong; if not, the bundle is put together without any brain, so the button works on a broken Bob. The owner's name and user name, the home folder, the machine name, passcodes, API keys, bot tokens and Tailscale addresses are taken out first. You pick the folder; nothing is sent anywhere. Take the zip to your agent or attach it to an issue.
 - **Check this replicant matrix** (Settings, bottom of the Everyday page) looks for things that slow Bob down and shows how to fix each one: memory below its rated speed (turn on EXPO or XMP in the BIOS), an old NVIDIA driver, a laptop on battery, models on a slow drive, other apps holding graphics memory. Bob only looks; he never changes Windows or driver settings.
 - **Test Bob's speed** (Advanced, Speed & memory) times the first word and the full answer, and keeps your last results so you can compare before and after a change.
 - Three switches, off until you turn them on: **Get Bob ready while you type**, **Let games go first** and **Match picture settings to my graphics card**.
@@ -189,7 +190,7 @@ Click Bob's picture and look at **Attributes** on the left. There are eleven dia
 
 As you move a dial, Bob's **greeting** changes so you can hear the difference right away. There are presets too, such as *Replicant on a deadline* (short and to the point), *Butler mode* (formal and polite) and *Pun-dit* (you've been warned). **Reset to Bob** puts everything back.
 
-Bob also knows what he looks like. Change his look under **Style** and, if **He comments once when you change his look** is on (Get models, Equip Bob, Attributes), he'll comment on it, once.
+Bob also knows what he looks like. Change his look under **Style** and he'll comment on it, once.
 
 ---
 

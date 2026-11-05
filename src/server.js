@@ -54,6 +54,7 @@ import { Pairing } from './bob-net-pair.js';
 import { OS, features } from './platform.js';
 import { saveExport } from './diagram.js';
 import { saveAs } from './save-as.js';
+import { saveHelpBundle, bundleBytes, revealFile } from './help-bundle.js';
 
 const cfg = loadConfig();
 // 1.5.76: the basic llama.cpp that comes inside Bob's download goes into his engine folder, if he has none yet.
@@ -559,6 +560,34 @@ const server = http.createServer(async (req, res) => {
         }
       } catch (e) { return send(res, 409, { error: e.message }); }
       return send(res, 404, { error: 'not found' });
+    }
+    // 1.5.118 Save a help bundle (Settings, This replicant matrix and updates): one zip an agent or a person can read to
+    // work out what's wrong with this Bob (help-bundle.js). POST on this replicant matrix: picks a folder, writes the
+    // zip there and shows it. GET from a paired phone: the same zip as a download, which the phone saves itself.
+    if (p === '/api/help-bundle') {
+      const deps = { brain, shop, checkEngine, speedHistory, capabilities };
+      if (req.method === 'GET') {
+        try {
+          const z = await bundleBytes(cfg, deps);
+          brain.log('settings', `help bundle sent to ${isLocal ? 'this replicant matrix' : 'a paired device'} (${z.brainNote ? "with Bob's own note" : 'automatic'})`);
+          res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Length': z.data.length, 'Content-Disposition': `attachment; filename="${z.name}"` });
+          return res.end(z.data);
+        } catch (e) { return send(res, 500, { error: e.message }); }
+      }
+      if (req.method === 'POST') {
+        if (!isLocal) return send(res, 403, { error: 'Only on this replicant matrix itself.' });
+        const b = await body(req).catch(() => ({}));
+        let folder = '', picked = true;
+        try { folder = await pickFolder({ purpose: 'bundle' }); } catch { picked = false; }
+        if (picked && !folder) return send(res, 200, { ok: false, cancelled: true });
+        if (!folder) folder = path.join(cfg.painterDir || cfg.innDir, 'help-bundles'); // no folder picker here: Bob's own folder
+        try {
+          const r = await saveHelpBundle(cfg, folder, { ...deps, brainNote: b.brain === false ? false : undefined });
+          brain.log('settings', `help bundle saved: ${path.basename(r.file)} (${r.brainNote ? "with Bob's own note" : `automatic: ${r.why}`})`);
+          const shown = revealFile(r.file);
+          return send(res, 200, { ...r, shown, pickedFolder: picked });
+        } catch (e) { return send(res, 200, { ok: false, why: e.message }); }
+      }
     }
     // 1.5.95 Save as: keep something Bob made as another file type (pictures, clips, songs; save-as.js).
     if (req.method === 'POST' && p === '/api/save-as') {
