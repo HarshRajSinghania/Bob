@@ -1278,3 +1278,10 @@ details.fold > summary .muted { font-weight: 400; font-size: 13px; }
 .adv-look canvas { width: 64px; height: 64px; image-rendering: pixelated; background: var(--sprite-bg); border-radius: var(--r); }
 .adv-chars { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
 @media (max-width: 640px) { .character { grid-template-columns: 1fr; } .char-preview { justify-items: start; text-align: left; } }
+
+/* 1.5.124 The Characters page in Adventure: You / Party / Met / Enemies. */
+.adv-chars-top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.adv-char-list { list-style: none; padding: 0; margin: 8px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+.adv-char { display: flex; gap: 10px; align-items: flex-start; padding: 8px; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); }
+.adv-char canvas { width: 64px; height: 64px; flex: none; image-rendering: pixelated; background: var(--sprite-bg); border-radius: var(--r); }
+.adv-char .row { margin-top: 4px; }
