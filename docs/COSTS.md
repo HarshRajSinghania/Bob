@@ -18,8 +18,8 @@ Every rental, including the ones that made nothing. Times are the owner's local 
 | 4 Nov 2026, late evening | 1x H100 80 GB SXM | 1.4 h | $3.99/h | **Failed attempt 3.** The teacher server died during the teacher pass, nearly half the tool lessons were being skipped by the chat template, and the teacher download was slow in that data centre. Nothing made; both bugs fixed afterwards. | $4.91 |
 | 4 to 5 Nov 2026, overnight | 1x H100 80 GB SXM | 7.53 h | $3.99/h | **Line A session.** Teacher pass (71 min). 24Bob Riker v1: one crash in the heal (fixed, restarted), then 195 steps in 1.75 h, stopped by the clock cap; Q4 and Q3 exports. 18Bob Bill v1 cut from Riker, heal stopped by the clock cap at step 155 of 456 (1.5 h); Q4 and Q3 exports. Two Bobs home. $30.05 of card time plus the working disk. | $30.35 |
 | 5 Nov 2026 | none | | | A tail of working-disk minutes billed after that machine was deleted. | $0.30 |
-| 5 Nov 2026, morning to night | 1x H200 141 GB SXM | 13.6 h | $5.29/h | **Line B session.** The full model wrote 717 coding and software-engineering lessons; teacher pass; 24Bob Riker v2 full pass (524 of 524 steps, 4.8 h); 18Bob Bill v2 cut from Riker v2, full pass; exports and adapters. $71.94 of card time plus the 350 GB working disk and the first hours of the rented network drive. | $72.67 |
-| | | **24.0 h of card time** | | **Three failed attempts: $6.54. Four Bobs made.** | **$113.96** |
+| 5 Nov 2026, morning to night | 1x H200 141 GB SXM | 13.6 h | $5.29/h | **Line B session.** The full model wrote 717 coding and software-engineering lessons; teacher pass; 24Bob Riker v2 full pass (524 of 524 steps, 4.8 h); 18Bob Bill v2 cut from Riker v2, full pass; exports and adapters. $71.94 of card time plus the 350 GB working disk and the first hours of the rented network drive. **Lesson learned:** the run reused the v1 keep list unchecked (it had kept only 92% of coding's routing, with no rule protecting any skill), and 37% of the coding lessons taught the model to hand code off rather than write it, so the run could not lift coding (see [What went wrong with the first cut](BOBS-OWN-MODELS.md#what-went-wrong-with-the-first-cut)). Both Bobs will be re-cut; the healed weights and adapters are kept. | $72.67 |
+| | | **24.0 h of card time** | | **Three failed attempts: $6.54. Four Bobs made, all four to be re-cut.** | **$113.96** |
 
 The total is taken from the rental service's statement; the lines above are rounded to the cent. A 100 GB network drive rented from the same service (it keeps the teacher weights, general text and adapters between sessions, so a session needs no re-download) costs about $7 a month while it exists.
 
@@ -35,14 +35,17 @@ The total is taken from the rental service's statement; the lines above are roun
 
 ## Projected: the rest of the family
 
+> **Revised 6 November 2026.** The first cut rule protected no skill and the coding lessons were weak (see [What went wrong with the first cut](BOBS-OWN-MODELS.md#what-went-wrong-with-the-first-cut)), so Riker and Bill are cut and healed again before Homer, with new lessons, and the keep lists of every rung below them change. The re-run is estimated from the line B session it repeats; the final figure replaces it when that session is paid for.
+
 These are estimates. They assume one full-pass heal with nothing trimmed at the 16k lesson length, about 5 to 5.5 hours of card time per rung, at by-the-hour rental rates from November 2026 that move weekly; each line is re-checked on the day it is rented.
 
 ### Line B (Bob lessons + coding lessons), the line being built now
 
 | Rung | Nickname | Experts kept per layer | Card | Projected |
 |---|---|---|---|---|
-| 24Bob | Riker | 176 | done (above) | $0 |
-| 18Bob | Bill | 128 | done (above) | $0 |
+| new lessons | | about 3,000 coding lessons and five small skill sets, written by the full model on the card | H100 or H200, under an hour | $5 |
+| 24Bob v3 | Riker | coverage cut, likely about 208 (the owner picks the size) | H200, re-run of the line B session | $70 to $75 (with Bill) |
+| 18Bob v3 | Bill | coverage cut, cut from Riker v3 | same session | included above |
 | 12Bob | Homer | 80 | H200 | $29 |
 | 10Bob | Milo | 64 | H100 | $20 |
 | 8Bob | Mario | 48 | H100 | $20 |
@@ -50,7 +53,7 @@ These are estimates. They assume one full-pass heal with nothing trimmed at the 
 | 5Bob | Calvin | 24 | H100 | $20 |
 | 4Bob | Goku | 16 | H100 | $20 |
 | 2Bob | Bender | 8, plus depth and width cuts | H100, longest heal | $30 to $40 |
-| | **Line B, remaining rungs** | | | **$159 to $169** |
+| | **Line B, remaining rungs** | | | **$234 to $249** |
 
 ### Specialists (line B, each cut from the general Bob one size up with its own expert count)
 
@@ -106,10 +109,11 @@ Line A's full-precision Riker was lost with its machine, so line A starts with t
 |---|---|---|
 | Spent so far (above) | $663.96 | $663.96 |
 | Line B remaining rungs (Homer to Bender) | $159 | $169 |
+| New lessons, and Riker and Bill re-cut and healed again (coverage cut) | $75 | $80 |
 | Specialists (four, with their lessons) | $100 | $100 |
 | Rented network drive, about 2 more months | $14 | $14 |
 | Re-runs allowed (one per rung if a heal scores badly) | $0 | $60 |
 | Claude subscription while the family is finished, about 1 more month | $200 | $200 |
-| **Projected total, line B complete** | **about $1,137** | **about $1,207** |
+| **Projected total, line B complete** | **about $1,212** | **about $1,287** |
 | Line A as well, if the comparison after Homer earns it | +$219 | +$229 |
-| **Projected total, both lines** | **about $1,356** | **about $1,436** |
+| **Projected total, both lines** | **about $1,431** | **about $1,516** |
